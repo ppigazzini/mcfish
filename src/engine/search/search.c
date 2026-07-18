@@ -60,6 +60,9 @@ static bool facade_is_quiet(void) { return Emit == nullptr; }
 static uint64_t LastNodesSearched = 0;
 static void facade_set_last_nodes(uint64_t nodes) { LastNodesSearched = nodes; }
 
+uint64_t search_last_nodes_searched(void) { return LastNodesSearched; }
+void search_reset_last_nodes_searched(void) { LastNodesSearched = 0; }
+
 // ---- the option seam ----------------------------------------------------
 //
 // Answer with upstream's defaults for the options that steer the search. The

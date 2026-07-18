@@ -269,8 +269,11 @@ static bool execute(char *line) {
         printf("%s", buf);
         fflush(stdout);
     } else if (strcmp(cmd, "bench") == 0) {
-        const int depth = (args && *args) ? (int) strtol(args, nullptr, 10) : 8;
-        benchmark_run(depth > 0 ? depth : 8);
+        // Default to 13, upstream's `bench` depth (benchmark.cpp:400). The whole
+        // point of the anchor is comparability with upstream's published number,
+        // and any other depth searches a different tree.
+        const int depth = (args && *args) ? (int) strtol(args, nullptr, 10) : BENCH_DEFAULT_DEPTH;
+        benchmark_run(depth > 0 ? depth : BENCH_DEFAULT_DEPTH);
     } else if (strcmp(cmd, "compiler") == 0) {
         // Report the actual compiler: the CI builds this tree with both clang and
         // gcc, and a bug report that names the wrong one costs a round trip.
@@ -310,6 +313,19 @@ static void set_root_directory(const char *argv0) {
         return;
     memcpy(RootDirectory, argv0, len);
     RootDirectory[len] = '\0';
+}
+
+void uci_execute(const char *line) {
+    // `execute` tokenises in place with strtok, so hand it a mutable copy.
+    char buf[4096];
+    snprintf(buf, sizeof buf, "%s", line);
+    (void) execute(buf);
+}
+
+void uci_current_fen(char *buf, size_t buf_len) {
+    char fen[128];
+    pos_fen(&Pos, fen);
+    snprintf(buf, buf_len, "%s", fen);
 }
 
 void uci_loop(int argc, char **argv) {

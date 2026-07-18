@@ -44,6 +44,15 @@ void search_set_output(void (*emit)(const char *line));
 // input thread while search_go runs.
 void search_stop(void);
 
+// Report the node count the LAST completed search published, and reset it.
+//
+// bench sums this rather than a return value because that is the number
+// upstream's `on_update_full` capture accumulates (uci.cpp:270). Reset before
+// each search: a root with no legal moves publishes nothing, and an unreset
+// counter would then count its predecessor twice.
+uint64_t search_last_nodes_searched(void);
+void search_reset_last_nodes_searched(void);
+
 // Count the leaves of the legal move tree at DEPTH, printing the per-move split.
 uint64_t perft(Position *pos, int depth, bool root);
 

@@ -97,6 +97,7 @@ SOURCES=(
   src/engine/search/timeman.c
   src/engine/search/tt.c
   src/platform/clock.c
+  src/shell/bench_positions.c
   src/shell/benchmark.c
   src/shell/uci.c
   src/shell/main.c
@@ -176,7 +177,10 @@ do_zone_check() {
 
 do_bench() {
   need_binary
-  "$BIN" bench "${1:-8}"
+  # No depth argument means upstream's definition (depth 13, full default list,
+  # Hash 16, one ucinewgame). Overriding the depth measures a different search
+  # and cannot be compared with upstream's published number.
+  if [[ -n ${1:-} ]]; then "$BIN" bench "$1"; else "$BIN" bench; fi
 }
 
 # Report where the NNUE net must be and how to get it. Deliberately does NOT
@@ -239,7 +243,7 @@ do_signature() {
   local expected actual
   expected=$(grep -v '^#' tools/signature.golden | tr -d '[:space:]')
   # bench prints its banners on stderr (upstream does too); read the total from there.
-  actual=$("$BIN" bench 8 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
+  actual=$("$BIN" bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
 
   if [[ $actual == "$expected" ]]; then
     green "signature OK: $actual nodes"
@@ -254,7 +258,7 @@ do_signature() {
 do_signature_update() {
   need_binary
   local actual
-  actual=$("$BIN" bench 8 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
+  actual=$("$BIN" bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
   { echo "# ccfish bench node signature: 16 positions, depth 8, TT cleared per position."
     echo "# Regenerate ONLY for an intended behaviour change, and say what moved it in"
     echo "# the commit body. Updating this on a red gate launders a bug into the anchor."
@@ -476,7 +480,7 @@ case "${1:-build}" in
   build)            do_build ;;
   debug)            do_debug ;;
   test)             do_test ;;
-  bench)            do_bench "${2:-8}" ;;
+  bench)            do_bench "${2:-}" ;;
   net)              do_net ;;
   signature)        do_signature ;;
   signature-update) do_signature_update ;;
