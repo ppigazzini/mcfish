@@ -1,0 +1,7 @@
+# .git-blame-ignore-revs
+#
+# Revisions that only reformat. Enable with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Add the full 40-character SHA of a formatting-only commit below, one per line,
+# with a comment saying what it did.

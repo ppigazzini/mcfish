@@ -1,0 +1,60 @@
+info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+
+ NNUE derived piece values are unported; bucket totals only.
+
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
++------------+------------+------------+------------+
+|   0       |      +0.00 |      -2.56 |      -2.56 |
+|   1       |      +0.00 |      -0.47 |      -0.47 |
+|   2       |      +0.00 |      +0.25 |      +0.25 |
+|   3       |      +0.00 |      -0.98 |      -0.98 |
+|   4       |      +0.00 |      -0.10 |      -0.10 |
+|   5       |      +0.00 |      +0.13 |      +0.13 |
+|   6       |      +0.00 |      +0.21 |      +0.21 |
+|   7    <- |      +0.00 |      +0.10 |      +0.10 |
++------------+------------+------------+------------+
+
+NNUE evaluation          +10 (side to move, internal units)
+NNUE evaluation        +0.10 (white side)
+Final evaluation      +0.13 (white side) [with scaled NNUE, ...]
+info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+
+ NNUE derived piece values are unported; bucket totals only.
+
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
++------------+------------+------------+------------+
+|   0    <- |     +25.38 |     +18.05 |     +43.43 |
+|   1       |     +18.00 |      -1.69 |     +16.31 |
+|   2       |     +22.38 |      -2.28 |     +20.10 |
+|   3       |     +23.86 |      +1.16 |     +25.02 |
+|   4       |     +25.37 |      +6.50 |     +31.87 |
+|   5       |     +25.32 |      +1.94 |     +27.26 |
+|   6       |     +25.01 |     +15.42 |     +40.43 |
+|   7       |     +24.96 |      +9.89 |     +34.85 |
++------------+------------+------------+------------+
+
+NNUE evaluation          +4343 (side to move, internal units)
+NNUE evaluation        +43.43 (white side)
+Final evaluation      +43.04 (white side) [with scaled NNUE, ...]
+info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+
+ NNUE derived piece values are unported; bucket totals only.
+
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
++------------+------------+------------+------------+
+|   0       |      -0.38 |     -41.67 |     -42.05 |
+|   1       |      -0.91 |      -1.38 |      -2.29 |
+|   2       |      -0.75 |      -6.42 |      -7.17 |
+|   3       |      -0.78 |      -2.58 |      -3.36 |
+|   4       |      -1.13 |      -3.84 |      -4.97 |
+|   5       |      -1.16 |      -3.61 |      -4.77 |
+|   6       |      -1.18 |      -3.24 |      -4.42 |
+|   7    <- |      -1.19 |      -3.08 |      -4.27 |
++------------+------------+------------+------------+
+
+NNUE evaluation          -427 (side to move, internal units)
+NNUE evaluation        -4.27 (white side)
+Final evaluation      -5.59 (white side) [with scaled NNUE, ...]

@@ -1,0 +1,9 @@
+position fen not-a-fen
+d
+position fen 8/8/8/8/8/8/8/8 w - - 0 1
+d
+position startpos moves e2e5
+d
+frobnicate
+go depth 2
+quit

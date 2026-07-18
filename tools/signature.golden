@@ -1,0 +1,15 @@
+# ccfish bench node signature: the local bench set at fixed depth, NNUE loaded.
+# Regenerate ONLY for an intended behaviour change, and say what moved it in the
+# commit body. Updating this on a red gate launders a bug into the anchor.
+#
+# NOT upstream's bench. Upstream runs its full default position list to depth 13
+# at Hash 16 with a single `ucinewgame`, and scores 2466447. Aligning this bench
+# with that definition is the open task; until then this number is ccfish's own.
+#
+# REQUIRES THE NNUE NET -- `./build.sh signature` skips with exit 127 without one,
+# because the classical fallback searches a different tree.
+#
+# Last re-derived when the ported search decomposition replaced the monolith:
+# razoring, ProbCut, singular extensions and tt_pv-driven reductions all became
+# live, which prunes far harder. perft was unchanged throughout.
+48422

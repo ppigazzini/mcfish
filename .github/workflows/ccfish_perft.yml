@@ -1,0 +1,129 @@
+# Nightly DEEP perft.
+#
+# Perft is the only total check on move generation: it counts every leaf of the legal
+# tree, so a single mis-generated or wrongly-filtered move changes the number. The push
+# lane runs `./build.sh perft`, which asserts the depths pinned in tools/perft.table --
+# chosen to keep the gate under a minute so it can run on every commit. That budget caps
+# how deep it can go, and depth is exactly what perft coverage is made of: the rare
+# interactions (an en-passant capture that exposes a pin along the fifth rank, a
+# castling right lost by a rook capture several plies earlier, an under-promotion that
+# delivers check) only appear a few plies below where the fast gate stops.
+#
+# This job spends the time the push lane cannot: the same positions at greater depth,
+# against the published reference counts, once a night. It is a pure gate -- it builds,
+# counts, compares, and writes nothing back to the repository.
+name: ccfish perft (nightly)
+
+on:
+  schedule:
+    # 03:41 UTC daily -- off the hour, since the top of the hour is the busiest slot in
+    # GitHub's scheduler and jobs queued there are the ones that get delayed or dropped.
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: this lane only reads the repository.
+permissions:
+  contents: read
+
+env:
+  # Track the pin in ccfish_parity.yml -- deep perft is only meaningful if it exercises
+  # the same binary the blocking gate does.
+  CLANG_VERSION: "21"
+
+jobs:
+  deep-perft:
+    name: Deep perft (reference counts)
+    runs-on: ubuntu-latest
+    # Bounded: the depths below are ~4.7 billion leaves, a few minutes for the release
+    # build on a runner. The ceiling is generous enough to absorb a slow runner but low
+    # enough that a search/movegen change which accidentally makes perft pathological
+    # fails here instead of burning an hour of Actions time.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Install clang ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          "clang-$CLANG_VERSION" --version
+
+      # Release build (-O3), NOT the debug/sanitizer build: at these depths an
+      # instrumented binary would be an order of magnitude too slow, and perft is a
+      # counting check -- the sanitizer lane in ccfish_parity.yml owns memory safety.
+      - name: Build (release)
+        run: CC="clang-$CLANG_VERSION" ./build.sh build
+
+      # First, the committed gate exactly as the push lane runs it. If the pinned depths
+      # in tools/perft.table are already wrong, that is the finding -- and it is a much
+      # cheaper one to read than a deep mismatch below.
+      - name: Fast gate (tools/perft.table)
+        run: CC="clang-$CLANG_VERSION" ./build.sh perft
+
+      # Then the deep sweep. The counts below are the published reference values for the
+      # six standard perft positions (the CPW/Stockfish set, the same positions the fast
+      # gate and tests/test_main.c use at shallower depth). They are hardcoded here rather
+      # than added to tools/perft.table on purpose: that file is the everyone-every-push
+      # gate and must stay fast, whereas these depths belong to a nightly budget.
+      #
+      # Positions are driven through the real UCI front end (`position fen` + `go perft`),
+      # the same path build.sh uses, so the parser is exercised alongside the movegen.
+      #
+      # A mismatch here is a MOVE GENERATION BUG, full stop. Perft has no heuristics, no
+      # search, no evaluation, and no time dependence -- the counts are mathematical
+      # facts about chess. Do not "update" a number to make this green.
+      - name: Deep perft sweep
+        run: |
+          set -uo pipefail
+
+          fails=0
+          run_perft() {
+            local name="$1" fen="$2" depth="$3" expected="$4"
+            local start elapsed got
+            start=$SECONDS
+            got=$(printf 'position fen %s\ngo perft %s\nquit\n' "$fen" "$depth" \
+                  | ./build/ccfish | grep 'Nodes searched' | awk '{print $NF}')
+            elapsed=$((SECONDS - start))
+            if [ "$got" = "$expected" ]; then
+              printf '  ok   %-12s depth %s  %14s nodes  (%ss)\n' "$name" "$depth" "$got" "$elapsed"
+            else
+              printf '  FAIL %-12s depth %s  expected %s, got %s\n' \
+                     "$name" "$depth" "$expected" "${got:-<none>}"
+              fails=$((fails + 1))
+            fi
+          }
+
+          # startpos -- the broad baseline; depth 7 is ~3.2e9 leaves and dominates the run.
+          run_perft startpos "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" 6 119060324
+          run_perft startpos "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" 7 3195901860
+
+          # Kiwipete -- dense middlegame: castling both sides, pins, and en passant.
+          run_perft kiwipete "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -" 5 193690690
+
+          # Position 3 -- the rook-and-pawn endgame that catches horizontal-pin and
+          # en-passant-discovers-check mistakes; deep and cheap per node.
+          run_perft pos3 "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -" 7 178633661
+
+          # Position 4 -- promotions (including under-promotion with check) and an
+          # asymmetric castling-rights state.
+          run_perft pos4 "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq -" 6 706045033
+
+          # Position 5 -- the mirror-image bug catcher: a position where a side-to-move
+          # asymmetry in the generator shows up as a wrong count rather than a crash.
+          run_perft pos5 "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ -" 5 89941194
+
+          # Position 6 -- quiet, highly symmetric; sensitive to move-ordering-independent
+          # generation errors in the piece attack tables.
+          run_perft pos6 "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - -" 5 164075551
+
+          echo
+          if [ "$fails" -ne 0 ]; then
+            echo "deep perft: $fails position(s) FAILED -- this is a movegen bug" >&2
+            exit 1
+          fi
+          echo "deep perft: all positions match the reference counts"

@@ -1,0 +1,254 @@
+# The main gate for ccfish: build the C23 engine with clang and run `./build.sh parity`
+# -- the aggregate of every in-repo gate (build, zone-check, fmt, test, signature, perft,
+# golden). There is no build system to configure: build.sh drives one clang invocation per
+# translation unit, so CI's whole job is to provide a toolchain new enough for the C23 the
+# source actually uses and then run the same driver a developer runs locally. Anything CI
+# does that a developer cannot reproduce with `./build.sh parity` is a bug in this file.
+name: ccfish parity
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# One in-flight run per ref; a newer push cancels the older run. Every job here is a
+# deterministic gate, so a superseded run has nothing to tell us.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: the gate only reads the repository. Nothing here writes, tags,
+# comments, or publishes.
+permissions:
+  contents: read
+
+env:
+  # Pinned LLVM major version, installed from apt.llvm.org in every job below.
+  #
+  # WHY NOT the runner's default clang: ubuntu-latest's clang is several releases behind
+  # and rejects or mis-diagnoses the C23 spellings this codebase relies on -- bare
+  # `nullptr` (src/engine/search/tt.c, src/shell/uci.c) and enums with a fixed underlying
+  # type (`typedef enum : uint8_t` throughout src/engine/board/types.h). build.sh pins
+  # -std=c23 deliberately so those are hard errors rather than silent extensions, which
+  # means an old clang fails the build outright instead of quietly building something
+  # different. The engine was developed against clang 22; anything from 20 up handles the
+  # constructs above. Bumping this is a one-line change and should be done deliberately,
+  # not floated, so a toolchain regression is attributable to a commit here.
+  CLANG_VERSION: "21"
+
+jobs:
+  # Formatting gate, split out and run first because it is the cheapest signal in the
+  # matrix: no engine build, no bench, just clang-format over src/ and tests/. `./build.sh
+  # fmt` runs `clang-format --dry-run --Werror`, so drift fails loudly instead of being
+  # silently reformatted. It duplicates the fmt step inside `parity` on purpose -- catching
+  # whitespace drift in 60 seconds beats catching it 15 minutes into the full aggregate.
+  fmt:
+    name: clang-format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      # clang-format output is version-dependent: a different major version reflows code
+      # that was clean under another one, which would make this gate flap for reasons
+      # unrelated to any commit. Install and use the SAME pinned major as the compiler,
+      # and symlink it to the bare `clang-format` name that build.sh invokes.
+      - name: Install clang-format ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          sudo apt-get install -y "clang-format-$CLANG_VERSION"
+          sudo ln -sf "/usr/bin/clang-format-$CLANG_VERSION" /usr/local/bin/clang-format
+          clang-format --version
+
+      - run: ./build.sh fmt
+
+  # The gate proper. `./build.sh parity` is the aggregate a developer must run before
+  # calling any byte-changing edit done, so CI runs exactly that and nothing else:
+  #
+  #   build       release binary via clang -O3 -std=c23
+  #   zone-check  engine/ + platform/ must LINK standalone against a stub main -- proves no
+  #               engine file reaches into shell/. Linking (not just compiling) is what
+  #               makes a forbidden call a hard error.
+  #   fmt         clang-format --dry-run --Werror
+  #   test        unit + property suite, built with ASan+UBSan (see the sanitizers job note)
+  #   signature   bench node count vs tools/signature.golden -- the behaviour anchor
+  #   perft       movegen totality vs tools/perft.table
+  #   golden      UCI transcript diffs vs tools/*.golden
+  #
+  # If this job is green, the engine is byte-identical in behaviour to the committed
+  # anchors. If it is red, either the code changed behaviour or an anchor is stale --
+  # and re-deriving an anchor on a red gate launders the bug into the anchor, so don't.
+  parity:
+    name: Linux x86-64 parity (clang)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      # clang + clang-format from apt.llvm.org: `parity` runs the fmt gate internally, so
+      # this job needs both even though the fmt job above also covers formatting.
+      - name: Install clang ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          sudo apt-get install -y "clang-format-$CLANG_VERSION"
+          sudo ln -sf "/usr/bin/clang-format-$CLANG_VERSION" /usr/local/bin/clang-format
+          "clang-$CLANG_VERSION" --version
+
+      # Fail here, with a readable message, rather than 40 lines into a wall of C23 syntax
+      # errors, if the install above ever silently lands an older compiler.
+      - name: Assert the toolchain is new enough for C23
+        run: |
+          set -euo pipefail
+          major="$("clang-$CLANG_VERSION" -dumpversion | cut -d. -f1)"
+          echo "clang major: $major"
+          if [ "$major" -lt 20 ]; then
+            echo "FAIL: clang $major is too old for the C23 this tree uses" \
+                 "(nullptr, enum : uint8_t, -std=c23)." >&2
+            exit 1
+          fi
+
+      # build.sh honours CC; everything else is its defaults.
+      - name: parity (all gates)
+        env:
+          CC: clang-${{ env.CLANG_VERSION }}
+        run: ./build.sh parity
+
+      # Publish how far the port is from bit-exactness. Informational, never a gate:
+      # the figure only moves when a module lands, and a job that failed on "not done
+      # yet" would be red for the whole life of the port. `upstream-parity` -- the real
+      # finish line -- is deliberately not run in CI for the same reason.
+      - name: Port progress (informational)
+        env:
+          CC: clang-${{ env.CLANG_VERSION }}
+        run: |
+          ./build.sh port-status | tee /tmp/port.txt
+          {
+            echo "## Port status"
+            echo ""
+            echo '```'
+            sed -E 's/\x1b\[[0-9;]*m//g' /tmp/port.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Sanitizer lane. `parity` already builds the TEST binary with -fsanitize=address,undefined
+  # (see do_test in build.sh), but the tests only drive the engine zone -- they never run the
+  # release search at bench depth or the UCI/perft path through shell/. This job adds that:
+  # the ASan+UBSan ENGINE binary (build/ccfish-debug) driven through a real bench and a real
+  # perft, which is where an out-of-bounds table index, a signed-overflow in the eval, or a
+  # misaligned TT access would actually be exercised. Kept out of the parity job because the
+  # instrumented binary is roughly an order of magnitude slower.
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # NOTE: CC is set per-step below as `CC=clang-$CLANG_VERSION` rather than here --
+      # the workflow-level `env` context is not expanded in a job-level `env:` block, and
+      # hardcoding the version in two places invites drift when CLANG_VERSION is bumped.
+      #
+      # ASan aborts on first error by default; UBSan does NOT -- build.sh's debug flags do
+      # not include -fno-sanitize-recover, so an undefined-behaviour report would otherwise
+      # print and let the process exit 0, turning a real bug into a green run. Force the
+      # abort so UBSan findings fail the job, and print stack traces so the log is
+      # actionable rather than a bare file:line.
+      ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
+      UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Install clang ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          "clang-$CLANG_VERSION" --version
+
+      # Unit + property suite under ASan+UBSan. The load-bearing half is the property
+      # tests: perft to reference counts, the make/unmake round-trip that compares the
+      # whole board/state back to a snapshot after every undo, and the incremental-vs-
+      # recomputed Zobrist check. Under sanitizers these also catch the memory-level
+      # cause of a bad undo, not just its symptom.
+      - name: Instrumented unit + property suite
+        run: CC="clang-$CLANG_VERSION" ./build.sh test
+
+      # Build the instrumented ENGINE (not the test binary): build/ccfish-debug.
+      - name: Build the ASan+UBSan engine
+        run: CC="clang-$CLANG_VERSION" ./build.sh debug
+
+      # Bench smoke at a shallow depth. The point is not the node count (the signature gate
+      # owns that, and an instrumented build is far too slow for depth 8) -- it is running
+      # the real search, eval and TT code paths with the sanitizers armed.
+      - name: Instrumented bench smoke
+        run: ./build/ccfish-debug bench 4
+
+      # Perft smoke through the UCI front end: exercises the shell/ parser and the
+      # movegen/make/unmake loop under ASan. Deliberately shallow; the deep, count-checked
+      # perft lives in ccfish_perft.yml.
+      - name: Instrumented perft smoke (via UCI)
+        run: |
+          set -euo pipefail
+          printf 'position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\ngo perft 4\nquit\n' \
+            | ./build/ccfish-debug | tee /tmp/perft.txt
+          grep -q 'Nodes searched *: *197281' /tmp/perft.txt \
+            || { echo 'FAIL: instrumented perft(startpos, 4) != 197281' >&2; exit 1; }
+
+  # Second-compiler portability gate. The same sources, same -std=c23, same warning set,
+  # compiled by gcc instead of clang -- and then held to the SAME bench signature.
+  #
+  # WHY this is a real gate and not busywork: the signature is a node count produced by a
+  # deterministic integer search. Two conforming compilers must produce the same node count
+  # from the same source. If clang and gcc disagree, the engine is NOT deterministic across
+  # toolchains, and the only ways that happens are undefined behaviour the optimisers
+  # exploit differently (signed overflow, strict-aliasing violation, shift past the width,
+  # reading an indeterminate value) or reliance on implementation-defined behaviour
+  # (right-shift of a negative, conversion of an out-of-range value, struct layout
+  # assumptions). Both are BUGS in this codebase. A signature difference here is never
+  # "expected compiler variation" and must never be resolved by re-deriving the golden --
+  # find the UB.
+  #
+  # This job also independently re-validates the diagnostics: gcc's -Wconversion /
+  # -Wsign-conversion / -Wshadow findings differ from clang's, so it surfaces sloppiness
+  # clang happens not to warn about.
+  gcc:
+    name: Second compiler (gcc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      # Use the runner's default gcc. build.sh probes for the C23 flag this compiler
+      # spells (`-std=c23`, falling back to gcc-13's `-std=c2x` -- the same language,
+      # different spelling) and hard-fails if neither is accepted, so no version pin is
+      # needed here. Verified locally: gcc 13.3 builds this tree clean and reproduces the
+      # clang signature exactly.
+      - name: Show the gcc version under test
+        run: gcc --version
+
+      # Release build only (not `parity`): the fmt/zone-check/golden gates are
+      # compiler-independent and the clang lane already owns them. What this lane uniquely
+      # tests is that gcc can compile the tree at all, under the same strict flags.
+      - name: Build with gcc
+        env:
+          CC: gcc
+        run: ./build.sh build
+
+      # do_signature reuses the binary already in build/ (need_binary only rebuilds when it
+      # is missing), so this checks the GCC-BUILT engine against tools/signature.golden --
+      # the anchor derived from the clang build. Same source, same anchor, different
+      # compiler: a mismatch means UB, per the job comment above.
+      - name: Signature must match the clang-derived anchor
+        env:
+          CC: gcc
+        run: ./build.sh signature
+
+      # Movegen is the other place a UB-driven divergence would show up as wrong numbers
+      # rather than a crash, and perft is a total check on it. Cheap, so run it here too.
+      - name: Perft under the gcc build
+        env:
+          CC: gcc
+        run: ./build.sh perft

@@ -1,0 +1,70 @@
+# House style for the C tree. Derived from Stockfish's .clang-format, but three
+# settings are deliberately NOT inherited from it -- Stockfish is C++, and its
+# choices there fight idiomatic C:
+#
+#   PointerAlignment: Right   `Type *name`, not C++'s `Type* name`. The whole tree
+#                             and every C convention declare the star with the name,
+#                             which is also what `int *a, *b` forces.
+#   AfterControlStatement     K&R: `while (b) {`, not the brace on its own line.
+#   AllowShortEnumsOnASingleLine
+#                             `typedef enum : uint8_t { WHITE, BLACK } Color;` reads
+#                             better on one line than split across four.
+#   BeforeElse: false         `} else {`, cuddled.
+#   AllowShortFunctionsOnASingleLine: All
+#                             C has no in-class definitions, so Stockfish's `Inline`
+#                             would split every one-line accessor in position.h.
+#
+# ColumnLimit 100 is the width the codebase is written to.
+BasedOnStyle: WebKit
+Language: Cpp
+
+ColumnLimit: 100
+IndentWidth: 4
+ContinuationIndentWidth: 2
+MaxEmptyLinesToKeep: 2
+
+AlignAfterOpenBracket: Align
+# Leave alignment alone: forcing it across enum blocks with interleaved comments
+# produces wide, unstable gutters that churn whenever a name changes length.
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignEscapedNewlines: DontAlign
+AlignOperands: AlignAfterOperator
+AlignTrailingComments: true
+
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: false
+# `All`, not `Inline`: C has no in-class definitions, so `Inline` splits every
+# one-line accessor -- and position.h/types.h are mostly one-line accessors.
+AllowShortFunctionsOnASingleLine: All
+
+BinPackParameters: false
+BitFieldColonSpacing: After
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeTernaryOperators: true
+BreakStringLiterals: false
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: false
+  AfterControlStatement: false
+  AfterEnum: false
+  AfterStruct: false
+  AfterUnion: false
+  # Cuddle: `} else {`, the K&R form the tree uses throughout.
+  BeforeElse: false
+
+IndentGotoLabels: false
+IndentPPDirectives: BeforeHash
+
+# Keep the include order the files declare. The headers are grouped by zone and a
+# reorder would break the local-before-system convention the tree uses.
+SortIncludes: false
+
+PointerAlignment: Right
+SpaceAfterCStyleCast: true
+SpaceBeforeCaseColon: true
+SpaceInEmptyBlock: false
+SpacesBeforeTrailingComments: 2

@@ -1,0 +1,10 @@
+# The golden files are compared byte-for-byte against the engine's LF output by
+# `./build.sh golden`. Pin them to LF so a Windows checkout (core.autocrlf) cannot
+# rewrite them to CRLF and fail the gate. The harness also strips CR on read, so
+# this is defense in depth and keeps local diffs clean.
+tools/*.golden text eol=lf
+tools/*.table  text eol=lf
+tools/cases/*.uci text eol=lf
+
+# build.sh and the verify driver must stay LF or bash rejects the CR.
+*.sh text eol=lf

@@ -1,0 +1,27 @@
+info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info depth 1 seldepth 2 multipv 1 score cp 12 nodes 20 hashfull 0 tbhits 0 pv d2d4
+info depth 2 seldepth 3 multipv 1 score cp 33 nodes 47 hashfull 0 tbhits 0 pv d2d4
+info depth 3 seldepth 4 multipv 1 score cp 33 nodes 189 hashfull 0 tbhits 0 pv e2e4
+info depth 4 seldepth 5 multipv 1 score cp 33 nodes 343 hashfull 0 tbhits 0 pv e2e4 g8f6
+info depth 5 seldepth 6 multipv 1 score cp 26 nodes 1615 hashfull 0 tbhits 0 pv e2e4 d7d5 e4d5 d8d5 b1c3
+info depth 6 seldepth 10 multipv 1 score cp 29 nodes 2577 hashfull 0 tbhits 0 pv e2e4 e7e5 g1f3 b8c6 b1c3
+info depth 7 seldepth 12 multipv 1 score cp 33 nodes 3910 hashfull 1 tbhits 0 pv e2e4 d7d6 d2d4 g8f6 f1d3 e7e5 g1f3
+bestmove e2e4 ponder d7d6
+info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info depth 1 seldepth 2 multipv 1 score mate 1 nodes 16 hashfull 0 tbhits 0 pv a1a8
+info depth 2 seldepth 2 multipv 1 score mate 1 nodes 32 hashfull 0 tbhits 0 pv a1a8
+info depth 3 seldepth 2 multipv 1 score mate 1 nodes 48 hashfull 0 tbhits 0 pv a1a8
+info depth 4 seldepth 2 multipv 1 score mate 1 nodes 64 hashfull 0 tbhits 0 pv a1a8
+info depth 5 seldepth 2 multipv 1 score mate 1 nodes 80 hashfull 0 tbhits 0 pv a1a8
+bestmove a1a8
+info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info depth 1 seldepth 5 multipv 1 score cp 2 nodes 19 hashfull 0 tbhits 0 pv e4g6 d5f7 g6f7 e8f7
+info depth 2 seldepth 5 multipv 1 score cp 14 nodes 52 hashfull 0 tbhits 0 pv e4d5
+info depth 3 seldepth 4 multipv 1 score cp 1 nodes 127 hashfull 0 tbhits 0 pv e4d5 e8d7 d5b3
+info depth 4 seldepth 5 multipv 1 score cp 15 nodes 198 hashfull 0 tbhits 0 pv e4d5
+info depth 5 seldepth 8 multipv 1 score cp 13 nodes 458 hashfull 0 tbhits 0 pv e4d5 e8d7 e1d2
+info depth 6 seldepth 7 multipv 1 score cp 13 nodes 542 hashfull 0 tbhits 0 pv e4d5 e8d7 e1d2 d7d6 d5f3
+bestmove e4d5 ponder e8d7
+info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info depth 0 score mate 0
+bestmove (none)
