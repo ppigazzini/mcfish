@@ -23,7 +23,7 @@ Both gates were green throughout.
 | `chess960` | **oracle** | byte-for-byte upstream |
 | `errors` | **oracle** | byte-for-byte upstream, including `exit=1` |
 | `perft` | **oracle** | byte-for-byte upstream |
-| `eval` | ccfish | self-photograph — the NNUE trace block is unported |
+| `eval` | **oracle** | byte-for-byte upstream |
 | `handshake` | ccfish | self-photograph — the option table is a hand-written subset |
 | `search` | ccfish | self-photograph — carries the `<engine banner>` identity line |
 
@@ -39,14 +39,16 @@ cd ../.ccfish-upstream-oracle/src && eval "$NORM"
 
 ## Moving a self-photograph to the oracle
 
-Each of the three is self-generated because of a *named* gap, not because upstream
-cannot be reached. When the gap closes, re-derive it from the oracle and let the
-gate tell you whether it really closed. To see how far one currently is:
+Each remaining self-photograph is self-generated because of a *named* gap, not
+because upstream cannot be reached. When the gap closes, re-derive it from the
+oracle and let the gate tell you whether it really closed. To see how far one
+currently is — hold the worktree path in `W` first, because `$PWD` inside the
+subshell is already the oracle's directory, not this tree's:
 
 ```sh
-NORM=$(sed -n '/^normalize()/,/^}/p' build.sh); eval "$NORM"
-diff <(./build/ccfish < tools/cases/eval.uci 2>&1 | normalize) \
-     <(cd ../.ccfish-upstream-oracle/src && ./stockfish < "$PWD/tools/cases/eval.uci" 2>&1 | normalize)
+W=$PWD; NORM=$(sed -n '/^normalize()/,/^}/p' build.sh); eval "$NORM"
+diff <(./build/ccfish < tools/cases/search.uci 2>&1 | normalize) \
+     <(cd ../.ccfish-upstream-oracle/src && ./stockfish < "$W/tools/cases/search.uci" 2>&1 | normalize)
 ```
 
 `handshake` will not reach zero on the `id name` line — ccfish is not named

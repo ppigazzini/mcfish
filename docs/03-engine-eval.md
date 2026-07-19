@@ -286,11 +286,25 @@ into something that distorts play.
 
 `evaluate_trace` branches the same way `evaluate` does.
 
-`trace_nnue` prints the per-bucket psqt/positional split, marks the bucket this
-position actually selects, and follows with the three summary lines upstream prints.
-**The board-square delta table upstream's trace opens with is unported**, and the
-first line of the output says so rather than presenting a partial table as the whole
-thing.
+`trace_nnue` prints the per-bucket material/positional split, marks the bucket this
+position actually selects, and follows with the three summary lines. It matches
+upstream byte for byte.
+
+Every figure in the table goes through `uci_wdl_to_cp` before it is printed. That
+is what the header's "(Normalized, ...)" means, and it is the whole of what the
+block used to get wrong: the earlier version divided the raw internal value by 100
+under that same header, which misreported every cell by the win-rate `a` factor for
+the position's material — at the start position, -2.56 where upstream prints -0.67.
+
+`format_cp_aligned_dot` reads the sign off the **raw internal value**, not off the
+normalized pawn figure. A small negative value that normalizes to a rounded 0.00
+still prints `-`; taking the sign from the rounded double would print `+`.
+
+In check there is no static evaluation to decompose, so `evaluate_trace` returns
+`Final evaluation: none (in check)` and nothing else. That string carries one
+trailing newline where the NNUE block carries two — upstream's `sync_endl` supplies
+the only newline for the in-check string, and a second one for the block, which
+already ends in a newline of its own.
 
 `trace_classical` prints one row labelled **Material**, whose value is
 `evaluate_side` in full — material *plus* PSQT *plus* the bishop pair. The label is
@@ -300,16 +314,16 @@ into rows. That layout dies with the fallback.
 `trace_nnue` calls `eval_acc_reset()` before each of its passes, because a
 standalone `eval` must refresh from the board rather than inherit a search's diffs.
 
-The trace's exact bytes are pinned by the `eval` golden — see
-[`../tools/cases/eval.uci`](../tools/cases/eval.uci) and
-[07-tooling-ci.md](07-tooling-ci.md) — so any change to either layout must be
-regenerated deliberately.
+The trace's exact bytes are pinned by the `eval` golden, which is derived **from
+the oracle** — see [`../tools/cases/eval.uci`](../tools/cases/eval.uci),
+[`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md) and
+[07-tooling-ci.md](07-tooling-ci.md). Because it is oracle-derived, regenerating it
+from ccfish would convert a red gate into a recorded bug; regenerate it from the
+oracle or not at all.
 
 ## What is still missing here
 
 - **Optimism is hardcoded to zero**, pending the ported search.
-- **The per-square NNUE trace table is unported**, so `eval` prints bucket totals
-  only.
 - **The classical fallback is still in the tree**, and its deletion waits on the
   point where a netless run is no longer something ccfish needs to support.
 - **Bit-exactness with upstream is not reached**, and the evaluation is only one of

@@ -1,11 +1,14 @@
 #include "evaluate.h"
 
+#include "../board/board_props.h"
+#include "../search/uci_wdl.h"
 #include "nnue/network.h"
 #include "nnue/nnue_accumulator.h"
 #include "nnue/nnue_feature.h"
 #include "nnue/nnue_ft.h"
 #include "nnue/nnue_weight_storage.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -352,26 +355,48 @@ Value evaluate_with_optimism(const Position *pos, int optimism) {
 // Evaluate with no search bias. Upstream's own value at `eval` and in the trace.
 Value evaluate(const Position *pos) { return evaluate_with_optimism(pos, 0); }
 
-// Render the NNUE breakdown: the per-bucket psqt/positional split, then the three
-// summary lines upstream prints. The board-square delta table upstream's
-// NNUE::trace opens with (nnue/nnue_misc.cpp) is unported, so this is the
-// bucket table and the totals only.
+// Write one table cell: a sign column, then the magnitude in pawns right-aligned
+// in six columns. The sign is read off the raw internal value, NOT off the pawn
+// figure -- a value that survives the normalisation as a rounded 0.00 still prints
+// its own sign, and reading the sign off the rounded double would print '+' for a
+// negative eval. Port of upstream `nnue/nnue_misc.cpp` format_cp_aligned_dot.
+static int format_cp_aligned_dot(Value v, int material, char *buf, size_t n) {
+    const double pawns = fabs(0.01 * uci_wdl_to_cp((int) v, material));
+    const char sign = v < 0 ? '-' : (v > 0 ? '+' : ' ');
+    return snprintf(buf, n, "%c%6.2f", sign, pawns);
+}
+
+// Render the NNUE breakdown: the per-bucket material/positional split with the
+// used bucket marked, then the three summary lines. Every figure is normalised
+// through `uci_wdl_to_cp` before it is printed -- the table header says
+// "(Normalized, ...)", and printing raw internal units under that header would
+// misreport every cell by the win-rate `a` factor for the position's material.
+// Port of upstream `nnue/nnue_misc.cpp:59` trace and `evaluate.cpp:75` Eval::trace.
 static void trace_nnue(const Position *pos, char *buf, int buf_len) {
     eval_acc_reset();
     const NnueTraceOutput trace = network_trace_evaluate(pos, AccStack, RefreshCache);
+    const int material = board_wdl_material(pos);
 
+    // Two leading newlines: upstream `engine.cpp:331` prints one before the trace
+    // and `Eval::trace` opens with another.
     int n = snprintf(buf, (size_t) buf_len,
-                     "\n NNUE derived piece values are unported; bucket totals only.\n"
-                     "\n+------------+------------+------------+------------+\n"
+                     "\n\nNNUE network contributions (Normalized, %s to move)\n"
+                     "+------------+------------+------------+------------+\n"
                      "|   Bucket   |  Material  | Positional |   Total    |\n"
-                     "+------------+------------+------------+------------+\n");
+                     "|            |   (PSQT)   |  (Layers)  |            |\n"
+                     "+------------+------------+------------+------------+\n",
+                     pos->side_to_move == WHITE ? "White" : "Black");
 
     for (size_t b = 0; b < NNUE_LAYER_STACKS && n > 0 && n < buf_len; ++b) {
-        const double psqt = trace.psqt[b] / 100.0;
-        const double pos_term = trace.positional[b] / 100.0;
+        const Value psqt = (Value) trace.psqt[b];
+        const Value positional = (Value) trace.positional[b];
+        char mat_cell[16], pos_cell[16], tot_cell[16];
+        format_cp_aligned_dot(psqt, material, mat_cell, sizeof mat_cell);
+        format_cp_aligned_dot(positional, material, pos_cell, sizeof pos_cell);
+        format_cp_aligned_dot((Value) (psqt + positional), material, tot_cell, sizeof tot_cell);
         n += snprintf(buf + n, (size_t) (buf_len - n),
-                      "|  %2zu    %s | %+10.2f | %+10.2f | %+10.2f |\n", b,
-                      b == trace.correct_bucket ? "<-" : "  ", psqt, pos_term, psqt + pos_term);
+                      "|  %zu         |  %s   |  %s   |  %s   |%s\n", b, mat_cell, pos_cell,
+                      tot_cell, b == trace.correct_bucket ? " <-- this bucket is used" : "");
     }
 
     if (n <= 0 || n >= buf_len)
@@ -384,12 +409,15 @@ static void trace_nnue(const Position *pos, char *buf, int buf_len) {
     const Value scaled = nnue_scaled_value(pos, out.psqt, out.positional, 0);
     const Value white_scaled = pos->side_to_move == WHITE ? scaled : (Value) -scaled;
 
+    // The trailing blank line is upstream's `sync_endl` after a string that already
+    // ends in a newline; dropping it runs the next command's output into this one.
     snprintf(buf + n, (size_t) (buf_len - n),
              "+------------+------------+------------+------------+\n"
              "\nNNUE evaluation          %+d (side to move, internal units)\n"
              "NNUE evaluation        %+.2f (white side)\n"
-             "Final evaluation      %+.2f (white side) [with scaled NNUE, ...]\n",
-             internal, white_internal * 0.01, white_scaled * 0.01);
+             "Final evaluation      %+.2f (white side) [with scaled NNUE, ...]\n\n",
+             internal, 0.01 * uci_wdl_to_cp((int) white_internal, material),
+             0.01 * uci_wdl_to_cp((int) white_scaled, material));
 }
 
 static void trace_classical(const Position *pos, char *buf, int buf_len) {
@@ -409,6 +437,18 @@ static void trace_classical(const Position *pos, char *buf, int buf_len) {
 }
 
 void evaluate_trace(const Position *pos, char *buf, int buf_len) {
+    // In check there is no static evaluation to decompose: upstream refuses rather
+    // than tracing a position the search would never evaluate statically.
+    // Upstream `evaluate.cpp:77`.
+    // One trailing newline, not two: upstream returns this string WITHOUT a newline
+    // and `sync_endl` supplies the only one. The NNUE trace below ends in a newline
+    // of its own, which is why that path prints a blank line here and this one does
+    // not.
+    if (board_has_checkers(pos)) {
+        snprintf(buf, (size_t) buf_len, "\nFinal evaluation: none (in check)\n");
+        return;
+    }
+
     if (NetLoaded)
         trace_nnue(pos, buf, buf_len);
     else
