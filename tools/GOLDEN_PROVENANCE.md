@@ -24,8 +24,9 @@ Both gates were green throughout.
 | `errors` | **oracle** | byte-for-byte upstream, including `exit=1` |
 | `perft` | **oracle** | byte-for-byte upstream |
 | `eval` | **oracle** | byte-for-byte upstream |
+| `netswap` | **oracle** | byte-for-byte upstream — a net swap must drop the search state |
 | `handshake` | **oracle**, one line substituted | byte-for-byte upstream except `id name` |
-| `search` | ccfish | **2 lines** from the oracle, both `info string` placement — see below |
+| `search` | **oracle** | byte-for-byte upstream |
 
 Regenerate an oracle-derived golden from the oracle. Never from ccfish: that
 converts a red gate into a recorded bug. `tb` has its own regenerator,
@@ -86,17 +87,25 @@ the goldens, so when the subsystem lands, delete its line from `normalize` FIRST
 and let the gate go red. A filter that outlives its gap silently stops comparing
 real output.
 
-## `search`: what the remaining two lines are
+## Driving the oracle: a case containing `go` needs pauses
 
-Every `info depth` line in this case is byte-identical to the oracle — same
-depths, seldepths, scores, node counts and PVs across all four searches. The only
-difference is where the net-status `info string` lands:
+The regeneration command above pipes the script straight in. That is correct for
+`d`, `eval`, `go perft` and `position`, which are synchronous — and WRONG for
+`go`, which upstream runs on another thread. A piped `go` is cut short by the next
+command and yields a depth-1 stub, so the golden records a truncated search.
 
-- the oracle emits one at startup that ccfish does not,
-- ccfish emits one before a `go` on a checkmated position where the oracle does
-  not (upstream reaches `rootMoves.empty()` and returns `bestmove (none)` without
-  it).
+This produced a false result here: `search` appeared to differ from the oracle by
+two lines and was recorded as a self-photograph, when driving the oracle properly
+shows it is byte-identical. Use:
 
-The counts are equal at four each, so this is placement, not presence. It is
-recorded rather than papered over because the gate would otherwise read as though
-search output still diverged, which it does not.
+```sh
+drive_oracle() {
+  { while IFS= read -r l; do printf '%s\n' "$l"; case "$l" in go*) sleep 5;; esac; done < "$1"
+    sleep 1; } | (cd ../.ccfish-upstream-oracle/src && ./stockfish) 2>&1
+}
+{ drive_oracle tools/cases/<case>.uci; printf 'exit=0\n'; } | normalize \
+  | sed -E 's/^(ccfish|Stockfish) [^ ]+ by .*/<engine banner>/' > tools/<case>.golden
+```
+
+ccfish's own `go` is synchronous, so the gate itself may pipe — only the oracle
+side needs this.

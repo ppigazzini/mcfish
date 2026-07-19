@@ -217,7 +217,17 @@ static const char *on_syzygy(const UciOption *o) {
 static const char *on_eval_file(const UciOption *o) {
     (void) o;
     load_net();
-    return eval_nnue_status();
+
+    // Drop the search state the previous net produced. Upstream follows every
+    // load with threads.clear() (engine.cpp:313), and search_clear is ccfish's
+    // analogue: without it the next search reads history tables and carried-over
+    // scores accumulated under a DIFFERENT evaluation, which is a different tree.
+    search_clear();
+
+    // Report nothing here. Upstream's EvalFile callback returns std::nullopt
+    // (engine.cpp:137-140); the resident net is announced by verify_network on the
+    // next go, perft or eval, so returning the status here emits the line twice.
+    return nullptr;
 }
 
 // ---------------------------------------------------------------------------
