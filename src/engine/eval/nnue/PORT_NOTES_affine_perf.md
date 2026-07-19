@@ -34,11 +34,32 @@ Read costs by SUMMING a function across origin files — callgrind emits one ent
 per (origin-file, function) pair, and reading a single line per side once turned a
 real 0.99x parity into a reported "1.87x, the worst component".
 
+## Where it stands
+
+Both engines built at their own native tier, which on this host is AVX-512 VNNI
+for each, node counts asserted equal by `nps_ab.sh`, machine idle, ten rounds:
+
+    ccfish / zfish = 1.014 and 1.006 across two independent runs
+
+That is parity. Take it as parity and not as "ccfish is faster" -- 0.6-1.4% is
+inside what this method resolves, and the tool says so itself.
+
+The number is load-sensitive in a way worth remembering: the same two binaries
+read 0.749 at load ~2.2 and 1.014 at load ~0.8. `nps_ab.sh` pins both to core 0,
+so anything else scheduled there lands in the measurement. A run taken while
+another agent or build is active is not evidence.
+
+Against a clang-built upstream oracle at a matched SSE4.1 tier, by callgrind with
+startup subtracted: **1.154x** instructions. That is the honest remaining gap and
+the one to work on, because it is deterministic and does not care about load.
+
 ## The distribution
 
 Search instructions, startup subtracted, ccfish against the clang oracle at
-SSE4.1: **1.242x**. Against zfish (Zig/LLVM, its own native tier) the wall-clock
-ratio is 0.749x. The two agree closely enough to believe.
+SSE4.1: **1.154x** with LTO (1.242x before it). The table below was taken at
+1.242x; LTO folded the cross-TU helpers into their callers and moved every row,
+but the shape -- accumulator worst, move picking at parity, `do_move` ahead --
+did not change.
 
 | path | ccfish | oracle | ratio |
 | --- | ---: | ---: | ---: |
