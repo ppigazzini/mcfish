@@ -75,6 +75,7 @@ Nodes searched: 97862
 info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
 e2e3: 3107
 g2g3: 1014
+a5a6: 3653
 e2e4: 2748
 g2g4: 3702
 b4b1: 4199
@@ -86,6 +87,5 @@ b4d4: 3622
 b4e4: 3391
 b4f4: 606
 a5a4: 3394
-a5a6: 3653
 
 Nodes searched: 43238

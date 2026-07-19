@@ -196,12 +196,34 @@ ExtMove *generate(const Position *pos, ExtMove *list, GenType type) {
 }
 
 ExtMove *generate_legal(const Position *pos, ExtMove *list) {
-    ExtMove buf[MAX_MOVES];
-    const ExtMove *end = generate(pos, buf, pos->st->checkers ? GEN_EVASIONS : GEN_NON_EVASIONS);
+    const Color us = pos->side_to_move;
+    const Bitboard pinned = pos->st->blockers[us] & pieces_c(pos, us);
+    const Square ksq = king_square(pos, us);
 
-    for (const ExtMove *it = buf; it != end; ++it)
-        if (pos_legal(pos, it->move))
-            (list++)->move = it->move;
+    ExtMove *cur = list;
+    ExtMove *end = generate(pos, list, pos->st->checkers ? GEN_EVASIONS : GEN_NON_EVASIONS);
 
-    return list;
+    // Filter IN PLACE by swap-remove, exactly as upstream does (movegen.cpp:280).
+    // An illegal move is overwritten by the LAST element rather than the list
+    // being compacted in order, so the surviving order is NOT the generated
+    // order. That ordering is observable: the root move list is built from this
+    // function, and root order drives the whole search. Compacting stably here
+    // produces the same move SET -- so perft cannot see the difference -- while
+    // searching a different tree.
+    //
+    // The legality test is also GATED. Only a move from a pinned piece, a king
+    // move, or an en-passant capture can be illegal once generated, so the rest
+    // skip pos_legal entirely. Testing every move would still give the right set
+    // but would evaluate pos_legal in a different order; keep the gate so the
+    // work and the order both match.
+    while (cur != end) {
+        if ((((pinned & square_bb(move_from(cur->move))) != 0) || move_from(cur->move) == ksq
+             || move_type(cur->move) == EN_PASSANT)
+            && !pos_legal(pos, cur->move))
+            *cur = *(--end);
+        else
+            ++cur;
+    }
+
+    return end;
 }
