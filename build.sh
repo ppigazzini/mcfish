@@ -596,6 +596,71 @@ do_port_status() {
   bash tools/port_status.sh
 }
 
+# Report the drift between the pinned SHAs and the tracked repositories.
+#
+# The three files under tools/upstream/ record which commit of each tracked
+# project this tree has been ported UP TO. Nothing read them before this step
+# existed, so ZFISH_BASE sat five commits stale while reading as authoritative --
+# a pin nobody checks is worse than no pin, because it is a false record rather
+# than an absent one.
+#
+# This does not gate. A tracked repository moving is normal and is not a defect
+# here; the failure it catches is not NOTICING that it moved.
+do_sync_status() {
+  local name dir pin head n
+  local rc=0
+  for pair in "Stockfish:../Stockfish:tools/upstream/UPSTREAM_BASE" \
+              "zfish:../zfish:tools/upstream/ZFISH_BASE"; do
+    name=${pair%%:*}; dir=$(echo "$pair" | cut -d: -f2); pinfile=$(echo "$pair" | cut -d: -f3)
+
+    if [[ ! -d $dir/.git ]]; then
+      red "  $name: no checkout at $dir -- cannot verify ${pinfile##*/}"
+      rc=1
+      continue
+    fi
+    pin=$(tr -d '[:space:]' < "$pinfile")
+    head=$(git -C "$dir" rev-parse HEAD)
+
+    if ! git -C "$dir" cat-file -e "$pin^{commit}" 2>/dev/null; then
+      red "  $name: pinned $pin is not a commit in $dir"
+      rc=1
+      continue
+    fi
+
+    n=$(git -C "$dir" rev-list --count "$pin..HEAD")
+    if [[ $n -eq 0 ]]; then
+      green "  $name: in sync at ${pin:0:9}"
+    else
+      printf '  \033[33m%s: %d commit(s) behind\033[0m  (pinned %s, HEAD %s)\n' \
+        "$name" "$n" "${pin:0:9}" "${head:0:9}"
+      git -C "$dir" log --oneline --reverse "$pin..HEAD" | sed 's/^/      /'
+    fi
+  done
+
+  # The upstream mirrors are only worth keeping while they are VERBATIM. They are
+  # here so a future rebase is a copy rather than a merge, and nothing in this tree
+  # consumes them -- so the moment one drifts it stops serving that purpose and
+  # starts manufacturing conflicts, silently, because no other gate reads them.
+  # Check them against the pinned SHA rather than trusting the claim.
+  local base drifted=0 f
+  base=$(tr -d '[:space:]' < tools/upstream/UPSTREAM_BASE)
+  if [[ -d ../Stockfish/.git ]]; then
+    for f in tests/instrumented.py tests/perft.sh tests/reprosearch.sh \
+             tests/signature.sh tests/testing.py scripts/net.sh; do
+      [[ -f $f ]] || continue
+      if ! git -C ../Stockfish cat-file -e "$base:$f" 2>/dev/null; then
+        printf '  \033[33mmirror %s: not present upstream at %s\033[0m\n' "$f" "${base:0:9}"
+        drifted=1
+      elif ! diff -q <(git -C ../Stockfish show "$base:$f") "$f" > /dev/null; then
+        printf '  \033[33mmirror %s: DRIFTED from upstream %s\033[0m\n' "$f" "${base:0:9}"
+        drifted=1
+      fi
+    done
+    [[ $drifted -eq 0 ]] && green "  mirrors: verbatim at ${base:0:9}"
+  fi
+  return $rc
+}
+
 # The finish-line gate. RED until the port completes -- that is the definition of
 # done, not a regression. Kept OUT of `parity` for exactly that reason: parity must
 # stay green on a correct in-progress tree.
@@ -837,6 +902,7 @@ usage: ./build.sh <step> [args]
   fmt / fmt-fix      check / apply clang-format
   docs-lint          check docs for dead links and stale paths
   port-status        report progress toward the bit-exact 1:1 port
+  sync-status        report drift between the pinned SHAs and the tracked repos
   upstream-parity    THE finish line: bench vs a pristine upstream build (red until done)
   parity             the aggregate: every in-repo gate above
   clean              remove build/
@@ -870,6 +936,7 @@ case "${1:-build}" in
   zone-check)       do_zone_check ;;
   docs-lint)        do_docs_lint ;;
   port-status)      do_port_status ;;
+  sync-status)      do_sync_status ;;
   upstream-parity)  shift; do_upstream_parity "$@" ;;
   fmt)              do_fmt ;;
   fmt-fix)          do_fmt_fix ;;

@@ -25,8 +25,17 @@ divergence is a bug report for zfish.
   *this commit* is the finish line. Advance it only when `upstream-parity` is green.
 - **`UPSTREAM_TARGET`** — the SHA being ported toward when catching up to a moving
   upstream; equal to `UPSTREAM_BASE` when synced.
+- **`ZFISH_BASE`** — the zfish SHA mcfish has been ported **up to**. Advance it in
+  the commit that ports the last change from that range, not before: it is a record
+  of what has landed here, not a bookmark of what was read.
 - **`port_map.tsv`** — the work list: every zfish module → its mcfish owner → its
   Stockfish golden → status → risk tier.
+
+**`./build.sh sync-status` is what checks these**, comparing each pin to its
+checkout's `HEAD` and listing every commit in between. It reports; it does not
+gate, because a tracked repository moving is normal — the failure it catches is
+not noticing. Before this step existed nothing read the pins at all, and
+`ZFISH_BASE` sat five commits stale while reading as authoritative.
 
 ## Tools
 
