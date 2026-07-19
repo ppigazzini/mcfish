@@ -24,18 +24,18 @@ set consumes are recorded on every make and unmake.
 [`movegen.c`](../src/engine/board/movegen.c),
 [`uci_move.c`](../src/engine/board/uci_move.c).
 
-**Ported and not in `SOURCES`**, so not in the binary and not gated:
-[`fen.c`](../src/engine/board/fen.c),
-[`fen_parse.c`](../src/engine/board/fen_parse.c),
-[`legality.c`](../src/engine/board/legality.c),
-[`state_list.c`](../src/engine/board/state_list.c).
+**M1's module split is done.** `zobrist.c`, `state_list.c`, `legality.c` and
+`fen.c` are all in `SOURCES` and own their behaviour; `position.c` no longer
+carries a second copy of any of it.
 
-[`zobrist.c`](../src/engine/board/zobrist.c) was the first of these to land: it
-now owns the key tables and the seeded PRNG, and `position_init` calls
-`zobrist_init`. `position_query.c` and `position_snapshot.c` were **deleted**
-rather than wired — they duplicated queries
-[`board_props.c`](../src/engine/board/board_props.c) already owns and the tree
-already calls, with zero call sites of their own.
+Three extracted modules were **deleted** rather than wired, each superseded by
+live code: `position_query.c` and `position_snapshot.c` duplicated queries
+[`board_props.c`](../src/engine/board/board_props.c) already owns, and
+`fen_parse.c` was a second FEN parser with no `pos_set_reason` — the entry the
+shell needs and whose reason string `tools/errors.golden` pins. `position.c`
+keeps the decode side until its shared helpers (`set_check_info`,
+`slider_blockers`, `compute_key`, used by both `pos_set` and `pos_do_move`) get a
+header of their own.
 
 **Those are not merely unwired — several of them cannot be added to `SOURCES` as
 the tree stands.** `position.c` still carries its own copies of the symbols they

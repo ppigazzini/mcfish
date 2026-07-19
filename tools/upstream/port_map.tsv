@@ -38,7 +38,7 @@ src/engine/board/bitboard_geom.zig	src/engine/board/bitboard.c	src/bitboard.cpp,
 src/engine/board/board_core.zig	src/engine/board/position.c	src/position.cpp	CONSOLIDATED	LOW
 src/engine/board/board_props.zig	src/engine/board/board_props.c	src/position.cpp	PORTED	LOW
 src/engine/board/fen.zig	src/engine/board/fen.c	src/position.cpp	PORTED	LOW
-src/engine/board/fen_parse.zig	src/engine/board/fen_parse.c	src/position.cpp	PORTED	LOW
+src/engine/board/fen_parse.zig	src/engine/board/position.c	src/position.cpp	CONSOLIDATED	LOW
 src/engine/board/fuzz_targets.zig	-	-	SKIP	LOW
 src/engine/board/legality.zig	src/engine/board/position.c	src/position.cpp, src/movegen.cpp	PORTED	MED
 src/engine/board/move_do.zig	src/engine/board/position.c	src/position.cpp	CONSOLIDATED	MED
