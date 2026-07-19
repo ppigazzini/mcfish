@@ -32,6 +32,21 @@ static void bind_job(void *ctx) {
     (void) numa_config_bind_current_thread(numa_context_config(job->numa_ctx), job->node);
 }
 
+// Carry one shared-history insert to whichever thread runs it, so the same call works
+// bound (on a throwaway thread pinned to the node) and unbound (inline).
+typedef struct {
+    const SharedHistoryHooks *hooks;
+    size_t node;
+    size_t count;
+    bool bound;
+    bool ok;
+} InsertHistoryJob;
+
+static void insert_history_job(void *ctx) {
+    InsertHistoryJob *job = (InsertHistoryJob *) ctx;
+    job->ok = job->hooks->insert_history(job->hooks->ctx, job->node, job->count, job->bound);
+}
+
 static void destroy_thread(const ThreadBuilder *builder, Thread *thread) {
     // Join the idle loop FIRST -- no thread touches `worker` after this -- then hand the
     // attached block back to whoever built it.
@@ -247,9 +262,22 @@ bool thread_pool_reconfigure(ThreadPool *pool,
         const size_t count = threads_per_node[node];
         if (count == 0)
             continue;
-        if (histories != nullptr && histories->insert_history != nullptr
-            && !histories->insert_history(histories->ctx, node, next_power_of_two(count),
-                                          do_bind)) {
+        if (histories == nullptr || histories->insert_history == nullptr)
+            continue;
+
+        InsertHistoryJob job = { histories, node, next_power_of_two(count), do_bind, false };
+
+        // Build the bank ON the node that will read it. The bank is tens of megabytes and
+        // its pages are first-touched by whoever writes them first, so inserting every
+        // node's bank from the calling thread puts them all on ONE node -- which is
+        // precisely the cost per-node banks exist to avoid. Upstream routes the same
+        // insert through execute_on_numa_node (thread.cpp:208).
+        if (do_bind)
+            numa_execute_on_node(numa_ctx, node, insert_history_job, &job);
+        else
+            insert_history_job(&job);
+
+        if (!job.ok) {
             free(threads_per_node);
             free(bound_nodes);
             return false;

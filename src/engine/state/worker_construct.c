@@ -42,6 +42,14 @@ void worker_write_constructor_fields(Worker *w, const WorkerCtorInputs *in) {
 
     w->limits = limits_type_default();
 
+    // Initialise the tablebase config HERE, not by relying on a zeroed block. Upstream's
+    // Tablebases::Config carries its own in-class initialisers (tbprobe.h:41), so a Worker
+    // that never runs a root setup still reads cardinality 0 and never probes; ccfish's
+    // TablebaseConfig is a plain struct with none, so without this line a worker built
+    // before the first `go` reads a stale cardinality and probes a tablebase the root
+    // ranking never resolved.
+    worker_set_tb_config(w, 0, false, false, 0);
+
     // Start the accumulator stack with one live, uncomputed root slot.
     nnue_acc_stack_reset(w->accumulator_stack);
 }
@@ -80,8 +88,10 @@ Worker *worker_construct_full(void *block, const WorkerCtorInputs *in, bool *net
     if (block == nullptr)
         return nullptr;
 
-    // Zero first: one field is written by neither the constructor nor the clear, and a
-    // reused block must not leave it carrying the previous worker's bytes.
+    // Zero the whole block first. The allocator hands it over uninitialised, and a reused
+    // block otherwise carries the previous worker's root position and PV buffers into the
+    // fields the ID loop writes only once it has a root -- so a `go` on a position with no
+    // legal move would report the previous search's line.
     memset(block, 0, worker_block_bytes());
 
     Worker *w = worker_block_init(block);

@@ -120,7 +120,19 @@ SOURCES=(
   src/engine/search/history.c
   src/engine/search/timeman.c
   src/engine/search/tt.c
+  src/engine/state/correction_bundle.c
+  src/engine/state/position_storage.c
+  src/engine/state/root_move.c
+  src/engine/state/shared_state.c
+  src/engine/state/worker_histories.c
+  src/engine/state/worker_construct.c
+  src/engine/state/worker_layout.c
   src/platform/clock.c
+  src/platform/memory.c
+  src/platform/thread_runtime.c
+  src/platform/thread.c
+  src/platform/numa.c
+  src/platform/thread_pool.c
   src/platform/tablebase.c
   src/platform/syzygy/tables.c
   src/platform/syzygy/registry.c
@@ -175,7 +187,19 @@ ENGINE_SOURCES=(
   src/engine/search/history.c
   src/engine/search/timeman.c
   src/engine/search/tt.c
+  src/engine/state/correction_bundle.c
+  src/engine/state/position_storage.c
+  src/engine/state/root_move.c
+  src/engine/state/shared_state.c
+  src/engine/state/worker_histories.c
+  src/engine/state/worker_construct.c
+  src/engine/state/worker_layout.c
   src/platform/clock.c
+  src/platform/memory.c
+  src/platform/thread_runtime.c
+  src/platform/thread.c
+  src/platform/numa.c
+  src/platform/thread_pool.c
   src/platform/tablebase.c
   src/platform/syzygy/tables.c
   src/platform/syzygy/registry.c
@@ -491,6 +515,26 @@ do_test() {
   ./build/ccfish-test
 }
 
+# Re-run the suite under ThreadSanitizer.
+#
+# This is the gate the threading zone actually needs. The pool spawns real OS threads,
+# hands them jobs, waits on a condition variable and joins them; a missing broadcast or a
+# `worker` slot written after the join is invisible to every other gate here, because the
+# single-threaded search never reaches that code and a race does not have to fire. TSan
+# instruments the happens-before edges instead of hoping the schedule lands badly.
+#
+# Kept OUT of `parity`: TSan needs its own build of the whole engine and roughly triples
+# the suite's runtime. Run it whenever src/platform/thread*.c changes.
+do_tsan() {
+  info "unit + property tests under ThreadSanitizer"
+  mkdir -p build
+  "$CC" "$STD_FLAG" -Wall -Wextra -Isrc -D_POSIX_C_SOURCE=200809L -O1 -g \
+    -fsanitize=thread \
+    -o build/ccfish-tsan "${ENGINE_SOURCES[@]}" tests/test_main.c -lm
+  ./build/ccfish-tsan
+  green "tsan clean"
+}
+
 # Resolve clang-format, preferring a versioned binary. Echo the name, or nothing
 # when none is installed — never fall back to a no-op, because a formatting gate
 # that silently does nothing is worse than no gate at all.
@@ -722,7 +766,8 @@ usage: ./build.sh <step> [args]
 
   build              compile the release binary          -> build/ccfish
   debug              compile with asan+ubsan             -> build/ccfish-debug
-  test               build and run the unit/property suite
+  test               build and run the unit/property suite (asan+ubsan)
+  tsan               re-run the suite under ThreadSanitizer (the thread-pool gate)
   bench [depth]      run the benchmark (default depth 13)
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
   arch-determinism   build every executable ISA tier and require one node count
@@ -753,6 +798,7 @@ case "${1:-build}" in
   build)            do_build ;;
   debug)            do_debug ;;
   test)             do_test ;;
+  tsan)             do_tsan ;;
   bench)            do_bench "${2:-}" ;;
   net)              do_net ;;
   signature)        do_signature ;;

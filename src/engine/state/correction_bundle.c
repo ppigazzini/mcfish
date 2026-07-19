@@ -1,6 +1,5 @@
 #include "correction_bundle.h"
 
-#include <string.h>
 
 // Index the bundle through its declared fields rather than by casting it to an array:
 // the four entries are contiguous by the static_assert in the header, but naming them
@@ -30,10 +29,10 @@ int16_t *correction_bundle_nonpawn(CorrectionBundle *bundle, Color c) {
 }
 
 void correction_bundle_clear(CorrectionBundle *bundle) {
-    bundle->pawn = 0;
-    bundle->minor = 0;
-    bundle->nonpawn_white = 0;
-    bundle->nonpawn_black = 0;
+    bundle->pawn = CORRECTION_HISTORY_FILL;
+    bundle->minor = CORRECTION_HISTORY_FILL;
+    bundle->nonpawn_white = CORRECTION_HISTORY_FILL;
+    bundle->nonpawn_black = CORRECTION_HISTORY_FILL;
 }
 
 void correction_bundle_page_clear(CorrectionBundle page[COLOR_NB]) {
@@ -42,7 +41,11 @@ void correction_bundle_page_clear(CorrectionBundle page[COLOR_NB]) {
 }
 
 void correction_bundle_clear_range(CorrectionBundle (*pages)[COLOR_NB], size_t count) {
-    if (count == 0)
-        return;
-    memset(pages, 0, count * sizeof pages[0]);
+    // Fill entry by entry rather than memset: the cleared value is -6, not 0, so a byte
+    // fill would only be correct if the value happened to be zero -- and the search reads
+    // this table on the very first node of the first search after a clear.
+    int16_t *entries = (int16_t *) &pages[0][0];
+    const size_t total = count * (size_t) COLOR_NB * (size_t) CORR_FIELD_NB;
+    for (size_t i = 0; i < total; ++i)
+        entries[i] = CORRECTION_HISTORY_FILL;
 }

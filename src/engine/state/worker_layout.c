@@ -22,7 +22,8 @@ size_t worker_block_bytes(void) {
 
 void *worker_block_alloc(void) {
     // Take the block from the large-page allocator: it is 2 MiB-aligned, which satisfies
-    // WORKER_ALIGN, and it arrives zeroed, which the construction path relies on.
+    // WORKER_ALIGN. It arrives UNINITIALISED -- worker_construct_full zeroes it before
+    // binding any field, and nothing else may read this block first.
     return aligned_large_pages_alloc(worker_block_bytes());
 }
 

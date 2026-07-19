@@ -141,7 +141,8 @@ size_t worker_block_bytes(void);
 size_t worker_accumulator_stack_offset(void);
 size_t worker_refresh_table_offset(void);
 
-// Allocate one zeroed, WORKER_ALIGN-aligned block of worker_block_bytes bytes, or null.
+// Allocate one uninitialised, WORKER_ALIGN-aligned block of worker_block_bytes bytes, or
+// null. Pass it to worker_construct_full, which zeroes it; never read it first.
 void *worker_block_alloc(void);
 void worker_block_free(void *block);
 

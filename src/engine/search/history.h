@@ -38,6 +38,16 @@ enum {
     CORRECTION_HISTORY_LIMIT = 1024,
 };
 
+// State the cleared values of the two key-indexed tables once, here, because three places
+// clear them: history_clear, the striped shared clear a worker runs for its own slice, and
+// the bundle-level clear. NEITHER IS ZERO, so any of the three that reaches for memset is
+// silently wrong -- the search reads the correction table on the first node after a clear
+// and reads a different value than upstream from then on. Upstream: search.cpp:680-681.
+enum : int16_t {
+    CORRECTION_HISTORY_FILL = -6,
+    PAWN_HISTORY_FILL = -1262,
+};
+
 // Bundle the four correction entries stored per (key, color) slot.
 typedef struct {
     int16_t pawn;

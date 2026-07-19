@@ -27,11 +27,13 @@ built from, and `ENGINE_SOURCES` is what `zone-check` and the test binary link.
 A file that is not in those arrays compiles nowhere, links nowhere, and is
 covered by **no gate** — not `signature`, not `perft`, not `golden`, not `test`.
 
-Whole ported subsystems are in that state today: the thread/NUMA/memory runtime
-in `src/platform/`, the
-per-worker state zone in `src/engine/state/`, the decomposed search in
-`src/engine/search/search_main.c` and its siblings, and the decomposed shell in
-`src/shell/uci_parse.c` and its siblings. Each page below says which of its
+One ported subsystem is in that state today: the decomposed shell in
+`src/shell/engine.c`, a dead duplicate of the live option table in `uci.c`.
+
+A second failure mode sits one step past it and reads the same from the outside: a
+module that IS in `SOURCES`, compiles, links and is unit-tested, but that nothing in
+the engine calls. The thread pool and the NUMA runtime are there now — gated, but not
+driven by the search. Each page below says which of its
 modules are wired and which are not.
 
 **That is a gap, not a design.** A module verified in isolation and left out of
@@ -75,7 +77,7 @@ The mapping between the two, plus the ccfish owner and the status, is
 | [01-engine-board.md](01-engine-board.md) | Engine contributors | Types and the 16-bit move encoding, the bitboard leaf and the magic slider tables, Position/StateInfo, Zobrist, the threat deltas, FEN, move generation and legality |
 | [02-engine-search.md](02-engine-search.md) | Engine contributors | Iterative deepening, alpha-beta and qsearch, the staged move picker and the history block, the pruning set, the cluster transposition table, time management and determinism, the unwired search decomposition |
 | [03-engine-eval.md](03-engine-eval.md) | Engine contributors | The NNUE evaluation, the accumulator bracket every make/unmake owes it, the net load path, and the classical fallback that is still scaffolding |
-| [04-platform.md](04-platform.md) | Platform contributors | `src/platform/`: the monotonic clock, the feature-test macro, the wired Syzygy prober, and the memory/thread/NUMA modules that are ported and not yet in the build |
+| [04-platform.md](04-platform.md) | Platform contributors | `src/platform/`: the monotonic clock, the feature-test macro, the wired Syzygy prober, and the memory/thread/NUMA modules — in the build and gated, but not yet driven by the search |
 | [05-shell.md](05-shell.md) | Shell contributors | `main` as the composition root, every UCI command the live loop handles, the option tables, the injected output sink, bench |
 | [06-idiomatic-c.md](06-idiomatic-c.md) | Hot-path and build contributors | The C23 patterns this repo commits to, the warning set, why there is no build system, the Zig→C23 translation patterns, the measurement discipline |
 | [07-tooling-ci.md](07-tooling-ci.md) | All developers | Every `./build.sh` step and what it gates, the source arrays that decide what is gated at all, the golden-diff harness and its normalization, fact tables versus goldens, the anchor versus the finish line, the CI lanes |
@@ -121,7 +123,7 @@ none of them sees a ported file that is not in the array.
 | Sanitizers | ASan + UBSan on the `debug` and `test` steps |
 | Slider attacks | magic bitboards in [`../src/engine/board/attacks.c`](../src/engine/board/attacks.c), built at startup by `attacks_init` |
 | Evaluation | NNUE, under `src/engine/eval/nnue/`, with an incremental accumulator the search brackets. The net is a runtime input; a build with no net falls back to a classical material + PSQT term that is **scaffolding** |
-| Search | single-threaded iterative-deepening alpha-beta with quiescence, a staged move picker, the history block and the time manager. The thread pool is ported in `src/platform/` and unwired (M4) |
+| Search | single-threaded iterative-deepening alpha-beta with quiescence, a staged move picker, the history block and the time manager. The thread pool is in the build and gated, but nothing drives it: the search's per-worker state is still file-scope globals (M4) |
 | Endgames | Syzygy WDL/DTZ probing, wired: the prober in `src/platform/syzygy/`, the root ranking and the Step 6 in-search probe. Tables are a runtime input — with no `SyzygyPath` the engine never probes |
 | Protocol | UCI |
 
@@ -137,16 +139,16 @@ ccfish/
 |   |-- engine/          -- the chess library
 |   |   |-- board/       -- types, bitboards, magic attacks, position, movegen,
 |   |   |                   zobrist, threats, repetition, FEN, legality, UCI moves
-|   |   |-- search/      -- the live search.c, movepick, history, timeman, the TT,
-|   |   |                   and the decomposed search_*.c that is not yet in the build
+|   |   |-- search/      -- the live search.c and its decomposition, movepick,
+|   |   |                   history, timeman, the TT
 |   |   |-- state/       -- per-worker layout, shared state, root moves, position
-|   |   |                   storage, limits (not yet in the build)
+|   |   |                   storage, limits (built and tested; not driven yet)
 |   |   `-- eval/        -- the dispatch and classical fallback, and nnue/ (the network)
-|   |-- platform/        -- the OS runtime: the monotonic clock and syzygy/ (the
-|   |                       tablebase prober), plus thread, NUMA and memory
-|   |                       (not yet in the build)
-|   `-- shell/           -- main (composition root), the live uci.c, bench, and the
-|                           decomposed uci_*/ucioption/engine (not yet in the build)
+|   |-- platform/        -- the OS runtime: the monotonic clock, syzygy/ (the
+|   |                       tablebase prober), and thread, NUMA and memory
+|   |                       (built and tested; the pool is not driven yet)
+|   `-- shell/           -- main (composition root), the live uci.c, bench, and
+|                           engine.c (a dead duplicate of uci.c's option table)
 |-- tools/               -- the gate inputs, and upstream/ (the port map and the SHA pin)
 |-- tests/               -- test_main.c (ccfish-owned) plus upstream Stockfish mirrors
 |-- scripts/             -- upstream Stockfish mirrors
@@ -154,9 +156,10 @@ ccfish/
 `-- Copying.txt, AUTHORS -- GPL v3; Stockfish attribution
 ```
 
-Read "not yet in the build" as the gap it is: those files exist and compile, and
-nothing in the repository proves they still do, because `build.sh` never names
-them.
+Read "not driven yet" as the gap it is, and do not mistake it for the older one:
+`build.sh` names those files, so they compile under the full warning set and the
+tests reach them — but nothing in the engine calls them, so no gate can tell whether
+they would still be *correct* when it does.
 
 `src/`, `build.sh`, `tools/`, `tests/test_main.c` and `docs/` are
 ccfish-owned. The rest of `tests/` and `scripts/net.sh` are upstream Stockfish

@@ -174,9 +174,9 @@ silently ignored rather than producing noise.
 single-threaded: while `cmd_go` is inside `search_go`, nothing is reading stdin, so
 a `stop` sent during a search is not seen until the search has already returned.
 Consequently `go infinite` has no deadline and no interruption path and does not
-return. This is a gap in the shell, and the runtime that closes it is already
-ported and unwired — the thread pool in `src/platform/`, whose shared stop flag is
-the cross-thread protocol. See [04-platform.md](04-platform.md).
+return. This is a gap in the shell, and the runtime that closes it is already built
+and gated — the thread pool in `src/platform/`, whose shared stop flag is the
+cross-thread protocol. Nothing drives it yet. See [04-platform.md](04-platform.md).
 
 `ucinewgame` clears the TT but does **not** clear the history block; the live search
 clears that per `go` instead, which is not where upstream clears it. See

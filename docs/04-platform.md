@@ -8,49 +8,64 @@ Audience: platform contributors. The zone's place in the dependency stack is in
 
 ## The zone today
 
-The modules are written. **One of them is in the build.**
+Every module is in the build.
 
-| Module | In `SOURCES`? | Owns |
-| --- | --- | --- |
-| [`clock.c`](../src/platform/clock.c) | **yes** | `now_ms`, the one clock the engine reads |
-| [`memory.c`](../src/platform/memory.c) | no | large-page aligned allocation and the page-allocator seam |
-| [`thread_runtime.c`](../src/platform/thread_runtime.c) | no | the mutex / condition-variable / atomic primitives |
-| [`thread.c`](../src/platform/thread.c) | no | one OS thread and its idle-loop handshake |
-| [`thread_pool.c`](../src/platform/thread_pool.c) | no | the Lazy-SMP worker pool, the shared stop flag, the NUMA binding plan |
-| [`numa.c`](../src/platform/numa.c) | no | the NUMA topology model and the replication registry |
-| [`tablebase.c`](../src/platform/tablebase.c) | **yes** | the Syzygy facade the engine and shell call |
-| [`syzygy/`](../src/platform/syzygy) | **yes** | the prober: `tables.c`, `encode.c`, `decode.c`, `registry.c`, `wdl.c`, `probe.c` |
+| Module | In `SOURCES`? | Driven by the search? | Owns |
+| --- | --- | --- | --- |
+| [`clock.c`](../src/platform/clock.c) | **yes** | **yes** | `now_ms`, the one clock the engine reads |
+| [`memory.c`](../src/platform/memory.c) | **yes** | no | large-page aligned allocation and the page-allocator seam |
+| [`thread_runtime.c`](../src/platform/thread_runtime.c) | **yes** | no | the mutex / condition-variable / atomic primitives |
+| [`thread.c`](../src/platform/thread.c) | **yes** | no | one OS thread and its idle-loop handshake |
+| [`thread_pool.c`](../src/platform/thread_pool.c) | **yes** | no | the Lazy-SMP worker pool, the shared stop flag, the NUMA binding plan |
+| [`numa.c`](../src/platform/numa.c) | **yes** | no | the NUMA topology model and the replication registry |
+| [`tablebase.c`](../src/platform/tablebase.c) | **yes** | **yes** | the Syzygy facade the engine and shell call |
+| [`syzygy/`](../src/platform/syzygy) | **yes** | **yes** | the prober: `tables.c`, `encode.c`, `decode.c`, `registry.c`, `wdl.c`, `probe.c` |
 
-**A module that is not in `SOURCES` is compiled by nothing.** It is not in the
-binary, not linked by `zone-check`, not reached by `./build.sh test`, and covered by
-no gate. So the engine still runs on one thread, still allocates its transposition
-table with a plain `aligned_alloc`, and still has no endgame knowledge — not because
-those modules are missing, but because nothing calls them.
+**The two columns are different claims, and only the first one is now true of every
+row.** Being in `SOURCES` means the module compiles under the full warning set, links
+into `zone-check`, and can be reached by `./build.sh test` — the thread pool and the
+NUMA config are covered by unit tests and by `./build.sh tsan`. Being *driven by the
+search* means the engine's behaviour changes when the module does, and for the
+thread/NUMA rows it still does not: nothing constructs a pool, so `Threads` above 1
+is accepted and ignored.
 
-**That is a gap, not a design.** Each row below says what its own wiring commit has
-to decide.
+**Why the pool is built but not driven.** Lazy-SMP is not a matter of calling
+`thread_pool_set`. The live search keeps every piece of per-worker state in file-scope
+globals — the `SearchCtx` in `search.c`, the `Histories` block in `history.c`, and the
+accumulator stack, refresh cache and scratch dirty-piece records in `evaluate.c`.
+Running two workers over those is not parallel search, it is a data race on 28 MiB of
+history tables and one shared NNUE accumulator. The remaining work is to make that
+state per-worker and to route the node sum, the thread vote and `best_move_changes`
+through a seam that answers with thread 0's own values at `Threads 1` — which is what
+keeps the anchor bit-exact. The per-worker layout that state has to move to is already
+written, in [`src/engine/state/`](../src/engine/state).
 
-## What each unwired module needs to enter the build
-
-Every one is **required** for the goal stated in [PORTING.md](PORTING.md). The
-authoritative status list is `tools/upstream/port_map.tsv`, and `./build.sh
+The authoritative status list is `tools/upstream/port_map.tsv`, and `./build.sh
 port-status` prints it live.
 
-### Memory (M4)
+## What each module does
 
-Hands back blocks that are 2 MiB-aligned, rounded up to whole large pages, and
-**zeroed**. All three properties are load-bearing, and the third is the one that
-surprises: `Worker` construction relies on the zero-fill for a field that neither
-its constructor nor its `clear()` initialises, so a reused non-zeroed block would
-leave that field heap-layout-dependent — exactly the kind of address dependence the
-signature gate exists to catch.
+### Memory
+
+Hands back blocks that are 2 MiB-aligned and rounded up to whole large pages. The
+alignment is load-bearing: the NNUE accumulator reads it as a precondition. The
+contents are **not** initialised, exactly as upstream leaves them
+(`memory.cpp:129`). An allocator that zeroes looks harmless and is not — it lets a
+constructor that forgets a field read 0 and look correct, so the field is right only
+because the allocator hid the omission. `worker_construct_full` zeroes its own block
+and then writes every field it does not otherwise clear, including the tablebase
+config that upstream initialises through `Tablebases::Config`'s own member defaults
+(`syzygy/tbprobe.h:41`).
+
+`page_alloc` is the exception and says so: it is backed by an anonymous mapping,
+which the kernel is required to hand over zeroed.
 
 It degrades to a plain aligned allocation on a host without huge pages and **never
 fails an allocation `malloc` could serve**. Today `tt_resize` calls `aligned_alloc`
 directly; routing it through here is what puts the hottest random-access structure
 in the engine onto large pages.
 
-### Threads and the pool (M4)
+### Threads and the pool
 
 `thread_runtime.c` wraps pthreads. zfish hand-rolls a Drepper futex mutex and a
 sequence-counter condition variable because Zig 0.16 removed
@@ -76,11 +91,21 @@ time, on scheduling, or on an address. The `Worker` is attached through an injec
 `ThreadBuilder` rather than constructed here, so the pool never reaches into the
 search zone.
 
-Wiring the pool also fixes the shell's `stop` gap: nothing reads stdin while
+`stop` and `increase_depth` are **sequentially consistent**, and that is deliberate.
+Upstream's are plain `std::atomic_bool` assignments and reads (`thread.h:157`); only
+two sites in the whole engine opt out, the in-tree abort checks at `search.cpp:770`
+and `search.cpp:1403`, which spell `memory_order_relaxed` explicitly. Making every
+access relaxed is not a free optimisation — `stop` is raised by one thread and must be
+seen by every other worker's depth loop, and under relaxed ordering the compiler may
+hoist the load out of that loop entirely. `atomic_bool_load_relaxed` exists for the two
+sites upstream names and nowhere else. The per-worker counters go the other way:
+upstream wraps them in `RelaxedAtomic` (`misc.h:337`), so `AtomicU64` is relaxed.
+
+Driving the pool also fixes the shell's `stop` gap: nothing reads stdin while
 `cmd_go` is inside `search_go`, so `go infinite` does not return. See
 [05-shell.md](05-shell.md).
 
-### NUMA (M4)
+### NUMA
 
 A `NumaConfig` is a list of nodes, each an ascending duplicate-free CPU set, plus the
 reverse cpu→node index. The invariant: **a CPU belongs to at most one node**, and
@@ -93,10 +118,44 @@ NNUE network is the live one. **Replacing the config notifies every registered o
 to re-replicate**, and that notification is the whole point of the registry; skipping
 it is how a `NumaPolicy` change becomes a silent no-op.
 
-The topology is read from `/sys/devices/system/node` rather than by linking libnuma,
-so the build keeps its no-dependencies property. It fails soft everywhere: no
-`/sys`, no nodes, a restricted affinity mask or an unparseable policy string all
-degrade to one node holding every allowed CPU, which is a correct single-node run.
+The topology is read from `/sys` rather than by linking libnuma, so the build keeps
+its no-dependencies property. It fails soft everywhere: no `/sys`, no nodes or a
+restricted affinity mask all degrade to one node holding every allowed CPU, which is a
+correct single-node run. An unparseable `NumaPolicy` string is the one case that does
+**not** degrade — it is refused, and the caller keeps the previous topology, because
+installing a config with zero nodes makes `distribute_threads` and
+`suggests_binding_threads` divide by a node count of zero.
+
+**The partition is L3-aware first.** Upstream's default policy is
+`BundledL3Policy{32}` (`engine.cpp:58`), and `from_system` tries the L3-aware config
+before falling back to the raw `/sys/devices/system/node` read (`numa.h:583`). This is
+not a refinement: on a chiplet CPU one system NUMA node spans several L3 domains, so
+the raw partition reports **one** node where upstream reports one per bundle — a
+different thread distribution, a different number of shared-history banks, and a
+different bind decision for the same `Threads`. `try_get_l3_aware_config` reads each
+CPU's `cache/index3/shared_cpu_list`, groups the domains by the system node they sit
+on, merges them pairwise while a pair still fits in 32 CPUs, and emits one config node
+per surviving domain. `auto`, `system` and `hardware` all resolve to it; only the raw
+partition the L3 pass itself reads uses `SystemNumaPolicy`.
+
+**The policy-string grammar is upstream's, including what it forgives.**
+`indices_from_shortened_string` (`numa.h:1033`) never fails: an element it cannot read
+contributes nothing and the walk continues, so `0-1,7-3` is the node `{0,1}` rather
+than a rejected string. What *is* refused is a string naming no node at all
+(`numa.h:686`) and any CPU claimed twice — `add_cpu_to_node` opens with `if
+(is_cpu_assigned(c)) return false` (`numa.h:995`), which rejects a re-add even into the
+node that already holds the CPU. Matching both halves matters: a policy the two engines
+read differently is a topology they run differently.
+
+`numa_execute_on_node` runs its callback on a **throwaway thread** and joins it, as
+upstream's `execute_on_numa_node` does (`numa.h:957`). The binding is the point of the
+call and must not survive it — binding the caller instead confines whoever asked (the
+UCI thread, during a pool rebuild) to one node for the rest of the process, and every
+later allocation it makes first-touches that node. The same reasoning is why the
+per-node shared-history banks are inserted *through* it: the bank is tens of megabytes
+and its pages are first-touched by whoever writes them first, so inserting every node's
+bank from the calling thread puts them all on one node, which is precisely the cost
+per-node banks exist to avoid (`thread.cpp:208`).
 
 ### Syzygy
 

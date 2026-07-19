@@ -20,7 +20,10 @@
 #include "../src/engine/search/search.h"
 #include "../src/engine/search/tt.h"
 #include "../src/engine/eval/nnue/simd.h"
+#include "../src/platform/numa.h"
+#include "../src/platform/thread_pool.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -607,6 +610,170 @@ static void test_nnue_dot4(void) {
     CHECK(127 * 128 * 2 < 32768, "pmaddubsw pair sum must not reach int16 saturation");
 }
 
+// ------------------------------------------------------------ numa topology
+
+// Parse S and report the resulting node/CPU shape. Every case below is stated as what
+// upstream's NumaConfig::from_string answers for the same string, because a policy the
+// two engines read differently is a topology they run differently.
+static bool parse_policy(const char *s, size_t *out_nodes, size_t *out_cpus) {
+    NumaConfig cfg;
+    if (!numa_config_from_string(&cfg, s, strlen(s)))
+        return false;
+    *out_nodes = numa_config_num_nodes(&cfg);
+    *out_cpus = numa_config_num_cpus(&cfg);
+    numa_config_destroy(&cfg);
+    return true;
+}
+
+static void test_numa_from_string(void) {
+    banner("numa policy strings");
+
+    size_t nodes = 0, cpus = 0;
+
+    CHECK(parse_policy("0-3,8:4-7", &nodes, &cpus), "0-3,8:4-7 parses");
+    CHECK(nodes == 2 && cpus == 9, "0-3,8:4-7 -> 2 nodes / 9 cpus, got %zu / %zu", nodes, cpus);
+
+    CHECK(parse_policy("0-7:8-15", &nodes, &cpus), "0-7:8-15 parses");
+    CHECK(nodes == 2 && cpus == 16, "0-7:8-15 -> 2 nodes / 16 cpus, got %zu / %zu", nodes, cpus);
+
+    // An empty node segment is skipped without consuming a node index (numa.h:674).
+    CHECK(parse_policy("0-1::2-3", &nodes, &cpus), "empty segment is skipped");
+    CHECK(nodes == 2 && cpus == 4, "0-1::2-3 -> 2 nodes, got %zu", nodes);
+
+    // A string naming no node at all is REFUSED; upstream returns nullopt on n == 0
+    // (numa.h:686) and the caller keeps the previous topology.
+    CHECK(!parse_policy("", &nodes, &cpus), "empty string is refused");
+    CHECK(!parse_policy(":::", &nodes, &cpus), "only-separators string is refused");
+    CHECK(!parse_policy("abc", &nodes, &cpus), "unparseable string is refused");
+
+    // A CPU may belong to at most one node, and add_cpu_to_node refuses ANY re-add
+    // (numa.h:995) -- including one back into the node that already holds it.
+    CHECK(!parse_policy("0,0", &nodes, &cpus), "duplicate cpu in one node is refused");
+    CHECK(!parse_policy("0-3:2", &nodes, &cpus), "cpu claimed by two nodes is refused");
+
+    // A malformed ELEMENT contributes nothing and the rest of the list still parses;
+    // upstream's indices_from_shortened_string never fails (numa.h:1033).
+    CHECK(parse_policy("0-1,7-3", &nodes, &cpus), "reversed range is skipped, not fatal");
+    CHECK(nodes == 1 && cpus == 2, "0-1,7-3 -> node {0,1}, got %zu cpus", cpus);
+    CHECK(parse_policy("0-1,x", &nodes, &cpus), "unparseable element is skipped");
+    CHECK(cpus == 2, "0-1,x -> 2 cpus, got %zu", cpus);
+    CHECK(parse_policy("0-1,1-2-3", &nodes, &cpus), "three-part element is skipped");
+    CHECK(cpus == 2, "0-1,1-2-3 -> 2 cpus, got %zu", cpus);
+
+    // The range cap is upstream's 1 << 20 (numa.h:1053), so a hostile range costs nothing
+    // rather than asking for a multi-gigabyte allocation.
+    CHECK(!parse_policy("0-4000000000", &nodes, &cpus), "oversized range yields no node");
+}
+
+static void test_numa_config_shape(void) {
+    banner("numa topology");
+
+    NumaConfig cfg;
+    numa_config_init(&cfg);
+
+    CHECK(numa_config_add_cpu_to_node(&cfg, 0, 5) == NUMA_ADD_OK, "add cpu 5 to node 0");
+    CHECK(numa_config_add_cpu_to_node(&cfg, 0, 1) == NUMA_ADD_OK, "add cpu 1 to node 0");
+    CHECK(numa_config_add_cpu_to_node(&cfg, 1, 5) == NUMA_ADD_CONFLICT, "cpu 5 is taken");
+    CHECK(numa_config_add_cpu_to_node(&cfg, 0, 5) == NUMA_ADD_CONFLICT, "re-add is refused");
+
+    size_t count = 0;
+    const size_t *list = numa_config_node_cpus(&cfg, 0, &count);
+    CHECK(count == 2 && list[0] == 1 && list[1] == 5, "node cpu set stays ascending");
+
+    // A single thread is never distributed, so `auto` never binds it -- this is what keeps
+    // the single-threaded path the same shape on every host.
+    CHECK(!numa_config_suggests_binding_threads(&cfg, 1), "one thread never binds");
+
+    numa_config_destroy(&cfg);
+
+    // A user-set topology always binds (numa.h:768), whatever the thread count.
+    NumaConfig custom;
+    CHECK(numa_config_from_string(&custom, "0-7:8-15", 8), "two-node policy parses");
+    CHECK(numa_config_suggests_binding_threads(&custom, 2), "custom affinity always binds");
+
+    size_t assigned[8];
+    CHECK(numa_config_distribute_threads(&custom, 8, assigned), "distribute 8 threads");
+    size_t per_node[2] = { 0, 0 };
+    for (size_t i = 0; i < 8; ++i)
+        per_node[assigned[i]] += 1;
+    CHECK(per_node[0] == 4 && per_node[1] == 4, "8 threads split 4/4, got %zu/%zu", per_node[0],
+          per_node[1]);
+    numa_config_destroy(&custom);
+
+    // The system topology must always name at least one node holding at least one CPU:
+    // every downstream division is by a node's CPU count.
+    NumaConfig sys;
+    CHECK(numa_config_from_system(&sys, true), "system topology reads");
+    CHECK(numa_config_num_nodes(&sys) >= 1, "system topology has a node");
+    CHECK(numa_config_num_cpus_in_node(&sys, 0) >= 1, "node 0 holds a cpu");
+    numa_config_destroy(&sys);
+}
+
+// ---------------------------------------------------------------- thread pool
+
+// Count through an atomic: the pool runs these jobs on four threads AT ONCE, so a plain
+// `int` counter here is itself a data race -- and one that hides whether the pool is
+// running them concurrently at all.
+static void count_job(void *ctx) { atomic_fetch_add((atomic_int *) ctx, 1); }
+
+static bool count_build(void *ctx, size_t idx, Thread *thread) {
+    (void) idx;
+    atomic_int *built = (atomic_int *) ctx;
+    atomic_fetch_add(built, 1);
+    thread_set_worker(thread, built);
+    return true;
+}
+
+static void test_thread_pool(void) {
+    banner("thread pool");
+
+    CHECK(next_power_of_two(0) == 1, "0 -> 1");
+    CHECK(next_power_of_two(1) == 1, "1 -> 1");
+    CHECK(next_power_of_two(3) == 4, "3 -> 4");
+    CHECK(next_power_of_two(16) == 16, "16 -> 16");
+    CHECK(next_power_of_two(17) == 32, "17 -> 32");
+
+    ThreadPool pool;
+    thread_pool_init(&pool);
+
+    atomic_int built = 0;
+    ThreadBuilder builder = { &built, count_build, nullptr };
+    CHECK(thread_pool_set(&pool, 4, &builder, nullptr, nullptr), "spawn four threads");
+    CHECK(thread_pool_num_threads(&pool) == 4, "pool reports four threads");
+    CHECK(built == 4, "the builder ran once per thread, got %d", (int) built);
+
+    // Every thread must actually run a submitted job and be waitable, or a search would
+    // start siblings that never search and wait on them forever.
+    atomic_int ran = 0;
+    for (size_t i = 0; i < 4; ++i)
+        thread_pool_run_on_thread(&pool, i, count_job, &ran);
+    thread_pool_wait_from(&pool, 0);
+    CHECK(ran == 4, "every thread ran its job, got %d", (int) ran);
+
+    thread_pool_set_stop(&pool, true);
+    CHECK(thread_pool_stopped(&pool), "stop is observable");
+
+    // clear() must be idempotent and safe to repeat: teardown reaches it from both the
+    // reconfigure path and the process exit path.
+    thread_pool_clear(&pool);
+    CHECK(thread_pool_num_threads(&pool) == 0, "clear empties the pool");
+    thread_pool_clear(&pool);
+
+    // Churn the pool: construct/destroy is where a teardown race shows up, and a dropped
+    // join leaves a thread reading a freed Thread object.
+    for (int round = 0; round < 8; ++round) {
+        built = 0;
+        CHECK(thread_pool_set(&pool, 3, &builder, nullptr, nullptr), "respawn round %d", round);
+        // Each thread's job context is its own `worker`, which the builder pointed at
+        // `built` -- so this counts three more increments on top of the three builds.
+        thread_pool_start_jobs(&pool, count_job, 0);
+        thread_pool_wait_from(&pool, 0);
+        CHECK(built == 6, "round %d ran three builds and three jobs, got %d", round, (int) built);
+        thread_pool_clear(&pool);
+    }
+    CHECK(thread_pool_num_threads(&pool) == 0, "churn leaves the pool empty");
+}
+
 int main(void) {
     bitboards_init();
     attacks_init();
@@ -625,6 +792,9 @@ int main(void) {
     test_search();
     test_draw_detection();
     test_nnue_dot4();
+    test_numa_from_string();
+    test_numa_config_shape();
+    test_thread_pool();
 
     printf("\n%d checks, %d failures\n", Checks, Failures);
     if (Failures) {

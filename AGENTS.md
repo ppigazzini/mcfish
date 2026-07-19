@@ -36,8 +36,18 @@ in `build.sh`'s `SOURCES`, because a module outside it is unwired, not deferred:
   oracle. `./build.sh tb-fetch` gets the 3-man set; without it the gate checks
   discovery only and says so. Still open: no 5-man/cursed-win coverage, and the
   `d` command prints no `Tablebases WDL:`/`DTZ:` lines.
-- **Lazy-SMP threading and NUMA** — written under `src/platform/`, unwired. The
-  search is single-threaded and the UCI `Threads` option advertises `max 1`.
+- **Lazy-SMP threading and NUMA** — the modules are **in the build** and gated.
+  `memory.c`, `thread_runtime.c`, `thread.c`, `thread_pool.c`, `numa.c` and all of
+  `src/engine/state/` are in `SOURCES` **and** `ENGINE_SOURCES`, covered by unit
+  tests and by `./build.sh tsan`. **Nothing drives them yet:** the search still runs
+  on one thread and `Threads` above 1 is accepted and ignored. That is not one call
+  away — the live search keeps its per-worker state in file-scope globals (the
+  `SearchCtx` in `search.c`, the `Histories` block in `history.c`, the accumulator
+  stack and refresh cache in `evaluate.c`), so running two workers over them is a
+  data race, not parallel search. Making that state per-worker, and routing the node
+  sum / thread vote / `best_move_changes` through a seam that answers with thread 0's
+  own values at `Threads 1`, is the remaining work. See
+  [docs/04-platform.md](docs/04-platform.md).
 - **The option model** — the live UCI layer advertises a hand-written subset of
   upstream's option table, and the search answers its own option seam with
   upstream's defaults because nothing else can.

@@ -37,7 +37,7 @@ const int16_t *correction_bundle_field_const(const CorrectionBundle *bundle, Cor
 // Return the non-pawn entry for C, so the caller indexes by color rather than by name.
 int16_t *correction_bundle_nonpawn(CorrectionBundle *bundle, Color c);
 
-// Reset every entry of one bundle, or of one [COLOR_NB] page, to zero.
+// Reset every entry of one bundle, or of one [COLOR_NB] page, to CORRECTION_HISTORY_FILL.
 void correction_bundle_clear(CorrectionBundle *bundle);
 void correction_bundle_page_clear(CorrectionBundle page[COLOR_NB]);
 

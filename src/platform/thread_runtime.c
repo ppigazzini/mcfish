@@ -27,13 +27,18 @@ void condition_broadcast(Condition *cv) { (void) pthread_cond_broadcast(&cv->han
 void atomic_bool_init(AtomicBool *a, bool value) { atomic_init(&a->value, value); }
 
 void atomic_bool_store(AtomicBool *a, bool value) {
-    atomic_store_explicit(&a->value, value, memory_order_relaxed);
+    atomic_store_explicit(&a->value, value, memory_order_seq_cst);
 }
 
 // Cast the const away for the load. C11's atomic_load_explicit takes a non-const pointer,
-// but a relaxed load mutates nothing the caller can observe, so the const in the signature
-// is the honest description of what this does.
+// but a load mutates nothing the caller can observe, so the const in the signature is the
+// honest description of what this does.
 bool atomic_bool_load(const AtomicBool *a) {
+    AtomicBool *mut = (AtomicBool *) (uintptr_t) (const void *) a;
+    return atomic_load_explicit(&mut->value, memory_order_seq_cst);
+}
+
+bool atomic_bool_load_relaxed(const AtomicBool *a) {
     AtomicBool *mut = (AtomicBool *) (uintptr_t) (const void *) a;
     return atomic_load_explicit(&mut->value, memory_order_relaxed);
 }

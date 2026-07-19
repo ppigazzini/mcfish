@@ -8,7 +8,6 @@
 #include "memory.h"
 
 #include <stdlib.h>
-#include <string.h>
 #include <sys/mman.h>
 
 // Assume a 2 MiB large page, as upstream does (memory.cpp:162). The value is the
@@ -42,13 +41,14 @@ void *aligned_large_pages_alloc(size_t alloc_size) {
     if (mem == nullptr)
         return nullptr;
 
-    // Zero the block. posix_memalign returns uninitialised memory; fresh OS pages happen
-    // to be zero, but reused blocks (thread resize, search clear) carry stale data, and
-    // the Worker has a field read during multipv search that neither its constructor nor
-    // clear() initialises. Zeroing makes that field deterministically 0 -- the same value
-    // a fresh-page allocation gives -- and lets Worker construction rely on zero-fill.
-    memset(mem, 0, rounded_size);
-
+    // Return the block UNINITIALISED, as upstream's aligned_large_pages_alloc does
+    // (memory.cpp:129 onward -- neither the mmap path nor the aligned_alloc fallback
+    // zeroes). Zeroing here would be a fifty-megabyte memset on every thread resize, and,
+    // worse, it would let a constructor that forgets a field read 0 and look correct: the
+    // field would then be right only because the allocator hid the omission. Every caller
+    // initialises what it reads -- worker_construct_full writes each Worker field it does
+    // not otherwise clear.
+    //
     // Hint transparent huge pages. This is advisory: the kernel may ignore it, and the
     // block is already 2 MiB-aligned, so it stays valid either way.
     if (rounded_size != 0) {

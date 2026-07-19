@@ -1,11 +1,14 @@
 // Own every large, long-lived allocation the engine makes, and the page-allocator seam.
 //
-// Hand back blocks that are 2 MiB-aligned, rounded up to a whole number of large pages,
-// and ZEROED. All three properties are load-bearing: the NNUE accumulator reads its
-// alignment as a precondition, and Worker construction relies on the zero-fill for a
-// field that neither its constructor nor clear() initialises -- a reused block would
-// otherwise leave that field heap-layout-dependent. Degrade to a plain aligned
-// allocation on a host without huge pages; never fail an allocation malloc could serve.
+// Hand back blocks that are 2 MiB-aligned and rounded up to a whole number of large
+// pages. The alignment is load-bearing: the NNUE accumulator reads it as a precondition.
+// The CONTENTS are not initialised, exactly as upstream leaves them -- a caller that
+// reads a field it never wrote is a bug in the caller, and an allocator that zeroes hides
+// it behind a plausible value. Degrade to a plain aligned allocation on a host without
+// huge pages; never fail an allocation malloc could serve.
+
+// The page_alloc seam below is the exception, and states its zero-fill explicitly: it is
+// backed by an anonymous mapping, which the kernel is required to hand over zeroed.
 //
 // Upstream: memory.cpp:71 (std_aligned_alloc), memory.cpp:151
 // (aligned_large_pages_alloc_with_hint), memory.cpp:182 (has_large_pages).
@@ -24,9 +27,9 @@ void *std_aligned_alloc(size_t alignment, size_t size);
 // Release a block from std_aligned_alloc. A nullptr is a no-op.
 void std_aligned_free(void *ptr);
 
-// Return a zeroed, 2 MiB-aligned block of at least ALLOC_SIZE bytes, or nullptr. The
-// size is rounded up to a whole number of 2 MiB pages, so the block may be larger than
-// requested; callers must not assume the rounding away.
+// Return an UNINITIALISED, 2 MiB-aligned block of at least ALLOC_SIZE bytes, or nullptr.
+// The size is rounded up to a whole number of 2 MiB pages, so the block may be larger
+// than requested; callers must not assume the rounding away.
 void *aligned_large_pages_alloc(size_t alloc_size);
 
 // Release a block from aligned_large_pages_alloc. A nullptr is a no-op.

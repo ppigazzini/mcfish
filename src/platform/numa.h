@@ -33,6 +33,12 @@
 // as a malformed policy string.
 enum { NumaMaxCpus = 65536 };
 
+// Bundle L3 domains up to this many CPUs when partitioning the system. This is upstream's
+// DEFAULT policy, BundledL3Policy{32} (engine.cpp:58), and it is what `auto`, `system` and
+// `hardware` all resolve to -- SystemNumaPolicy is used only for the raw partition the L3
+// pass reads to learn which system node each domain sits on.
+enum { NumaL3BundleSize = 32 };
+
 typedef struct {
     size_t *cpus;  // ascending, unique
     size_t count;

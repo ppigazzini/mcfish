@@ -47,9 +47,17 @@ void condition_wait(Condition *cv, Mutex *m);
 void condition_signal(Condition *cv);
 void condition_broadcast(Condition *cv);
 
-// Wrap the two atomics the pool shares with the search. Both use relaxed ordering, which
-// is what zfish's `.monotonic` means: these are flags and counters read outside any
-// happens-before chain, never a handoff of other memory.
+// Wrap the two atomics the pool shares with the search.
+//
+// AtomicBool is SEQUENTIALLY CONSISTENT, because upstream's `stop`, `increaseDepth` and
+// `ponder` are plain `std::atomic_bool` assignments and reads (thread.h:157) and only two
+// sites in the whole engine opt out -- the two in-tree abort checks, search.cpp:770 and
+// search.cpp:1403, which say `memory_order_relaxed` explicitly. Making every access
+// relaxed is not a free optimisation: `stop` is raised by one thread and must be seen by
+// the ID loop of every other, and under relaxed ordering the compiler may hoist the load
+// out of the depth loop entirely, so a `stop` arrives only when some unrelated barrier
+// happens to publish it. Use the _relaxed accessors ONLY at the two per-node checks, where
+// upstream does, and where a one-node-late abort is what the ordering buys back.
 typedef struct {
     atomic_bool value;
 } AtomicBool;
@@ -61,6 +69,10 @@ typedef struct {
 void atomic_bool_init(AtomicBool *a, bool value);
 void atomic_bool_store(AtomicBool *a, bool value);
 bool atomic_bool_load(const AtomicBool *a);
+
+// Read without ordering. Reserved for the two in-tree abort checks named above; anywhere
+// else this silently converts "stop the search now" into "stop it eventually".
+bool atomic_bool_load_relaxed(const AtomicBool *a);
 
 void atomic_u64_init(AtomicU64 *a, uint64_t value);
 void atomic_u64_store(AtomicU64 *a, uint64_t value);

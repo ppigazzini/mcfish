@@ -7,6 +7,7 @@
 
 #include "thread.h"
 
+#include <pthread.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,8 +104,13 @@ NumaAddStatus numa_config_add_cpu_to_node(NumaConfig *cfg, size_t node, size_t c
     if (cpu >= (size_t) NumaMaxCpus)
         return NUMA_ADD_CONFLICT;
 
-    if (cpu < cfg->cpu_map_len && cfg->node_by_cpu[cpu] != NumaUnassigned)
-        return cfg->node_by_cpu[cpu] == node ? NUMA_ADD_OK : NUMA_ADD_CONFLICT;
+    // Refuse ANY already-assigned CPU, including a re-add to the node it already holds.
+    // Upstream's add_cpu_to_node opens with `if (is_cpu_assigned(c)) return false`
+    // (numa.h:995), and from_string turns that false into a rejected policy string --
+    // so treating a repeat as success would accept "NumaPolicy 0,0", which upstream
+    // rejects, and silently under-count that node's CPUs against the thread it names.
+    if (numa_config_is_cpu_assigned(cfg, cpu))
+        return NUMA_ADD_CONFLICT;
 
     if (!nodes_reserve(cfg, node + 1) || !cpu_map_reserve(cfg, cpu))
         return NUMA_ADD_OOM;
@@ -180,8 +186,19 @@ static bool parse_uint(const char *s, size_t len, size_t *out) {
     return true;
 }
 
-// Parse one comma element: "5" or "3-7". Reject hi < lo, as upstream does.
-static bool parse_range(const char *s, size_t len, size_t *lo, size_t *hi) {
+// Cap one "first-last" element the way upstream does, so a hostile "0-4000000000" costs
+// nothing (numa.h:1053). The comparison is unsigned, so a REVERSED range wraps to a huge
+// difference and fails the cap -- which is exactly how upstream drops "7-3".
+enum { NumaMaxRangeIndices = 1 << 20 };
+
+// Parse one comma element into the half-open-free range [*lo, *hi]. Return false when the
+// element contributes NO indices; that is not an error, and the caller must skip it.
+//
+// Upstream's indices_from_shortened_string (numa.h:1033) never fails: an element it cannot
+// read contributes nothing and the walk continues. Matching that is not pedantry --
+// "0-1,7-3" is a config upstream accepts as node {0,1} and a rejecting parser turns into
+// a refused NumaPolicy, so the two engines would run different topologies.
+static bool parse_element(const char *s, size_t len, size_t *lo, size_t *hi) {
     const char *dash = memchr(s, '-', len);
     if (dash == nullptr) {
         if (!parse_uint(s, len, lo))
@@ -191,15 +208,24 @@ static bool parse_range(const char *s, size_t len, size_t *lo, size_t *hi) {
     }
 
     const size_t head = (size_t) (dash - s);
-    if (!parse_uint(s, head, lo) || !parse_uint(dash + 1, len - head - 1, hi))
+    const char *tail = dash + 1;
+    const size_t tail_len = len - head - 1;
+
+    // Refuse a third part. Upstream splits on '-' and skips anything but one or two parts,
+    // so "1-2-3" contributes nothing rather than reading as 1-2.
+    if (memchr(tail, '-', tail_len) != nullptr)
         return false;
 
-    return *hi >= *lo;
+    if (!parse_uint(s, head, lo) || !parse_uint(tail, tail_len, hi))
+        return false;
+
+    return *hi - *lo < (size_t) NumaMaxRangeIndices;
 }
 
-// Walk a comma-separated index list, calling SINK for each index. Skip empty elements and
-// any whitespace, which /sys files carry as a trailing newline. Return false on a
-// malformed element or when SINK refuses.
+// Walk a comma-separated index list, calling SINK for each index. Skip empty elements, any
+// whitespace (which /sys files carry as a trailing newline) and any element that parses to
+// nothing. Return false only when SINK refuses -- that is an OOM or a topology conflict,
+// which the caller must propagate.
 static bool for_each_index(
   const char *s, size_t len, bool (*sink)(void *ctx, size_t index), void *ctx, bool *out_any) {
     size_t start = 0;
@@ -222,8 +248,8 @@ static bool for_each_index(
 
         size_t lo = 0;
         size_t hi = 0;
-        if (!parse_range(element, element_len, &lo, &hi))
-            return false;
+        if (!parse_element(element, element_len, &lo, &hi))
+            continue;
 
         for (size_t index = lo; index <= hi; ++index) {
             if (!sink(ctx, index))
@@ -266,6 +292,15 @@ bool numa_config_from_string(NumaConfig *out, const char *s, size_t len) {
         // Skip an empty node segment without advancing the node index.
         if (any)
             node += 1;
+    }
+
+    // Refuse a string that named no node at all. Upstream returns nullopt on `n == 0`
+    // (numa.h:686), and the caller keeps the previous topology. Accepting it would install
+    // a config with zero nodes, on which distribute_threads and suggests_binding both
+    // divide by a node count of zero.
+    if (node == 0) {
+        numa_config_destroy(&cfg);
+        return false;
     }
 
     cfg.custom_affinity = true;
@@ -431,7 +466,9 @@ static bool sys_node_sink(void *ctx, size_t index) {
     return ok && !s->failed;
 }
 
-bool numa_config_from_system(NumaConfig *out, bool respect_process_affinity) {
+// Read the system's own NUMA partition from /sys/devices/system/node. This is upstream's
+// from_system_numa (numa.h:1075) -- the raw topology, before any L3 subdivision.
+static bool from_system_numa(NumaConfig *out, bool respect_process_affinity) {
     AffinityMask mask;
     affinity_mask_read(&mask, respect_process_affinity);
 
@@ -462,6 +499,236 @@ bool numa_config_from_system(NumaConfig *out, bool respect_process_affinity) {
 
     *out = cfg;
     return true;
+}
+
+// ---- the L3-aware partition -------------------------------------------------
+//
+// Upstream's DEFAULT policy is BundledL3Policy{32} (engine.cpp:58), and from_system tries
+// the L3-aware config FIRST, falling back to the raw NUMA partition only when no L3
+// domain can be read (numa.h:583-598). This is not a refinement: on a chiplet CPU one
+// system NUMA node spans several L3 domains, so the raw partition reports ONE node where
+// upstream reports several -- a different thread distribution, a different number of
+// shared-history banks, and a different bind decision for the same `Threads` value.
+
+// Hold one L3 domain: the CPUs sharing an L3 cache, and the system NUMA node they sit on.
+// Reuse NumaNode as the CPU set -- node_insert_sorted gives the ascending, duplicate-free
+// set upstream's std::set does, which is what makes the merge below order-independent.
+typedef struct {
+    size_t system_node;
+    NumaNode cpus;
+} L3Domain;
+
+typedef struct {
+    L3Domain *items;
+    size_t count;
+    size_t capacity;
+} L3DomainList;
+
+static void l3_domains_destroy(L3DomainList *list) {
+    for (size_t i = 0; i < list->count; ++i)
+        free(list->items[i].cpus.cpus);
+    free(list->items);
+    memset(list, 0, sizeof *list);
+}
+
+static bool l3_domains_push(L3DomainList *list, const L3Domain *domain) {
+    if (list->count == list->capacity) {
+        const size_t capacity = list->capacity == 0 ? 8 : list->capacity * 2;
+        L3Domain *grown = realloc(list->items, capacity * sizeof *grown);
+        if (grown == nullptr)
+            return false;
+        list->items = grown;
+        list->capacity = capacity;
+    }
+    list->items[list->count++] = *domain;
+    return true;
+}
+
+// Collect the CPUs of one shared_cpu_list into a domain.
+typedef struct {
+    const NumaConfig *system_cfg;
+    const AffinityMask *mask;
+    L3Domain *domain;
+    bool *seen;
+    size_t seen_len;
+    bool failed;
+} L3CpuSink;
+
+static bool l3_cpu_sink(void *ctx, size_t index) {
+    L3CpuSink *s = (L3CpuSink *) ctx;
+
+    // Mark the CPU seen whether or not it is ours: upstream inserts into seenCpus inside
+    // the loop over the whole sibling list, so a CPU excluded by affinity still stops the
+    // outer walk from re-reading the same L3 domain.
+    if (index < s->seen_len)
+        s->seen[index] = true;
+
+    if (!affinity_allows(s->mask, index) || !numa_config_is_cpu_assigned(s->system_cfg, index))
+        return true;
+
+    s->domain->system_node = s->system_cfg->node_by_cpu[index];
+    if (!node_insert_sorted(&s->domain->cpus, index)) {
+        s->failed = true;
+        return false;
+    }
+    return true;
+}
+
+// Merge the domains of each system node pairwise while a pair still fits in BUNDLE_SIZE,
+// then emit one config node per surviving domain. Upstream: numa.h:1246 (from_l3_info).
+static bool from_l3_info(NumaConfig *out, L3DomainList *domains, size_t bundle_size) {
+    NumaConfig cfg;
+    numa_config_init(&cfg);
+
+    size_t node = 0;
+
+    size_t highest_system_node = 0;
+    for (size_t i = 0; i < domains->count; ++i)
+        if (domains->items[i].system_node > highest_system_node)
+            highest_system_node = domains->items[i].system_node;
+
+    size_t *group = malloc(domains->count * sizeof *group);
+    if (group == nullptr) {
+        numa_config_destroy(&cfg);
+        return false;
+    }
+
+    // Walk the system nodes in ascending order, as upstream's std::map does.
+    for (size_t system_node = 0; system_node <= highest_system_node; ++system_node) {
+        // Gather this system node's domains, keeping discovery order.
+        size_t group_count = 0;
+        for (size_t i = 0; i < domains->count; ++i)
+            if (domains->items[i].system_node == system_node)
+                group[group_count++] = i;
+
+        if (group_count == 0)
+            continue;
+
+        // Scan through pairs and merge them, repeating until a pass changes nothing.
+        // Upstream does not decrement j after an erase, so one pass merges alternating
+        // pairs and the outer loop catches the rest.
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            for (size_t j = 0; j + 1 < group_count; ++j) {
+                NumaNode *a = &domains->items[group[j]].cpus;
+                const NumaNode *b = &domains->items[group[j + 1]].cpus;
+                if (a->count + b->count > bundle_size)
+                    continue;
+
+                changed = true;
+                for (size_t k = 0; k < b->count; ++k) {
+                    if (!node_insert_sorted(a, b->cpus[k])) {
+                        free(group);
+                        numa_config_destroy(&cfg);
+                        return false;
+                    }
+                }
+                memmove(&group[j + 1], &group[j + 2], (group_count - j - 2) * sizeof *group);
+                --group_count;
+            }
+        }
+
+        for (size_t j = 0; j < group_count; ++j) {
+            const NumaNode *cpus = &domains->items[group[j]].cpus;
+            for (size_t k = 0; k < cpus->count; ++k) {
+                if (numa_config_add_cpu_to_node(&cfg, node, cpus->cpus[k]) == NUMA_ADD_OOM) {
+                    free(group);
+                    numa_config_destroy(&cfg);
+                    return false;
+                }
+            }
+            node += 1;
+        }
+    }
+
+    free(group);
+
+    if (cfg.node_count == 0) {
+        numa_config_destroy(&cfg);
+        return false;
+    }
+
+    *out = cfg;
+    return true;
+}
+
+// Build the L3-aware partition, or report that the host exposes no L3 topology.
+static bool
+try_get_l3_aware_config(NumaConfig *out, bool respect_process_affinity, size_t bundle_size) {
+    AffinityMask mask;
+    affinity_mask_read(&mask, respect_process_affinity);
+
+    // Read the raw NUMA partition first: it says which system node each L3 domain sits on,
+    // which is what keeps a merged bundle inside one node's memory.
+    NumaConfig system_cfg;
+    if (!from_system_numa(&system_cfg, respect_process_affinity))
+        return false;
+
+    bool *seen = calloc(system_cfg.cpu_map_len == 0 ? 1 : system_cfg.cpu_map_len, sizeof *seen);
+    if (seen == nullptr) {
+        numa_config_destroy(&system_cfg);
+        return false;
+    }
+
+    L3DomainList domains = { nullptr, 0, 0 };
+    bool ok = true;
+
+    for (size_t cpu = 0; cpu < system_cfg.cpu_map_len && ok; ++cpu) {
+        if (!numa_config_is_cpu_assigned(&system_cfg, cpu) || seen[cpu])
+            continue;
+
+        char path[96];
+        (void) snprintf(path, sizeof path,
+                        "/sys/devices/system/cpu/cpu%zu/cache/index3/shared_cpu_list", cpu);
+
+        size_t len = 0;
+        char *siblings = read_file_to_string(path, &len);
+        if (siblings == nullptr || len == 0) {
+            // A CPU with no index3 cache entry contributes no domain. Upstream leaves it
+            // unseen too, so a later CPU whose sibling list names it can still claim it.
+            free(siblings);
+            continue;
+        }
+
+        L3Domain domain = { 0, { nullptr, 0, 0 } };
+        L3CpuSink sink = { &system_cfg, &mask, &domain, seen, system_cfg.cpu_map_len, false };
+        ok = for_each_index(siblings, len, l3_cpu_sink, &sink, nullptr) && !sink.failed;
+        free(siblings);
+
+        if (!ok || domain.cpus.count == 0) {
+            free(domain.cpus.cpus);
+            continue;
+        }
+
+        if (!l3_domains_push(&domains, &domain)) {
+            free(domain.cpus.cpus);
+            ok = false;
+        }
+    }
+
+    free(seen);
+    numa_config_destroy(&system_cfg);
+
+    if (!ok || domains.count == 0) {
+        l3_domains_destroy(&domains);
+        return false;
+    }
+
+    const bool built = from_l3_info(out, &domains, bundle_size);
+    l3_domains_destroy(&domains);
+    return built;
+}
+
+bool numa_config_from_system(NumaConfig *out, bool respect_process_affinity) {
+    // Try the L3-aware partition FIRST, as upstream's from_system does under its default
+    // BundledL3Policy{32} (numa.h:583, engine.cpp:58). Falling straight through to the raw
+    // NUMA read is what makes a chiplet host report one node where upstream reports one
+    // per L3 bundle.
+    if (try_get_l3_aware_config(out, respect_process_affinity, NumaL3BundleSize))
+        return true;
+
+    return from_system_numa(out, respect_process_affinity);
 }
 
 // ---- distribution and the bind decision -------------------------------------
@@ -678,12 +945,23 @@ void numa_context_set_system(NumaReplicationContext *ctx) {
     numa_context_set_config(ctx, &cfg);
 }
 
-void numa_context_set_hardware(NumaReplicationContext *ctx) { numa_context_set_system(ctx); }
+void numa_context_set_hardware(NumaReplicationContext *ctx) {
+    // Read the topology WITHOUT the process affinity mask, as upstream's `hardware` does
+    // (engine.cpp:227). This is the one thing that separates it from `system`: a run
+    // pinned to half the box reports the whole box here.
+    NumaConfig cfg;
+    if (!numa_config_from_system(&cfg, false))
+        return;
+    cfg.custom_affinity = true;  // numa.h:657 -- opting out of the mask IS a custom config
+    numa_context_set_config(ctx, &cfg);
+}
 
 void numa_context_set_none(NumaReplicationContext *ctx) {
     // "none" means one node holding every processor: bind nothing, replicate from node 0.
+    // Ignore the affinity mask, as upstream's default-constructed NumaConfig does
+    // (numa.h:535) -- it adds the range 0..hardware_concurrency-1 unconditionally.
     NumaConfig cfg;
-    if (!from_system_single(&cfg, true))
+    if (!from_system_single(&cfg, false))
         return;
     numa_context_set_config(ctx, &cfg);
 }
@@ -716,10 +994,40 @@ size_t numa_distribute_threads_among_nodes(const NumaReplicationContext *ctx,
     return ctx->config.node_count > 1 ? ctx->config.node_count : 1;
 }
 
+// Carry one execute-on-node request to the throwaway thread that runs it.
+typedef struct {
+    const NumaConfig *config;
+    size_t node;
+    void (*callback)(void *ctx);
+    void *callback_ctx;
+} ExecuteOnNodeJob;
+
+static void *execute_on_node_entry(void *arg) {
+    const ExecuteOnNodeJob *job = (const ExecuteOnNodeJob *) arg;
+    (void) numa_config_bind_current_thread(job->config, job->node);
+    job->callback(job->callback_ctx);
+    return nullptr;
+}
+
 void numa_execute_on_node(const NumaReplicationContext *ctx,
                           size_t node,
                           void (*callback)(void *ctx),
                           void *callback_ctx) {
-    (void) numa_config_bind_current_thread(&ctx->config, node);
-    callback(callback_ctx);
+    // Run on a THROWAWAY thread and join it, as upstream's execute_on_numa_node does
+    // (numa.h:957). The binding is the point of the call, and it must not survive the
+    // call: binding the caller instead confines whoever asked -- the UCI thread during a
+    // pool rebuild -- to one node's CPUs for the rest of the process, and every later
+    // allocation it makes then first-touches that one node.
+    ExecuteOnNodeJob job = { &ctx->config, node, callback, callback_ctx };
+
+    pthread_t handle;
+    if (pthread_create(&handle, nullptr, execute_on_node_entry, &job) != 0) {
+        // Fall back to running unbound on the caller rather than skipping the work: the
+        // callback is a construction step, and its absence is a null reference later,
+        // where a wrongly-placed allocation is only slower.
+        callback(callback_ctx);
+        return;
+    }
+
+    (void) pthread_join(handle, nullptr);
 }

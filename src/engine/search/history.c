@@ -79,13 +79,14 @@ void history_clear(Histories *h) {
     for (size_t i = 0; i < 2 * 2 * HIST_PIECETO * HIST_PIECETO; ++i)
         h->continuation_history[i] = -552;
 
-    // Shared tables: every correction entry -6, every pawn-history entry -1262.
+    // Shared tables, through the fill constants history.h declares: the striped clear a
+    // worker runs over its own slice of the same tables must use the same values.
     int16_t *corr = (int16_t *) &h->correction_history[0][0];
     const size_t corr_entries = CORRECTION_HISTORY_SIZE * COLOR_NB * 4;
     for (size_t i = 0; i < corr_entries; ++i)
-        corr[i] = -6;
+        corr[i] = CORRECTION_HISTORY_FILL;
     for (size_t i = 0; i < PAWN_HISTORY_SIZE * HIST_PIECETO; ++i)
-        h->pawn_history[i] = -1262;
+        h->pawn_history[i] = PAWN_HISTORY_FILL;
 
     // low_ply_history is refilled per search by history_fill_low_ply, never here.
 }

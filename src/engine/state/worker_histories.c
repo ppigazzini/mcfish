@@ -4,14 +4,6 @@
 
 #include <stdint.h>
 
-// Mirror history.c's cleared values for the two shared tables. They are repeated rather
-// than shared because the striped clear writes a RANGE of an already-bound reference,
-// which history_clear does not express -- both must move together on an upstream change.
-enum {
-    SHARED_CORRECTION_FILL = -6,
-    SHARED_PAWN_FILL = -1262,
-};
-
 // Return the half-open stripe [lo, hi) of N entries this worker clears. Divide by
 // multiplication first so consecutive workers' stripes abut exactly and every entry
 // falls in exactly one of them, whatever N and TOTAL are.
@@ -51,7 +43,7 @@ void worker_histories_clear_shared(SharedHistories *sh, size_t thread_idx, size_
             int16_t *page = (int16_t *) &sh->corr_data[i][0];
             const size_t entries = (size_t) COLOR_NB * (size_t) CORR_FIELD_NB;
             for (size_t k = 0; k < entries; ++k)
-                page[k] = SHARED_CORRECTION_FILL;
+                page[k] = CORRECTION_HISTORY_FILL;
         }
     }
 
@@ -59,6 +51,6 @@ void worker_histories_clear_shared(SharedHistories *sh, size_t thread_idx, size_
         size_t lo, hi;
         stripe(sh->pawn_size, thread_idx, total, &lo, &hi);
         for (size_t i = lo * HIST_PIECETO; i < hi * HIST_PIECETO; ++i)
-            sh->pawn_data[i] = SHARED_PAWN_FILL;
+            sh->pawn_data[i] = PAWN_HISTORY_FILL;
     }
 }

@@ -53,9 +53,18 @@ binary. `SearchCtx` is this port's stand-in for upstream's `Worker`, and the poo
 sum in `check_time`, `increase_depth`, thread voting and `best_move_changes`
 aggregation are all single-worker shapes. The pool itself is ported —
 `src/platform/thread_pool.c` and its neighbours, plus the per-worker layout in
-`src/engine/state/` — and unwired; see [04-platform.md](04-platform.md). The cost is
-concrete: the main lever upstream uses for strength is absent, and a GUI that sets
-`Threads 8` gets one thread's worth of search.
+`src/engine/state/` — and is compiled, unit-tested and race-checked, but nothing
+constructs a pool; see [04-platform.md](04-platform.md). The cost is concrete: the
+main lever upstream uses for strength is absent, and a GUI that sets `Threads 8` gets
+one thread's worth of search.
+
+The blocker is on this side of the seam, not the pool's. Every piece of per-worker
+state is a file-scope global — `SearchCtx Ctx` in `search.c`, `Histories Tables` in
+`history.c`, the accumulator stack and refresh cache in `evaluate.c` — so two workers
+sharing them is a data race, not a parallel search. Making them per-worker, and
+routing the node sum, the vote and `best_move_changes` through a seam that answers
+with thread 0's own values at `Threads 1`, is what keeps the anchor bit-exact
+through the change.
 
 ## Iterative deepening
 
@@ -287,8 +296,12 @@ picker's own — and collapsing them is board-zone work, not search work.
 `Histories` block: butterfly (main), low-ply, capture, continuation,
 continuation-correction, and the two key-indexed tables (pawn, correction). One
 block, so a per-worker port is a second instance rather than a re-shape — the
-per-worker owner is the unwired
-[`../src/engine/state/worker_histories.c`](../src/engine/state/worker_histories.c).
+per-worker owner is
+[`../src/engine/state/worker_histories.c`](../src/engine/state/worker_histories.c),
+which is built and tested but not yet the block the search reads. Its striped shared
+clear and `history_clear` share the fill constants `CORRECTION_HISTORY_FILL` and
+`PAWN_HISTORY_FILL`, declared once in `history.h`: **neither is zero**, so any clear
+that reaches for `memset` writes the wrong table.
 
 **The main and low-ply tables are indexed by the raw 16-bit move word**, one row per
 colour (or per low ply). That is why the move encoding in
