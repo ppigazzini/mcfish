@@ -106,10 +106,14 @@ Lazy-SMP: the thread pool, per-worker state, shared histories, thread voting, an
 NUMA replication of the network weights. Determinism is the hard part — the search
 must remain reproducible at fixed depth with one thread.
 
-The pool, the thread runtime, the NUMA model and the large-page allocator are
-written in `src/platform/` and **outside `SOURCES`**, alongside the per-worker
-layout in `src/engine/state/`. The search is single-threaded because nothing calls
-them. See [06-platform.md](06-platform.md).
+The pool, the thread runtime, the NUMA model and the large-page allocator are in
+`src/platform/` and **in `SOURCES` and `ENGINE_SOURCES`**, alongside the per-worker
+layout in `src/engine/state/`; they are unit-tested and covered by `./build.sh
+tsan`. **Nothing calls them**, so the search is still single-threaded and
+`Threads` above 1 is accepted and ignored — `./build.sh tsan-search` measures
+that directly, reporting 0 races because the process never leaves one thread.
+See [04-multithreading.md](04-multithreading.md), which lists what the wiring
+commit has to decide.
 
 **Gate:** single-threaded signature unchanged; multi-threaded runs converge to the
 same bestmove; a NUMA-replicated run matches a non-replicated one.
