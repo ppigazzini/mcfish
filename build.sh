@@ -637,27 +637,10 @@ do_sync_status() {
     fi
   done
 
-  # The upstream mirrors are only worth keeping while they are VERBATIM. They are
-  # here so a future rebase is a copy rather than a merge, and nothing in this tree
-  # consumes them -- so the moment one drifts it stops serving that purpose and
-  # starts manufacturing conflicts, silently, because no other gate reads them.
-  # Check them against the pinned SHA rather than trusting the claim.
-  local base drifted=0 f
-  base=$(tr -d '[:space:]' < tools/upstream/UPSTREAM_BASE)
-  if [[ -d ../Stockfish/.git ]]; then
-    for f in tests/instrumented.py tests/perft.sh tests/reprosearch.sh \
-             tests/signature.sh tests/testing.py scripts/net.sh; do
-      [[ -f $f ]] || continue
-      if ! git -C ../Stockfish cat-file -e "$base:$f" 2>/dev/null; then
-        printf '  \033[33mmirror %s: not present upstream at %s\033[0m\n' "$f" "${base:0:9}"
-        drifted=1
-      elif ! diff -q <(git -C ../Stockfish show "$base:$f") "$f" > /dev/null; then
-        printf '  \033[33mmirror %s: DRIFTED from upstream %s\033[0m\n' "$f" "${base:0:9}"
-        drifted=1
-      fi
-    done
-    [[ $drifted -eq 0 ]] && green "  mirrors: verbatim at ${base:0:9}"
-  fi
+  # There is nothing else to check. This tree holds no upstream mirrors: the
+  # copies of tests/ and scripts/ were deleted rather than kept in step, because
+  # nothing consumed them and a stale mirror manufactures rebase conflicts rather
+  # than smoothing them. Everything that IS tracked upstream is tracked by SHA.
   return $rc
 }
 

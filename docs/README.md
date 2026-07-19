@@ -152,9 +152,9 @@ mcfish/
 |-- resources/           -- the external runtime inputs: the NNUE net and
 |                           syzygy/ (the tablebases). Fetched, never committed;
 |                           every ./build.sh step runs the engine from here
-|-- tools/               -- the gate inputs, and upstream/ (the port map and the SHA pin)
-|-- tests/               -- test_main.c (mcfish-owned) plus upstream Stockfish mirrors
-|-- scripts/             -- upstream Stockfish mirrors
+|-- tools/               -- the gate inputs, the local perf scripts, and
+|                           upstream/ (the port map and the SHA pins)
+|-- tests/               -- test_main.c, the unit and property suite
 |-- docs/                -- this documentation
 `-- Copying.txt, AUTHORS -- GPL v3; Stockfish attribution
 ```
@@ -164,7 +164,8 @@ Read "not driven yet" as the gap it is, and do not mistake it for the older one:
 tests reach them — but nothing in the engine calls them, so no gate can tell whether
 they would still be *correct* when it does.
 
-`src/`, `build.sh`, `tools/`, `tests/test_main.c` and `docs/` are
-mcfish-owned. The rest of `tests/` and `scripts/net.sh` are upstream Stockfish
-mirrors, kept verbatim so a future rebase is a copy rather than a merge; they do
-not run against mcfish today and are not edited here.
+**Every file in this tree is mcfish-owned.** The imported Stockfish copies that
+used to sit in `tests/` and `scripts/` are gone: nothing consumed them, and a
+mirror that drifts manufactures rebase conflicts instead of smoothing them. The
+rebase path is the pinned SHA in `tools/upstream/`, which `./build.sh
+sync-status` checks. `tests/` remains, holding mcfish's own suite.

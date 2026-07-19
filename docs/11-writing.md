@@ -194,14 +194,14 @@ sentence is load-bearing for the next reader who might have fixed it.
 ```
 
 [`../tools/docs_lint.sh`](../tools/docs_lint.sh) finds every `*.md` outside
-`build/`, `.git/`, `tests/` and `scripts/` — tracked or not — and fails on:
+`build/`, `.git/` and `resources/` — tracked or not — and fails on:
 
 - **A dead internal link.** Any `[text](target)` whose target is not an external
   URL, a `mailto:`, or a bare `#anchor` must resolve as a path relative to the
   linking file. A trailing `#anchor` is stripped before the check, so the anchor
   itself is **not** verified — a link to a heading that no longer exists passes.
-- **A named path that exists in no repo.** Any `src/…`, `tools/…`, `tests/…`,
-  `verify/…` or `scripts/…` spelled out in prose is a claim about *a* tree, and
+- **A named path that exists in no repo.** Any `src/…`, `tools/…` or `tests/…`
+  spelled out in prose is a claim about *a* tree, and
   must resolve under one of the roots `tools/docs_lint.sh` searches.
   **That is the limit to hold in mind**: a `src/…` path that exists only in
   Stockfish passes this gate while reading, in a mcfish page, as a claim about
