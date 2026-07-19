@@ -41,7 +41,15 @@ static inline uint32_t load_group(const uint8_t *input) {
 // and spill it to memory, which is the thing this shape exists to avoid.
 enum {
     AFFINE_CHUNKS_32 = 32 / NNUE_DOT_LANES,
-    AFFINE_CHAINS = 3,
+
+    // Chains cost registers: the accumulator is CHUNKS * CHAINS vectors, and it must
+    // stay resident or the spilling this whole shape exists to avoid comes back.
+    // A 16-lane tier needs 2 chunks, so 3 chains is 6 registers; an 8-lane tier needs
+    // 4, so 3 chains is 12. A 4-lane tier already needs 8 chunks, and 3 chains would
+    // be 24 against a 16-register file -- measured at +4.2% instructions per node on
+    // SSE4.1, which is the spill. Narrow tiers take one chain and rely on the shorter
+    // multiply latency there instead.
+    AFFINE_CHAINS = NNUE_DOT_LANES >= 8 ? 3 : 1,
 };
 
 typedef struct {
@@ -91,20 +99,24 @@ void nnue_affine_32(bool sparse,
                     break;
                 const size_t i1 = (size_t) __builtin_ctzll(bits);
                 bits &= bits - 1;
-                AFFINE_GROUP_INTO(&acc, 1, load_group(in_base + i1 * 4), w_base + i1 * N);
+                AFFINE_GROUP_INTO(&acc, 1 % AFFINE_CHAINS, load_group(in_base + i1 * 4),
+                                  w_base + i1 * N);
                 if (bits == 0)
                     break;
                 const size_t i2 = (size_t) __builtin_ctzll(bits);
                 bits &= bits - 1;
-                AFFINE_GROUP_INTO(&acc, 2, load_group(in_base + i2 * 4), w_base + i2 * N);
+                AFFINE_GROUP_INTO(&acc, 2 % AFFINE_CHAINS, load_group(in_base + i2 * 4),
+                                  w_base + i2 * N);
             }
         }
     } else {
         size_t g = 0;
         for (; g + 3 <= groups; g += 3) {
             AFFINE_GROUP_INTO(&acc, 0, load_group(input + g * 4), weights + g * N);
-            AFFINE_GROUP_INTO(&acc, 1, load_group(input + (g + 1) * 4), weights + (g + 1) * N);
-            AFFINE_GROUP_INTO(&acc, 2, load_group(input + (g + 2) * 4), weights + (g + 2) * N);
+            AFFINE_GROUP_INTO(&acc, 1 % AFFINE_CHAINS, load_group(input + (g + 1) * 4),
+                              weights + (g + 1) * N);
+            AFFINE_GROUP_INTO(&acc, 2 % AFFINE_CHAINS, load_group(input + (g + 2) * 4),
+                              weights + (g + 2) * N);
         }
         for (; g < groups; g++)
             AFFINE_GROUP_INTO(&acc, 0, load_group(input + g * 4), weights + g * N);
@@ -166,15 +178,33 @@ void nnue_affine_1(bool sparse,
 
 enum { RELU_VEC_WIDTH = 8 };
 
+// Narrow eight int32 lanes to bytes and store them as a unit.
+//
+// Extracting lane by lane emits eight scalar byte stores per call, and the two
+// activations run four times per evaluation. Every value is already clamped into
+// [0, 127] by the caller, so the narrowing is exact and a shuffle-based pack is
+// value-identical to reading the lanes out one at a time -- which is what lets the
+// vector and scalar bodies stay equal.
+static inline void relu_store8(uint8_t *out, NnueV8i32 q) {
+#if CCFISH_SIMD_VECTOR
+    // __builtin_convertvector narrows all eight lanes in one expression; the
+    // compiler picks the pack sequence for whatever ISA is enabled.
+    typedef uint8_t NnueV8u8Store __attribute__((vector_size(8)));
+    const NnueV8u8Store packed = __builtin_convertvector(q, NnueV8u8Store);
+    __builtin_memcpy(out, &packed, sizeof packed);
+#else
+    for (size_t k = 0; k < RELU_VEC_WIDTH; k++)
+        out[k] = (uint8_t) nnue_v8i32_lane(q, k);
+#endif
+}
+
 void nnue_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]) {
     const NnueV8i32 zero = nnue_v8i32_splat(0);
     const NnueV8i32 cap = nnue_v8i32_splat(127);
     for (size_t i = 0; i < 32; i += RELU_VEC_WIDTH) {
         const NnueV8i32 x = nnue_v8i32_load(in + i);
         const NnueV8i32 q = nnue_v8i32_max(zero, nnue_v8i32_min(cap, nnue_v8i32_shr(x, shift)));
-        for (size_t k = 0; k < RELU_VEC_WIDTH; k++) {
-            out[i + k] = (uint8_t) nnue_v8i32_lane(q, k);
-        }
+        relu_store8(out + i, q);
     }
 }
 
@@ -187,8 +217,6 @@ void nnue_sqr_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]) 
         const NnueV8i32 clamped = nnue_v8i32_max(lo, nnue_v8i32_min(hi, x));
         const NnueV8i32 q =
           nnue_v8i32_min(cap, nnue_v8i32_shr(nnue_v8i32_mul(clamped, clamped), shift));
-        for (size_t k = 0; k < RELU_VEC_WIDTH; k++) {
-            out[i + k] = (uint8_t) nnue_v8i32_lane(q, k);
-        }
+        relu_store8(out + i, q);
     }
 }

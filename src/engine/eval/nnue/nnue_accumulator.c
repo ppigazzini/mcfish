@@ -697,12 +697,14 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
             // Record which 4-byte chunks are non-zero while they are still in a register:
             // no reload of what was just stored.
             const NnueV8u32 groups = nnue_v32_u8_as_u32x8(bytes);
+
+            // Build the mask BRANCHLESSLY. Whether a chunk is non-zero is pure data,
+            // so a branch per lane is one the predictor cannot learn -- and there are
+            // eight per step, on every step of every evaluation. Shifting the
+            // comparison in costs one predictable ALU op instead.
             uint64_t mask = 0;
-            for (size_t g = 0; g < TRANSFORM_VEC_WIDTH / 4; g++) {
-                if (nnue_v8u32_lane(groups, g) != 0) {
-                    mask |= (uint64_t) 1 << g;
-                }
-            }
+            for (size_t g = 0; g < TRANSFORM_VEC_WIDTH / 4; g++)
+                mask |= (uint64_t) (nnue_v8u32_lane(groups, g) != 0) << g;
             const size_t bit = (offset + j) / 4;
             (*nnz)[bit / 64] |= mask << (bit % 64);
         }
