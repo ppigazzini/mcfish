@@ -44,6 +44,29 @@
 // element-wise op set. Unused members are `static inline` and cost nothing.
 // ---------------------------------------------------------------------------
 
+// Spell min/max as the elementwise builtin where the compiler has it. Both reduce
+// to one instruction (pminsd/pmaxsd and friends); the fallback blend spells the same
+// value in four vector ops, because C's `?:` does not apply to a vector type and
+// there is nothing else portable to write. This sits in the feature transformer's
+// inner loop, so the difference is not academic.
+//
+// clang has the builtin; gcc 13 -- the second compiler this repo builds under -- does
+// not, hence the probe rather than a version test.
+#if defined(__has_builtin)
+    #if __has_builtin(__builtin_elementwise_min)
+        #define NNUE_VEC_MIN(a, b) __builtin_elementwise_min((a), (b))
+        #define NNUE_VEC_MAX(a, b) __builtin_elementwise_max((a), (b))
+    #endif
+#endif
+#ifndef NNUE_VEC_MIN
+    #define NNUE_VEC_MIN(a, b) \
+        ((__typeof__(a)) (((a) & ((__typeof__(a)) ((a) < (b)))) \
+                          | ((b) & ~((__typeof__(a)) ((a) < (b))))))
+    #define NNUE_VEC_MAX(a, b) \
+        ((__typeof__(a)) (((a) & ((__typeof__(a)) ((a) > (b)))) \
+                          | ((b) & ~((__typeof__(a)) ((a) > (b))))))
+#endif
+
 #if CCFISH_SIMD_VECTOR
 
     #define NNUE_SIMD_TYPE(Type, Elem, Width) \
@@ -66,14 +89,8 @@
       static inline Type Pfx##_mul(Type a, Type b) { return a * b; }                        \
       static inline Type Pfx##_shl(Type a, int s) { return a << s; }                        \
       static inline Type Pfx##_shr(Type a, int s) { return a >> s; }                        \
-      static inline Type Pfx##_min(Type a, Type b) {                                        \
-          Type m = (Type) (a < b);                                                          \
-          return (Type) ((a & m) | (b & ~m));                                               \
-      }                                                                                     \
-      static inline Type Pfx##_max(Type a, Type b) {                                        \
-          Type m = (Type) (a > b);                                                          \
-          return (Type) ((a & m) | (b & ~m));                                               \
-      }                                                                                     \
+      static inline Type Pfx##_min(Type a, Type b) { return NNUE_VEC_MIN(a, b); }            \
+      static inline Type Pfx##_max(Type a, Type b) { return NNUE_VEC_MAX(a, b); }            \
       static inline Elem Pfx##_lane(Type a, size_t i) { return a[i]; }                      \
       _Static_assert(sizeof(Type) == (Width) * sizeof(Elem), #Type " is " #Width " lanes")
     // clang-format on
