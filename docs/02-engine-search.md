@@ -527,11 +527,16 @@ is the file-by-file map. What the live zone does not yet do:
   worker. The pool sum, `increase_depth` across workers, thread voting and
   `best_move_changes` aggregation are single-worker shapes. See
   [04-platform.md](04-platform.md).
-- **The option model.** `search.c` answers the `option_source` seam itself with
-  upstream's defaults, because the live shell carries no option table. The zone's
-  own fallback answers 0 to everything, which reads as MultiPV 0 and Skill Level 0 —
-  wrong searches rather than absent ones, which is why the facade owns the defaults
-  until the decomposed shell registers the real model. See [05-shell.md](05-shell.md).
+- **The option model is installed, and its fallback is still a trap.** `uci_loop`
+  registers the shell's table behind the `option_source` seam with
+  `search_set_option_source`, so MultiPV, Skill Level, UCI_Elo, Move Overhead,
+  nodestime, Ponder and UCI_ShowWDL reach the search from the table the handshake
+  renders. A caller that installs nothing — the bench harness, the unit tests —
+  falls back to `facade_option_int`, which answers upstream's defaults. That
+  fallback is **not** neutral: the zone's own default answers 0 to everything,
+  which reads as MultiPV 0 and Skill Level 0, wrong searches rather than absent
+  ones. The four Syzygy reads are deliberately left unregistered while no prober
+  exists. See [05-shell.md](05-shell.md).
 - **Per-game manager state.** `best_previous_score`, `best_previous_average_score`
   and `previous_time_reduction` are reset per `go` rather than carried between moves,
   alongside the history block. Upstream resets them on `ucinewgame`; the live UCI

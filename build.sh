@@ -123,6 +123,7 @@ SOURCES=(
   src/platform/clock.c
   src/shell/bench_positions.c
   src/shell/benchmark.c
+  src/shell/ucioption.c
   src/shell/uci.c
   src/shell/main.c
 )

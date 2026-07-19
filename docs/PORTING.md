@@ -155,12 +155,15 @@ upstream's Zobrist tables and threat deltas, the decomposed search with its full
 pruning set and aspiration window, a staged move picker, the full history block,
 the time manager, upstream's cluster transposition table, and the NNUE evaluation
 with its incremental accumulator — falling back to a classical placeholder when no
-net is resident. No tablebases, no threads, and a small UCI handshake.
+net is resident, and upstream's full UCI option table — advertised byte for byte,
+with `Threads`, `NumaPolicy` and the four Syzygy options accepted and inert. No
+tablebases and no threads.
 
 **What is written and not in the binary:** the Syzygy prober, the thread pool and
 NUMA runtime, the per-worker state zone, the board-zone module split, and the
-decomposed shell with upstream's full option table. Each zone page names its own
-modules and what its wiring commit owes.
+decomposed shell — including `engine.c`, whose own registration of the option set
+is now a dead duplicate of the live one. Each zone page names its own modules and
+what its wiring commit owes.
 
 Treat that as the largest open item in the port, not as a staging area. A module
 nothing compiles is a module nothing defends: it rots against the files that do
