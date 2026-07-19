@@ -20,12 +20,34 @@ tsan.supp
 tests/syzygy
 tests/bench_tmp.epd
 
-# Neural network files (mcfish does not use one today; keep the pattern so a
-# stray download from an upstream script is never committed)
+# The NNUE net. A RUNTIME INPUT, not a build product: `./build.sh net` reports
+# where it must be and never downloads, so a clean build never touches the
+# network. It is ~106 MiB and changes with upstream, which is reason enough --
+# but the deciding one is that committing it would make the bench anchor look
+# like a property of this repository rather than of a file fetched separately.
 **/*.nnue
 
 # Throwaway checkouts made for isolated agent runs; never part of the tree.
 .claude/worktrees/
+
+# Profiler and memcheck output from the local-only tools in tools/ (see
+# docs/09-tooling-ci.md). `perf_callgrind.sh` writes `callgrind.out` into the
+# CURRENT directory unless OUT= names one, and that file is routinely larger
+# than the whole repository -- it is measurement, never a result to keep.
+callgrind.out*
+cachegrind.out*
+callgrind.annotate*
+massif.out*
+vgcore.*
+perf.data*
+*.profraw
+*.profdata
+
+# A binary built outside build/. `BIN=` is honoured by every build.sh step
+# (build.sh:10) and `arch-determinism` uses it per ISA tier, so an engine can
+# land wherever the caller points it; guard the plain names at the repo root.
+/mcfish
+/mcfish-*
 # Syzygy tables fetched by `./build.sh tb-fetch`. A runtime input like the net,
 # never a repository artefact: the 3-man set alone is 10 binary files, and the
 # `tb` gate reports plainly when they are absent rather than passing quietly.
