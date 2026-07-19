@@ -49,7 +49,7 @@ src/engine/board/score.zig	src/engine/board/score.c	src/score.cpp	PORTED	LOW
 src/engine/board/state_list.zig	src/engine/board/state_list.c	src/position.cpp	PORTED	LOW
 src/engine/board/state_setup.zig	src/engine/board/position.c	src/position.cpp	CONSOLIDATED	LOW
 src/engine/board/uci_move.zig	src/engine/board/uci_move.c	src/uci.cpp	PARTIAL	LOW
-src/engine/board/zobrist.zig	src/engine/board/position.c	src/position.cpp	PORTED	MED
+src/engine/board/zobrist.zig	src/engine/board/zobrist.c	src/position.cpp	PORTED	MED
 src/engine/eval/evaluate.zig	src/engine/eval/evaluate.c	src/evaluate.cpp	PARTIAL	LOW
 src/engine/eval/network.zig	src/engine/eval/nnue/network.c	src/nnue/network.cpp	PORTED	HIGH
 src/engine/eval/nnue_acc_layout.zig	src/engine/eval/nnue/nnue_accumulator.c	src/nnue/nnue_accumulator.cpp	CONSOLIDATED	HIGH
