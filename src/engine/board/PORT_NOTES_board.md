@@ -70,8 +70,7 @@ Upstream threads a `DirtyThreats*` through the four board mutators and calls
 where upstream places it — the ordering is what makes `occupied` correct for each
 direction. `noRays` is `~0ULL` everywhere except `move_piece`.
 
-Golden: `Stockfish/src/position.h:383-437`. Port source:
-`zfish/src/engine/board/move_do.zig:87-127`.
+Golden: `Stockfish/src/position.h:383-437`.
 
 ```c
 static void put_piece(Position *pos, Piece pc, Square s, DirtyThreats *dts) {
@@ -123,8 +122,7 @@ Today (`position.c:399-443`) the order is: remove captured → `move_piece(from,
 → (promotion) `remove_piece(to)` + `put_piece(promoted,to)`. Upstream never moves
 a promoting pawn to `to` first, and never uses `move_piece` on a capture.
 
-Replace with upstream's branch (`Stockfish/src/position.cpp` `do_move`; zfish
-`move_do.zig:268-279`):
+Replace with upstream's branch (`Stockfish/src/position.cpp` `do_move`):
 
 ```c
     // Record the pre-move king square before any piece moves.
@@ -164,7 +162,7 @@ since the piece is no longer routed through `to` as a pawn first.
     put_piece(pos, rook, rt, dts);
 ```
 
-in that exact order (zfish `move_do.zig:168-171`). The Undo direction passes
+in that exact order. The Undo direction passes
 `NULL` — see below.
 
 At the very end of `pos_do_move`, after `set_check_info`:
@@ -201,8 +199,7 @@ field, and it is a behaviour change if shipped.
 ### 3.2 `pos_do_move` must fill it
 
 At the end of `pos_do_move`, after `set_check_info(pos)` and before the
-`scratch_dts.ksq` line (`Stockfish/src/position.cpp:1048-1062`, zfish
-`move_do.zig:325-337`):
+`scratch_dts.ksq` line (`Stockfish/src/position.cpp:1048-1062`):
 
 ```c
     new_st->repetition = 0;

@@ -6,7 +6,7 @@
 // nothing here reads engine state — this module sits below the engine object so
 // `id name` can be printed before anything else is constructed.
 //
-// Port source: zfish `shell/misc.zig`. Golden: upstream `misc.cpp:141`
+// Golden: upstream `misc.cpp:141`
 // (engine_version_info), `misc.cpp:177` (engine_info), `misc.cpp:190`
 // (compiler_info), `misc.cpp` str_to_size_t.
 

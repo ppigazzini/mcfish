@@ -5,12 +5,11 @@
 // token, a line and a trimmed span are all (pointer, length) views into the
 // caller's storage and stay valid exactly as long as that storage does; the
 // literals are static and outlive the process. UciBuf is the bounded stand-in
-// for the growable builders the port source uses — it truncates and records the
-// fact rather than growing, so no protocol path can allocate.
+// for the growable builders upstream uses — it truncates and records the fact
+// rather than growing, so no protocol path can allocate.
 //
-// Port source: zfish `shell/uci_strings.zig`. Golden: upstream `uci.cpp:87`
-// (the whitespace tokenization `std::istringstream >> token` performs) and
-// `uci.cpp:594` (UCIEngine::to_lower).
+// Golden: upstream `uci.cpp:87` (the whitespace tokenization
+// `std::istringstream >> token` performs) and `uci.cpp:594` (UCIEngine::to_lower).
 
 #ifndef MCFISH_UCI_STRINGS_H
 #define MCFISH_UCI_STRINGS_H
@@ -51,9 +50,8 @@ bool uci_token_equals(const char *token, size_t token_len, const char *literal);
 // Iterators
 // ---------------------------------------------------------------------------
 
-// Split on runs of whitespace, skipping empty fields — the port source's
-// `std.mem.tokenizeAny(u8, input, " \t\r\n")`, which is what `is >> token`
-// does. Each call yields one non-empty token.
+// Split on runs of whitespace (" \t\r\n"), skipping empty fields — which is what
+// `is >> token` does. Each call yields one non-empty token.
 typedef struct {
     const char *cur;
     const char *end;
@@ -65,11 +63,10 @@ void uci_tokens_init(UciTokens *it, const char *text, size_t len);
 // leaving the outputs untouched.
 bool uci_tokens_next(UciTokens *it, const char **token, size_t *token_len);
 
-// Split on single '\n' bytes, KEEPING empty fields — the port source's
-// `std.mem.splitScalar(u8, input, '\n')`. An empty input yields one empty line,
-// and a trailing '\n' yields a final empty line; both matter because the command
-// scripts uci_bench builds are '\n'-joined and their consumers skip empty lines
-// explicitly rather than relying on the split.
+// Split on single '\n' bytes, KEEPING empty fields. An empty input yields one
+// empty line, and a trailing '\n' yields a final empty line; both matter because
+// the command scripts uci_bench builds are '\n'-joined and their consumers skip
+// empty lines explicitly rather than relying on the split.
 typedef struct {
     const char *cur;
     const char *end;

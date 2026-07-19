@@ -16,8 +16,7 @@
 // none: only self-consistency matters, because the key never leaves this module.
 //
 // Mirror upstream `syzygy/tbprobe.cpp:1397` (Tablebases::init), `:1206` (set),
-// `:1158` (set_dtz_map). Port sources: zfish `platform/syzygy/registry.zig` and
-// `platform/syzygy/tables.zig`.
+// `:1158` (set_dtz_map).
 
 #ifndef MCFISH_SYZYGY_REGISTRY_H
 #define MCFISH_SYZYGY_REGISTRY_H

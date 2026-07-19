@@ -9,8 +9,6 @@
 // answer when the subsystem is absent. "No tablebases are loaded" is exactly true
 // with no prober attached, and a search that does not probe is the correct
 // search, not a degraded one.
-//
-// Ported from zfish `engine/search/tb_source.zig`.
 
 #ifndef MCFISH_TB_SOURCE_H
 #define MCFISH_TB_SOURCE_H

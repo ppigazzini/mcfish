@@ -288,8 +288,8 @@ upstream's `max(1024, 4 * hardware_concurrency)` because a narrower one is a
 different handshake, and the handshake is what a GUI configures against. The search
 is single-threaded, so any value above 1 is accepted and ignored — and the
 on-change callback says exactly that on the wire, because a GUI that sets
-`Threads 8` and sees silence has no way to learn otherwise. Owner: zfish
-`platform/thread_pool.zig`, upstream `thread.cpp`.
+`Threads 8` and sees silence has no way to learn otherwise. Golden: upstream
+`thread.cpp`.
 
 **The four Syzygy options are live.** `syzygy_option_install` binds the
 `TbMaxCardinality` / `TbProbeFen` / `TbProbeWdlPos` seams in
@@ -409,15 +409,14 @@ The four decisions that are not mechanical:
   `uci_strings.h`, and as `ENGINE_START_FEN` in `engine.h`. `uci_parse` cannot
   include `engine.h` without dragging `position.h` into a leaf, so collapsing them
   means moving the literal into a header both can reach.
-- **`uci_output.c` has no mutex, deliberately.** zfish serialises `printLine` so a
-  search thread and the listener cannot tear a line; `build.sh` links no pthread
+- **`uci_output.c` has no mutex, deliberately.** A lock is only needed once a
+  search thread and the listener can tear a line; `build.sh` links no pthread
   into the current binary and the search is single-threaded, so this module has
   none. The funnel is preserved, so adding the lock at M4 is a one-function change
   — but it is a change that must actually happen at M4.
 
 One further deliberate divergence, already decided: `UciInput` bounds its line at
 64 KiB and sets `truncated` on overflow, consuming the tail so the next read starts
-on a line boundary. Upstream's `std::getline` and zfish's reader are unbounded, and
-zfish's returns null on overflow, which makes its caller dispatch `quit`. The
-bounded form is strictly better behaved and 64 KiB is far past any reachable
-`position ... moves` line.
+on a line boundary. Upstream's `std::getline` is unbounded. The bounded form is
+strictly better behaved and 64 KiB is far past any reachable `position ... moves`
+line.

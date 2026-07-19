@@ -14,8 +14,6 @@
 //
 // Upstream: thread.cpp:11 (ThreadPool::set clears boundThreadToNumaNode), thread.cpp:37
 // (and assigns it further down), thread.cpp:170 (clear), thread.cpp:243 (start_searching).
-// Port source: zfish src/platform/thread_pool.zig, src/platform/thread.zig:172
-// (reconfigure).
 
 #ifndef MCFISH_THREAD_POOL_H
 #define MCFISH_THREAD_POOL_H

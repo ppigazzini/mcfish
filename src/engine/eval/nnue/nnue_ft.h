@@ -8,8 +8,7 @@
 // The loader must allocate it 64-byte aligned and at least `nnue_ft_blob_bytes()` long;
 // every accessor's alignment rests on that.
 //
-// Ported from zfish `engine/eval/nnue_ft.zig` against the upstream golden
-// `nnue/nnue_feature_transformer.h`.
+// Golden: the upstream `nnue/nnue_feature_transformer.h`.
 
 #ifndef MCFISH_NNUE_FT_H
 #define MCFISH_NNUE_FT_H

@@ -23,7 +23,6 @@
 // cached check state matches the board — that is, after `set_check_info`, never
 // mid-`pos_do_move`.
 //
-// Ported from zfish `engine/board/legality.zig` (legal, pseudoLegal, seeGe).
 // Golden: `Stockfish/src/position.cpp: Position::legal`,
 // `Position::pseudo_legal`, `Position::see_ge`.
 

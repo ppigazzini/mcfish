@@ -10,10 +10,9 @@ leading comment block.
 This page states structure, not numbers. Where a figure would date the page, name
 the command that computes it.
 
-**The zone layout is the port's target shape.** zfish uses the same zones and is
-decomposed into small single-responsibility modules within them; mcfish's
-directories are the same shape, with some modules landed and wired, some landed
-and unwired, and some unwritten. `tools/upstream/port_map.tsv` lists every one,
+**The zone layout is the port's target shape.** Each zone is decomposed into
+small single-responsibility modules, with some landed and wired, some landed and
+unwired, and some unwritten. `tools/upstream/port_map.tsv` lists every one,
 and `./build.sh port-status` prints how many have landed. Read
 [PORTING.md](PORTING.md) first.
 

@@ -2,18 +2,18 @@
 // attack helpers plus the two per-piece index-table generators.
 //
 // The INVARIANT is self-containment. These are a deliberate re-implementation of
-// `bitboard.h` / `attacks.h`, not a call into them: zfish evaluates them at comptime to
-// build the feature-index tables, and the C port builds those tables at startup instead
-// (docs/08-idiomatic-c.md, "comptime becomes ... a runtime-built table"). Depending on
-// `attacks_init` here would make the feature tables depend on an init order nothing
-// states. Every function is total over its declared domain and reads no engine state.
+// `bitboard.h` / `attacks.h`, not a call into them: the feature-index tables are built at
+// startup from this math (docs/08-idiomatic-c.md, "comptime becomes ... a runtime-built
+// table"), and depending on `attacks_init` here would make the feature tables depend on
+// an init order nothing states. Every function is total over its declared domain and
+// reads no engine state.
 //
 // Pieces and squares are plain `uint8_t` here, in upstream's NNUE encoding
 // (`color << 3 | type`, squares A1..H8), because the feature indexer's tables are indexed
 // by the raw value and never by the board zone's enums.
 //
-// Ported from zfish `engine/eval/nnue_feature_bb.zig` against the upstream golden
-// `nnue/features/half_ka_v2_hm.cpp` and `nnue/features/full_threats.cpp`.
+// Golden: the upstream `nnue/features/half_ka_v2_hm.cpp` and
+// `nnue/features/full_threats.cpp`.
 
 #ifndef MCFISH_NNUE_FEATURE_BB_H
 #define MCFISH_NNUE_FEATURE_BB_H

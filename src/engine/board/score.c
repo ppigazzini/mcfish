@@ -1,8 +1,8 @@
 #include "score.h"
 
 // Answer whether VALUE is decisive against the caller's win threshold. Kept
-// private and threshold-parameterised, exactly as zfish keeps it (score.zig:39);
-// the header's value_is_decisive is the types.h-anchored public form.
+// private and threshold-parameterised; the header's value_is_decisive is the
+// types.h-anchored public form.
 static bool is_decisive_at(int32_t value, int32_t value_tb_win_in_max_ply) {
     return value >= value_tb_win_in_max_ply || value <= -value_tb_win_in_max_ply;
 }

@@ -11,8 +11,7 @@
 // search may read it to decide which nodes to visit -- only the time manager reads it --
 // or the single-threaded node count stops being reproducible.
 //
-// Upstream: search.h:160 (LimitsType), uci.cpp (parse of `go`). Port source: zfish
-// src/engine/state/limits_type.zig.
+// Upstream: search.h:160 (LimitsType), uci.cpp (parse of `go`).
 
 #ifndef MCFISH_LIMITS_TYPE_H
 #define MCFISH_LIMITS_TYPE_H

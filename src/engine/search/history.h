@@ -15,9 +15,9 @@
 // before each call: `frames[k]` is `(ss - 1 - k)`, so `frames` is the walk from
 // `ss` and `frames + 1` is the walk from `ss - 1`.
 //
-// Ported from zfish `engine/search/history.zig` against the upstream golden
-// `history.h` and `search.cpp` (update_all_stats / update_continuation_histories
-// / update_quiet_histories / update_correction_history).
+// Golden: the upstream `history.h` and `search.cpp` (update_all_stats /
+// update_continuation_histories / update_quiet_histories /
+// update_correction_history).
 
 #ifndef MCFISH_HISTORY_H
 #define MCFISH_HISTORY_H

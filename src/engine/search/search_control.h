@@ -8,7 +8,6 @@
 // inside check_time, which fires once every `calls_cnt` nodes. Move a clock read
 // into the recursion and the node count becomes a function of machine speed.
 //
-// Ported from zfish `engine/search/search_control.zig`.
 // Golden: `Stockfish/src/search.cpp: check_time` / `search<Root>` bookkeeping.
 
 #ifndef MCFISH_SEARCH_CONTROL_H

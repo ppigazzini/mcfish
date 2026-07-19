@@ -11,7 +11,7 @@
 // Every arithmetic step here is unsigned and wrapping by design; the rotate in
 // combine_hash and the 6/2 shifts in hash_combine are part of the definition.
 //
-// Mirrors zfish nnue_hash.zig; golden src/nnue/network.cpp (get_content_hash),
+// Golden: src/nnue/network.cpp (get_content_hash),
 // src/nnue/nnue_architecture.h (get_hash_value), src/misc.cpp (hash_bytes).
 
 #ifndef MCFISH_NNUE_HASH_H

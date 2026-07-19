@@ -20,8 +20,7 @@
 // sends, not by MAX_PLY), so out-of-memory is an error to propagate, not to
 // assert on.
 //
-// Ported from zfish `engine/board/state_list.zig` (StateList,
-// PendingStateStorage). Golden: `Stockfish/src/uci.h` (`StateListPtr`) and
+// Golden: `Stockfish/src/uci.h` (`StateListPtr`) and
 // `Stockfish/src/uci.cpp: UCIEngine::position`.
 
 #ifndef MCFISH_STATE_LIST_H

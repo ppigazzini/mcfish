@@ -16,7 +16,7 @@
 // bestmove without moving the node count.
 //
 // Upstream: search.h:47 (PVMoves), search.h:126 (RootMove), search.cpp (stable_sort of
-// rootMoves). Port source: zfish src/engine/state/root_move.zig.
+// rootMoves).
 
 #ifndef MCFISH_ROOT_MOVE_H
 #define MCFISH_ROOT_MOVE_H

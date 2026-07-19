@@ -13,8 +13,7 @@
 // upstream's whether or not the stripe is honoured -- and why the stripe must still be
 // honoured, or two workers race and a third range is never cleared at all.
 //
-// Upstream: search.h:332 (Worker history members), search.cpp (Worker::clear). Port
-// source: zfish src/engine/state/worker_histories.zig.
+// Upstream: search.h:332 (Worker history members), search.cpp (Worker::clear).
 
 #ifndef MCFISH_WORKER_HISTORIES_H
 #define MCFISH_WORKER_HISTORIES_H

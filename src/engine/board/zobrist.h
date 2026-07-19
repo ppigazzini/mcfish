@@ -16,10 +16,8 @@
 // elsewhere shifts every key downstream and silently invalidates the whole anchor
 // set. The tables are written once at startup and READ-ONLY thereafter.
 //
-// Ported from zfish `engine/board/zobrist.zig`, whose draw order differs (it skips
-// pieces 7 and 8 and zeroes the pawn promotion ranks); mcfish's existing
-// `position_init` is the sequence in force here and the one reproduced.
-// Golden: `Stockfish/src/position.cpp: Position::init`.
+// mcfish's existing `position_init` draw sequence is the one in force here and
+// the one reproduced. Golden: `Stockfish/src/position.cpp: Position::init`.
 
 #ifndef MCFISH_ZOBRIST_H
 #define MCFISH_ZOBRIST_H

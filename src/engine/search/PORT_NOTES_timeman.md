@@ -28,8 +28,7 @@ Widen both to `int64_t` when `nodestime` is wired.
 
 ## Not ported here
 
-zfish's `src/engine/search/search_values.zig` is the score/bound/depth value
-model, not a table of time-management constants — it belongs to whichever module
-owns the search value sentinels. No `search_values.h` was created: every tuned
-constant in `TimeManagement::init` is a literal at its use site upstream, and is
-kept that way.
+The score/bound/depth value model is not a table of time-management constants —
+it belongs to whichever module owns the search value sentinels. No
+`search_values.h` was created: every tuned constant in `TimeManagement::init` is
+a literal at its use site upstream, and is kept that way.

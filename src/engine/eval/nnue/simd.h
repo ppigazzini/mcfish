@@ -15,17 +15,15 @@
 // same node count.
 //
 // Two integer hazards are settled here rather than at each call site:
-//   - WRAPPING. The int16_t accumulator must wrap on overflow (upstream relies on it;
-//     zfish spells it with Zig's element-wise vector `+`). C signed overflow is UB and
-//     GCC leaves signed vector overflow undefined too, so the accumulator family is
-//     uint16_t throughout and the int16_t view is reached by a reinterpret. C23 pins
-//     the conversion back to two's complement.
+//   - WRAPPING. The int16_t accumulator must wrap on overflow (upstream relies on it).
+//     C signed overflow is UB and GCC leaves signed vector overflow undefined too, so
+//     the accumulator family is uint16_t throughout and the int16_t view is reached by
+//     a reinterpret. C23 pins the conversion back to two's complement.
 //   - RIGHT SHIFT. C23 defines `>>` on a negative signed value as an arithmetic shift,
-//     which is what Zig's `>>` and both compilers' vector `>>` already do. Shifts here
-//     are therefore written directly.
+//     which both compilers' vector `>>` already do. Shifts here are therefore written
+//     directly.
 //
-// Ported from zfish `engine/eval/nnue_acc_rowops.zig` (portable `@Vector`) against the
-// upstream golden `nnue/simd.h`.
+// Golden: the upstream `nnue/simd.h`.
 
 #ifndef MCFISH_NNUE_SIMD_H
 #define MCFISH_NNUE_SIMD_H

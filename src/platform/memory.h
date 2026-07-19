@@ -12,7 +12,6 @@
 //
 // Upstream: memory.cpp:71 (std_aligned_alloc), memory.cpp:151
 // (aligned_large_pages_alloc_with_hint), memory.cpp:182 (has_large_pages).
-// Port source: zfish src/platform/memory.zig, src/engine/state/page_alloc.zig.
 
 #ifndef MCFISH_MEMORY_H
 #define MCFISH_MEMORY_H

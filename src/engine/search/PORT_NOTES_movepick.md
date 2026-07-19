@@ -14,8 +14,7 @@ Key non_pawn_key[COLOR_NB];  // all non-pawn pieces, per color
 ```
 
 Upstream golden: `Position::pawn_key()`, `minor_piece_key()`,
-`non_pawn_key(Color)` in `position.h`; zfish `position_types.zig`
-`StateInfo.pawn_key / minor_piece_key / non_pawn_key`.
+`non_pawn_key(Color)` in `position.h`.
 
 Until they exist, `history_update_quiet`, `history_update_all_stats` and
 `movepick_init` take `Key pawn_key` as an explicit parameter, and
@@ -26,8 +25,8 @@ the only change needed in this module.
 ## 2. `see_ge` belongs in the board zone, not here
 
 `movepick.c` defines `see_ge`, mirroring upstream `position.cpp:
-Position::see_ge` (zfish `engine/board/legality.zig: seeGe`). It is declared in
-`movepick.h` so the search can use it for the SEE pruning schedule.
+Position::see_ge`. It is declared in `movepick.h` so the search can use it for
+the SEE pruning schedule.
 
 Requested move: add to `src/engine/board/position.h`
 
@@ -49,10 +48,10 @@ does. Upstream guards the constructor with
 bool pos_pseudo_legal(const Position *pos, Move m);
 ```
 
-in `position.h` / `position.c` (upstream `Position::pseudo_legal`, zfish
-`legality.zig: pseudoLegal`). Until it exists, the caller must pass MOVE_NONE
-whenever the TT move cannot be trusted, or the picker will hand back an illegal
-move that `pos_legal` will not necessarily reject.
+in `position.h` / `position.c` (upstream `Position::pseudo_legal`). Until it
+exists, the caller must pass MOVE_NONE whenever the TT move cannot be trusted, or
+the picker will hand back an illegal move that `pos_legal` will not necessarily
+reject.
 
 ## 4. What the search stack must carry
 
@@ -82,7 +81,7 @@ to both `SOURCES` and `ENGINE_SOURCES`.
 ## 6. Not ported here
 
 - `correctionValue()` (the weighted blend of the six correction reads) lives in
-  zfish `search.zig`, not `history.zig`, so it belongs with the search port.
+  upstream's `search.cpp`, not `history.h`, so it belongs with the search port.
   `history.h` exposes `corr_bundle()` for it to read through.
 - `tt_move_history` is stored and cleared but never updated; its update site is
   in `search.cpp`, not in the ported modules.

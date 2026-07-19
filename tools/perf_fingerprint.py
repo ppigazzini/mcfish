@@ -3,8 +3,7 @@
 
 Answers two questions about two engines run over an IDENTICAL tree, without touching
 either program: are they running the SAME ALGORITHM (`calls`), and does it cost the same
-(`costs`)? Port source: zfish `tools/perf_fingerprint.py`, which is engine-agnostic --
-only the labels here differ.
+(`costs`)? The analysis is engine-agnostic -- only the labels here are mcfish-specific.
 
 WHY `calls` IS THE PARITY TEST. Call counts are inlining-immune: whatever either compiler
 chose to inline, a function that is still a symbol was entered exactly as often as the

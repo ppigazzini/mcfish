@@ -13,7 +13,6 @@
 // See nnue/PORT_NOTES_accumulator.md.
 //
 // Golden: Stockfish/src/evaluate.cpp:41 (Eval::evaluate), :75 (Eval::trace).
-// Port source: zfish `engine/eval/evaluate.zig`, `engine/search/search_acc.zig`.
 
 #ifndef MCFISH_EVALUATE_H
 #define MCFISH_EVALUATE_H

@@ -66,11 +66,10 @@ no-pawns. Verified: the generated tables are identical to the current
 `position_init`'s, and `pos_set` on the start position yields
 `C82F0503486429DD`, the key `tools/board.golden` and `tools/errors.golden` pin.
 
-Note this is **not** zfish's order. `zfish/src/engine/board/zobrist.zig` skips
-pieces 7 and 8 and zeroes the pawn rows on the promotion ranks, which shifts every
-key from `B_PAWN` onward. mcfish's existing sequence is the one in force and the
-one reproduced; changing to zfish's is a separate, deliberate, signature-moving
-commit.
+mcfish's existing sequence is the one in force and the one reproduced. Any other
+draw order — skipping pieces 7 and 8, or zeroing the pawn rows on the promotion
+ranks — shifts every key from `B_PAWN` onward, so changing it is a separate,
+deliberate, signature-moving commit.
 
 ### 2.2 FEN
 
@@ -80,8 +79,8 @@ Delete `pos_set`, `pos_fen`, `pos_pretty` and their `position.h` declarations;
 `fen_parse.c` carries **static copies** of `put_piece`, `slider_blockers`,
 `set_check_info`, `compute_key` and `set_castling_right`, because `position.c`'s
 are `static` and parsing runs before any StateInfo chain exists. That duplication
-is deliberate and temporary — when `move_do` and `state_setup` are split out
-(zfish `move_do.zig`, `state_setup.zig`), both callers reduce to one definition.
+is deliberate and temporary — when `move_do` and `state_setup` are split out,
+both callers reduce to one definition.
 Until then, **`compute_key` and `set_check_info` exist in two files and must be
 edited in lockstep.** `material_key` was added to `position.c`'s `compute_key`
 while this work was in flight and has already been mirrored across; treat that as
@@ -125,8 +124,8 @@ not on the mover.
 
 ## 4. `position_snapshot` — one field is missing, and why
 
-`PositionSnapshot` is zfish's `position_snapshot.zig` struct minus
-`castling_impeded[16]`. Upstream computes it as `pieces() & castling_path[cr]`,
+`PositionSnapshot` is missing `castling_impeded[16]`. Upstream computes it as
+`pieces() & castling_path[cr]`,
 and mcfish's `Position` has **no `castling_path`** — `set_castling_right` records
 the rook square but not the path. Add the field, and this line to
 `pos_fill_snapshot`, when Chess960 castling paths land:
@@ -136,14 +135,12 @@ the rook square but not the path. Add the field, and this line to
         out->castling_impeded[cr] = (pos->by_type[ALL_PIECES] & pos->castling_path[cr]) != 0;
 ```
 
-zfish routes `fill` and `moveIsLegal` through function-pointer hooks to break a Zig
-import cycle. C has no such cycle; `position_snapshot.c` calls `position_query` and
-`legality` directly and there is nothing to register. That is the one intentional
-structural departure from the port source in this batch.
+`position_snapshot.c` calls `position_query` and `legality` directly: C has no
+import cycle to break, so there are no function-pointer hooks to register.
 
-`material_value` uses `pos_non_pawn_material` (recomputed from piece counts) where
-zfish reads `st->non_pawn_material[c]` (maintained incrementally). Same value;
-swap to the field when `StateInfo` gains it.
+`material_value` uses `pos_non_pawn_material`, recomputed from piece counts. Swap
+to an incrementally maintained `st->non_pawn_material[c]` when `StateInfo` gains
+the field; the value is the same either way.
 
 ## 5. `state_list` — no caller yet
 
@@ -163,10 +160,9 @@ disagreements with the current `pos_set` and zero differences in `key`,
 `castling_rights`, `ep_square`, `rule50`, `game_ply`, `checkers`, `blockers` or
 `pinners` on the accepted ones.
 
-zfish's parser is **stricter** than mcfish's and those extra rejections are
-deliberately NOT ported here — pawns on the back ranks, more than 32 pieces,
-unreachable promotion counts, counter range checks, and the king-can-be-captured
-test (`fen_parse.zig:118-165`). Each is a real upstream check
+Several stricter rejections are deliberately NOT ported here — pawns on the back
+ranks, more than 32 pieces, unreachable promotion counts, counter range checks,
+and the king-can-be-captured test. Each is a real upstream check
 (`Stockfish/src/position.cpp:279-290`) and each changes which inputs reach the
 search, so each belongs in its own commit with the golden re-derived. `pos_fen`'s
 Chess960 castling output (upstream emits the rook file letter, mcfish emits

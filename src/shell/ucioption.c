@@ -14,7 +14,7 @@ static char ascii_lower(char c) { return (c >= 'A' && c <= 'Z') ? (char) (c + ('
 
 // Port of upstream CaseInsensitiveLess (ucioption.cpp:33): a lexicographic
 // compare over tolower'd bytes, with the shorter string ordering first on a
-// common prefix. zfish spells the same thing as option_parse.caseInsensitiveLess.
+// common prefix.
 static bool name_less(const char *a, const char *b) {
     while (*a && *b) {
         const char la = ascii_lower(*a);

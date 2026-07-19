@@ -8,8 +8,6 @@
 // Treat all four as SEARCH-AFFECTING when unregistered: they answer rather than
 // abort, so a missing registration is a wrong search, not a crash — the one
 // failure shape the bench signature cannot catch.
-//
-// Ported from zfish `engine/search/option_source.zig`.
 
 #ifndef MCFISH_OPTION_SOURCE_H
 #define MCFISH_OPTION_SOURCE_H

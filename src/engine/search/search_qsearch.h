@@ -7,7 +7,6 @@
 // here for the same reason — both node bodies need them, and this is the half of
 // the pair with no dependency on the other.
 //
-// Ported from zfish `engine/search/search_qsearch.zig`.
 // Golden: `Stockfish/src/search.cpp: qsearch`.
 
 #ifndef MCFISH_SEARCH_QSEARCH_H

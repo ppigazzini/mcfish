@@ -7,7 +7,6 @@
 // itself, which is what lets the byte-exactness of the lines be gated
 // independently of the node count.
 //
-// Ported from zfish `engine/search/search_emit.zig`.
 // Golden: `Stockfish/src/engine.cpp` / `search.cpp` (the info-line assembly).
 
 #ifndef MCFISH_SEARCH_EMIT_H

@@ -8,7 +8,7 @@
 // straddles a cache line in a 64-byte-aligned table.
 //
 // Upstream: tt.h:60 (TTEntry), tt.cpp:29 (Cluster, ClusterSize), tt.h:104
-// (TranspositionTable). Port source: zfish src/engine/state/tt_types.zig.
+// (TranspositionTable).
 
 #ifndef MCFISH_TT_TYPES_H
 #define MCFISH_TT_TYPES_H

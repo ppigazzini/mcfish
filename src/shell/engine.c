@@ -64,8 +64,7 @@ static const char *on_clear_hash(const UciOption *o) {
     return nullptr;
 }
 
-// NO-OP: the thread pool is unported (M4 — zfish `platform/thread_pool.zig`,
-// upstream `thread.cpp`).
+// NO-OP: the thread pool is unported (M4 — upstream `thread.cpp`).
 //
 // This message is unreachable while MAX_THREADS is 1: the spin bounds reject any
 // other value before the callback runs, so `setoption name Threads value 4` is
@@ -92,9 +91,9 @@ static const char *on_numa_policy(const UciOption *o) {
     return "info string NumaPolicy is accepted but NUMA binding is not implemented";
 }
 
-// NO-OP: Syzygy probing is unported (M5 — zfish `engine/syzygy/`, upstream
-// `syzygy/tbprobe.cpp`). Report only a non-empty path: the default is empty and
-// a GUI clearing the option should not be nagged.
+// NO-OP: Syzygy probing is unported (M5 — upstream `syzygy/tbprobe.cpp`).
+// Report only a non-empty path: the default is empty and a GUI clearing the
+// option should not be nagged.
 static const char *on_syzygy_path(const UciOption *o) {
     if (o->current_value[0])
         return "info string SyzygyPath is accepted but tablebase probing is not implemented";

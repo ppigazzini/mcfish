@@ -20,8 +20,7 @@ ROOT=$PWD
 # `./build.sh net` and `./build.sh tb-fetch` fill it.
 RESOURCES_DIR=resources
 
-# Run the engine with resources/ as its working directory, as zfish does for
-# every one of its run steps (zfish build.zig: `setCwd(b.path("net"))`).
+# Run the engine with resources/ as its working directory, for every run step.
 #
 # The engine searches upstream's three candidates and no others: <internal>,
 # then the working directory, then the binary's own directory
@@ -81,12 +80,13 @@ CFLAGS_COMMON=(
 #   native               what the engine should actually ship as, and the only
 #                        honest basis for comparing against a natively-built port.
 #
-# Getting this wrong is not a small error. zfish's shipped binary on this host is
+# Getting this wrong is not a small error. A native build on this host is
 # x86-64-avx512icl with VNNI -- a single vpdpbusd does the whole u8xi8 dot product
-# that the SSE4.1 path needs pmaddubsw + pmaddwd + paddd for. Every mcfish-vs-zfish
-# nps number taken before this was SSE4.1 against AVX-512, which measures the tier
-# and not the port. zfish records the same rule (docs/09-tooling-ci.md: "Comparing a
-# native AVX-512 zfish against the SSE4.1 oracle measures the ARCH, not the code").
+# that the SSE4.1 path needs pmaddubsw + pmaddwd + paddd for. An nps number taken
+# with SSE4.1 on one side and AVX-512 on the other measures the tier and not the
+# code: comparing a native AVX-512 binary against the SSE4.1 oracle measures the
+# ARCH. Both sides must be built at the same ARCH before any nps number means
+# anything.
 #
 # The node count must not move across tiers -- the evaluation is integer-exact, so
 # it is arch-invariant by construction. `./build.sh arch-determinism` is what checks
@@ -395,9 +395,9 @@ do_simd_scalar() {
   # weights are int8, so the pair sum peaks at 32512. That is an argument, and this
   # gate is what checks it against the real net rather than believing it.
   #
-  # zfish gates the same class through its C backend (tools/c_backend_check.sh),
-  # where it caught a @Vector(N, bool) bitcast that was correct only under LLVM's
-  # bit-packing and benched a wrong number through every other gate.
+  # This class of bug is invisible to every other gate: a vector operation that is
+  # correct only under one backend's lowering benches a wrong number everywhere
+  # else without a single diagnostic.
   info "simd-scalar: rebuilding with MCFISH_SIMD_SCALAR and re-asserting the anchor"
   mkdir -p build
   "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -DMCFISH_SIMD_SCALAR \

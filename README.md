@@ -12,23 +12,20 @@ far apart.
 
 What exists today is a single-threaded engine with NNUE evaluation that is
 **bit-exact with upstream** — `./build.sh signature` benches the same node count
-Stockfish and zfish produce. Syzygy, Lazy-SMP threading and NUMA are written
-but are not in `build.sh`'s `SOURCES`, so they are unwired rather than done. See
+Stockfish produces. Syzygy, Lazy-SMP threading and NUMA are written but are not in
+`build.sh`'s `SOURCES`, so they are unwired rather than done. See
 [docs/PORTING.md](docs/PORTING.md).
 
 ## How it is being ported
 
-From **zfish** (the sibling checkout at `../zfish`) — already a **complete,
-bit-exact Zig port of Stockfish** — rather than from Stockfish's C++ directly.
-
 Stockfish's C++ leans on templates, classes, RAII, operator overloading and
-exceptions, none of which map onto C23 without re-deciding the design. zfish has
-already made every one of those decisions, decomposed the engine into small
-single-responsibility modules, and proven the result bit-exact. Translating that
-Zig into C23 is close to mechanical.
+exceptions, none of which map onto C23 without re-deciding the design. The port
+makes those decisions once and decomposes the engine into small
+single-responsibility modules; [docs/PORTING.md](docs/PORTING.md) records where
+each module's code comes from.
 
 `../Stockfish` remains the **golden**: it defines correct behaviour, and the
-differential gate compares against a pristine upstream build. Where zfish and
+differential gate compares against a pristine upstream build. Where mcfish and
 Stockfish disagree, Stockfish wins.
 
 ## Build

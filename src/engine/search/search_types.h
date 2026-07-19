@@ -7,8 +7,7 @@
 // and 2 above MAX_PLY, and every sentinel must be zeroed with a non-null
 // continuation page. A frame reached by arithmetic is always assumed live.
 //
-// Ported from zfish `engine/search/search_types.zig` + `search_ctx.zig` and
-// `engine/state/root_move.zig`. Golden: `Stockfish/src/search.h`.
+// Golden: `Stockfish/src/search.h`.
 
 #ifndef MCFISH_SEARCH_TYPES_H
 #define MCFISH_SEARCH_TYPES_H
@@ -75,7 +74,7 @@ static inline void root_move_unset_bound_flags(RootMove *rm) {
 
 // Report an exact (non-bound) proven loss. Take IS_LOSS as an argument: the loss
 // threshold belongs to the value model, and this type stays free of it
-// (zfish root_move.zig: scoreIsExactLoss, upstream search.h:131).
+// (upstream search.h:131).
 static inline bool root_move_score_is_exact_loss(const RootMove *rm, bool is_loss) {
     return rm->score != -VALUE_INFINITE && is_loss && !root_move_score_is_bound(rm);
 }

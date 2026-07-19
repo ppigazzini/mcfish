@@ -12,8 +12,6 @@
 // instantiate; mcfish runs one engine per process, so the state is file-scope in
 // engine.c and every call below is implicitly against it.
 //
-// Port source: zfish `shell/engine.zig`, `shell/engine/object.zig`,
-// `shell/engine/options.zig`, `shell/engine/session.zig`, `shell/engine/control.zig`.
 // Golden: upstream `engine.cpp:60` (the constructor and its option registration),
 // `engine.h:47` (the public surface).
 

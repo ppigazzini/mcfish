@@ -15,9 +15,8 @@
 // 36, so 80 bounds it; the remaining 16 slots exist so an unmasked vector store
 // near the end of the list stays in bounds (Stockfish types.h:334).
 //
-// Ported from zfish `engine/board/move_do_threats.zig` and the ray-pass table in
-// `engine/board/bitboard.zig:143`. Golden: `Stockfish/src/position.cpp:1183`
-// (Position::update_piece_threats), `Stockfish/src/types.h:309` (DirtyThreat), and
+// Golden: `Stockfish/src/position.cpp:1183` (Position::update_piece_threats),
+// `Stockfish/src/types.h:309` (DirtyThreat), and
 // `Stockfish/src/nnue/features/full_threats.cpp` (what the pairs must contain).
 //
 // `DirtyThreats` itself, its packed-word offsets and its accessors live in

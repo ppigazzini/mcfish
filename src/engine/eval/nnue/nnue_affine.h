@@ -16,12 +16,11 @@
 // Sparse layers walk the transform's NNZ bitset instead of every group. Indices ascend
 // either way, so skipping an all-zero group removes only terms that are zero.
 //
-// zfish reaches the same dot through three arch-tiered instruction selections (vpdpbusd,
-// pmaddubsw+pmaddwd, and a portable vpmaddwd deinterleave); all three compute this same
+// Upstream reaches the same dot through arch-tiered instruction selections (vpdpbusd,
+// pmaddubsw+pmaddwd, and a portable vpmaddwd deinterleave); all of them compute this same
 // sum, so the tier is a performance choice and is not reproduced here.
 //
-// Ported from zfish `engine/eval/nnue_affine.zig` and the two activations in
-// `nnue_inference.zig`, against the upstream goldens `nnue/layers/affine_transform.h`,
+// Golden: the upstream `nnue/layers/affine_transform.h`,
 // `nnue/layers/affine_transform_sparse_input.h` and `nnue/layers/clipped_relu.h`.
 
 #ifndef MCFISH_NNUE_AFFINE_H
@@ -59,8 +58,8 @@ void nnue_affine_1(bool sparse,
 
 // Compute upstream's ClippedReLU over 32 outputs: clamp(x >> SHIFT, 0, 127).
 //
-// `>>` on a negative value is an arithmetic shift, which C23 requires and which is what
-// Zig's `>>` and both compilers' vector `>>` already do.
+// `>>` on a negative value is an arithmetic shift, which C23 requires and which both
+// compilers' vector `>>` already do.
 void nnue_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]);
 
 // Compute upstream's SqrClippedReLU over 32 outputs: min(127, (x*x) >> SHIFT).

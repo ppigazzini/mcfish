@@ -27,8 +27,7 @@
 
 // Hold a point in time, or a duration, in milliseconds. In `nodes as time` mode
 // the same type carries a node count instead — the conversion is what that mode
-// is. (zfish spells the corresponding fields `time_us` / `inc_us`; the unit is
-// milliseconds in both, matching upstream's TimePoint.)
+// is. The unit is milliseconds, matching upstream's TimePoint.
 typedef int64_t TimePoint;
 
 typedef struct {
@@ -55,8 +54,7 @@ typedef struct {
     TimePoint npmsec;
 } TimemanLimits;
 
-// Mirror the pure core of Stockfish's TimeManagement::init, field for field with
-// zfish's TimemanInput / TimemanOutput.
+// Mirror the pure core of Stockfish's TimeManagement::init.
 typedef struct {
     TimePoint time;
     TimePoint inc;

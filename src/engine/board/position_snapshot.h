@@ -10,11 +10,9 @@
 // The snapshot is DERIVED, never authoritative. `position_query.c: pos_fill_snapshot`
 // is its only writer, and nothing may write a snapshot field back into a Position.
 //
-// Ported from zfish `engine/board/position_snapshot.zig`. zfish routes `fill` and
-// `moveIsLegal` through function-pointer hooks to break a Zig import cycle
-// (position cannot be imported by its own importers); C has no such cycle, so the
-// two entry points here call `position_query` and `legality` directly and no hook
-// registration exists or is needed.
+// The two entry points here call `position_query` and `legality` directly: C has
+// no import cycle to break, so no function-pointer hook registration exists or is
+// needed.
 
 #ifndef MCFISH_POSITION_SNAPSHOT_H
 #define MCFISH_POSITION_SNAPSHOT_H
@@ -51,7 +49,7 @@ typedef struct {
 void snapshot_fill(const Position *pos, PositionSnapshot *out);
 
 // Test whether M — which must be pseudo-legal — is legal in POS. Thin alias for
-// pos_legal, mirroring zfish's `moveIsLegal` hook.
+// pos_legal.
 bool snapshot_move_is_legal(const Position *pos, Move m);
 
 #endif  // MCFISH_POSITION_SNAPSHOT_H

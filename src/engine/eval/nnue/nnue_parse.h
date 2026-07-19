@@ -12,7 +12,7 @@
 // reads through them, so they are the shared contract, not an implementation
 // detail.
 //
-// Mirrors zfish nnue_parse.zig; golden src/nnue/nnue_feature_transformer.h
+// Golden: src/nnue/nnue_feature_transformer.h
 // (permute, read_parameters), src/nnue/layers/affine_transform.h
 // (get_weight_index_scrambled), src/nnue/nnue_common.h (read_leb_128_detail).
 

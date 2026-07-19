@@ -15,9 +15,7 @@
 // by `nnue_accumulator_stack_bytes` / `nnue_refresh_cache_bytes`. They are opaque
 // incomplete types rather than `void *` so the three NNUE arenas cannot be confused.
 //
-// Ported from zfish `engine/eval/nnue_accumulator.zig`, `nnue_acc_layout.zig`,
-// `nnue_acc_rowops.zig`, `nnue_acc_update.zig` and `nnue_refresh_cache.zig` against the
-// upstream golden `nnue/nnue_accumulator.cpp`.
+// Golden: the upstream `nnue/nnue_accumulator.cpp`.
 
 #ifndef MCFISH_NNUE_ACCUMULATOR_H
 #define MCFISH_NNUE_ACCUMULATOR_H

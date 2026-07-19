@@ -14,8 +14,7 @@
 // Blocks come from the engine's page allocator, so this zone never names an OS
 // allocator and every chunk arrives zeroed.
 //
-// Upstream: uci.cpp (StateListPtr states), position.h (Position, StateInfo). Port source:
-// zfish src/engine/state/position_storage.zig, src/engine/state/page_alloc.zig.
+// Upstream: uci.cpp (StateListPtr states), position.h (Position, StateInfo).
 
 #ifndef MCFISH_POSITION_STORAGE_H
 #define MCFISH_POSITION_STORAGE_H

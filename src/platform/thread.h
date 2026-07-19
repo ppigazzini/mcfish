@@ -13,7 +13,6 @@
 //
 // Upstream: thread.cpp:41 (Thread::Thread), thread.cpp:82 (idle_loop), thread.cpp:60
 // (wait_for_search_finished), thread.cpp:71 (run_custom_job).
-// Port source: zfish src/platform/search_thread.zig, src/platform/thread_runtime.zig:123.
 
 #ifndef MCFISH_THREAD_H
 #define MCFISH_THREAD_H

@@ -192,7 +192,7 @@ static const char *on_debug_log_file(const UciOption *o) {
 // narrower one is a different handshake, and the handshake is what a GUI
 // configures against. Any value above 1 is accepted and ignored; say so, because
 // a GUI that sets Threads 8 and sees silence has no way to learn otherwise.
-// Owner: zfish `platform/thread_pool.zig`, upstream `thread.cpp`.
+// Owner: upstream `thread.cpp`.
 static const char *on_threads(const UciOption *o) {
     if (strcmp(o->current_value, "1") != 0)
         return "Threads is accepted but ignored: the search is single-threaded";

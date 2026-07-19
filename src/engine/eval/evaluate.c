@@ -206,8 +206,7 @@ static int64_t abs64(int64_t v) { return v < 0 ? -v : v; }
 // halfmove clock. Every divide is truncating, and every intermediate is widened to
 // int64 before the multiply — both are load-bearing for bit-exactness.
 //
-// Golden: Stockfish/src/evaluate.cpp:48-67. Port source: zfish
-// `engine/eval/evaluate.zig: computeValue`.
+// Golden: Stockfish/src/evaluate.cpp:48-67.
 static Value
 nnue_scaled_value(const Position *pos, int32_t psqt, int32_t positional, int optimism) {
     int64_t nnue = (int64_t) psqt + (int64_t) positional;

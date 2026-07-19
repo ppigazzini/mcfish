@@ -43,16 +43,15 @@ moves_to_go, nodes, infinite, ponder). `limits_type.h` carries upstream's full
 `search.h` was not edited, so both exist. When the search adopts the Worker, the
 move is: `search_go` takes a `const LimitsType *`, `SearchLimits` is deleted, and
 the UCI `go` parser fills `LimitsType` directly. `limits_type.h` deliberately does
-not include `search.h` — it stays a POD leaf, as zfish `limits_type.zig` requires —
-so no conversion helper is offered here.
+not include `search.h` — it stays a POD leaf — so no conversion helper is offered
+here.
 
 ## 4. `Histories` mixes per-worker and shared tables
 
 `src/engine/search/history.h` defines one flat `Histories` block holding both the
 per-worker tables (main, low-ply, capture, continuation, continuation-correction,
-tt-move) and the two shared, key-indexed ones (correction, pawn). Upstream and zfish
-split them: the shared pair is one bank per NUMA node, sized to the node's thread
-count.
+tt-move) and the two shared, key-indexed ones (correction, pawn). Upstream splits
+them: the shared pair is one bank per NUMA node, sized to the node's thread count.
 
 `worker_histories.h` embeds the whole block and reaches the shared pair only through
 `SharedHistories`, so a worker that owns its node's bank binds to its own block
@@ -111,21 +110,21 @@ const NnueFeatureTransformer *nnue_ft_current(void);  // null when no net is res
 
 `search.c` has no reductions table — the late-move reduction is computed inline.
 `worker_fill_reductions` ports the upstream fill (`search.cpp:696`,
-`int(2834 / 128.0 * std::log(i))`, zfish `search.zig:378`) into the Worker, where
+`int(2834 / 128.0 * std::log(i))`) into the Worker, where
 upstream keeps it. When the search adopts the Worker it must read `w->reductions`
 rather than recomputing, or the two schedules can drift.
 
 ## Untranslatable / deliberately not ported
 
-- **zfish `worker_layout.zig`'s offset table** (`worker_off`, the pinned
-  `worker_size`/`position_size`/`state_info_size` constants). Those exist because
-  zfish reinterprets a C++-allocated Worker image by byte offset. In C the struct
-  *is* the layout, so the offsets are the compiler's and the pinned sizes are
-  meaningless. The one runtime layout that remains — where the two NNUE arenas sit
+- **A pinned Worker offset table** (`worker_off`, and pinned
+  `worker_size`/`position_size`/`state_info_size` constants). They would only be
+  needed to reinterpret an externally allocated Worker image by byte offset. In C
+  the struct *is* the layout, so the offsets are the compiler's and the pinned
+  sizes would be meaningless. The one runtime layout that remains — where the two NNUE arenas sit
   inside the block — is computed from `nnue_accumulator_stack_bytes()` /
   `nnue_refresh_cache_bytes()` and exposed as `worker_accumulator_stack_offset()` /
   `worker_refresh_table_offset()`, never as a constant.
-- **zfish `page_alloc.zig`** is already ported as `page_alloc` / `page_free` /
+- **The page allocator** is already ported as `page_alloc` / `page_free` /
   `page_alloc_set` in `src/platform/memory.h`. This zone calls it and adds nothing.
 - **`RootMove::extract_ponder_from_tt`** (search.h:128) needs a TT probe and a
   Position make/unmake. It belongs in the search, not in the root-move type.

@@ -13,8 +13,8 @@
 // quiet mode — because both sides reach this leaf and neither may reach the
 // other.
 //
-// Port source: zfish `shell/uci_output.zig`. Golden: upstream `misc.h:73`
-// (sync_cout / sync_endl), `misc.cpp:249` (the `Debug Log File` tee).
+// Golden: upstream `misc.h:73` (sync_cout / sync_endl), `misc.cpp:249` (the
+// `Debug Log File` tee).
 
 #ifndef MCFISH_UCI_OUTPUT_H
 #define MCFISH_UCI_OUTPUT_H

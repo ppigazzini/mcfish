@@ -748,8 +748,8 @@ bool numa_config_distribute_threads(const NumaConfig *cfg, size_t num_threads, s
 
     for (size_t t = 0; t < num_threads; ++t) {
         size_t best = 0;
-        // Keep the fill ratio in `float`, as the port source does: a wider accumulator
-        // would move the ties and hand a different node to a thread.
+        // Keep the fill ratio in `float`: a wider accumulator would move the ties and
+        // hand a different node to a thread.
         float best_fill = __builtin_inff();
         for (size_t n = 0; n < cfg->node_count; ++n) {
             const float fill = (float) (occupation[n] + 1) / (float) cfg->nodes[n].count;
@@ -784,7 +784,7 @@ bool numa_config_suggests_binding_threads(const NumaConfig *cfg, size_t num_thre
 
     // Treat a node holding <= 60% of the largest node's CPUs as small. Keep the negated
     // comparison: with no CPUs at all the ratio is NaN, and `!(NaN <= t)` counts the node,
-    // which is what the port source and upstream both do.
+    // which is what upstream does.
     const double small_node_threshold = 0.6;
     size_t num_not_small_nodes = 0;
     for (size_t n = 0; n < cfg->node_count; ++n) {

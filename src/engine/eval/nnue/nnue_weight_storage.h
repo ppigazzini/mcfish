@@ -10,7 +10,7 @@
 // at least 64-byte aligned, which is what lets the parse form typed views by
 // casting the base pointer.
 //
-// Mirrors zfish nnue_weight_storage.zig; golden src/nnue/network.cpp.
+// Golden: src/nnue/network.cpp.
 
 #ifndef MCFISH_NNUE_WEIGHT_STORAGE_H
 #define MCFISH_NNUE_WEIGHT_STORAGE_H

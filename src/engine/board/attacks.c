@@ -16,8 +16,7 @@ Bitboard LineBB[SQUARE_NB][SQUARE_NB];
 static Bitboard RookTable[0x19000];
 static Bitboard BishopTable[0x1480];
 
-// Index [square][0] for bishops, [square][1] for rooks — the same layout zfish
-// uses via magicIndexForPiece.
+// Index [square][0] for bishops, [square][1] for rooks.
 static Magic Magics[SQUARE_NB][2];
 
 static const Direction RookDirs[4] = { NORTH, EAST, SOUTH, WEST };
@@ -58,8 +57,8 @@ static Bitboard sliding_attack(PieceType pt, Square s, Bitboard occupied) {
     return attacks;
 }
 
-// xorshift64* — the same generator and the same seeds zfish uses, so the magic
-// search explores candidates in the identical order and produces the identical
+// xorshift64* — the generator and the seeds are fixed, so the magic search
+// explores candidates in one reproducible order and produces one fixed set of
 // tables. Do not "improve" this: a different generator yields different magics,
 // which is harmless for correctness but makes a table dump incomparable.
 typedef struct {

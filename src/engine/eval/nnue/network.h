@@ -9,7 +9,7 @@
 // report failure; none of them may abort. Callers must therefore treat a loaded
 // net as optional and consult network_verify before evaluating.
 //
-// Mirrors zfish network.zig; golden src/nnue/network.cpp, src/nnue/network.h.
+// Golden: src/nnue/network.cpp, src/nnue/network.h.
 
 #ifndef MCFISH_NETWORK_H
 #define MCFISH_NETWORK_H

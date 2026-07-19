@@ -20,12 +20,12 @@
 // desynchronise every anchor built on it — the same rule `pos_do_move` applies
 // when it sets the square.
 //
-// Ported from zfish `engine/board/fen_parse.zig` (setPosition), narrowed to the
-// acceptance set mcfish's `position.c: pos_set` already established: zfish's extra
-// rejections (pawns on the back ranks, >32 pieces, unreachable promotion counts,
-// counter range checks, king-can-be-captured) are NOT reproduced here, because
-// they would change which of `tools/cases/errors.uci` and `tools/cases/board.uci`
-// are accepted. Golden: `Stockfish/src/position.cpp: Position::set`.
+// The acceptance set is the one mcfish's `position.c: pos_set` already
+// established. Stricter rejections (pawns on the back ranks, >32 pieces,
+// unreachable promotion counts, counter range checks, king-can-be-captured) are
+// NOT applied here, because they would change which of `tools/cases/errors.uci`
+// and `tools/cases/board.uci` are accepted. Golden:
+// `Stockfish/src/position.cpp: Position::set`.
 
 #ifndef MCFISH_FEN_PARSE_H
 #define MCFISH_FEN_PARSE_H

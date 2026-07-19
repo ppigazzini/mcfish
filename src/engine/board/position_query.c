@@ -43,7 +43,7 @@ void pos_fill_snapshot(const Position *pos, PositionSnapshot *out) {
     out->key = st->key;
 
     // Weight pawns at 534, not PAWN_VALUE: this is the scaling model's pawn, which
-    // upstream keeps distinct from the search's (zfish position_query.zig:74).
+    // upstream keeps distinct from the search's.
     const int pawns = pos->piece_count[W_PAWN] + pos->piece_count[B_PAWN];
     out->material_value =
       (Value) (534 * pawns) + pos_non_pawn_material(pos, WHITE) + pos_non_pawn_material(pos, BLACK);

@@ -7,8 +7,7 @@
 // shortens the re-searched depth. Both edges grow by 47/128 per re-search. Change
 // the order of those updates and the node count moves without the move changing.
 //
-// Ported from zfish `engine/search/search_id_loop.zig` + the loop helpers in
-// `search_id.zig`. Golden: `Stockfish/src/search.cpp: iterative_deepening`.
+// Golden: `Stockfish/src/search.cpp: iterative_deepening`.
 
 #ifndef MCFISH_SEARCH_ID_H
 #define MCFISH_SEARCH_ID_H

@@ -36,8 +36,7 @@ what that wiring commit has to decide.
 
 Goldens: upstream `thread.cpp` / `thread.h` for the pool and the idle loop,
 `numa.h` for the topology, `memory.cpp` for the allocator, `search.h:311`
-(`Worker`) for the layout. Port source: zfish `platform/thread_pool.zig`,
-`platform/search_thread.zig`, `platform/numa.zig`, `engine/state/`.
+(`Worker`) for the layout.
 
 ## The model
 
@@ -99,7 +98,7 @@ pointer *because* the search is single-threaded.
 
 **`Histories` is one flat block and upstream's is not.** It mixes the per-worker
 tables (main, low-ply, capture, continuation, tt-move) with the two shared,
-key-indexed ones (correction, pawn), which upstream and zfish keep as one bank
+key-indexed ones (correction, pawn), which upstream keeps as one bank
 per NUMA node sized to that node's thread count. Splitting it into worker-owned
 and node-shared halves, and clearing only the former per worker, is part of the
 same commit.

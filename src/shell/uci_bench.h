@@ -11,9 +11,8 @@
 // uci.cpp:302): the banners and the summary are a report for the operator, not
 // UCI traffic, and a GUI parsing stdout must not see them.
 //
-// Port source: zfish `shell/uci_bench.zig` (benchRuntime),
-// `shell/benchmark.zig` (setupBench). Golden: upstream `uci.cpp:243`
-// (UCIEngine::bench), `benchmark.cpp:126` (setup_bench).
+// Golden: upstream `uci.cpp:243` (UCIEngine::bench), `benchmark.cpp:126`
+// (setup_bench).
 
 #ifndef MCFISH_UCI_BENCH_H
 #define MCFISH_UCI_BENCH_H

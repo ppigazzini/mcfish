@@ -12,7 +12,6 @@
 // it rather than refusing, and worker_seed_refresh_cache finishes the job after the load.
 //
 // Upstream: search.cpp (Worker::Worker, Worker::clear), search.cpp:696 (reductions fill).
-// Port source: zfish src/engine/state/worker_construct.zig.
 
 #ifndef MCFISH_WORKER_CONSTRUCT_H
 #define MCFISH_WORKER_CONSTRUCT_H

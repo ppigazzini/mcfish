@@ -2,9 +2,9 @@
 # Deterministic cost measurement for one engine binary.
 #
 # Runs callgrind over a bench and prints instructions, data refs and D1/LL misses. Needs no
-# instrumentation: it measures the shipped release artifact, so mcfish, zfish and an upstream
-# binary are directly comparable when handed the same bench (same node count => same tree =>
-# same workload).
+# instrumentation: it measures the shipped release artifact, so mcfish and an upstream binary
+# are directly comparable when handed the same bench (same node count => same tree => same
+# workload).
 #
 # WHY THIS AND NOT nps, for anything under ~5%: callgrind counts are DETERMINISTIC. Wall-clock
 # on this class of hardware swings by double-digit percent across interleaved rounds -- enough

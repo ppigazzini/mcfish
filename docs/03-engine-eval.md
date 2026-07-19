@@ -45,8 +45,8 @@ gate battery cover them.
 | [`simd.h`](../src/engine/eval/nnue/simd.h) | the vector vocabulary, in two implementations |
 | [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv15 dimensions |
 
-The port sources are zfish's `engine/eval/` modules; upstream's `nnue/` sources are
-the golden. `tools/upstream/port_map.tsv` carries the row-by-row mapping and
+Upstream's `nnue/` sources are the golden.
+`tools/upstream/port_map.tsv` carries the row-by-row mapping and
 `./build.sh port-status` prints the live status.
 
 ## Startup, loading, and the netless run

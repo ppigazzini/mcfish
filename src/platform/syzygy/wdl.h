@@ -9,7 +9,7 @@
 // the board and its StateInfo chain.
 //
 // Mirror upstream `syzygy/tbprobe.cpp:772` (do_probe_table), `:1305`
-// (probe_table), `:1332` (search). Port source: zfish `platform/syzygy/wdl.zig`.
+// (probe_table), `:1332` (search).
 
 #ifndef MCFISH_SYZYGY_WDL_H
 #define MCFISH_SYZYGY_WDL_H

@@ -14,8 +14,7 @@
 // split, move the two `typedef struct { ... }` blocks verbatim into this header
 // and have `position.h` include it. No include site changes when that happens.
 //
-// Ported from zfish `engine/board/position_types.zig`. Golden:
-// `Stockfish/src/position.h` (struct StateInfo, class Position).
+// Golden: `Stockfish/src/position.h` (struct StateInfo, class Position).
 
 #ifndef MCFISH_POSITION_TYPES_H
 #define MCFISH_POSITION_TYPES_H

@@ -1,7 +1,5 @@
 // Run the NNUE forward pass. See nnue_inference.h for the layer stack and the seam this
 // module reads its weights through.
-//
-// Ported from zfish `engine/eval/nnue_inference.zig`.
 
 #include "nnue_inference.h"
 

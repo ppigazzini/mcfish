@@ -7,8 +7,7 @@
 // counts below are `sizeof` the upstream AffineTransform members and are what
 // the parse and the weight storage size themselves by.
 //
-// Mirrors src/nnue/nnue_architecture.h:36-72 and the layer sizes pinned in
-// zfish network.zig:65-75.
+// Mirrors src/nnue/nnue_architecture.h:36-72.
 
 #ifndef MCFISH_NNUE_ARCHITECTURE_H
 #define MCFISH_NNUE_ARCHITECTURE_H

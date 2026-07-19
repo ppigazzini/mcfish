@@ -1,7 +1,5 @@
 // Implement the NNUE feature-index bitboard math. See nnue_feature_bb.h for the
 // self-containment invariant.
-//
-// Ported from zfish `engine/eval/nnue_feature_bb.zig`.
 
 #include "nnue_feature_bb.h"
 

@@ -16,8 +16,7 @@
 // signature over to this table is an intended behaviour change and moves the
 // golden — see docs/PORTING.md on re-deriving it.
 //
-// Port source: zfish `shell/bench_positions.zig`. Golden: upstream
-// `benchmark.cpp:31` (Defaults).
+// Golden: upstream `benchmark.cpp:31` (Defaults).
 
 #ifndef MCFISH_BENCH_POSITIONS_H
 #define MCFISH_BENCH_POSITIONS_H

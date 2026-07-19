@@ -7,9 +7,7 @@ change and why, so whoever owns `position.{h,c}` can land it in one commit.
 
 Nothing here has been added to the board zone by this port — these are requests.
 
-Source: zfish `engine/board/position_types.zig` (the two records), `engine/board/move_do.zig`
-and `engine/board/move_do_threats.zig` (who fills them), `engine/search/search_acc.zig`
-(who pushes and pops). Upstream golden: `position.h` `DirtyPiece` / `DirtyThreats`.
+Upstream golden: `position.h` `DirtyPiece` / `DirtyThreats`.
 
 ## 1. Two new records in the board zone
 
@@ -67,19 +65,17 @@ void pos_do_move(Position *pos, Move m, StateInfo *new_st, bool gives_check,
                  DirtyPiece *dp, DirtyThreats *dts);
 ```
 
-zfish's `doMove(pos, move, st, gives_check, dirty_piece, dirty_threats)`. The two
-out-parameters are the ones `nnue_acc_stack_push` returns, so the make-move writes its
-delta straight into the accumulator's arena and nothing is copied.
+The two out-parameters are the ones `nnue_acc_stack_push` returns, so the make-move
+writes its delta straight into the accumulator's arena and nothing is copied.
 
 `pos_do_null_move` must fill them too: `dp` all-`NO_PIECE`/`64` and `dts->list_size = 0`,
 so the incremental step is a no-op rather than reading a stale ply's delta.
 
 ## 3. Threat recording inside make/unmake
 
-`DirtyThreats` is filled by a port of zfish `engine/board/move_do_threats.zig`
-(`updatePieceThreats`, `processSliders`, `canSliderThreat`) — upstream
-`Position::update_piece_threats`. It runs on every put-piece and remove-piece and appends
-to `list_values`. That module is **board-zone work, not eval-zone work**, and it is not
+`DirtyThreats` is filled by a port of upstream `Position::update_piece_threats` and the
+slider walk it drives. It runs on every put-piece and remove-piece and appends to
+`list_values`. That module is **board-zone work, not eval-zone work**, and it is not
 part of this port. It needs `BetweenBB`-style ray queries, which `attacks.h` already has.
 
 The filters it applies are not an optimisation: the (attacker, attacked) pairs it rejects

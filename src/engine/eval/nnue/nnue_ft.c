@@ -1,6 +1,4 @@
 // Reinterpret the feature-transformer weight blob as its typed regions.
-//
-// Ported from zfish `engine/eval/nnue_ft.zig`.
 
 #include "nnue_ft.h"
 

@@ -178,7 +178,7 @@ Three invariants hold this together, and each has a silent failure mode:
 - **The tables are read-only during search.** `attacks_init` is the only writer and
   runs once, single-threaded, before any `Position` exists. That is what will make
   them safe to share across the workers M4 adds; a lazily-filled table would not be.
-- **The magic search uses zfish's generator and seeds.** `prng_rand64` is
+- **The magic search's generator and seeds are fixed.** `prng_rand64` is
   xorshift64* and `prng_sparse_rand` ANDs three draws so candidates are sparse.
   Different magics are equally correct and produce an incomparable table dump, which
   is why the generator is not to be "improved".

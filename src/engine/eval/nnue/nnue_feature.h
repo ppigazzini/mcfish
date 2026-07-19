@@ -12,8 +12,8 @@
 // and the caller drops it. That out-of-range return is the exclusion mechanism, not an
 // error, and it is what upstream does.
 //
-// Ported from zfish `engine/eval/nnue_feature.zig` against the upstream goldens
-// `nnue/features/half_ka_v2_hm.cpp` and `nnue/features/full_threats.cpp`.
+// Golden: the upstream `nnue/features/half_ka_v2_hm.cpp` and
+// `nnue/features/full_threats.cpp`.
 
 #ifndef MCFISH_NNUE_FEATURE_H
 #define MCFISH_NNUE_FEATURE_H

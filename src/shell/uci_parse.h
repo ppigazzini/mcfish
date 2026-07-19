@@ -16,8 +16,8 @@
 // parse, name-joining and all, and duplicating it would give the option table two
 // front doors that could drift.
 //
-// Port source: zfish `shell/uci_parse.zig`. Golden: upstream `uci.cpp:186`
-// (parse_limits), `uci.cpp:485` (UCIEngine::position).
+// Golden: upstream `uci.cpp:186` (parse_limits), `uci.cpp:485`
+// (UCIEngine::position).
 
 #ifndef MCFISH_UCI_PARSE_H
 #define MCFISH_UCI_PARSE_H

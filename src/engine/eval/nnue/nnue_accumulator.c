@@ -1,9 +1,6 @@
 // Implement the incremental NNUE accumulator: the arena layout, the weight-row add/sub
 // kernels, the refresh cache, the refresh/incremental update algorithm, and the
 // transform. See nnue_accumulator.h for the incremental invariant.
-//
-// Ported from zfish `engine/eval/nnue_acc_layout.zig`, `nnue_acc_rowops.zig`,
-// `nnue_refresh_cache.zig`, `nnue_acc_update.zig` and `nnue_accumulator.zig`.
 
 #include "nnue_accumulator.h"
 

@@ -6,14 +6,10 @@
 // except condition_wait, so a caller holding a Mutex may safely hold it across any other
 // call in this header.
 //
-// zfish hand-rolls a Drepper futex mutex and a sequence-counter condition variable
-// because Zig 0.16 removed std.Thread.Mutex/Condition (zfish
-// src/platform/thread_runtime.zig:8). C has no such gap: pthread supplies exactly the
-// std::mutex / std::condition_variable pair upstream uses, so wrap those instead of
-// re-deriving the futex protocol.
+// Wrap pthreads: they supply exactly the std::mutex / std::condition_variable pair
+// upstream uses, so there is no reason to re-derive a futex protocol here.
 //
 // Upstream: thread.h:60 (mutex, cv), thread.h:105 (the pool's stop flag).
-// Port source: zfish src/platform/thread_runtime.zig.
 
 #ifndef MCFISH_THREAD_RUNTIME_H
 #define MCFISH_THREAD_RUNTIME_H

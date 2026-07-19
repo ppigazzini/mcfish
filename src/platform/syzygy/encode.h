@@ -8,7 +8,6 @@
 // registry builds the geometry before it registers a table.
 //
 // Mirror upstream `syzygy/tbprobe.cpp:1397` (Tablebases::init).
-// Port source: zfish `platform/syzygy/encode.zig`.
 
 #ifndef MCFISH_SYZYGY_ENCODE_H
 #define MCFISH_SYZYGY_ENCODE_H

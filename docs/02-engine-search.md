@@ -219,7 +219,7 @@ Every margin, reduction weight and bonus scale lives in
 [`search_common.c`](../src/engine/search/search_common.c), and its header states the
 rule that governs all of them: **nothing there is derived, everything is
 transcribed.** Each constant is upstream's tuned value and each division truncates
-toward zero the way C, C++ and Zig's `@divTrunc` all agree it does. A cleaner
+toward zero, matching upstream's C++ integer division exactly. A cleaner
 formulation that moves a rounding boundary moves the node count, so a change there
 is a behaviour change even when it looks like a simplification.
 
@@ -554,8 +554,8 @@ is the file-by-file map. What the live zone does not yet do:
   and `previous_time_reduction` are reset per `go` rather than carried between moves,
   alongside the history block. Upstream resets them on `ucinewgame`; the live UCI
   layer has no hook for that, which is a shell gap.
-- **`pos_non_pawn_material` is a function, not cached state.** Upstream and zfish
-  read `st->non_pawn_material[c]`. Step 14 calls it twice per move; caching it on
+- **`pos_non_pawn_material` is a function, not cached state.** Upstream reads
+  `st->non_pawn_material[c]`. Step 14 calls it twice per move; caching it on
   `StateInfo` is a pure win with no behaviour change.
 - **Tablebases.** Every tablebase path is behind `tb_config.cardinality`, which is
   zero with no prober attached — the correct answer, not a degraded one. See

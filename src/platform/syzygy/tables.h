@@ -11,7 +11,6 @@
 //
 // Mirror upstream `syzygy/tbprobe.cpp:192` (SparseEntry), `:201` (LR), `:351`
 // (PairsData), `:1006` (set_groups), `:1061` (set_symlen).
-// Port source: zfish `platform/syzygy/probe.zig`.
 
 #ifndef MCFISH_SYZYGY_TABLES_H
 #define MCFISH_SYZYGY_TABLES_H

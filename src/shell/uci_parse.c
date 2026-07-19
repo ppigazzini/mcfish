@@ -11,8 +11,8 @@
 // Require the WHOLE token to convert. C++'s `is >> value` stops at the first
 // non-digit and leaves the rest in the stream, so upstream reads `depth 5abc` as
 // depth 5 followed by the junk token `abc`; requiring the whole token turns that
-// into a reported bad argument instead. The port source made the same choice,
-// and it is what `bad_token` can be defined against at all.
+// into a reported bad argument instead, and it is what `bad_token` can be
+// defined against at all.
 
 bool uci_parse_u64(const char *token, size_t len, uint64_t *out) {
     if (len == 0)

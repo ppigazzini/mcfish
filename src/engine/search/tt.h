@@ -13,8 +13,7 @@
 // those five bits, so an entry's relative age is a borrowing unsigned subtract —
 // signed arithmetic there is undefined on overflow and would not borrow.
 //
-// Upstream: src/tt.h, src/tt.cpp. Port source: zfish src/engine/search/tt.zig,
-// src/engine/state/tt_types.zig.
+// Upstream: src/tt.h, src/tt.cpp.
 
 #ifndef MCFISH_TT_H
 #define MCFISH_TT_H

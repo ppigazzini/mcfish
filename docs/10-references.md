@@ -5,23 +5,17 @@ the rest of this set — see [11-writing.md](11-writing.md).
 
 Audience: all developers.
 
-## The two repositories that define the work
+## The repository that defines the work
 
-The port path is **zfish → mcfish**, with Stockfish as the golden. See
-[PORTING.md](PORTING.md).
+mcfish is a C23 port of **Stockfish**, which is the reference implementation for
+everything here. See [PORTING.md](PORTING.md) for where the code comes from.
 
 - [Stockfish][stockfish] — the **golden**. It defines correct behaviour, and the
-  differential gate compares against a pristine upstream build. Where zfish and
-  Stockfish disagree, Stockfish wins.
+  differential gate compares against a pristine upstream build. Where mcfish and
+  Stockfish disagree, Stockfish wins. The module-by-module mapping is
+  `tools/upstream/port_map.tsv`.
   - [Bench and the node signature][sf-bench] — the finish line for this port.
   - [Stockfish releases][sf-releases] — the `Bench:` line for a tagged commit.
-- **zfish** — the **port source**: a complete, bit-exact Zig port of Stockfish,
-  decomposed into small single-responsibility modules with the templates,
-  classes, RAII and operator overloading already removed. It is a sibling
-  checkout at `../zfish`, not a URL this page can pin; its own `docs/` holds the
-  per-zone pages this set mirrors, and its `03-engine-eval` and
-  `04-multithreading` describe the NNUE and Lazy-SMP designs mcfish is porting
-  against. The module-by-module mapping is `tools/upstream/port_map.tsv`.
 
 ## Chess programming
 

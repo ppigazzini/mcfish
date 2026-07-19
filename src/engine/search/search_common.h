@@ -3,8 +3,8 @@
 // zone still has to carry itself.
 //
 // The invariant: nothing here is derived, everything is transcribed. Each
-// constant is upstream's tuned value and each division truncates toward zero the
-// way C, C++ and Zig's `@divTrunc` all do. A cleaner formulation that moves a
+// constant is upstream's tuned value and each division truncates toward zero,
+// the way C and upstream's C++ both do. A cleaner formulation that moves a
 // rounding boundary moves the node count, so a change here is a behaviour change
 // even when it looks like a simplification.
 //
@@ -12,8 +12,7 @@
 // `int` and relies on two's-complement wrap; those spots go through unsigned
 // arithmetic and cast back, because signed overflow is undefined in C.
 //
-// Ported from zfish `engine/search/search.zig`, `search_values.zig`,
-// `search_common.zig` and `search_acc.zig`. Golden: `Stockfish/src/search.cpp`.
+// Golden: `Stockfish/src/search.cpp`.
 
 #ifndef MCFISH_SEARCH_COMMON_H
 #define MCFISH_SEARCH_COMMON_H
@@ -41,11 +40,10 @@ enum : int32_t {
 static_assert(DEPTH_ENTRY_OFFSET == DEPTH_NONE, "the TT depth bias is DEPTH_NONE");
 
 // Index by Piece, not PieceType: the search reads it straight off `board[sq]`,
-// where the black pieces sit at 9..14 (zfish search_values.zig:31).
+// where the black pieces sit at 9..14.
 extern const int32_t PieceValueByPiece[PIECE_NB];
 
-// Divide the accumulated quiet history by depth bucket in Step 14
-// (zfish search_main.zig:115 / search_back.zig:80).
+// Divide the accumulated quiet history by depth bucket in Step 14.
 extern const int32_t LmrDivisor[16];
 
 // ---- value model -------------------------------------------------------

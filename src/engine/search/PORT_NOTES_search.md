@@ -10,10 +10,9 @@ owned there; this file records what each one costs and what closes it.
 unchecked, and `pos_legal` is only defined on pseudo-legal input, so a stale or
 key-colliding TT entry would reach `pos_do_move`.
 
-The predicate lives in `search_common.c` as `search_pseudo_legal`, ported from
-zfish `engine/board/legality.zig: pseudoLegal` against the golden
-`Stockfish/src/position.cpp: Position::pseudo_legal`. `search.c`'s own copy is
-gone with the monolith.
+The predicate lives in `search_common.c` as `search_pseudo_legal`, ported against
+the golden `Stockfish/src/position.cpp: Position::pseudo_legal`. `search.c`'s own
+copy is gone with the monolith.
 
 **`src/engine/board/legality.c` already holds the canonical `pos_pseudo_legal`.**
 Delete `search_pseudo_legal` in the commit that puts that module in `SOURCES`.

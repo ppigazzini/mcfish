@@ -13,7 +13,6 @@
 // seams — no thread or worker dependency, so the allocation-failure paths are
 // testable in isolation.
 //
-// Ported from zfish `engine/search/root_move_build.zig`.
 // Golden: `Stockfish/src/syzygy/tbprobe.cpp: rank_root_moves` and
 // `Stockfish/src/search.cpp: Search::Worker::start_searching`.
 

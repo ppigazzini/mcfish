@@ -1,11 +1,9 @@
 // Implement the HalfKAv2_hm and full_threats feature indexers.
 //
-// zfish evaluates every table here at comptime; C23 has no equivalent, so they are built
-// once by nnue_feature_init (docs/08-idiomatic-c.md, "comptime becomes ... a table filled
-// at startup"). The generated values are identical — the generators are the same
-// arithmetic over the same constants.
-//
-// Ported from zfish `engine/eval/nnue_feature.zig`.
+// C23 has no compile-time evaluation for tables of this shape, so every table here is
+// built once by nnue_feature_init (docs/08-idiomatic-c.md, "comptime becomes ... a table
+// filled at startup"). The values do not depend on when they are built — the generators
+// are the same arithmetic over the same constants.
 
 #include "nnue_feature.h"
 

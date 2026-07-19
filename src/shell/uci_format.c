@@ -74,7 +74,7 @@ size_t uci_format_score(UciScoreKind kind, int value, int extra, char *buf, size
     case UCI_SCORE_MATE : {
         // Plies to moves, rounded away from zero. The positive side adds one
         // before halving; the negative side relies on C's truncation toward
-        // zero, which is what C++ and the port source both do.
+        // zero, which is what upstream's C++ does.
         const int moves = (value > 0 ? value + 1 : value) / 2;
         uci_buf_appendf(&b, "mate %d", moves);
         break;

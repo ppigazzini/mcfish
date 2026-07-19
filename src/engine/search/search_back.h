@@ -7,7 +7,6 @@
 // invariants, which it must not recompute) and owns the loop's mutable running
 // state itself. It recurses into search_node for every child.
 //
-// Ported from zfish `engine/search/search_back.zig`.
 // Golden: `Stockfish/src/search.cpp: search<NodeType>`, the moves loop onward.
 
 #ifndef MCFISH_SEARCH_BACK_H

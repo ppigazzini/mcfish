@@ -2,16 +2,15 @@
 
 The C23 the tree commits to, the warning set that enforces it, why there is no
 build system, and — because it is the daily work of this repo — the recurring
-patterns for turning zfish's Zig into C23.
+patterns for expressing upstream's C++ constructs in C23.
 
 Audience: hot-path and build contributors. The gates that hold these rules are in
 [09-tooling-ci.md](09-tooling-ci.md); the port sequence is in [PORTING.md](PORTING.md).
 
-**Path convention on this page.** A zfish module is written relative to zfish's
-own `src/`, as *zfish `engine/eval/network.zig`*; a Stockfish golden is written
-relative to Stockfish's `src/`, as *upstream `nnue/network.cpp`*. Neither is a
-path in this repository, and writing them bare would make
-`./build.sh docs-lint` assert they exist here.
+**Path convention on this page.** A Stockfish golden is written relative to
+Stockfish's `src/`, as *upstream `nnue/network.cpp`*. That is not a path in this
+repository, and writing it bare would make `./build.sh docs-lint` assert it
+exists here.
 
 ## C23, pinned and probed
 
@@ -165,38 +164,35 @@ thirty modules, and the two hand-maintained lists are the thing that scales wors
 Revisit the decision when adding a file is the step people forget — not before,
 and not by adding a generator that hides which files are in the engine zone.
 
-## Translating Zig to C23
+## Porting patterns
 
-zfish has already made the structural decisions C cannot express — no templates,
-no classes, no RAII, no operator overloading. What is left is a set of recurring
-mechanical translations. Each one below has a failure mode that shows up as a
-wrong node count rather than as a compile error.
+C cannot express templates, classes, RAII or operator overloading, and upstream
+uses all four. What is left after removing them is a set of recurring mechanical
+translations. Each one below has a failure mode that shows up as a wrong node
+count rather than as a compile error.
 
-### Explicit casts become implicit conversions
+### Every width or signedness change is written out
 
-Zig has no implicit integer conversion: `@intCast`, `@truncate`, `@as` and
-`@intFromEnum` mark every width or signedness change at the site. C converts
-silently. **`-Wconversion` and `-Wsign-conversion` are the tree's replacement for
-that property**, and they are why those flags are non-negotiable.
+C converts integers silently, which is exactly how an unintended narrowing
+survives review. **`-Wconversion` and `-Wsign-conversion` are the tree's guard
+against that**, and they are why those flags are non-negotiable.
 
-The translation rule: a Zig `@intCast` becomes a C cast **written out**, not
-dropped because the compiler would have done it anyway. Dropping it compiles and
-warns; the warning is the only record that a narrowing was intended.
+The rule: a narrowing is a C cast **written out**, not dropped because the
+compiler would have done it anyway. Dropping it compiles and warns; the warning is
+the only record that the narrowing was intended.
 
-`@truncate` and `@intCast` are not the same thing and must not both become a plain
-cast in your head. `@intCast` asserts the value fits (it is a checked narrowing in
-Zig's debug modes); `@truncate` deliberately discards high bits. In C both spell
-`(uint8_t) x`, so the distinction survives only in a comment — write it where
-upstream relies on the truncation, as `tt_store`'s `depth8` does.
+An assertion that a value fits and a deliberate discard of high bits are not the
+same operation, and both spell `(uint8_t) x` in C — so the distinction survives
+only in a comment. Write it wherever upstream relies on the truncation, as
+`tt_store`'s `depth8` does.
 
-### Wrapping is opt-in in Zig and undefined in C
+### Wrapping is undefined on signed types
 
-Zig spells wrapping arithmetic `+%`, `-%`, `*%`; plain `+` traps on overflow.
-Upstream Stockfish relies on wrapping in places, so those operators appear in
-zfish exactly where it does.
+Upstream Stockfish relies on wrapping arithmetic in places, and C gives it to you
+on unsigned types only.
 
-In C, **signed** overflow is undefined behaviour and **unsigned** wraps. A `+%` on
-a Zig signed type therefore cannot be translated as a C signed `+`: do the
+In C, **signed** overflow is undefined behaviour and **unsigned** wraps. Wrapping
+arithmetic on a signed type therefore cannot be written as a C signed `+`: do the
 arithmetic in the matching unsigned type and convert back, or widen. `stats_update`
 in [`../src/engine/search/history.c`](../src/engine/search/history.c) is the live
 example of the general hazard — the gravity term exists so an `int16_t` entry
@@ -210,29 +206,28 @@ The gcc lane is the gate that catches this class: two conforming compilers must
 produce the same node count, and a signature difference between them is UB the
 optimisers exploited differently. It is never "expected compiler variation".
 
-### Slices become pointer + length
+### Buffers are pointer + length
 
-A Zig `[]T` carries its length. In C, pass the pointer and the length as two
-parameters, or return an end pointer and treat it as a half-open range — which is
-what the move generators already do: `generate` appends at `list` and returns the
-new end, and the caller's count is `end - list`.
+Pass a buffer as a pointer and an explicit length, never a bare pointer — or
+return an end pointer and treat it as a half-open range, which is what the move
+generators already do: `generate` appends at `list` and returns the new end, and
+the caller's count is `end - list`.
 
 Pick one convention per API and keep it. The hazard is that a C caller can lose
 the length and nothing says so: `generate` does **not** bounds-check, so `list`
 must have room for `MAX_MOVES` and only the caller's declaration says it does.
-That hazard exists precisely because the slice's length was dropped in
-translation, and nothing in the C type system restores it: say the required
-capacity in the header, as [`../src/engine/board/movegen.h`](../src/engine/board/movegen.h)
-does, and declare every buffer `ExtMove list[MAX_MOVES]`.
+Nothing in the C type system carries that capacity, so state it in the header, as
+[`../src/engine/board/movegen.h`](../src/engine/board/movegen.h) does, and declare
+every buffer `ExtMove list[MAX_MOVES]`.
 
-### `packed struct` becomes explicit bit manipulation
+### Packed layouts become explicit bit manipulation
 
-Zig's `packed struct` has a guaranteed layout and a guaranteed bit order. A C
-bitfield has **neither** — allocation order, straddling, and the signedness of a
-plain `int` bitfield are all implementation-defined. A struct that is bit-exact
-under clang and reordered under gcc is a node-count divergence with no diagnostic.
+A C bitfield has **no guaranteed layout and no guaranteed bit order** —
+allocation order, straddling, and the signedness of a plain `int` bitfield are all
+implementation-defined. A struct that is bit-exact under clang and reordered under
+gcc is a node-count divergence with no diagnostic.
 
-So: translate a `packed struct` into an integer plus named shift/mask accessors.
+So: express a packed layout as an integer plus named shift/mask accessors.
 The 16-bit `Move` in `types.h` and `gen_bound8` in `tt.h` are both this pattern,
 and both keep the layout in one commented place:
 
@@ -242,13 +237,13 @@ type << 14 | (promo - KNIGHT) << 12 | from << 6 | to
 
 Do not use C bitfields for anything whose layout is observable.
 
-### `comptime` becomes a macro, a `static inline`, or a runtime-built table
+### A compile-time table becomes a macro, a `static inline`, or a runtime build
 
-zfish computes tables at comptime. C23 has no equivalent, and there are three
-landing places, in order of preference:
+Upstream computes several tables at compile time. C23 has no general equivalent,
+and there are three landing places, in order of preference:
 
-1. **A `static inline` function**, when the Zig was a comptime-generic helper over
-   one or two types. It type-checks; a macro does not.
+1. **A `static inline` function**, when the upstream form was a generic helper
+   over one or two types. It type-checks; a macro does not.
 2. **A table filled at startup.** `bitboards_init` and `position_init` build
    `PseudoAttacks`, `BetweenBB`, `LineBB` and the Zobrist keys this way. The cost
    is the init-order constraint described in
@@ -260,10 +255,10 @@ landing places, in order of preference:
 Generating a `.c` file offline and committing it is the fourth option and needs a
 gate that regenerates and diffs it, or the generator rots away from its output.
 
-### Error unions become return codes
+### Errors become return codes
 
-Zig's `!T` forces the caller to handle the error. C does not, so the convention
-has to be carried by hand and stated at the declaration:
+C does not force a caller to handle an error, so the convention has to be carried
+by hand and stated at the declaration:
 
 - **`bool` plus an out-parameter** where the failure is expected and local:
   `pos_set` returns `false` and leaves `pos` unspecified; `tt_resize` returns

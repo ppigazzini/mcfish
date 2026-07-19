@@ -17,7 +17,6 @@
 // READ them for reporting -- no search decision may be taken on another worker's counter.
 //
 // Upstream: search.h:311 (Worker), search.h:242 (SearchManager), thread.h (ThreadPool).
-// Port source: zfish src/engine/state/worker_layout.zig.
 
 #ifndef MCFISH_WORKER_LAYOUT_H
 #define MCFISH_WORKER_LAYOUT_H

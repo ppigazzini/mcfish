@@ -8,7 +8,6 @@
 // The formatters write into caller-owned buffers rather than allocating, so the
 // emit path can build a line with no allocator and no failure mode.
 //
-// Ported from zfish `engine/search/uci_wdl.zig`.
 // Golden: `Stockfish/src/uci.cpp` (UCI::to_cp, UCI::wdl, the info line).
 
 #ifndef MCFISH_UCI_WDL_H

@@ -50,7 +50,7 @@ static uint8_t *LayerBiases[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK];
 // then backs nothing: AnonHugePages reads 0 for this process and for every other
 // process on the system, with THP set to [madvise]. So the benefit is unmeasured,
 // not measured-and-zero, and no throughput claim rests on it. It is here because
-// upstream and zfish both make the call and because [madvise] means a process that
+// upstream makes the call and because [madvise] means a process that
 // does NOT ask is guaranteed to get nothing.
 enum { HUGE_PAGE_SIZE = 2u << 20, HUGE_PAGE_MIN_BLOCK = 1u << 20 };
 

@@ -12,10 +12,9 @@
 // separator or a changed fullmove derivation is a golden break, not a cosmetic
 // edit.
 //
-// Ported from zfish `engine/board/fen.zig` (formatFen), re-expressed over the live
-// `Position` rather than zfish's loose primitives because mcfish has no
-// caller that formats from raw board bytes. Golden:
-// `Stockfish/src/position.cpp: Position::fen`.
+// Formatting runs over the live `Position` rather than over loose board
+// primitives, because mcfish has no caller that formats from raw board bytes.
+// Golden: `Stockfish/src/position.cpp: Position::fen`.
 
 #ifndef MCFISH_FEN_H
 #define MCFISH_FEN_H

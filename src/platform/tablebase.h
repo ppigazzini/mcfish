@@ -7,7 +7,7 @@
 // and `tablebase_max_cardinality` is 0 — which is the normal state of an engine
 // with no tablebases installed, and the state `bench` runs in.
 //
-// Golden: upstream `syzygy/tbprobe.h`. Port source: zfish `platform/tablebase.zig`.
+// Golden: upstream `syzygy/tbprobe.h`.
 
 #ifndef MCFISH_TABLEBASE_H
 #define MCFISH_TABLEBASE_H

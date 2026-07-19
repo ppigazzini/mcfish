@@ -9,7 +9,7 @@
 // leaves the table unusable, which the probe reports as "no result".
 //
 // Mirror upstream `syzygy/tbprobe.cpp:1080` (set_sizes) and `:602`
-// (decompress_pairs). Port source: zfish `platform/syzygy/decode.zig`.
+// (decompress_pairs).
 
 #ifndef MCFISH_SYZYGY_DECODE_H
 #define MCFISH_SYZYGY_DECODE_H

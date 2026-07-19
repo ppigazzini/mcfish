@@ -556,10 +556,10 @@ static void test_draw_detection(void) {
 // primitive against an independent scalar reference here, hardest at the boundary
 // the argument turns on.
 //
-// This is mcfish's analogue of zfish's C-backend oracle (tools/c_backend_check.sh):
-// one source, two lowerings, and a gate that they agree. zfish's caught a real bug
-// of exactly this shape -- a @Vector(N, bool) bitcast that was correct only under
-// LLVM's packing -- which benched a wrong number through every other gate.
+// The shape of the gate is one source, two lowerings, and a check that they agree.
+// A bug of exactly this shape -- a vector construct correct only under one
+// compiler's chosen representation -- benches a wrong number while every other
+// gate stays green, because nothing else here runs the scalar path at all.
 static void test_nnue_dot4(void) {
     // A reference that shares nothing with simd.h: plain scalar C, no vector type,
     // no intrinsic, and deliberately int32 throughout so a saturating intermediate

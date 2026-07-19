@@ -22,25 +22,24 @@ Wiki belongs in [10-references.md](10-references.md) as a link.
 
 ### Naming a module that does not exist here yet
 
-Pages routinely need to name code that lives in zfish or in Stockfish rather than
-in this tree. Both are outside this repository, and writing either as a bare
-`src/...` path invites a reader to look for it here.
+Pages routinely need to name code that lives in Stockfish rather than in this
+tree. It is outside this repository, and writing it as a bare `src/...` path
+invites a reader to look for it here.
 
 The convention:
 
-- A zfish module, relative to zfish's own `src/`: *zfish `engine/eval/nnue_ft.zig`*.
 - A Stockfish golden, relative to Stockfish's `src/`: *upstream `nnue/network.cpp`*.
-- The mapping between them and the mcfish owner: cite the row in
-  `tools/upstream/port_map.tsv`, and cite `./build.sh port-status` for counts.
+- The mcfish owner of a golden: cite the row in `tools/upstream/port_map.tsv`, and
+  cite `./build.sh port-status` for counts.
 
 Never write a reserved mcfish path — a file the port map names but nobody has
-written — as if it existed. Name the zfish source instead. The port map is the one
-place a reserved path is allowed to appear, because it is a work list, not a claim
-about the tree.
+written — as if it existed. Name the upstream golden instead. The port map is the
+one place a reserved path is allowed to appear, because it is a work list, not a
+claim about the tree.
 
 ## The rules
 
-Each one is here because breaking it shipped a defect in this project or in zfish.
+Each one is here because breaking it shipped a defect in this project.
 
 **Describe a gap as a gap, never as a design.** This is the rule this set was
 rewritten to fix. *"mcfish does not aim to match Stockfish"* and *"the evaluation
@@ -48,8 +47,7 @@ is a classical placeholder"* read as architecture. They were not: NNUE, Syzygy,
 Lazy-SMP and NUMA are **required**, and the classical evaluation is scaffolding
 scheduled for deletion. Framing a hole as a decision is what keeps it alive —
 nobody fixes a design. If something is unimplemented, say unimplemented, name the
-zfish module and Stockfish golden that own it, and say what its absence costs
-today.
+Stockfish golden that owns it, and say what its absence costs today.
 
 **A ported module outside `build.sh`'s `SOURCES` is unwired, not "deferred".** This
 is the same rule at the stage the tree is actually at, and it is the easier one to
@@ -60,7 +58,7 @@ plainly that it is in neither and what that costs. Never write "available" or
 
 **Never rationalise a defect into a convention.** The sibling of the rule above,
 one level down. When you find yourself writing the sentence that makes the odd
-thing sound intended, stop and check whether it is. In zfish that sentence — "the
+thing sound intended, stop and check whether it is. One such sentence — "the
 engine routes UCI output to stderr (same convention as the bench signature)" —
 kept a P0 alive for months.
 
@@ -124,14 +122,14 @@ who broke it.
 
 | page | owns | temperature |
 | --- | --- | --- |
-| [PORTING.md](PORTING.md) | the goal, the zfish/Stockfish roles, the M1..M6 sequence | warm — the milestones outlive a commit; the status does not |
+| [PORTING.md](PORTING.md) | the goal, the port sources and the M1..M6 sequence | warm — the milestones outlive a commit; the status does not |
 | [00-architecture.md](00-architecture.md) | the three zones, the zone rule, the composition root, what is in the build | hot |
 | [01-engine-board.md](01-engine-board.md) | `src/engine/board/` | hot |
 | [02-engine-search.md](02-engine-search.md) | `src/engine/search/` | hot — the live search is scheduled for replacement by the decomposition beside it |
 | [03-engine-eval.md](03-engine-eval.md) | `src/engine/eval/` | hot — and scheduled for wholesale replacement at M3 |
 | [06-platform.md](06-platform.md) | `src/platform/` | hot — one module of the zone is in the build |
 | [07-shell.md](07-shell.md) | `src/shell/` | hot — `uci.c` is scheduled for replacement by the decomposition beside it |
-| [08-idiomatic-c.md](08-idiomatic-c.md) | the C23 patterns, the Zig→C translation patterns, the measurement discipline | cold |
+| [08-idiomatic-c.md](08-idiomatic-c.md) | the C23 patterns, the porting patterns, the measurement discipline | cold |
 | [09-tooling-ci.md](09-tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
 | [10-references.md](10-references.md) | external links | cold |
 | this page | the rules | cold |
@@ -141,9 +139,10 @@ wrong it has usually been wrong for a long time.
 
 ## Code comments
 
-Same rules, plus these. C gives you fewer places to state an invariant than Zig
-does — no `comptime` assertion, no error set, no slice length — so the comment
-carries more weight here, not less.
+Same rules, plus these. C gives you very few places to state an invariant — a
+buffer carries no length, a return carries no error set, a table has no
+compile-time assertion of its own shape — so the comment carries more weight
+here, not less.
 
 **Imperative mood, leading with a verb.** "Resolve the path", not "Returns the
 path", "This resolves…", or "Function to resolve…". A comment is an order to the
@@ -171,14 +170,14 @@ reads plainly, say nothing.
 That comment survives a refactor; "store the depth" does not.
 
 **Cite upstream as `file:line`.** `search.cpp:2088` is checkable against the SHA
-in `tools/upstream/UPSTREAM_BASE`. "upstream does this too" is not. When a port
-decision came from zfish rather than from upstream, say which — a reader must be
-able to tell a translated line from an invented one.
+in `tools/upstream/UPSTREAM_BASE`. "upstream does this too" is not. A reader must
+be able to tell a translated line from an invented one, so cite the golden
+whenever the shape of the code came from it.
 
-**Carry across the integer-semantics comments.** Where zfish notes that a
-computation relies on wrapping, on a truncation, or on a conversion boundary, that
-note is the whole reason the line looks the way it does. C, Zig and C++ differ at
-exactly those edges. See [08-idiomatic-c.md](08-idiomatic-c.md).
+**Keep the integer-semantics comments.** Where a computation relies on wrapping,
+on a truncation, or on a conversion boundary, that note is the whole reason the
+line looks the way it does. C and C++ differ at exactly those edges. See
+[08-idiomatic-c.md](08-idiomatic-c.md).
 
 **No history, no meta.** Not "was a stub", not "changed in M3", not "the following
 block does". A comment describes the code as it is, to someone who has never seen
@@ -203,7 +202,7 @@ sentence is load-bearing for the next reader who might have fixed it.
   itself is **not** verified — a link to a heading that no longer exists passes.
 - **A named path that exists in no repo.** Any `src/…`, `tools/…`, `tests/…`,
   `verify/…` or `scripts/…` spelled out in prose is a claim about *a* tree, and
-  must resolve under one of three roots: `.`, `../Stockfish`, or `../zfish`.
+  must resolve under one of the roots `tools/docs_lint.sh` searches.
   **That is the limit to hold in mind**: a `src/…` path that exists only in
   Stockfish passes this gate while reading, in a mcfish page, as a claim about
   mcfish. The naming convention above is what keeps the two apart, and nothing
@@ -233,5 +232,5 @@ The gate buys the mechanical half so review can spend its attention on the half
 that needs a reader. That is the failure mode to write against: docs here are
 accurate when written and rot where the code moves under them, and in a repository
 mid-port the code moves a lot. Prefer the claim that stays true — name the owner
-and the invariant, name the zfish module for what is missing, and point at the
+and the invariant, name the upstream golden for what is missing, and point at the
 gate for the number.

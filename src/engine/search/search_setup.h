@@ -6,8 +6,6 @@
 // value re-read mid-tree (a clock, an option, the reductions table) makes the
 // node count a function of when it was read rather than of the tree.
 //
-// Ported from zfish `engine/search/search_setup.zig` and the per-search half of
-// `search_id.zig` (ssPrologue / ssTmInit / ssContext / skillLevel).
 // Golden: `Stockfish/src/search.cpp: Search::Worker::start_searching`.
 
 #ifndef MCFISH_SEARCH_SETUP_H

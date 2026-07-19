@@ -16,7 +16,7 @@ static int64_t i_max(int64_t a, int64_t b) { return a < b ? b : a; }
 // Compute the bounds of time allowed for the current game ply. Support:
 //      1) x basetime (+ z increment)
 //      2) x moves in y seconds (+ z increment)
-// Port of zfish timeman.init / upstream TimeManagement::init (timeman.cpp:46).
+// Port of upstream TimeManagement::init (timeman.cpp:46).
 TimemanOutput timeman_compute(TimemanInput input) {
     TimemanOutput output = {
         .time = input.time,

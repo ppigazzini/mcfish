@@ -10,8 +10,7 @@
 // relaxed readers is the whole cross-thread protocol; a mirrored copy is how the siblings
 // come to disagree about whether a search is still running.
 //
-// Upstream: search.h:187 (SharedState). Port source: zfish
-// src/engine/state/shared_state.zig.
+// Upstream: search.h:187 (SharedState).
 
 #ifndef MCFISH_SHARED_STATE_H
 #define MCFISH_SHARED_STATE_H

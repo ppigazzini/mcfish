@@ -9,7 +9,7 @@
 // map or parse. It is the normal answer with no tablebases installed.
 //
 // Mirror upstream `syzygy/tbprobe.cpp:1601` (probe_dtz), `:1569` (probe_wdl),
-// `:177` (dtz_before_zeroing). Port source: zfish `platform/syzygy/wdl.zig`.
+// `:177` (dtz_before_zeroing).
 
 #ifndef MCFISH_SYZYGY_PROBE_H
 #define MCFISH_SYZYGY_PROBE_H

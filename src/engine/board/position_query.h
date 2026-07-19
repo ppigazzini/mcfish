@@ -11,9 +11,8 @@
 // stay `static inline` in `position.h`: routing them through a call here would put
 // a function call on the hottest path in the tree for no separation gained.
 //
-// Ported from zfish `engine/board/position_query.zig`. Golden:
-// `Stockfish/src/position.h` (the accessors) and `Stockfish/src/uci.cpp` (the WDL
-// material model).
+// Golden: `Stockfish/src/position.h` (the accessors) and `Stockfish/src/uci.cpp`
+// (the WDL material model).
 
 #ifndef MCFISH_POSITION_QUERY_H
 #define MCFISH_POSITION_QUERY_H

@@ -1,9 +1,8 @@
 // Own the slider attack tables: magic bitboards and the derived square-pair geometry.
 //
-// Ported from zfish `engine/board/bitboard.zig` (the magic search) against the
-// upstream golden `attacks.cpp`. Upstream now carries several slider backends
-// selected by macro; mcfish implements the classic magic-bitboard one, which is
-// what zfish proved bit-exact.
+// The magic search runs against the upstream golden `attacks.cpp`. Upstream now
+// carries several slider backends selected by macro; mcfish implements the
+// classic magic-bitboard one.
 //
 // A magic replaces the per-node ray walk with mask/multiply/shift/load. The
 // tables are built once by attacks_init() and are READ-ONLY during search — the

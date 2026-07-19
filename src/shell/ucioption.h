@@ -7,8 +7,7 @@
 // a sort, never a hash order. Storage is fixed: no allocation, bounded names and
 // values, and an add past OPTION_MAX is dropped rather than silently overwriting.
 //
-// Port source: zfish `shell/option.zig`, `shell/option_model.zig`,
-// `shell/option_parse.zig`. Golden: upstream `ucioption.cpp:73` (Option::add),
+// Golden: upstream `ucioption.cpp:73` (Option::add),
 // `ucioption.cpp:152` (Option::operator=), `ucioption.cpp:186` (operator<<).
 
 #ifndef MCFISH_UCIOPTION_H

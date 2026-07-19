@@ -74,11 +74,9 @@ in the engine onto large pages.
 
 ### Threads and the pool
 
-`thread_runtime.c` wraps pthreads. zfish hand-rolls a Drepper futex mutex and a
-sequence-counter condition variable because Zig 0.16 removed
-`std.Thread.Mutex`/`Condition`; **C has no such gap**, so this module wraps the
-`std::mutex` / `std::condition_variable` pair upstream actually uses rather than
-re-deriving the futex protocol. Every predicate it guards is re-checked by its
+`thread_runtime.c` wraps pthreads, which supply exactly the `std::mutex` /
+`std::condition_variable` pair upstream uses, so there is **no futex protocol to
+re-derive** here. Every predicate it guards is re-checked by its
 caller in a loop, so a spurious wakeup is harmless and a missed wakeup is not:
 signal and broadcast must be reached on every path that changes a predicate.
 
@@ -309,11 +307,11 @@ lands, `engine/` cannot be built or tested without a POSIX clock.
 None of the modules above is stubbed, hidden behind a flag, or half-wired. Each one
 is either real code or not there, and that is the property to preserve.
 
-zfish's own docs record the cost of the alternative: a placeholder NUMA handle that
-nothing ever dereferenced forced every function in the surface to return a fixed
-value, and the resulting shape read as an architectural choice for long enough that
-nobody fixed it. An absent module is honest; a stub that answers is a lie the type
-system endorses.
+The alternative has cost real time before: a placeholder NUMA handle that nothing
+ever dereferenced forced every function in the surface to return a fixed value, and
+the resulting shape read as an architectural choice for long enough that nobody
+fixed it. An absent module is honest; a stub that answers is a lie the type system
+endorses.
 
 The current gap has the same failure mode one level up, and it is worth naming
 plainly: **a ported module outside `SOURCES` reads as done and is not defended.**
@@ -321,5 +319,5 @@ It compiles against a tree that has since moved, and the first thing the wiring
 commit discovers is how far. Wire each module in the commit that finishes it, or
 expect to re-port it.
 
-One module per commit, naming the zfish source in the body — see
+One module per commit, naming the port source in the body — see
 [PORTING.md](PORTING.md).

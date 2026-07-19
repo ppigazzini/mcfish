@@ -4,10 +4,6 @@ The decomposed search zone IS the search. `search.c` is the facade over it — i
 owns the public surface `search.h` declares and nothing else — and `search.h` is
 unchanged, so `uci.c` and the test binary call what they always called.
 
-Sources: zfish `engine/search/{search,search_values,search_common,search_ctx,
-search_setup,search_id,search_id_loop,search_main,search_back,search_qsearch,
-search_control,search_emit,search_types,root_move_build,uci_wdl,output_sink,
-option_source,time_source,tb_source}.zig` plus `engine/state/root_move.zig`.
 Golden: `Stockfish/src/search.cpp`, `search.h`.
 
 ## Files and what each owns
@@ -72,14 +68,14 @@ Fully ported, with upstream's constants transcribed:
 
 Deferred, and each one is a node-count difference until it lands:
 
-1. **`tt_pv` storage — RESOLVED.** `tt.c`/`tt.h` were re-ported from zfish
-   `tt.zig`: the generation narrowed to 5 bits, freeing bit 7 of `gen_bound8` for
-   upstream's is-PV flag, and the replacement/aging policy is now upstream's. The
+1. **`tt_pv` storage — RESOLVED.** `tt.c`/`tt.h` were re-ported: the generation
+   narrowed to 5 bits, freeing bit 7 of `gen_bound8` for upstream's is-PV flag,
+   and the replacement/aging policy is now upstream's. The
    flag round-trips through save and probe, and the node bodies that set it are
    live.
 2. **TT miss depth — not a divergence.** At the pinned SHA upstream's
-   `DEPTH_ENTRY_OFFSET` is `-3`, the same value zfish uses. `tt.h` defines it and
-   biases every stored depth by it, so `depth8 == 0` is the occupancy test.
+   `DEPTH_ENTRY_OFFSET` is `-3`. `tt.h` defines it and biases every stored depth
+   by it, so `depth8 == 0` is the occupancy test.
 3. **Optimism — RESOLVED.** `search_evaluate` passes `ctx->optimism[stm]` to
    `evaluate_with_optimism`, which scales the NNUE psqt / positional halves by it
    alongside material and `rule50` (upstream `search.cpp:1867`).
@@ -96,8 +92,8 @@ Deferred, and each one is a node-count difference until it lands:
   module in `SOURCES`. `search_gives_check` additionally recomputes upstream's
   `StateInfo::checkSquares` on every call, because mcfish's `StateInfo` does not
   cache it; port `set_check_info`'s `check_squares[]` and this becomes a lookup.
-- **`pos_non_pawn_material` is a function, not cached state.** Upstream and zfish
-  read `st->non_pawn_material[c]`. Step 14 calls it twice per move; caching it on
+- **`pos_non_pawn_material` is a function, not cached state.** Upstream reads
+  `st->non_pawn_material[c]`. Step 14 calls it twice per move; caching it on
   `StateInfo` is a pure win with no behaviour change.
 - **`pos_do_move`'s `gives_check` argument is accepted and not read** (position.h
   says so). `search_do_move` passes the computed value, so the search side is
@@ -105,8 +101,8 @@ Deferred, and each one is a node-count difference until it lands:
 - **`src/engine/state/` is owned elsewhere.** This zone defines `RootMove` and
   `PVMoves` in `search_types.h` because `root_move_build` and the ID loop cannot
   exist without them. If `state/` lands its own definitions, `search_types.h`
-  should include that header instead of declaring them — the field set here is
-  zfish `engine/state/root_move.zig` field for field, so the swap is mechanical.
+  should include that header instead of declaring them — the field set here
+  mirrors upstream's `RootMove` field for field, so the swap is mechanical.
   Likewise `SearchCtx` is this port's stand-in for upstream's `Worker`, and
   `SearchZoneLimits` for `LimitsType`; neither name collides with `state/`.
 - **`SearchIdState.best_previous_score` / `best_previous_average_score` are not

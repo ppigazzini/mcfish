@@ -6,8 +6,6 @@
 // of it holds, and a headless run stays deterministic. Unregistered, only the
 // UNIT is wrong (ticks, not milliseconds), which no headless root reads because
 // none of them is time-limited.
-//
-// Ported from zfish `engine/search/time_source.zig`.
 
 #ifndef MCFISH_TIME_SOURCE_H
 #define MCFISH_TIME_SOURCE_H

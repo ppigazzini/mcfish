@@ -12,7 +12,6 @@
 // correction and pawn arrays inside an existing `Histories`, so nothing here allocates.
 //
 // Upstream: search.h (SharedHistories), history.h (CorrectionHistory, PawnHistory).
-// Port source: zfish src/engine/state/shared_history_types.zig.
 
 #ifndef MCFISH_SHARED_HISTORY_TYPES_H
 #define MCFISH_SHARED_HISTORY_TYPES_H

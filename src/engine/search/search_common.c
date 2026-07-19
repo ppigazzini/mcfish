@@ -439,7 +439,7 @@ void search_update_sel_depth(SearchCtx *ctx, int ply) {
 Value search_evaluate(SearchCtx *ctx, const Position *pos) {
     // Index optimism by the side to move at THIS node, not at the root: the
     // aspiration loop writes both colours and the sign has to follow the mover
-    // down the tree (upstream search.cpp:1867, zfish `search_acc.zig:62`).
+    // down the tree (upstream search.cpp:1867).
     return evaluate_with_optimism(pos, ctx->optimism[pos->side_to_move]);
 }
 

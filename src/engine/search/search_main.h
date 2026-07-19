@@ -12,7 +12,6 @@
 // search_node recurses on itself and dives into qsearch_node at depth 0. It never
 // calls the iterative-deepening driver.
 //
-// Ported from zfish `engine/search/search_main.zig`.
 // Golden: `Stockfish/src/search.cpp: search<NodeType>`.
 
 #ifndef MCFISH_SEARCH_MAIN_H

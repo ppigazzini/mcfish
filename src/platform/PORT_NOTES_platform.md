@@ -61,26 +61,21 @@ zone must not name:
 
 ## Not ported, and why
 
-- **`thread.zig`'s `startThinking` / `clear` / `reconfigure` glue.** It reads
-  `worker_layout.Worker`, `search_driver`, `root_move_build` and `state_list`, none of
-  which exist in mcfish yet. The NUMA-distribution half of `reconfigure` **is** ported (it
-  is pure platform); the root-move and limits half is not.
-- **`thread_vote.zig`.** It is a pure read over `RootMove`/`Worker` fields, so it belongs
+- **The `start_thinking` / `clear` / `set` glue on the pool.** It reads the `Worker`
+  layout, the search driver, root-move building and the state list, none of which exist in
+  mcfish yet. The NUMA-distribution half of the reconfigure path **is** ported (it is pure
+  platform); the root-move and limits half is not.
+- **The thread vote.** It is a pure read over `RootMove`/`Worker` fields, so it belongs
   with the search zone that defines them, not here.
-- **`ensureNetworkReplicated`.** A no-op in zfish (weights are always resident), so there
-  is nothing to port until NNUE lands. Not stubbed.
+- **`ensure_network_replicated`.** There is nothing to replicate until NNUE lands. Not
+  stubbed.
 
-## Where this diverges from zfish, and why
+## How the NUMA topology is read
 
-zfish's `NumaConfig.fromSystem` builds **one node holding every CPU** and says so
-(`numa/config.zig:8`, `numa.zig:84`): it never reads the host topology, so `hardware`
-cannot differ from `system`, `suggestsBindingThreads` is false everywhere, and upstream
-reports `1/16` where zfish reports `1/1`.
-
-Stockfish wins, so `numa_config_from_system` reads
-`/sys/devices/system/node/{online,node*/cpulist}` for real (upstream `numa.h:1075`),
-intersects with the process affinity mask, and drops empty nodes (`numa.h:652`). No
-libnuma: the parse is plain `stdio`, so the build keeps its no-dependencies property.
+`numa_config_from_system` reads `/sys/devices/system/node/{online,node*/cpulist}` for real
+(upstream `numa.h:1075`), intersects with the process affinity mask, and drops empty nodes
+(`numa.h:652`). No libnuma: the parse is plain `stdio`, so the build keeps its
+no-dependencies property.
 
 The `BundledL3Policy` L3-domain split IS ported: `numa_config_from_system` tries the
 L3-aware partition first and falls back to the raw node read, and

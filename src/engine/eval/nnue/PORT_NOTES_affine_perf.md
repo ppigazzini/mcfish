@@ -27,7 +27,7 @@ shallow profile, and leaving them in flattens every ratio toward 1.
 ```sh
 valgrind --tool=callgrind --callgrind-out-file=cc.out ./mcfish bench 16 1 8
 valgrind --tool=callgrind --callgrind-out-file=up.out ./sf_clang bench 16 1 8
-python3 ../zfish/tools/perf_fingerprint.py costs cc.out
+python3 tools/perf_fingerprint.py costs cc.out
 ```
 
 Read costs by SUMMING a function across origin files — callgrind emits one entry
@@ -36,18 +36,13 @@ real 0.99x parity into a reported "1.87x, the worst component".
 
 ## Where it stands
 
-Both engines built at their own native tier, which on this host is AVX-512 VNNI
-for each, node counts asserted equal by `nps_ab.sh`, machine idle, ten rounds:
+Any ratio inside about 1.5% is parity, not a win: that is what this method
+resolves on this host, and the tool says so itself.
 
-    mcfish / zfish = 1.014 and 1.006 across two independent runs
-
-That is parity. Take it as parity and not as "mcfish is faster" -- 0.6-1.4% is
-inside what this method resolves, and the tool says so itself.
-
-The number is load-sensitive in a way worth remembering: the same two binaries
-read 0.749 at load ~2.2 and 1.014 at load ~0.8. `nps_ab.sh` pins both to core 0,
-so anything else scheduled there lands in the measurement. A run taken while
-another agent or build is active is not evidence.
+The number is load-sensitive in a way worth remembering: one A/B pair on this
+host read 0.749 at load ~2.2 and 1.014 at load ~0.8 for the same two binaries.
+`nps_ab.sh` pins both to core 0, so anything else scheduled there lands in the
+measurement. A run taken while another agent or build is active is not evidence.
 
 Against a clang-built upstream oracle at a matched SSE4.1 tier, by callgrind with
 startup subtracted: **1.154x** instructions. That is the honest remaining gap and

@@ -19,7 +19,6 @@
 // Upstream: numa.h:410 (add_cpu_to_node), numa.h:660 (from_string), numa.h:1075
 // (from_system_numa), numa.h:722 (distribute_threads_among_numa_nodes), numa.h:756
 // (suggests_binding_threads), numa.h:1290 (NumaReplicationContext).
-// Port source: zfish src/platform/numa.zig, numa/config.zig, numa/replication.zig.
 
 #ifndef MCFISH_NUMA_H
 #define MCFISH_NUMA_H

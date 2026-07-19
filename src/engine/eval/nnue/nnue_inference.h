@@ -10,8 +10,7 @@
 // fc_0_out[30] - fc_0_out[31]. Weights are int8 in the scrambled layout, biases int32
 // linear, WeightScaleBits = 6.
 //
-// Ported from zfish `engine/eval/nnue_inference.zig` against the upstream golden
-// `nnue/network.cpp`.
+// Golden: the upstream `nnue/network.cpp`.
 
 #ifndef MCFISH_NNUE_INFERENCE_H
 #define MCFISH_NNUE_INFERENCE_H

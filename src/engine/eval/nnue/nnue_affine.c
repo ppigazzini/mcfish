@@ -1,7 +1,5 @@
 // Implement the NNUE affine layer and its two activations. See nnue_affine.h for the
 // scrambled weight layout and the exactness invariant the reassociation rests on.
-//
-// Ported from zfish `engine/eval/nnue_affine.zig` and `nnue_inference.zig`.
 
 #include "nnue_affine.h"
 

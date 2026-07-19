@@ -10,13 +10,11 @@ threading and NUMA. Like Stockfish it is a UCI engine, not a GUI.
 **The port is in progress.** Run `./build.sh port-status` for the live figure;
 read [PORTING.md](PORTING.md) before writing any engine code.
 
-**The port source is `../zfish`, not `../Stockfish`.** zfish is a complete,
-bit-exact **Zig** port of Stockfish, already decomposed into small
-single-responsibility modules with templates, classes, RAII and operator
-overloading removed. Translating that Zig into C23 is close to mechanical.
-`../Stockfish` remains the **golden** — it defines correct behaviour, and the
-differential gate compares against a pristine upstream build. Where the two
-disagree, Stockfish wins.
+**`../Stockfish` is the golden.** It defines correct behaviour, the differential
+gate compares against a pristine upstream build, and every module here cites the
+upstream file and line it was translated from. Where this tree and Stockfish
+disagree, Stockfish wins. [PORTING.md](PORTING.md) describes the sources a port
+is written from.
 
 ### The one structural fact to hold before reading anything else
 
@@ -46,8 +44,8 @@ The repository holds two things:
 - **The engine** — the runtime in C, split into three zones: `src/engine/` (the
   chess library: board, movegen, search, state, evaluation), `src/platform/` (the
   OS runtime), and `src/shell/` (the process: UCI, bench, `main`). Every module
-  has a row in `tools/upstream/port_map.tsv` naming its zfish source, its
-  Stockfish golden and its status.
+  has a row in `tools/upstream/port_map.tsv` naming its Stockfish golden and its
+  status.
 - **The tooling** — [`../build.sh`](../build.sh) is the whole build system: one
   clang invocation per step, no Makefile and no generator. It also carries the
   gate battery — the bench anchor, the perft table, the UCI golden-diff cases,
@@ -56,23 +54,19 @@ The repository holds two things:
 
 ### Naming code that is not in this tree
 
-These pages routinely name modules that live in zfish or in Stockfish. Written
-bare, a path under `src/` is a claim that the file exists **here**, which
-`./build.sh docs-lint` checks. So throughout this set:
+These pages routinely name modules that live in Stockfish rather than here.
+Written bare, a path under `src/` is a claim that the file exists **here**, which
+`./build.sh docs-lint` checks. So throughout this set a Stockfish golden is
+written relative to Stockfish's `src/`, as *upstream `nnue/network.cpp`*.
 
-- a zfish module is written relative to zfish's own `src/`, as *zfish
-  `engine/eval/nnue_ft.zig`*;
-- a Stockfish golden is written relative to Stockfish's `src/`, as *upstream
-  `nnue/network.cpp`*.
-
-The mapping between the two, plus the mcfish owner and the status, is
+The mcfish owner of each golden, plus its status, is
 `tools/upstream/port_map.tsv`.
 
 ## Documents
 
 | Document | Audience | Description |
 |---|---|---|
-| [PORTING.md](PORTING.md) | Anyone writing engine code | The goal, why the port source is zfish and the golden is Stockfish, the M1..M6 milestones and the gate that ends each one |
+| [PORTING.md](PORTING.md) | Anyone writing engine code | The goal, the port sources, the golden, the M1..M6 milestones and the gate that ends each one |
 | [00-architecture.md](00-architecture.md) | All contributors | The three zones, the dependency direction, how `zone-check` enforces it at link time, the composition root and its init order, what is wired into the binary and what is not, how one search flows |
 | [01-engine-board.md](01-engine-board.md) | Engine contributors | Types and the 16-bit move encoding, the bitboard leaf and the magic slider tables, Position/StateInfo, Zobrist, the threat deltas, FEN, move generation and legality |
 | [02-engine-search.md](02-engine-search.md) | Engine contributors | Iterative deepening, alpha-beta and qsearch, the staged move picker and the history block, the pruning set, the cluster transposition table, time management and determinism, the unwired search decomposition |
@@ -81,9 +75,9 @@ The mapping between the two, plus the mcfish owner and the status, is
 | [05-tablebases.md](05-tablebases.md) | Engine and platform contributors | The Syzygy prober end to end: the file format, loading and its concurrency, the WDL and DTZ probes, the in-search and root integrations, the PV extension, the four options, and what the `tb` gate does and does not cover |
 | [06-platform.md](06-platform.md) | Platform contributors | `src/platform/`: what is wired, the monotonic clock, the feature-test macro and the engine→platform edge; the thread/NUMA and Syzygy subsystems have their own pages above |
 | [07-shell.md](07-shell.md) | Shell contributors | `main` as the composition root, every UCI command the live loop handles, the option tables, the injected output sink, bench |
-| [08-idiomatic-c.md](08-idiomatic-c.md) | Hot-path and build contributors | The C23 patterns this repo commits to, the warning set, why there is no build system, the Zig→C23 translation patterns, the measurement discipline |
+| [08-idiomatic-c.md](08-idiomatic-c.md) | Hot-path and build contributors | The C23 patterns this repo commits to, the warning set, why there is no build system, the recurring porting patterns, the measurement discipline |
 | [09-tooling-ci.md](09-tooling-ci.md) | All developers | Every `./build.sh` step and what it gates, the source arrays that decide what is gated at all, the golden-diff harness and its normalization, fact tables versus goldens, the anchor versus the finish line, the CI lanes |
-| [10-references.md](10-references.md) | All developers | Stockfish, zfish, chess-domain, C23, Syzygy and NNUE references |
+| [10-references.md](10-references.md) | All developers | Stockfish, chess-domain, C23, Syzygy and NNUE references |
 | [11-writing.md](11-writing.md) | Anyone editing these docs | How the set is organised, the writing rules, the hot/cold map, code-comment style, and what `docs-lint` cannot check |
 
 ## Quick start

@@ -9,21 +9,21 @@ milestones, and where the code you are about to write comes from.
 See the [README](README.md#build): install a **clang with C23 support** and run
 `./build.sh`. There are no other dependencies.
 
-## Port from zfish
+## Porting
 
-`../zfish` is a complete, bit-exact **Zig** port of Stockfish. Port from it,
-module for module. `../Stockfish` is the **golden** — it defines correct
-behaviour, and the differential gate compares against a pristine upstream build.
-Where the two disagree, Stockfish wins.
+Port module for module. [docs/PORTING.md](docs/PORTING.md) names the source for
+each module. `../Stockfish` is the **golden** — it defines correct behaviour, and
+the differential gate compares against a pristine upstream build. Where anything
+disagrees with Stockfish, Stockfish wins.
 
 `tools/upstream/port_map.tsv` is the work list. `./build.sh port-status` prints
 where the port stands.
 
-**One module per commit**, naming the zfish source in the body. A commit that
+**One module per commit**, naming the port source in the body. A commit that
 ports three modules cannot be bisected when the node count moves.
 
-**Do not "improve" on zfish or upstream while porting.** A cleaner formulation
-that moves a rounding boundary moves the node count. Port faithfully first.
+**Do not "improve" on upstream while porting.** A cleaner formulation that moves
+a rounding boundary moves the node count. Port faithfully first.
 
 ## The gates
 
@@ -73,12 +73,12 @@ so a mismatch is always a bug in mcfish.
 C code is formatted with `clang-format` (`./build.sh fmt-fix`). The build compiles
 with `-Wall -Wextra -Wshadow -Wconversion -Wsign-conversion` and the tree is
 warning-clean; keep it that way rather than suppressing. `-Wconversion` is on
-deliberately: Zig makes every integer conversion explicit, and this is how those
-conversions stay visible after translation to C.
+deliberately: it is what keeps every implicit integer conversion visible, since
+the port depends on matching upstream's integer semantics exactly.
 
 Comments are **imperative mood** and state the invariant the code cannot show —
-see [docs/11-writing.md](docs/11-writing.md). Where zfish carries a comment about
-integer semantics or cites `upstream file:line`, carry it across.
+see [docs/11-writing.md](docs/11-writing.md). Where a port source carries a
+comment about integer semantics or cites `upstream file:line`, carry it across.
 
 For git blame, ignore the formatting-only revisions:
 

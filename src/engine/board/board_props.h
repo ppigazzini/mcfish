@@ -8,10 +8,9 @@
 // the search share one definition of "what is on the board" instead of each
 // reaching into the struct.
 //
-// Ported from zfish `engine/board/position_query.zig` (the scalar accessors and
-// accumulatorSnapshot). Golden: `Stockfish/src/position.h` (side_to_move,
-// is_chess960, game_ply, checkers, piece_array) and `Stockfish/src/uci.cpp`
-// (the WDL material count).
+// The scalar accessors and the accumulator snapshot. Golden:
+// `Stockfish/src/position.h` (side_to_move, is_chess960, game_ply, checkers,
+// piece_array) and `Stockfish/src/uci.cpp` (the WDL material count).
 
 #ifndef MCFISH_BOARD_PROPS_H
 #define MCFISH_BOARD_PROPS_H
@@ -25,7 +24,7 @@ int board_game_ply(const Position *pos);
 bool board_has_checkers(const Position *pos);
 
 // Count the WDL-model material: pawns + 3*(knights + bishops) + 5*rooks +
-// 9*queens, both colors (zfish position_query.zig:464, upstream uci.cpp).
+// 9*queens, both colors (upstream uci.cpp).
 int board_wdl_material(const Position *pos);
 
 // Copy the 64-square piece board into PIECES_OUT, for the NNUE piece-count and

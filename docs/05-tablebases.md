@@ -38,7 +38,7 @@ runs in, and it is why wiring the prober left the signature untouched.
 Goldens are named in each file's header. The core is upstream
 `syzygy/tbprobe.cpp`: `do_probe_table` at `:772`, `probe_table` at `:1305`,
 `search` at `:1332`, `probe_dtz` at `:1601`, `rank_root_moves` at `:1780`,
-`Tablebases::init` at `:1397`. Port source: zfish `platform/syzygy/`.
+`Tablebases::init` at `:1397`.
 
 ## What the files are
 

@@ -7,8 +7,8 @@
 // bare "\n" every other one sends. The span points into the UciInput the caller
 // owns and is valid until the next read.
 //
-// Port source: zfish `shell/uci_input.zig`. Golden: upstream `uci.cpp:87`
-// (`std::getline(std::cin, cmd)` in UCIEngine::loop).
+// Golden: upstream `uci.cpp:87` (`std::getline(std::cin, cmd)` in
+// UCIEngine::loop).
 
 #ifndef MCFISH_UCI_INPUT_H
 #define MCFISH_UCI_INPUT_H

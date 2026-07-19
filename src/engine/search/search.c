@@ -30,8 +30,6 @@
 // facade becomes a second search that drifts from the first.
 //
 // Golden: `Stockfish/src/search.cpp: Search::Worker::start_searching`.
-// Port source: zfish `engine/search/search_driver.zig: workerStartSearching` and
-// `engine/search/headless_search.zig` (the single-worker driver shape).
 
 // ---- the shell-facing sink ---------------------------------------------
 
@@ -197,7 +195,7 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
 
     // Drop the accumulator to one uncomputed root slot, so the first evaluation
     // refreshes from this board rather than from the previous search's diffs.
-    // Once per `go`, not once per iteration (zfish `search_driver.zig: ssPrologue`).
+    // Once per `go`, not once per iteration.
     eval_acc_reset();
 
 

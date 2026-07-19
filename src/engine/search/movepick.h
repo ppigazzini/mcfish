@@ -15,10 +15,9 @@
 // captures already consumed, so `cur` only ever moves forward and MAX_MOVES is
 // enough for both lists.
 //
-// Ported from zfish `engine/search/movepick.zig`, `movepick_score.zig`,
-// `movepick_history.zig` and `movepick_snapshot.zig` against the upstream golden
-// `movepick.cpp`. `see_ge` mirrors upstream `position.cpp: Position::see_ge`,
-// which mcfish has not split out into the board zone yet.
+// Golden: the upstream `movepick.cpp`. `see_ge` mirrors upstream
+// `position.cpp: Position::see_ge`, which mcfish has not split out into the
+// board zone yet.
 
 #ifndef MCFISH_MOVEPICK_H
 #define MCFISH_MOVEPICK_H

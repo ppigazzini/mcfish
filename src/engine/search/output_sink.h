@@ -10,8 +10,6 @@
 // the same move, but `bestmove` is dropped with everything else. That is a wrong
 // answer that happens not to be a wrong MOVE, and it is defensible only because
 // the shell registers all three before the engine is reachable.
-//
-// Ported from zfish `engine/search/output_sink.zig`.
 
 #ifndef MCFISH_OUTPUT_SINK_H
 #define MCFISH_OUTPUT_SINK_H

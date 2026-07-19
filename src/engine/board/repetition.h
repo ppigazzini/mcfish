@@ -10,10 +10,9 @@
 // guarantees. Every walk here dereferences `previous` unguarded on that basis, as
 // upstream does.
 //
-// Ported from zfish `engine/board/repetition.zig` and the cuckoo build in
-// `engine/board/zobrist.zig:66`. Golden: `Stockfish/src/position.cpp:1526`
-// (is_draw / is_repetition / has_repeated / upcoming_repetition) and
-// `Stockfish/src/position.cpp` Position::init (the cuckoo table).
+// Golden: `Stockfish/src/position.cpp:1526` (is_draw / is_repetition /
+// has_repeated / upcoming_repetition) and `Stockfish/src/position.cpp`
+// Position::init (the cuckoo table).
 
 #ifndef MCFISH_REPETITION_H
 #define MCFISH_REPETITION_H
@@ -29,7 +28,7 @@ void repetition_init(const Key (*zobrist_psq)[SQUARE_NB], Key zobrist_side);
 
 // Report whether POS is drawn by the fifty-move rule or by repetition. PLY bounds
 // the "inside the current search line" window, where a single repetition already
-// scores as a draw (zfish repetition.zig:61).
+// scores as a draw.
 bool pos_is_draw(const Position *pos, int ply);
 
 // Report a repetition strictly after the root, or a threefold at or before it.

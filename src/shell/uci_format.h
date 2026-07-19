@@ -14,7 +14,6 @@
 // win_rate_params derives it (uci.cpp:522). Every renderer writes into caller
 // storage and returns the byte count, so no protocol path allocates.
 //
-// Port source: zfish `engine/search/uci_wdl.zig`, `shell/uci_format.zig`.
 // Golden: upstream `uci.cpp:520` (win_rate_params), `uci.cpp:539`
 // (win_rate_model), `uci.cpp:553` (format_score), `uci.cpp:572` (to_cp),
 // `uci.cpp:583` (wdl), `uci.cpp:637` (on_update_no_moves), `uci.cpp:641`
@@ -34,9 +33,7 @@ enum {
     UCI_INFO_LINE_MAX = 4096  // a deep PV is the only field that can grow
 };
 
-// Name the three score spellings upstream's Score variant carries. The numbering
-// matches the port source's `kind` byte (uci_wdl.zig:40) so a caller ported from
-// either side reads the same.
+// Name the three score spellings upstream's Score variant carries.
 typedef enum : uint8_t {
     UCI_SCORE_MATE = 0,       // VALUE is a signed ply distance to mate
     UCI_SCORE_TABLEBASE = 1,  // VALUE is a ply distance; EXTRA != 0 means a win
@@ -100,8 +97,7 @@ size_t uci_format_bestmove(const char *bestmove, const char *ponder, char *buf, 
 
 // Prefix every non-blank line of INPUT with `info string `, joining the results
 // with '\n'. A blank or all-whitespace line is dropped, so a message with a
-// trailing newline does not emit an empty `info string`. Port of zfish
-// `uci_format.zig:21`.
+// trailing newline does not emit an empty `info string`.
 size_t uci_format_info_string(const char *input, char *buf, size_t buf_len);
 
 // Answer `help`. Returns static storage; never nullptr.

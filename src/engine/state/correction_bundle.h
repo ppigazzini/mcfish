@@ -7,7 +7,7 @@
 // reorder from silently swapping two tables, which costs strength without failing a gate.
 //
 // Upstream: history.h (CorrectionHistory), search.cpp (update_correction_history,
-// correction_value). Port source: zfish src/engine/state/correction_bundle.zig.
+// correction_value).
 
 #ifndef MCFISH_CORRECTION_BUNDLE_H
 #define MCFISH_CORRECTION_BUNDLE_H
