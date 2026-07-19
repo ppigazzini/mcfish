@@ -26,27 +26,16 @@ static const int32_t WdlToRank[5] = { -MAX_DTZ, -MAX_DTZ + 101, 0, MAX_DTZ - 101
 static const int32_t WdlToValue[5] = { -VALUE_MATE + MAX_PLY + 1, VALUE_DRAW - 2, VALUE_DRAW,
                                        VALUE_DRAW + 2, VALUE_MATE - MAX_PLY - 1 };
 
-typedef struct {
-    Move raw_move;
-    int32_t tb_rank;
-    int32_t tb_score;
-} RankedRootMove;
-
-// Hold a throwaway board the ranking replays root moves on. Reset from the root
-// FEN before each move, so every probe sees a state chain anchored at the root
-// exactly as the real search's would be.
+// Hold a throwaway board the root ranking replays its moves on, anchored at the
+// root FEN, so a probe never mutates the position the search owns.
 typedef struct {
     Position pos;
     StateInfo root_st;
     StateInfo move_st;
 } ScratchPosition;
 
-static bool scratch_reset(ScratchPosition *sp, const char *root_fen, bool chess960) {
-    return pos_set(&sp->pos, root_fen, chess960, &sp->root_st);
-}
-
-static void scratch_do_move(ScratchPosition *sp, Move m) {
-    pos_do_move(&sp->pos, m, &sp->move_st, false, &sp->pos.scratch_dp, &sp->pos.scratch_dts);
+static bool aborted(TbTimeAbort time_abort, void *abort_ctx) {
+    return time_abort != nullptr && time_abort(abort_ctx);
 }
 
 static int count_pieces(const Position *pos) {
@@ -125,44 +114,50 @@ static bool dtz_is_dtm(const Position *pos) {
 
 typedef enum { DTZ_SUCCESS, DTZ_FALLBACK_TO_WDL } DtzRankResult;
 
-static DtzRankResult rank_root_moves_dtz(ScratchPosition *sp,
-                                         const char *root_fen,
-                                         bool chess960,
+static DtzRankResult rank_root_moves_dtz(Position *pos,
+                                         StateInfo *st,
                                          bool rule50,
                                          bool rank_dtz,
                                          int32_t root_rule50,
                                          bool root_has_repeated,
                                          RankedRootMove *ranked,
-                                         size_t count) {
+                                         size_t count,
+                                         TbTimeAbort time_abort,
+                                         void *abort_ctx) {
     const int32_t bound = rule50 ? MAX_DTZ / 2 - 100 : 1;
 
     for (size_t i = 0; i < count; ++i) {
         RankedRootMove *const rm = &ranked[i];
-        if (!scratch_reset(sp, root_fen, chess960))
-            return DTZ_FALLBACK_TO_WDL;
-        scratch_do_move(sp, rm->raw_move);
+        pos_do_move(pos, rm->raw_move, st, false, &pos->scratch_dp, &pos->scratch_dts);
 
         int32_t dtz = 0;
-        if (sp->pos.st->rule50 == 0) {
-            const TbProbeResult probe = probe_position(&sp->pos);
-            if (probe.wdl_state == PROBE_FAIL)
-                return DTZ_FALLBACK_TO_WDL;
+        bool probe_failed = false;
+        if (pos->st->rule50 == 0) {
+            const TbProbeResult probe = probe_position(pos);
+            probe_failed = probe.wdl_state == PROBE_FAIL;
             dtz = dtz_before_zeroing(-probe.wdl);
-        } else if ((rule50 && pos_is_draw(&sp->pos, 1)) || pos_is_repetition(&sp->pos, 1)) {
+        } else if ((rule50 && pos_is_draw(pos, 1)) || pos_is_repetition(pos, 1)) {
             dtz = 0;
         } else {
-            const TbProbeResult probe = probe_position(&sp->pos);
-            if (probe.dtz_state == PROBE_FAIL)
-                return DTZ_FALLBACK_TO_WDL;
+            const TbProbeResult probe = probe_position(pos);
+            probe_failed = probe.dtz_state == PROBE_FAIL;
             dtz = -probe.dtz;
             dtz = dtz > 0 ? dtz + 1 : (dtz < 0 ? dtz - 1 : 0);
         }
 
-        if (checkers(&sp->pos) != 0 && dtz == 2) {
+        if (checkers(pos) != 0 && dtz == 2) {
             ExtMove legal_moves[MAX_MOVES];
-            if (generate_legal(&sp->pos, legal_moves) == legal_moves)
+            if (generate_legal(pos, legal_moves) == legal_moves)
                 dtz = 1;
         }
+
+        // Undo before the bail-out test, as upstream does (tbprobe.cpp:1713): the
+        // caller keeps walking this position, so an early return must still leave
+        // it exactly as it was handed over.
+        pos_undo_move(pos, rm->raw_move);
+
+        if (probe_failed || aborted(time_abort, abort_ctx))
+            return DTZ_FALLBACK_TO_WDL;
 
         const int32_t rank_term = rank_dtz ? dtz : 0;
         int32_t rank;
@@ -194,27 +189,23 @@ static DtzRankResult rank_root_moves_dtz(ScratchPosition *sp,
     return DTZ_SUCCESS;
 }
 
-static bool rank_root_moves_wdl(ScratchPosition *sp,
-                                const char *root_fen,
-                                bool chess960,
-                                bool rule50,
-                                RankedRootMove *ranked,
-                                size_t count) {
+static bool rank_root_moves_wdl(
+  Position *pos, StateInfo *st, bool rule50, RankedRootMove *ranked, size_t count) {
     for (size_t i = 0; i < count; ++i) {
         RankedRootMove *const rm = &ranked[i];
-        if (!scratch_reset(sp, root_fen, chess960))
-            return false;
-        scratch_do_move(sp, rm->raw_move);
+        pos_do_move(pos, rm->raw_move, st, false, &pos->scratch_dp, &pos->scratch_dts);
 
-        int32_t wdl;
-        if (pos_is_draw(&sp->pos, 1)) {
-            wdl = WDL_DRAW;
-        } else {
-            const TbProbeResult probe = probe_position(&sp->pos);
-            if (probe.wdl_state == PROBE_FAIL)
-                return false;
+        int32_t wdl = WDL_DRAW;
+        bool probe_failed = false;
+        if (!pos_is_draw(pos, 1)) {
+            const TbProbeResult probe = probe_position(pos);
+            probe_failed = probe.wdl_state == PROBE_FAIL;
             wdl = -probe.wdl;
         }
+
+        pos_undo_move(pos, rm->raw_move);
+        if (probe_failed)
+            return false;
 
         rm->tb_rank = WdlToRank[wdl + 2];
 
@@ -227,9 +218,7 @@ static bool rank_root_moves_wdl(ScratchPosition *sp,
     return true;
 }
 
-// Sort descending by tb_rank, stably: equal ranks keep generator order, which is
-// the tie-break upstream relies on when every winning move ties at MAX_DTZ.
-static void stable_sort_by_tb_rank(RankedRootMove *ranked, size_t count) {
+void tb_stable_sort_by_rank(RankedRootMove *ranked, size_t count) {
     for (size_t index = 1; index < count; ++index) {
         const RankedRootMove current = ranked[index];
         size_t insert_at = index;
@@ -239,6 +228,58 @@ static void stable_sort_by_tb_rank(RankedRootMove *ranked, size_t count) {
         }
         ranked[insert_at] = current;
     }
+}
+
+TbConfig tb_rank_moves(Position *pos,
+                       StateInfo *st,
+                       RankedRootMove *ranked,
+                       size_t count,
+                       bool rank_dtz,
+                       int32_t cnt50,
+                       bool has_repeated,
+                       TbTimeAbort time_abort,
+                       void *abort_ctx) {
+    TbConfig config = load_tb_config();
+    if (count == 0)
+        return config;
+
+    bool dtz_available = true;
+
+    // Rank only when the position itself fits the tablebase and cannot castle.
+    // Otherwise it is searched normally, with cardinality kept so the in-search
+    // Step 6 probe still fires at smaller in-tree positions.
+    if (config.cardinality >= count_pieces(pos) && pos->st->castling_rights == 0) {
+        // Where DTZ ranks as DTM, the exact DTZ is the only ordering that puts the
+        // fastest mate first; without this every certain win ties at MAX_DTZ and
+        // the tie-break falls to generator order.
+        rank_dtz = rank_dtz || dtz_is_dtm(pos);
+
+        const DtzRankResult dtz_result =
+          rank_root_moves_dtz(pos, st, config.use_rule50, rank_dtz, cnt50, has_repeated, ranked,
+                              count, time_abort, abort_ctx);
+
+        if (dtz_result == DTZ_SUCCESS) {
+            config.root_in_tb = true;
+        } else if (!aborted(time_abort, abort_ctx)) {
+            dtz_available = false;
+            config.root_in_tb = rank_root_moves_wdl(pos, st, config.use_rule50, ranked, count);
+        }
+    }
+
+    if (config.root_in_tb) {
+        tb_stable_sort_by_rank(ranked, count);
+        // Probe during search only when DTZ is unavailable and we are not winning.
+        if (dtz_available || ranked[0].tb_score <= VALUE_DRAW)
+            config.cardinality = 0;
+    } else {
+        // Zero every rank when both probes failed (upstream tbprobe.cpp:1836).
+        // A partially-ranked list left behind by an aborted DTZ pass would
+        // otherwise order the moves by half a probe.
+        for (size_t i = 0; i < count; ++i)
+            ranked[i].tb_rank = 0;
+    }
+
+    return config;
 }
 
 static RootMove *root_moves_create_ranked(const RankedRootMove *items, size_t count) {
@@ -282,36 +323,22 @@ bool root_moves_build(const Position *pos,
         ranked[i].raw_move = moves[i];
 
     TbConfig tb_config = load_tb_config();
-    bool dtz_available = true;
 
-    // Rank the root moves only when the root itself fits the tablebase and cannot
-    // castle. Otherwise the root is searched normally, with cardinality kept so
-    // Step 6 still probes smaller in-tree positions.
-    if (tb_config.cardinality >= count_pieces(pos) && pos->st->castling_rights == 0 && count != 0) {
+    // Rank on a scratch board built from the root FEN, never on POS: the caller
+    // owns POS and the ranking walks its argument with do/undo.
+    // A zero cardinality is what a build with no SyzygyPath resolves to, and it
+    // fails the gate inside tb_rank_moves for every position. Short-circuit it
+    // here so that build never allocates the scratch board or re-parses the FEN.
+    if (count != 0 && tb_config.cardinality != 0) {
         ScratchPosition *const sp = calloc(1, sizeof *sp);
         if (!sp) {
             free(ranked);
             return false;
         }
-
-        const DtzRankResult dtz_result =
-          rank_root_moves_dtz(sp, root_fen, chess960, tb_config.use_rule50, dtz_is_dtm(pos),
-                              pos->st->rule50, pos_has_repeated(pos), ranked, count);
-
-        if (dtz_result == DTZ_SUCCESS) {
-            tb_config.root_in_tb = true;
-        } else {
-            dtz_available = false;
-            if (rank_root_moves_wdl(sp, root_fen, chess960, tb_config.use_rule50, ranked, count))
-                tb_config.root_in_tb = true;
-        }
+        if (pos_set(&sp->pos, root_fen, chess960, &sp->root_st))
+            tb_config = tb_rank_moves(&sp->pos, &sp->move_st, ranked, count, false, pos->st->rule50,
+                                      pos_has_repeated(pos), nullptr, nullptr);
         free(sp);
-    }
-
-    if (tb_config.root_in_tb) {
-        stable_sort_by_tb_rank(ranked, count);
-        if (dtz_available || ranked[0].tb_score <= VALUE_DRAW)
-            tb_config.cardinality = 0;
     }
 
     RootMove *const root_moves = root_moves_create_ranked(ranked, count);
