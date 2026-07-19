@@ -26,14 +26,21 @@ info "oracle: $oracle"
 
 # Read the node total off stderr: upstream prints the bench banners there, and so
 # does mcfish (deliberately — that stream choice is faithful, not a bug).
+# Run each engine from a directory that HOLDS ITS NET. The oracle keeps one beside
+# its binary; mcfish keeps one in resources/ (build.sh RESOURCES_DIR). Running
+# mcfish from the repo root instead benched the classical fallback and reported a
+# false divergence -- and once mcfish started refusing to run without a net, the
+# same mistake became an empty result and a silent exit 1.
 bench_nodes() {
-  "$1" bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}' | tail -1
+  local bin=$1 dir=$2
+  ( cd "$dir" && "$bin" bench ) 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}' | tail -1
 }
 
 info "running upstream bench"
-want=$(bench_nodes "$oracle")
+oracle_abs=$(readlink -f "$oracle")
+want=$(bench_nodes "$oracle_abs" "$(dirname "$oracle_abs")")
 info "running mcfish bench"
-got=$(bench_nodes "$BIN")
+got=$(bench_nodes "$PWD/$BIN" "$PWD/resources")
 
 printf '\n  upstream @ %s : %s\n' "${sha:0:12}" "${want:-<none>}"
 printf '  mcfish            : %s\n\n' "${got:-<none>}"
