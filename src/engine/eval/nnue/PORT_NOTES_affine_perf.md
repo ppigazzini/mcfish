@@ -1,58 +1,74 @@
-# Affine kernel: the nps deficit
+# NNUE throughput: where the instructions actually go
 
-Audit finding, recorded so it is not rediscovered. **Correctness is not affected** —
-the affine / activation / output-scaling path was checked line by line against
-zfish and against upstream and is value-identical. This is purely throughput.
+Measured, not guessed. Every earlier version of this note named a single culprit
+and was wrong the moment it was fixed, so this one records the method and the
+whole distribution instead.
 
-## The measurement
+## How to take the measurement
 
-| build | nps |
-|---|---|
-| ccfish, classical eval | ~843k |
-| ccfish, NNUE | ~427k |
-| zfish, NNUE | ~956k |
+Instruction counts, never wall clock. This host has read the SAME binary at
+511k and 581k nps in two batches, and 46k next to 151k under load; callgrind
+resolves 0.01% and does not care what else is running.
 
-The search is already at parity; the whole deficit is NNUE inference.
+**Hold the compiler and the ISA constant, or the number is about neither engine.**
+The oracle that `upstream_oracle.sh` builds uses gcc, which is correct for node
+counts and wrong for any cost ratio. Build a clang oracle for perf work:
 
-## The cause
+```sh
+cd ../.ccfish-upstream-oracle/src
+make clean && make -j4 build ARCH=x86-64-sse41-popcnt COMP=clang EXE=sf_clang
+./sf_clang bench          # must print the anchor before you trust anything
+```
 
-`nnue_affine.c` accumulates in the interleaved OUT*4 domain. For fc_0 that is
-`NnueV128i32` — 128 lanes of `int32_t`, **512 bytes**. The build targets SSE4.1
-(`CFLAGS_ARCH` in `build.sh`), which has sixteen 128-bit xmm registers, so the
-accumulator needs thirty-two of them. It cannot live in registers, and the whole
-thing spills and reloads on every group iteration.
+and build ccfish at the matching tier with `CCFISH_ARCH=sse41`. Then subtract
+startup from both: the ~90 MB net parse and the magic init are around 40% of a
+shallow profile, and leaving them in flattens every ratio toward 1.
 
-Per group, this shape emits roughly:
+```sh
+valgrind --tool=callgrind --callgrind-out-file=cc.out ./ccfish bench 16 1 8
+valgrind --tool=callgrind --callgrind-out-file=up.out ./sf_clang bench 16 1 8
+python3 ../zfish/tools/perf_fingerprint.py costs cc.out
+```
 
-- 32x `pmovzxbd` (u8 -> i32)
-- 32x `pmovsxbd` (i8 -> i32)
-- 32x `pmulld` (SSE4.1, ~10-cycle latency)
-- 32x `paddd`, plus ~64 spill loads/stores
+Read costs by SUMMING a function across origin files — callgrind emits one entry
+per (origin-file, function) pair, and reading a single line per side once turned a
+real 0.99x parity into a reported "1.87x, the worst component".
 
-zfish's SSSE3 tier does the same group with **8x `pmaddubsw` + 8x `pmaddwd` +
-8x `paddd`** into a 128-byte accumulator that stays in registers: the
-dot-product reduction happens inside the multiply rather than after a 4x
-widening. That is a 6-8x instruction-count difference on fc_0, which dominates
-affine cost.
+## The distribution
 
-## The fix, in priority order
+Search instructions, startup subtracted, ccfish against the clang oracle at
+SSE4.1: **1.242x**. Against zfish (Zig/LLVM, its own native tier) the wall-clock
+ratio is 0.749x. The two agree closely enough to believe.
 
-1. **Adopt the `pmaddubsw` + `pmaddwd` reduction** so the accumulator is 8 xmm
-   registers instead of 32. This is the whole win; the rest is noise beside it.
-   zfish `engine/eval/nnue_affine.zig` has the tier; upstream has it in
-   `nnue/layers/affine_transform_sparse_input.h`.
-2. Narrow and store the activation vector once instead of extracting lanes
-   scalar-by-scalar (`nnue_affine.c` ClippedReLU and SqrClippedReLU stores).
-3. Spell `min`/`max` as the ternary `a < b ? a : b` in `simd.h` rather than the
-   bitwise blend `(a & m) | (b & ~m)`. GCC reliably lowers the ternary to
-   `pminsd`/`pmaxsd` and matches the blend form far less reliably. The scalar
-   fallback in the same header already uses the ternary.
-4. `sparse` is a runtime `bool` and the kernels live in a separate TU with no
-   LTO, so `OUT` and `sparse` never constant-fold. zfish has both as comptime.
+| path | ccfish | oracle | ratio |
+| --- | ---: | ---: | ---: |
+| accumulator update (`apply_combined` + `acc_rows_i16` + `apply_psqt_delta_in_place` + `nnue_full_append_changed` + `nnue_bb_pieces_of_exact`) | 872M | 601M | **1.45** |
+| affine (`nnue_affine_32` vs `propagate`) | 398M | 316M | 1.26 |
+| transform + side eval (`nnue_transform_bucket` + `evaluate_side`) | 247M | 182M | 1.35 |
+| threat update | 66M | 48M | 1.38 |
+| move picking (`score_list` + `movepick_next` vs `next_move`) | 128M | 129M | 1.00 |
+| `do_move` | 36M | 43M | 0.83 |
 
-## The constraint
+**The accumulator update is the largest gap in absolute instructions, not the
+affine.** Move picking is already at parity and `do_move` is ahead; neither is
+worth touching.
 
-Any change here must leave the node count untouched — `./build.sh signature`
-must not move, and the scalar path must stay bit-identical to the vector path.
-Integer accumulation is exact int32, so reassociating the adds is safe;
-changing a width, a shift, a clamp bound or the fold order is not.
+## What has already been done here
+
+- The affine folds each output's four sublanes inside the multiply instead of
+  widening to int32 first. Cut search instructions per node from 26442 to 14074.
+- The dot kernel is tiered: `vpdpbusd` on AVX-512 VNNI, `vpmaddubsw`/`vpmaddwd` on
+  AVX2, `pmaddubsw`/`pmaddwd` on SSSE3, a lane loop otherwise.
+- Accumulator chains scale with the tier. Three chains on a narrow tier cost
+  8 chunks x 3 = 24 registers against a file of 16 and measured +4.2%; the
+  latency they hide is worth less than the spill they cause.
+- `min`/`max` use the elementwise builtin where the compiler has one.
+- The NNZ mask is branchless; both ClippedReLUs store their eight lanes as a unit.
+
+## The constraint on any change here
+
+`./build.sh signature` must not move, and `./build.sh simd-scalar` and
+`./build.sh arch-determinism` must both stay green — they are what prove the
+vector and scalar bodies, and every ISA tier, still agree. Integer accumulation is
+exact int32, so reassociating adds is safe; changing a width, a shift, a clamp
+bound or the fold order is not.
