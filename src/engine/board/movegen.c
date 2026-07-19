@@ -13,8 +13,7 @@
 // The search can: MovePicker maps the two stages separately, so a misfiled
 // capture-underpromotion is scored, SEE-tested and pruned as a quiet, and is
 // generated after the whole capture stage instead of inside it.
-static ExtMove *
-make_promotions(ExtMove *list, Square to, Square from, GenType type, bool enemy) {
+static ExtMove *make_promotions(ExtMove *list, Square to, Square from, GenType type, bool enemy) {
     const bool all = type == GEN_EVASIONS || type == GEN_NON_EVASIONS;
 
     if (type == GEN_CAPTURES || all)

@@ -356,10 +356,11 @@ bool search_pseudo_legal(const Position *pos, Move m) {
                 return false;
             if ((BetweenBB[king_square(pos, us)][lsb(ck)] & square_bb(to)) == 0)
                 return false;
-        } else if ((pos_attackers_to_occ(pos, to, all ^ square_bb(from)) & pieces_c(pos, them))
-                   != 0) {
-            return false;
         }
+        // No king-safety test here. Upstream's pseudo_legal (position.cpp:748)
+        // has no else branch: whether a king move walks into check is legal()'s
+        // job, and adding it here changes which MovePicker stage the caller
+        // enters for a TT king move.
     }
 
     return true;
@@ -370,6 +371,13 @@ bool search_pseudo_legal(const Position *pos, Move m) {
 // StateInfo does not cache it yet.
 static Bitboard check_squares(const Position *pos, PieceType pt, Color them) {
     const Square ksq = king_square(pos, them);
+    // KING is 0 upstream (position.cpp:479): a king can never deliver a direct
+    // check. Returning its attack ring here is observable, because castling is
+    // encoded king-captures-rook -- piece_on(from) is the KING -- so a castling
+    // move with the enemy king adjacent to our rook's origin would be reported as
+    // a direct check, flipping the move onto the capture pruning branch.
+    if (pt == KING)
+        return 0;
     if (pt == PAWN)
         return pawn_attacks_bb(them, square_bb(ksq));
     return attacks_bb(pt, ksq, pieces(pos));

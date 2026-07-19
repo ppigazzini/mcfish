@@ -231,6 +231,15 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
 
     const bool uci_pv_sent = iterative_deepening(&Ctx, &id);
 
+    // Record what this search concluded, so the next `go` in this game seeds its
+    // aspiration window and its falling-eval term from it. Upstream assigns these
+    // in the driver, after the depth loop returns (search.cpp:245-246) -- which is
+    // why iterative_deepening only ever reads them. Without this they stay at the
+    // VALUE_INFINITE seed forever: inert under `go depth N`, but at any real time
+    // control it costs the window seed and skews falling_eval every move.
+    id.best_previous_score = Ctx.root_moves[0].score;
+    id.best_previous_average_score = Ctx.root_moves[0].average_score;
+
     // Publish the scalars for the next `go` in this game.
     BestPreviousScore = id.best_previous_score;
     BestPreviousAverageScore = id.best_previous_average_score;
