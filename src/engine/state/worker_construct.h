@@ -46,8 +46,13 @@ void worker_destroy(SearchWorker *w);
 // and its refresh cache. Reach this on `ucinewgame`, never per `go`.
 void worker_clear(SearchWorker *w);
 
-// Seed the refresh cache from the resident net's feature-transformer biases. Return false
-// when no net is loaded, leaving the cache untouched.
-bool worker_seed_refresh_cache(SearchWorker *w);
+// Re-seed the refresh cache from the resident net's feature-transformer biases when the
+// net has changed since this worker last did, and record the generation. Return true
+// when the cache now matches the resident net.
+//
+// Reach this at the top of every search, not only on `ucinewgame`: a worker is built
+// before the shell loads the net, and an EvalFile change reloads it under a worker that
+// is already running. Upstream: search.h:328 (Worker::ensure_network_replicated).
+bool worker_ensure_network(SearchWorker *w);
 
 #endif  // MCFISH_WORKER_CONSTRUCT_H

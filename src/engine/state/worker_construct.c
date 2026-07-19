@@ -50,16 +50,21 @@ void worker_destroy(SearchWorker *w) {
     page_free(w);
 }
 
-bool worker_seed_refresh_cache(SearchWorker *w) {
-    if (!eval_nnue_available())
-        return false;
+bool worker_ensure_network(SearchWorker *w) {
+    const uint64_t generation = eval_network_generation();
+    if (generation == 0)
+        return false;  // no net resident; the classical fallback needs no cache
+    if (generation == w->network_generation)
+        return true;
+
     eval_arena_clear_refresh_cache(w->eval_arena);
+    w->network_generation = generation;
     return true;
 }
 
 void worker_clear(SearchWorker *w) {
     history_clear(&w->hist, w->numa_thread_idx, w->numa_total);
-    worker_seed_refresh_cache(w);
+    worker_ensure_network(w);
     if (w->manager != nullptr)
         search_manager_clear(w->manager);
 }

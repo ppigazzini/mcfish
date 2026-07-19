@@ -9,6 +9,7 @@
 #include "nnue/nnue_weight_storage.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,7 @@ struct EvalArena {
 static EvalArena *DefaultArena = nullptr;
 
 static bool NetLoaded = false;
+static uint64_t NetGeneration = 0;
 static char StatusMessage[512] = "";
 
 // Assert the contract PORT_NOTES_accumulator.md states: the board zone writes
@@ -157,6 +159,7 @@ bool eval_nnue_load(const char *root_directory, const char *evalfile_path) {
                  result.message == nullptr ? "NNUE evaluation using an unnamed network"
                                            : result.message);
         NetLoaded = true;
+        ++NetGeneration;
     }
     network_free_message(result.message);
 
@@ -173,6 +176,8 @@ bool eval_nnue_load(const char *root_directory, const char *evalfile_path) {
 }
 
 bool eval_nnue_available(void) { return NetLoaded; }
+
+uint64_t eval_network_generation(void) { return NetGeneration; }
 
 const char *eval_nnue_status(void) { return StatusMessage; }
 

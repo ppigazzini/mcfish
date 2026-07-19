@@ -60,6 +60,12 @@ Histories *histories(void) {
     return &Tables;
 }
 
+void histories_shutdown(void) {
+    shared_histories_destroy(TablesShared);
+    TablesShared = nullptr;
+    Tables.shared = nullptr;
+}
+
 // Test move validity as upstream's Move::is_ok does — by the two reserved
 // encodings, not by from != to. Any other move with from == to would be a bug
 // elsewhere, and treating it as "not ok" here would hide it.

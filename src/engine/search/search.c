@@ -5,6 +5,7 @@
 #include "../board/movegen.h"
 #include "../board/uci_move.h"
 #include "../eval/evaluate.h"
+#include "../state/worker_construct.h"
 #include "history.h"
 #include "option_source.h"
 #include "output_sink.h"
@@ -58,34 +59,57 @@ static bool facade_is_quiet(void) { return Emit == nullptr; }
 static uint64_t LastNodesSearched = 0;
 static void facade_set_last_nodes(uint64_t nodes) { LastNodesSearched = nodes; }
 
-// Carry the per-game manager scalars ACROSS `go` commands. Upstream resets these
-// in ThreadPool::clear, which runs on `ucinewgame` and nowhere else, so within a
-// game each search starts from the previous one's result. Resetting them per `go`
-// searches a different tree -- and because bench drives 54 positions behind a
-// single ucinewgame, it changes the anchor by percent, not by nodes.
-static Value BestPreviousScore = VALUE_INFINITE;
-static Value BestPreviousAverageScore = VALUE_INFINITE;
-static double PreviousTimeReduction = 0.85;
+// ---- the worker ---------------------------------------------------------
+//
+// Hold the one worker this facade drives. Every per-worker field the search used to
+// keep as a file-scope static -- the history tables, the NNUE arena, the SearchCtx --
+// lives in this block, and every per-game manager scalar lives in its SearchManager.
+//
+// The manager scalars carry ACROSS `go` commands. Upstream resets them in
+// ThreadPool::clear, which runs on `ucinewgame` and nowhere else, so within a game each
+// search starts from the previous one's result. Resetting them per `go` searches a
+// different tree -- and because bench drives its position list behind a single
+// ucinewgame, that changes the anchor by percent, not by nodes.
+//
+// The time manager carries across for the same reason and upstream clears it in the
+// same place (thread.cpp:266-271). It only steers the clock, so it does not move the
+// depth-limited anchor -- but resetting `available_nodes` per `go` hands `nodestime` a
+// fresh budget every move instead of one per game, and resetting the adjust makes every
+// move take the first-move-of-a-game path.
+static SearchWorker *MainWorker = nullptr;
 
-// The time manager carries across `go` for the same reason, and upstream clears
-// it in the same place: `main_manager()->originalTimeAdjust` and `tm.clear()` sit
-// in that one block (thread.cpp:266-271). Both only steer the clock, so neither
-// moves the depth-limited anchor -- but resetting `available_nodes` per `go`
-// hands `nodestime` a fresh budget every move instead of one per game, and
-// resetting the adjust makes every move take the first-move-of-a-game path.
-static TimeManagement Tm = { .available_nodes = -1 };
-static double OriginalTimeAdjust = -1.0;
+// Build the worker on first use. Bound to the process-wide single-thread history bank,
+// so its table sizes -- and every index mask the search takes -- are the one-thread ones.
+static SearchWorker *main_worker(void) {
+    if (MainWorker != nullptr)
+        return MainWorker;
+
+    Histories *const h = histories();
+    if (h == nullptr)
+        return nullptr;
+
+    const WorkerCtorInputs in = {
+        .shared_history = h->shared,
+        .threads = nullptr,
+        .thread_idx = 0,
+        .numa_thread_idx = 0,
+        .numa_total = 1,
+        .numa_access_token = 0,
+    };
+    MainWorker = worker_create(&in);
+    return MainWorker;
+}
 
 void search_clear(void) {
-    Histories *const h = histories();
-    if (h != nullptr)
-        history_clear(h, 0, 1);
-    eval_arena_clear_refresh_cache(eval_default_arena());
-    BestPreviousScore = VALUE_INFINITE;
-    BestPreviousAverageScore = VALUE_INFINITE;
-    PreviousTimeReduction = 0.85;
-    OriginalTimeAdjust = -1.0;
-    timeman_clear(&Tm);
+    SearchWorker *const w = main_worker();
+    if (w != nullptr)
+        worker_clear(w);
+}
+
+void search_shutdown(void) {
+    worker_destroy(MainWorker);
+    MainWorker = nullptr;
+    histories_shutdown();
 }
 
 uint64_t search_last_nodes_searched(void) { return LastNodesSearched; }
@@ -141,10 +165,7 @@ static void install_seams(void) {
 // keeps two searches of the same position node-for-node identical.
 
 static atomic_bool Stop = false;
-static atomic_bool Ponder = false;
 static atomic_bool IncreaseDepth = true;
-static bool StopOnPonderhit = false;
-static int CallsCnt = 0;
 
 void search_stop(void) { atomic_store(&Stop, true); }
 
@@ -180,41 +201,45 @@ static SearchResult result_of(const SearchCtx *ctx, TimePoint elapsed) {
     };
 }
 
-// Keep the context off the C stack: SearchCtx carries the reductions table and a
-// full PV buffer, and `iterative_deepening` puts a whole Stack array beside it.
-static SearchCtx Ctx;
-
 SearchResult search_go(Position *pos, const SearchLimits *limits) {
     install_seams();
 
     const TimePoint start = (TimePoint) now_ms();
 
     atomic_store(&Stop, false);
-    atomic_store(&Ponder, limits->ponder);
     atomic_store(&IncreaseDepth, true);
-    StopOnPonderhit = false;
-    CallsCnt = 0;
-
-    // Drop the accumulator to one uncomputed root slot, so the first evaluation
-    // refreshes from this board rather than from the previous search's diffs.
-    // Once per `go`, not once per iteration.
-    EvalArena *const arena = eval_default_arena();
-    eval_acc_reset(arena);
-
-
-    Histories *const h = histories();
 
     SearchResult result = { .score = VALUE_ZERO, .best_move = MOVE_NONE };
 
     ExtMove legal[MAX_MOVES];
     const size_t count = (size_t) (generate_legal(pos, legal) - legal);
-    if (h == nullptr || arena == nullptr) {
-        // The shared history bank or the evaluation arena could not be allocated, so
-        // there is nothing to search against. Return a legal move rather than MOVE_NONE,
-        // as the root-move allocation failure below does.
+
+    SearchWorker *const w = main_worker();
+    if (w == nullptr) {
+        // Neither the history bank nor the evaluation arena could be allocated, so there
+        // is nothing to search against. Return a legal move rather than MOVE_NONE, as
+        // the root-move allocation failure below does.
         result.best_move = count != 0 ? legal[0].move : MOVE_NONE;
         return result;
     }
+
+    // Re-seed the refresh cache when the net has changed since this worker last did.
+    // The worker is built before the shell loads the net, so the first `go` is what
+    // seeds it; an EvalFile change reloads under a worker that already exists.
+    worker_ensure_network(w);
+
+    SearchManager *const sm = w->manager;
+    SearchCtx *const ctx = &w->ctx;
+
+    atomic_bool_store(&sm->ponder, limits->ponder);
+    sm->stop_on_ponderhit = false;
+    sm->calls_cnt = 0;
+
+    // Drop the accumulator to one uncomputed root slot, so the first evaluation
+    // refreshes from this board rather than from the previous search's diffs.
+    // Once per `go`, not once per iteration.
+    eval_acc_reset(w->eval_arena);
+
     if (count == 0) {
         result.score = board_has_checkers(pos) ? mated_in(0) : VALUE_DRAW;
         search_emit_no_moves(pos);
@@ -230,8 +255,7 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     char root_fen[128];
     pos_fen(pos, root_fen);
 
-    RootMoveList rml;
-    if (!root_moves_build(pos, root_fen, board_is_chess960(pos), moves, count, &rml)) {
+    if (!root_moves_build(pos, root_fen, board_is_chess960(pos), moves, count, &w->rml)) {
         // An allocation failure leaves nothing to search. Return a legal move
         // rather than MOVE_NONE, so the caller still has something playable.
         result.best_move = legal[0].move;
@@ -240,30 +264,29 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
 
     const SearchZoneLimits zone_limits = to_zone_limits(limits, start);
 
-    search_ctx_init(&Ctx, h, arena, pos, &zone_limits, &rml, &Stop);
-    search_tm_init(&Ctx, &Tm, &OriginalTimeAdjust);
-    search_time_state_init(&Ctx, &Tm, &CallsCnt, &Ponder, &StopOnPonderhit);
+    search_ctx_init(ctx, &w->hist, w->eval_arena, pos, &zone_limits, &w->rml, &Stop);
+    search_tm_init(ctx, &sm->tm, &sm->original_time_adjust);
+    search_time_state_init(ctx, &sm->tm, &sm->calls_cnt, &sm->ponder.value, &sm->stop_on_ponderhit);
 
     SearchIdState id;
-    search_id_state_init(&id, &Ctx, &Tm, &Ponder, &StopOnPonderhit, &IncreaseDepth);
+    search_id_state_init(&id, ctx, &sm->tm, &sm->ponder.value, &sm->stop_on_ponderhit,
+                         &IncreaseDepth);
 
     // Seed the per-game manager scalars search_id_state_init leaves at zero.
-    // VALUE_INFINITE is upstream's "no previous score", and the time-reduction
-    // seed is upstream's own (Stockfish/src/thread.cpp: ThreadPool::clear).
-    id.best_previous_score = BestPreviousScore;
-    id.best_previous_average_score = BestPreviousAverageScore;
-    id.previous_time_reduction = PreviousTimeReduction;
+    id.best_previous_score = sm->best_previous_score;
+    id.best_previous_average_score = sm->best_previous_average_score;
+    id.previous_time_reduction = sm->previous_time_reduction;
 
-    const bool uci_pv_sent = iterative_deepening(&Ctx, &id);
+    const bool uci_pv_sent = iterative_deepening(ctx, &id);
 
     // In `nodes as time` mode, subtract what this search spent from the budget
     // before returning (Stockfish/src/search.cpp:235-237). Read the limit here,
     // not from the snapshot taken before `search_tm_init`: that call is what
     // writes `npmsec` from the `nodestime` option, and it also scales `inc` by
     // it, so both fields only hold the values upstream subtracts once it has run.
-    if (Ctx.limits.npmsec != 0)
-        timeman_advance_nodes_time(&Tm,
-                                   (int64_t) Ctx.nodes - Ctx.limits.inc[board_side_to_move(pos)]);
+    if (ctx->limits.npmsec != 0)
+        timeman_advance_nodes_time(&sm->tm,
+                                   (int64_t) ctx->nodes - ctx->limits.inc[board_side_to_move(pos)]);
 
     // Record what this search concluded, so the next `go` in this game seeds its
     // aspiration window and its falling-eval term from it. Upstream assigns these
@@ -271,24 +294,20 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     // why iterative_deepening only ever reads them. Without this they stay at the
     // VALUE_INFINITE seed forever: inert under `go depth N`, but at any real time
     // control it costs the window seed and skews falling_eval every move.
-    id.best_previous_score = Ctx.root_moves[0].score;
-    id.best_previous_average_score = Ctx.root_moves[0].average_score;
-
-    // Publish the scalars for the next `go` in this game.
-    BestPreviousScore = id.best_previous_score;
-    BestPreviousAverageScore = id.best_previous_average_score;
-    PreviousTimeReduction = id.previous_time_reduction;
+    sm->best_previous_score = ctx->root_moves[0].score;
+    sm->best_previous_average_score = ctx->root_moves[0].average_score;
+    sm->previous_time_reduction = id.previous_time_reduction;
 
     // Report the finished line once, and only once: the depth loop already emits
     // it when the last MultiPV line of the final iteration completed.
     if (!uci_pv_sent)
-        search_emit_pv(&Ctx, Ctx.root_depth);
-    search_emit_bestmove(pos, &Ctx.root_moves[0]);
+        search_emit_pv(ctx, ctx->root_depth);
+    search_emit_bestmove(pos, &ctx->root_moves[0]);
 
-    result = result_of(&Ctx, (TimePoint) now_ms() - start);
-    root_moves_free(&rml);
-    Ctx.root_moves = nullptr;
-    Ctx.root_moves_count = 0;
+    result = result_of(ctx, (TimePoint) now_ms() - start);
+    root_moves_free(&w->rml);
+    ctx->root_moves = nullptr;
+    ctx->root_moves_count = 0;
     return result;
 }
 

@@ -62,6 +62,11 @@ void search_stop(void);
 // and the engine searches a different tree than upstream.
 void search_clear(void);
 
+// Release everything the search owns: the worker block, its NNUE arena and the shared
+// history bank. Call once at process exit, after the last search has returned -- the
+// next `search_go` rebuilds them, so this is teardown and not a reset.
+void search_shutdown(void);
+
 // Report the node count the LAST completed search published, and reset it.
 //
 // bench sums this rather than a return value because that is the number

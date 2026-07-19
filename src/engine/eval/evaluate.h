@@ -77,6 +77,17 @@ bool eval_nnue_load(const char *root_directory, const char *evalfile_path);
 // Report whether `evaluate` is currently running the NNUE forward pass.
 bool eval_nnue_available(void);
 
+// Count the successful net loads this process has seen. A worker records the value its
+// refresh cache was seeded at and re-seeds when the two differ: a cache still holding
+// entries seeded from a PREVIOUS net makes the incremental refresh path produce wrong
+// accumulator values, and a forced full refresh cannot expose it because that path
+// bypasses the cache entirely. This is upstream's `ensure_network_replicated`
+// (search.h:328) with the replication reduced to the one net mcfish keeps.
+//
+// Starts at 0, which no seeded worker can hold, so a worker built before the first load
+// always re-seeds.
+uint64_t eval_network_generation(void);
+
 // Return the one-line status upstream prints through `info string` before each
 // go / perft / eval: the resident net's identity, or why the classical fallback
 // is in use. Valid until the next load.

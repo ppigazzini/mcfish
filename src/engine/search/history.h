@@ -103,6 +103,10 @@ typedef struct {
 // without a pool -- run against. Return null when the bank could not be allocated.
 Histories *histories(void);
 
+// Release the process-wide block's shared bank. Call once at process exit; the next
+// `histories()` rebuilds it.
+void histories_shutdown(void);
+
 // Mirror one search-stack frame. `continuation_history` points at a
 // PieceToHistory page (HIST_PIECETO entries, indexed pc * 64 + to) and is never
 // null on a frame whose `current_move` is a real move — the null-move and

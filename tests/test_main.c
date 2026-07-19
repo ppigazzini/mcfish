@@ -798,6 +798,11 @@ int main(void) {
     test_numa_config_shape();
     test_thread_pool();
 
+    // Release what the search allocated on first use, so the leak checker sees the
+    // teardown the process itself runs.
+    search_shutdown();
+    eval_nnue_shutdown();
+
     printf("\n%d checks, %d failures\n", Checks, Failures);
     if (Failures) {
         printf("FAILED\n");

@@ -12,6 +12,7 @@
 #include "../engine/board/position.h"
 #include "../engine/board/threats.h"
 #include "../engine/eval/evaluate.h"
+#include "../engine/search/search.h"
 #include "uci.h"
 
 int main(int argc, char **argv) {
@@ -27,6 +28,7 @@ int main(int argc, char **argv) {
     eval_nnue_init();
 
     uci_loop(argc, argv);
+    search_shutdown();
     eval_nnue_shutdown();
     return 0;
 }

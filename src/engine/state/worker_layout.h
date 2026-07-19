@@ -75,6 +75,10 @@ typedef struct SearchWorker {
     // Evaluate through this worker's own accumulator and refresh cache.
     EvalArena *eval_arena;
 
+    // Record the net generation `eval_arena`'s refresh cache was seeded at. 0 means
+    // never seeded, which is what a worker built before the first net load holds.
+    uint64_t network_generation;
+
     // Carry the hot per-node context the whole recursion threads through.
     SearchCtx ctx;
 
