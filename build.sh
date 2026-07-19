@@ -46,7 +46,31 @@ CFLAGS_COMMON=(
 # only -- which costs several times the throughput and makes an nps comparison
 # against upstream meaningless. Keep this in step with the oracle's ARCH, or the
 # differential measures the compiler rather than the engine.
-CFLAGS_ARCH=(-msse -msse2 -msse3 -mssse3 -msse4.1 -mpopcnt)
+# ARCH is a knob, not a constant. Two different questions need two different
+# answers, and conflating them invalidates the measurement:
+#
+#   x86-64-sse41-popcnt  matches the oracle's ARCH, so an instruction or nps
+#                        differential against UPSTREAM compares code, not ISA.
+#   native               what the engine should actually ship as, and the only
+#                        honest basis for comparing against a natively-built port.
+#
+# Getting this wrong is not a small error. zfish's shipped binary on this host is
+# x86-64-avx512icl with VNNI -- a single vpdpbusd does the whole u8xi8 dot product
+# that the SSE4.1 path needs pmaddubsw + pmaddwd + paddd for. Every ccfish-vs-zfish
+# nps number taken before this was SSE4.1 against AVX-512, which measures the tier
+# and not the port. zfish records the same rule (docs/09-tooling-ci.md: "Comparing a
+# native AVX-512 zfish against the SSE4.1 oracle measures the ARCH, not the code").
+#
+# The node count must not move across tiers -- the evaluation is integer-exact, so
+# it is arch-invariant by construction. `./build.sh arch-determinism` is what checks
+# that claim instead of trusting it.
+CCFISH_ARCH=${CCFISH_ARCH:-sse41}
+case "$CCFISH_ARCH" in
+  sse41)  CFLAGS_ARCH=(-msse -msse2 -msse3 -mssse3 -msse4.1 -mpopcnt) ;;
+  avx2)   CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt) ;;
+  native) CFLAGS_ARCH=(-march=native) ;;
+  *)      red "unknown CCFISH_ARCH: $CCFISH_ARCH (want sse41, avx2 or native)"; exit 2 ;;
+esac
 
 CFLAGS_RELEASE=(-O3 -DNDEBUG -fno-math-errno "${CFLAGS_ARCH[@]}")
 
@@ -316,6 +340,37 @@ do_simd_scalar() {
   fi
 }
 
+do_arch_determinism() {
+  # Every ISA tier the host can execute must bench the SAME node count.
+  #
+  # The evaluation is integer-exact from features to score, so it is arch-invariant
+  # by construction -- but simd.h is written in GCC vector extensions, and widening
+  # the flags changes how every one of them lowers. That is exactly where a
+  # bit-exactness break would hide, and no other gate here builds more than one tier.
+  #
+  # Gate each tier on host capability rather than assuming: a tier the CPU cannot
+  # execute would SIGILL and read as a failure of the port.
+  local expected tiers=(sse41)
+  expected=$(grep -v '^#' tools/signature.golden | tr -d '[:space:]')
+  grep -qw avx2 /proc/cpuinfo && tiers+=(avx2)
+  tiers+=(native)
+
+  info "arch-determinism: ${tiers[*]} must all bench $expected"
+  local tier actual failed=0
+  for tier in "${tiers[@]}"; do
+    CCFISH_ARCH=$tier BIN=build/ccfish-$tier "$0" build > /dev/null || { red "$tier: build failed"; failed=1; continue; }
+    actual=$(build/ccfish-$tier bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
+    if [[ $actual == "$expected" ]]; then
+      green "  ok   $tier: $actual"
+    else
+      red "  FAIL $tier: $actual (expected $expected)"
+      failed=1
+    fi
+  done
+  [[ $failed -eq 0 ]] || { red "the evaluation is NOT arch-invariant -- suspect simd.h lowering"; return 1; }
+  green "arch-determinism passed"
+}
+
 do_perft() {
   need_binary
   info "perft gate vs tools/perft.table"
@@ -513,6 +568,7 @@ usage: ./build.sh <step> [args]
   test               build and run the unit/property suite
   bench [depth]      run the benchmark (default depth 13)
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
+  arch-determinism   build every executable ISA tier and require one node count
   net                report where the NNUE net must be and how to obtain it
   signature          assert the bench node count vs tools/signature.golden
   perft              assert perft counts vs tools/perft.table
@@ -541,6 +597,7 @@ case "${1:-build}" in
   net)              do_net ;;
   signature)        do_signature ;;
   simd-scalar)      do_simd_scalar ;;
+  arch-determinism) do_arch_determinism ;;
   signature-update) do_signature_update ;;
   perft)            do_perft ;;
   golden)           do_golden ;;
