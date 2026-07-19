@@ -158,9 +158,14 @@ def main():
     for fen in fens:
         a = cc.nodes_by_depth(fen, args.depth)
         b = up.nodes_by_depth(fen, args.depth)
+        # Compare the depth SETS, not their intersection. Intersecting lets a run
+        # that stopped early match on its short prefix and print EXACT, while the
+        # summary line -- the number anyone quotes -- still claims N/N identical.
         shared = sorted(set(a) & set(b))
         bad = [d for d in shared if a[d] != b[d]]
-        if not bad and shared:
+        if a.keys() != b.keys():
+            bad = bad or [min(set(a) ^ set(b))]
+        if not bad and shared and args.depth in a:
             exact += 1
             print(f"  EXACT   d{args.depth} {a.get(args.depth, '?'):>9}  {fen[:44]}")
         else:

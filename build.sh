@@ -259,7 +259,11 @@ do_signature_update() {
   need_binary
   local actual
   actual=$("$BIN" bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
-  { echo "# ccfish bench node signature: 16 positions, depth 8, TT cleared per position."
+  { echo "# ccfish bench node signature: the full default position list at depth 13,"
+    echo "# Threads 1, Hash 16, and a SINGLE ucinewgame -- the table and the history"
+    echo "# block carry across positions. Every one of those four facts changes the"
+    echo "# number; see src/shell/benchmark.c. Requires a net: a fallback-eval run"
+    echo "# produces an unrelated total."
     echo "# Regenerate ONLY for an intended behaviour change, and say what moved it in"
     echo "# the commit body. Updating this on a red gate launders a bug into the anchor."
     echo "$actual"
@@ -382,7 +386,13 @@ do_fmt() {
     red "not a passing one."
     return 127
   fi
-  "$cf" --dry-run --Werror $(sources_to_format)
+  # Check this explicitly. do_parity calls do_fmt as the left operand of `||`, and
+  # bash disables `set -e` for the WHOLE body of a function invoked that way -- so
+  # without `|| return 1` a clang-format failure does not abort the function,
+  # execution falls through to the green line below, and parity prints "format
+  # clean" and "all gates passed" over real violations. Any gate body reached from
+  # do_parity must check its own commands rather than lean on `set -e`.
+  "$cf" --dry-run --Werror $(sources_to_format) || return 1
   green "format clean ($cf)"
 }
 
@@ -455,7 +465,7 @@ usage: ./build.sh <step> [args]
   build              compile the release binary          -> build/ccfish
   debug              compile with asan+ubsan             -> build/ccfish-debug
   test               build and run the unit/property suite
-  bench [depth]      run the benchmark (default depth 8)
+  bench [depth]      run the benchmark (default depth 13)
   net                report where the NNUE net must be and how to obtain it
   signature          assert the bench node count vs tools/signature.golden
   perft              assert perft counts vs tools/perft.table

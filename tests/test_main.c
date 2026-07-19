@@ -270,14 +270,17 @@ static void test_legality(void) {
         CHECK(type_of_piece(piece_on(&pos, move_from(list[i].move))) == KING,
               "pinned knight generated a move");
 
-    // Double check: only king moves are legal.
-    pos_set(&pos, "4k3/8/8/8/8/2n5/8/3RK2r w - -", false, &st);
-    if (checkers(&pos) && bb_more_than_one(checkers(&pos))) {
-        count = (int) (generate_legal(&pos, list) - list);
-        for (int i = 0; i < count; ++i)
-            CHECK(type_of_piece(piece_on(&pos, move_from(list[i].move))) == KING,
-                  "double check allowed a non-king move");
-    }
+    // Double check: only king moves are legal. Nf3 and Rh1 both bear on e1.
+    // ASSERT the precondition rather than gate on it -- the previous fixture here
+    // was a single check (a knight on c3 does not attack e1), so the loop below
+    // never ran and double check went untested while the suite reported a pass.
+    pos_set(&pos, "k7/8/8/8/8/5n2/8/4K2r w - -", false, &st);
+    CHECK(bb_more_than_one(checkers(&pos)), "double-check fixture is not a double check");
+    count = (int) (generate_legal(&pos, list) - list);
+    CHECK(count > 0, "double-check fixture has no legal move -- it is mate, not a test");
+    for (int i = 0; i < count; ++i)
+        CHECK(type_of_piece(piece_on(&pos, move_from(list[i].move))) == KING,
+              "double check allowed a non-king move");
 
     // Every generated legal move must survive pos_legal, and the legal set must
     // be exactly the pseudo-legal set filtered by it.
