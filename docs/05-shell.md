@@ -11,11 +11,11 @@ Audience: shell contributors. The zone rule this page depends on is in
 
 **Wired into the binary** ([`../build.sh`](../build.sh) `SOURCES`):
 [`main.c`](../src/shell/main.c), [`uci.c`](../src/shell/uci.c),
+[`ucioption.c`](../src/shell/ucioption.c),
 [`benchmark.c`](../src/shell/benchmark.c).
 
 **Ported and not in `SOURCES`**, so not in the binary and not gated: the engine
-object [`engine.c`](../src/shell/engine.c), the typed option table
-[`ucioption.c`](../src/shell/ucioption.c), the identity and process utilities
+object [`engine.c`](../src/shell/engine.c), the identity and process utilities
 [`misc.c`](../src/shell/misc.c), the bench script data
 [`bench_positions.c`](../src/shell/bench_positions.c), and the decomposition of the
 loop itself — [`uci_strings.c`](../src/shell/uci_strings.c),
@@ -25,27 +25,21 @@ loop itself — [`uci_strings.c`](../src/shell/uci_strings.c),
 [`uci_output.c`](../src/shell/uci_output.c),
 [`uci_bench.c`](../src/shell/uci_bench.c).
 
-**`uci.c` is still the monolith.** It holds the position, the state chain and a
-four-field options struct as file-scope statics; it parses `go` and `position`
-inline; it prints its handshake with `printf` literals. Everything under *The
-command loop* below describes that file. The ported replacements exist beside it
-and nothing calls them —
+**`uci.c` is still the monolith.** It holds the position, the state chain and the
+option table as file-scope statics, and it parses `go` and `position` inline.
+Everything under *The command loop* below describes that file. The ported
+replacements exist beside it and nothing calls them —
 [`../src/shell/PORT_NOTES_uci.md`](../src/shell/PORT_NOTES_uci.md) is the list of
 decisions the rewiring commit owes, and the last section of this page summarises
 them.
 
-Two consequences are worth stating before the detail:
-
-- **The engine object is written and unused.** `engine.c` owns what upstream's
-  `engine.cpp` owns — the position and its state chain, the option table, the
-  search entry points — behind one seam, so a rewired `uci.c` would parse text and
-  print text and hold no engine state of its own. Until it is wired, every new
-  piece of session state is another static in `uci.c`. **Add it to `engine.c`
-  instead.**
-- **The advertised UCI surface is a small subset.** `cmd_uci` prints its option
-  lines as literals, and [`../tools/handshake.golden`](../tools/handshake.golden)
-  pins exactly what a GUI sees. The full upstream set is registered in `engine.c`
-  and reaches no wire.
+**`engine.c` is written, unused, and now duplicates a live table.** It owns what
+upstream's `engine.cpp` owns — the position and its state chain, the option table,
+the search entry points — behind one seam, and it registers its own copy of the
+option set that `uci.c` registers for real. Two registrations, one of them dead, is
+a trap: edit the wrong one and the handshake does not move. When `engine.c` is
+wired, `uci.c`'s registration must be deleted in the same commit, not left as a
+fallback.
 
 ## main as the composition root
 
@@ -251,65 +245,91 @@ that is what upstream's post-scan `is.fail()` check reports.
 the sink, then a `Nodes searched:` total on stdout. That total is what
 `./build.sh perft` greps.
 
-## The option tables
+## The option table
 
-There are two, and only one of them is on the wire.
+There is one, [`ucioption.c`](../src/shell/ucioption.c): typed options with kind,
+default, bounds, current value and an on-change callback. `uci.c`'s
+`register_options` fills it with upstream's full set, `cmd_uci` renders it, and
+`cmd_setoption` hands the whole command body to `options_setoption`.
 
-### What `uci.c` advertises
+**Registration order is the wire order.** A GUI parses the `uci` handshake in
+emission order and [`../tools/handshake.golden`](../tools/handshake.golden) diffs
+it byte for byte against the oracle, so `options_add` appends and `options_render`
+walks the same sequence — never a sort, never a hash order. The order is upstream's
+own registration order in `engine.cpp`; do not regroup related options. Storage is
+fixed: no allocation, bounded names and values, and an add past `OPTION_MAX` is
+dropped rather than silently overwriting.
 
-Stored in a file-scope struct with designated-initialiser defaults, and printed by
-`cmd_uci` as literals:
+### What each option actually does
 
-| Option | Type | Default | Effect |
-| --- | --- | --- | --- |
-| `Hash` | spin, min 1, max 33554432 | 16 | Calls `tt_resize`; on failure prints an `info string` to stderr and leaves the previous table freed. |
-| `Threads` | spin, min 1, **max 1** | 1 | Stored. If set to anything but 1, prints `info string Threads is accepted but the search is single-threaded`. |
-| `Clear Hash` | button | — | Calls `tt_clear`. |
-| `Ponder` | check | false | Stored and otherwise unused. |
-| `UCI_Chess960` | check | false | Passed to `pos_set`, which selects the Chess960 castling parse and the Chess960 UCI move rendering. |
-| `EvalFile` | string | the name this build expects | Stored, then re-loads the net and reports the outcome through `info string`. |
+The advertised spec — type, default, bounds — matches upstream for all nineteen.
+What differs is whether anything reads the value.
 
-**`Threads` announces its own gap.** The option is advertised so a GUI's handshake
-succeeds, and the engine says out loud that the value has no effect rather than
-accepting it silently. The advertised maximum is 1, so a well-behaved GUI never
-sends more — but `setoption` accepts any value regardless, which is why the
-`info string` exists at all. **Do not raise the maximum ahead of wiring the pool.**
+| Option | Reaches | Notes |
+| --- | --- | --- |
+| `Debug Log File` | `start_logger` in `uci.c` | Tees the session to a file, input lines prefixed `>> ` and output `<< `, as upstream's `Tie` streambuf does. Exits when the path cannot be opened. |
+| `NumaPolicy` | nothing | **Inert.** No NUMA topology, no thread binding. Says so on every set. |
+| `Threads` | nothing | **Inert above 1.** See below. |
+| `Hash` | `tt_resize` | |
+| `Clear Hash` | `tt_clear` + `search_clear` | The same pair `ucinewgame` runs, which is what upstream's button does. |
+| `Ponder` | the time manager | Read through the option seam by `search_tm_init`. |
+| `MultiPV` | the search | `search_id_state_init` and `search_emit_pv`. |
+| `Skill Level` | the search | `search_skill_level`; below 20 it enables the handicapped move pick. |
+| `Move Overhead` | the time manager | |
+| `nodestime` | the time manager | Converts the clock to a node budget, which makes a clocked search reproducible. |
+| `UCI_Chess960` | `pos_set` | Selects the Chess960 castling parse and move rendering. |
+| `UCI_LimitStrength` / `UCI_Elo` | the search | Together they override `Skill Level` through upstream's Elo→level polynomial. |
+| `UCI_ShowWDL` | the info line | Adds the `wdl` triple. |
+| `SyzygyPath`, `SyzygyProbeDepth`, `Syzygy50MoveRule`, `SyzygyProbeLimit` | nothing | **Inert.** See below. |
+| `EvalFile` | `eval_nnue_load` | Re-loads the net and reports the outcome. |
 
-**`Ponder` does not.** It is advertised as a check option, stored, and never read;
-`ponderhit` is ignored and `SearchResult::ponder_move` is never assigned. A GUI
-that enables pondering gets nothing, with no message — which is strictly worse
-than `Threads`, because nothing on the wire says so. Either wire it up with the
-search port or stop advertising it.
+**`Threads` advertises a range it cannot honour, deliberately.** The maximum is
+upstream's `max(1024, 4 * hardware_concurrency)` because a narrower one is a
+different handshake, and the handshake is what a GUI configures against. The search
+is single-threaded, so any value above 1 is accepted and ignored — and the
+on-change callback says exactly that on the wire, because a GUI that sets
+`Threads 8` and sees silence has no way to learn otherwise. Owner: zfish
+`platform/thread_pool.zig`, upstream `thread.cpp`.
 
-`setoption` parsing handles names containing spaces by locating `name ` and
-` value ` as substrings rather than tokenising, and strips the trailing newline from
-both fields. `Clear Hash` arrives as a name with no value, which is why both
-`"Clear"` and `"Clear Hash"` are matched.
+**The four Syzygy options are stored, rendered, and not fed to the search.**
+Nothing registers the `TbProbeFen` / `TbMaxCardinality` seams in
+[`../src/engine/search/tb_source.h`](../src/engine/search/tb_source.h), so the root
+ranker reads a zero cardinality and never probes. They are deliberately *not*
+routed through the option seam: handing a prober-less search a probe budget only
+moves the no-op somewhere harder to find. Owner: zfish `engine/syzygy/`, upstream
+`syzygy/tbprobe.cpp`.
 
-### The typed table nobody reaches
+### The seam the search reads options through
 
-[`ucioption.c`](../src/shell/ucioption.c) is the real thing: typed options with
-kind, default, bounds, current value and an on-change callback, and
-[`engine.c`](../src/shell/engine.c) registers upstream's full set into it —
-`Debug Log File`, `NumaPolicy`, `Threads`, `Hash`, `Clear Hash`, `Ponder`,
-`MultiPV`, `Skill Level`, `Move Overhead`, `nodestime`, `UCI_Chess960`,
-`UCI_LimitStrength`, `UCI_Elo`, `UCI_ShowWDL`, `SyzygyPath`, `SyzygyProbeDepth`,
-`Syzygy50MoveRule`, `SyzygyProbeLimit`, `EvalFile`.
+The search zone never includes a shell header. It reads options through the
+function pointers in
+[`../src/engine/search/option_source.h`](../src/engine/search/option_source.h),
+and `uci_loop` installs the table behind them with `search_set_option_source`.
 
-**Registration order is the wire order**, and that is the invariant to protect when
-wiring it in. A GUI parses the `uci` handshake in emission order and
-`tools/handshake.golden` diffs it byte for byte, so `options_add` appends and
-`options_render` walks the same sequence — never a sort, never a hash order.
-Storage is fixed: no allocation, bounded names and values, and an add past
-`OPTION_MAX` is dropped rather than silently overwriting.
+Without that install the search answers itself from
+`facade_option_int` in [`../src/engine/search/search.c`](../src/engine/search/search.c),
+which returns upstream's defaults so that a caller with no table — the bench
+harness, the unit tests — still searches the right tree. **That fallback is not
+neutral and must not be treated as one**: the zone's own default answers 0 to
+everything, which reads as MultiPV 0 and Skill Level 0. A partial install is a
+wrong search, not an absent one.
 
-The on-change callbacks are where the unwired subsystems attach: `on_hash`,
-`on_threads`, `on_numa_policy`, `on_syzygy_path` and `on_eval_file` are the seams
-through which the thread pool, NUMA, Syzygy and NNUE become reachable from a
-`setoption`. Wiring the table therefore lands more than a handshake — **each
-callback must have its subsystem in `SOURCES` before its option is advertised**, or
-the engine advertises a control that does nothing, which is the `Ponder` failure
-repeated at scale.
+`install_seams` runs before every `go`, so the installed source is held separately
+and re-applied there. Assigning `OptionIntByName` directly from the shell would be
+overwritten on the first search, and every `setoption` a GUI sent would silently
+stop taking effect.
+
+### On-change callbacks
+
+`on_hash`, `on_threads`, `on_numa_policy`, `on_syzygy_path`, `on_debug_log_file`
+and `on_eval_file` are the seams through which a subsystem becomes reachable from a
+`setoption`. Each returns bare text or `nullptr`; the transport adds the
+`info string ` prefix, one line per line, as upstream's `print_info_string` does.
+
+**A callback whose subsystem is unported must say so.** Advertising a control that
+does nothing, in silence, is the one outcome worse than not advertising it: a GUI
+cannot tell a no-op from a working feature. That is why `NumaPolicy`, `Threads`
+above 1, and a non-empty `SyzygyPath` each answer.
 
 ## bench and the signature
 

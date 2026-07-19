@@ -40,6 +40,17 @@ SearchResult search_go(Position *pos, const SearchLimits *limits);
 // capture output without a subprocess, and so the search zone never calls printf.
 void search_set_output(void (*emit)(const char *line));
 
+// Install the shell's UCI option table as the source the search reads for
+// MultiPV, Skill Level, UCI_Elo, Move Overhead, nodestime, Ponder and
+// UCI_ShowWDL.
+//
+// Pass nullptr to fall back to upstream's registered defaults. The fallback is
+// not neutral and must not be mistaken for one: the search reads these values on
+// every `go`, so a source that answers 0 to "MultiPV" searches no PV line at all
+// and 0 to "Skill Level" applies the maximum handicap. Installing a real model
+// must therefore replace the default set wholesale, never merge with it.
+void search_set_option_source(int (*option_int_by_name)(const char *name));
+
 // Request that the running search stop at the next check. Safe to call from the
 // input thread while search_go runs.
 void search_stop(void);

@@ -24,7 +24,7 @@ Both gates were green throughout.
 | `errors` | **oracle** | byte-for-byte upstream, including `exit=1` |
 | `perft` | **oracle** | byte-for-byte upstream |
 | `eval` | **oracle** | byte-for-byte upstream |
-| `handshake` | ccfish | self-photograph — the option table is a hand-written subset |
+| `handshake` | **oracle**, one line substituted | byte-for-byte upstream except `id name` |
 | `search` | ccfish | self-photograph — carries the `<engine banner>` identity line |
 
 Regenerate an oracle-derived golden from the oracle. Never from ccfish: that
@@ -37,13 +37,34 @@ cd ../.ccfish-upstream-oracle/src && eval "$NORM"
   | normalize > /home/usr00/_git/ccfish/tools/<case>.golden
 ```
 
+## `handshake`: the one legitimate substitution
+
+`handshake` is derived from the oracle and then has exactly one line rewritten,
+because exactly one line cannot be compared: ccfish is not named Stockfish, and
+`normalize` rewrites the *banner* but not `id name`. Every other line — the option
+order, every type, default and bound, the blank line upstream emits before the
+first option — is upstream's own bytes.
+
+```sh
+W=$PWD
+NORM=$(sed -n '/^normalize()/,/^}/p' build.sh)
+CC_ID=$(printf 'uci\nquit\n' | ./build/ccfish | grep '^id name ')
+( cd ../.ccfish-upstream-oracle/src && eval "$NORM"
+  { ./stockfish < "$W/tools/cases/handshake.uci" 2>&1; printf 'exit=%d\n' "$?"; } | normalize ) \
+  | sed "s|^id name Stockfish .*|$CC_ID|" > tools/handshake.golden
+```
+
+The substitution is the whole exception, and it must stay one `sed` on one
+anchored line. Widen it and the gate stops comparing the option table, which is
+the only thing it exists to compare.
+
 ## Moving a self-photograph to the oracle
 
-Each remaining self-photograph is self-generated because of a *named* gap, not
-because upstream cannot be reached. When the gap closes, re-derive it from the
-oracle and let the gate tell you whether it really closed. To see how far one
-currently is — hold the worktree path in `W` first, because `$PWD` inside the
-subshell is already the oracle's directory, not this tree's:
+Each remaining self-generated golden is so because of a *named* gap, not because
+upstream cannot be reached. When the gap closes, re-derive it from the oracle and
+let the gate tell you whether it really closed. To see how far one currently is --
+hold the worktree path in `W` first, because `$PWD` inside the subshell is already
+the oracle's directory, not this tree's:
 
 ```sh
 W=$PWD; NORM=$(sed -n '/^normalize()/,/^}/p' build.sh); eval "$NORM"
@@ -51,9 +72,8 @@ diff <(./build/ccfish < tools/cases/search.uci 2>&1 | normalize) \
      <(cd ../.ccfish-upstream-oracle/src && ./stockfish < "$W/tools/cases/search.uci" 2>&1 | normalize)
 ```
 
-`handshake` will not reach zero on the `id name` line — ccfish is not named
-Stockfish, and `normalize` replaces that line with `<engine banner>` for exactly
-that reason. Every other line of it should reach zero.
+`handshake` reaches zero on every line but `id name`, which is why it is
+oracle-derived with that one line substituted rather than self-generated.
 
 ## What `normalize` hides, and why that is dangerous
 

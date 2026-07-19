@@ -83,11 +83,12 @@ void search_reset_last_nodes_searched(void) { LastNodesSearched = 0; }
 // ---- the option seam ----------------------------------------------------
 //
 // Answer with upstream's defaults for the options that steer the search. The
-// live shell carries no option model yet, and the zone's own fallback answers 0
-// to everything — which would read as MultiPV 0 (no PV line searched at all) and
-// Skill Level 0 (maximum handicap). Both are wrong searches rather than absent
-// ones, so the facade owns the defaults until the decomposed shell registers the
-// real model. Golden: `Stockfish/src/engine.cpp` (the option table's defaults).
+// zone's own fallback answers 0 to everything — which would read as MultiPV 0
+// (no PV line searched at all) and Skill Level 0 (maximum handicap). Both are
+// wrong searches rather than absent ones, so the facade owns the defaults for
+// any caller that drives search_go without an option table: the bench harness
+// and the unit tests both do. Golden: `Stockfish/src/engine.cpp` (the option
+// table's defaults).
 
 static int facade_option_int(const char *name) {
     if (strcmp(name, "MultiPV") == 0)
@@ -99,6 +100,16 @@ static int facade_option_int(const char *name) {
     return 0;
 }
 
+// Hold the shell's option table when one is installed. install_seams runs before
+// every search, so without this indirection it would overwrite the shell's
+// registration on the first `go` and every UCI option would silently revert to
+// the facade defaults above.
+static int (*ShellOptionInt)(const char *name) = nullptr;
+
+void search_set_option_source(int (*option_int_by_name)(const char *name)) {
+    ShellOptionInt = option_int_by_name;
+}
+
 static int64_t facade_now_ms(void) { return (int64_t) now_ms(); }
 
 // Register the seams the zone reads. Idempotent, and run before every search so a
@@ -107,7 +118,7 @@ static void install_seams(void) {
     OutputPrintLine = facade_print_line;
     OutputIsQuiet = facade_is_quiet;
     OutputSetLastNodesSearched = facade_set_last_nodes;
-    OptionIntByName = facade_option_int;
+    OptionIntByName = ShellOptionInt ? ShellOptionInt : facade_option_int;
     TimeNowMs = facade_now_ms;
 }
 
