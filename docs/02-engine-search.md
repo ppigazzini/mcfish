@@ -171,7 +171,7 @@ memory read on some future position.
 zone still carries; `src/engine/board/legality.c` holds the canonical
 `pos_pseudo_legal`, and both copies go when that module enters the build.
 `search_gives_check` additionally recomputes upstream's `StateInfo::checkSquares` on
-every call, because ccfish's `StateInfo` does not cache it.
+every call, because mcfish's `StateInfo` does not cache it.
 
 ### The TT cutoff
 
@@ -286,7 +286,7 @@ already consumed, so `cur` only moves forward and one `MAX_MOVES` buffer covers 
 lists.
 
 `see_ge` lives in `movepick.c` and is what splits good captures from bad. Upstream
-has it on `Position`; ccfish has both — `pos_see_ge` in the board zone and the
+has it on `Position`; mcfish has both — `pos_see_ge` in the board zone and the
 picker's own — and collapsing them is board-zone work, not search work.
 
 ## History

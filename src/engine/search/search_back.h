@@ -10,8 +10,8 @@
 // Ported from zfish `engine/search/search_back.zig`.
 // Golden: `Stockfish/src/search.cpp: search<NodeType>`, the moves loop onward.
 
-#ifndef CCFISH_SEARCH_BACK_H
-#define CCFISH_SEARCH_BACK_H
+#ifndef MCFISH_SEARCH_BACK_H
+#define MCFISH_SEARCH_BACK_H
 
 #include "search_types.h"
 #include "tt.h"
@@ -59,4 +59,4 @@ typedef struct {
 
 Value search_run_back(const SearchNodeState *nd);
 
-#endif  // CCFISH_SEARCH_BACK_H
+#endif  // MCFISH_SEARCH_BACK_H

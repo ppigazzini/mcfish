@@ -254,7 +254,7 @@ static void set_castling_right(Position *pos, Color c, Square rfrom) {
 // Report WHY a FEN was rejected, in upstream's words.
 //
 // Upstream does not fall back or ignore: it returns a reason from set() and the UCI
-// layer prints it and exits (uci.cpp:684). ccfish silently reset to the start
+// layer prints it and exits (uci.cpp:684). mcfish silently reset to the start
 // position instead, which is worse than a wrong answer -- the engine went on
 // answering `go` about a board the operator never asked for, and two goldens were
 // generated over it and pinned it.
@@ -329,7 +329,7 @@ bool pos_set_reason(
 
     // A pawn cannot stand on the first or eighth rank -- it would have promoted.
     // Upstream rejects such a FEN before the king check (position.cpp:271-273), and
-    // ccfish had no equivalent, so it accepted the position and then hashed it with
+    // mcfish had no equivalent, so it accepted the position and then hashed it with
     // the promotion-rank Zobrist entries that position_init deliberately ZEROES.
     // Two distinct boards would collide on one key.
     if (pos->by_type[PAWN] & (rank_bb(0) | rank_bb(7)))
@@ -350,18 +350,18 @@ bool pos_set_reason(
         ++p;
     // Resolve each castling right to a ROOK SQUARE, upstream's way (position.cpp).
     //
-    // Two things here are not obvious and ccfish had both wrong.
+    // Two things here are not obvious and mcfish had both wrong.
     //
     // First, K/Q do not mean h-file/a-file. They mean "scan inward from that corner
     // and take the FIRST rook, stopping at the king" -- the king must come later
     // than the rook, or the right is not real. Taking msb/lsb of every back-rank
-    // rook instead, as ccfish did, grants a kingside right to a rook sitting on the
-    // far side of the king: with Kh1 and Ra1, upstream drops the right and ccfish
+    // rook instead, as mcfish did, grants a kingside right to a rook sitting on the
+    // far side of the king: with Kh1 and Ra1, upstream drops the right and mcfish
     // granted it with the a1 rook. That is a legal-move difference, not a message.
     //
     // Second, a right whose king or rook is missing is DROPPED, not an error
     // ("Only apply castling rights if they can be valid"). Only an unrecognised
-    // character is an error. ccfish rejected the whole FEN, so a position upstream
+    // character is an error. mcfish rejected the whole FEN, so a position upstream
     // accepts was refused outright.
     int cr_seen = 0;
     for (; *p && *p != ' '; ++p) {
@@ -468,7 +468,7 @@ bool pos_set_reason(
 
     // Refuse a position where the side NOT to move is in check. It could only be
     // reached by a move that left its own king en prise, so it is unreachable in a
-    // real game. Upstream rejects it after set_state (position.cpp:438); ccfish
+    // real game. Upstream rejects it after set_state (position.cpp:438); mcfish
     // accepted it, and the search would then happily generate a king capture --
     // nothing downstream prevents that, because every generator assumes this
     // invariant already holds.
@@ -503,7 +503,7 @@ void pos_fen(const Position *pos, char *buf) {
     // Under Chess960 a castling right is named by the FILE OF ITS ROOK, not by side:
     // the rook does not start on a1/h1, so `K` and `Q` do not identify it. Upstream
     // emits the rook file in Shredder-FEN notation (position.cpp:588-599), uppercase
-    // for White and lowercase for Black. ccfish's PARSER already accepts that form,
+    // for White and lowercase for Black. mcfish's PARSER already accepts that form,
     // so emitting KQkq here made the round-trip asymmetric: it read Shredder-FEN in
     // and wrote standard notation out, silently renaming the rights on the way.
     const uint8_t cr = pos->st->castling_rights;
@@ -774,7 +774,7 @@ void pos_do_move(
             // Undo the pawn's arrival on `to` that the from-to key above assumed,
             // and place the promoted piece there instead. Upstream folds this into
             // one term because its Zobrist_psq[pawn][promotion rank] is zero;
-            // ccfish's table has no such hole, so cancel it explicitly.
+            // mcfish's table has no such hole, so cancel it explicitly.
             key ^= Zobrist_psq[pc][to] ^ Zobrist_psq[promoted][to];
             toggle_aux_keys(new_st, pc, to);
             toggle_aux_keys(new_st, promoted, to);

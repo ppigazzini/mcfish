@@ -10,8 +10,8 @@
 // Ported from zfish `engine/search/search_types.zig` + `search_ctx.zig` and
 // `engine/state/root_move.zig`. Golden: `Stockfish/src/search.h`.
 
-#ifndef CCFISH_SEARCH_TYPES_H
-#define CCFISH_SEARCH_TYPES_H
+#ifndef MCFISH_SEARCH_TYPES_H
+#define MCFISH_SEARCH_TYPES_H
 
 #include "history.h"
 #include "timeman.h"
@@ -214,4 +214,4 @@ typedef struct {
     bool skill_enabled;
 } SearchIdState;
 
-#endif  // CCFISH_SEARCH_TYPES_H
+#endif  // MCFISH_SEARCH_TYPES_H

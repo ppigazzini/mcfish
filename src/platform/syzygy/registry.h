@@ -14,8 +14,8 @@
 // `:1158` (set_dtz_map). Port sources: zfish `platform/syzygy/registry.zig` and
 // `platform/syzygy/tables.zig`.
 
-#ifndef CCFISH_SYZYGY_REGISTRY_H
-#define CCFISH_SYZYGY_REGISTRY_H
+#ifndef MCFISH_SYZYGY_REGISTRY_H
+#define MCFISH_SYZYGY_REGISTRY_H
 
 #include "tables.h"
 
@@ -80,4 +80,4 @@ bool registry_map_dtz(TBTable *t);
 // here or a lookup silently misses.
 uint64_t syzygy_material_key(const int counts[16]);
 
-#endif  // CCFISH_SYZYGY_REGISTRY_H
+#endif  // MCFISH_SYZYGY_REGISTRY_H

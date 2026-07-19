@@ -1,17 +1,17 @@
-# This CITATION.cff describes ccfish. ccfish is a derivative of Stockfish; cite
+# This CITATION.cff describes mcfish. mcfish is a derivative of Stockfish; cite
 # Stockfish itself via the `references` entry below when the chess engine design,
 # rather than this C23 derivative, is what you mean.
 
 cff-version: 1.2.0
-title: ccfish
+title: mcfish
 message: >-
   Please cite this software using the metadata from this
   file.
 type: software
 authors:
-  - name: The ccfish contributors
+  - name: The mcfish contributors
 abstract: >-
-  ccfish is a UCI chess engine written in C23, ported from Stockfish with the
+  mcfish is a UCI chess engine written in C23, ported from Stockfish with the
   goal of a bit-exact 1:1 clone. The port is in progress: the evaluation is
   currently a classical material and piece-square placeholder rather than
   Stockfish's NNUE, so it does not yet reproduce upstream's node counts or

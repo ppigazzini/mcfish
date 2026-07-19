@@ -186,7 +186,7 @@ enum { RELU_VEC_WIDTH = 8 };
 // value-identical to reading the lanes out one at a time -- which is what lets the
 // vector and scalar bodies stay equal.
 static inline void relu_store8(uint8_t *out, NnueV8i32 q) {
-#if CCFISH_SIMD_VECTOR
+#if MCFISH_SIMD_VECTOR
     // __builtin_convertvector narrows all eight lanes in one expression; the
     // compiler picks the pack sequence for whatever ISA is enabled.
     typedef uint8_t NnueV8u8Store __attribute__((vector_size(8)));

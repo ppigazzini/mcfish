@@ -15,8 +15,8 @@
 // Ported from zfish `engine/search/search_main.zig`.
 // Golden: `Stockfish/src/search.cpp: search<NodeType>`.
 
-#ifndef CCFISH_SEARCH_MAIN_H
-#define CCFISH_SEARCH_MAIN_H
+#ifndef MCFISH_SEARCH_MAIN_H
+#define MCFISH_SEARCH_MAIN_H
 
 #include "search_types.h"
 
@@ -34,4 +34,4 @@ Value search_node(SearchCtx *ctx,
                   bool cut_node,
                   NodeType nt);
 
-#endif  // CCFISH_SEARCH_MAIN_H
+#endif  // MCFISH_SEARCH_MAIN_H

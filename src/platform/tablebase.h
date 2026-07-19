@@ -9,8 +9,8 @@
 //
 // Golden: upstream `syzygy/tbprobe.h`. Port source: zfish `platform/tablebase.zig`.
 
-#ifndef CCFISH_TABLEBASE_H
-#define CCFISH_TABLEBASE_H
+#ifndef MCFISH_TABLEBASE_H
+#define MCFISH_TABLEBASE_H
 
 #include "syzygy/probe.h"
 
@@ -38,4 +38,4 @@ TbProbeResult tablebase_probe_fen(const char *fen, size_t len, bool chess960);
 // Probe the WDL of the live search position, in search.
 TbProbeResult tablebase_probe_wdl_pos(Position *pos);
 
-#endif  // CCFISH_TABLEBASE_H
+#endif  // MCFISH_TABLEBASE_H

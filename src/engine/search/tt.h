@@ -16,8 +16,8 @@
 // Upstream: src/tt.h, src/tt.cpp. Port source: zfish src/engine/search/tt.zig,
 // src/engine/state/tt_types.zig.
 
-#ifndef CCFISH_TT_H
-#define CCFISH_TT_H
+#ifndef MCFISH_TT_H
+#define MCFISH_TT_H
 
 #include "../board/score.h"
 #include "../board/types.h"
@@ -119,4 +119,4 @@ static inline Value value_from_tt(Value v, int ply) {
                                        : v;
 }
 
-#endif  // CCFISH_TT_H
+#endif  // MCFISH_TT_H

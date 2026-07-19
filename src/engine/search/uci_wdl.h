@@ -11,8 +11,8 @@
 // Ported from zfish `engine/search/uci_wdl.zig`.
 // Golden: `Stockfish/src/uci.cpp` (UCI::to_cp, UCI::wdl, the info line).
 
-#ifndef CCFISH_UCI_WDL_H
-#define CCFISH_UCI_WDL_H
+#ifndef MCFISH_UCI_WDL_H
+#define MCFISH_UCI_WDL_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -63,4 +63,4 @@ void uci_format_info_iter(
 // Write "bestmove M[ ponder P]". PONDER may be empty.
 void uci_format_bestmove(const char *bestmove, const char *ponder, char *buf, size_t n);
 
-#endif  // CCFISH_UCI_WDL_H
+#endif  // MCFISH_UCI_WDL_H

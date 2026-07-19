@@ -95,7 +95,7 @@ static void release_all(void) {
 
 // Hash the material configuration. Mirror upstream's `Position::material_key`
 // shape — one key per (piece, ordinal) pair, XORed — with a table private to this
-// module, because ccfish's Position carries no material key. Only agreement
+// module, because mcfish's Position carries no material key. Only agreement
 // between a registered table and a probed position matters.
 static uint64_t MaterialKeys[16][17];
 static bool MaterialKeysReady = false;
@@ -343,7 +343,7 @@ static bool visit_map(const char *dir, size_t dir_len, void *ctx) {
     // prints `Corrupt tablebase file` and `exit(EXIT_FAILURE)`s. Killing the
     // process for one bad file loses a GUI its engine mid-game, and the rest of
     // the set is still usable, so this reports the file unavailable and plays on —
-    // the same fail-soft choice ccfish makes for a net that will not load. Keep
+    // the same fail-soft choice mcfish makes for a net that will not load. Keep
     // the diagnostic: without it a corrupt file is indistinguishable from an
     // absent one, and the engine silently stops probing with nothing to explain it.
     if (size < 8 || size % 64 != 16) {

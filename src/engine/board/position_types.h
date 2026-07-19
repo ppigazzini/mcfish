@@ -17,10 +17,10 @@
 // Ported from zfish `engine/board/position_types.zig`. Golden:
 // `Stockfish/src/position.h` (struct StateInfo, class Position).
 
-#ifndef CCFISH_POSITION_TYPES_H
-#define CCFISH_POSITION_TYPES_H
+#ifndef MCFISH_POSITION_TYPES_H
+#define MCFISH_POSITION_TYPES_H
 
 #include "position.h"
 #include "types.h"
 
-#endif  // CCFISH_POSITION_TYPES_H
+#endif  // MCFISH_POSITION_TYPES_H

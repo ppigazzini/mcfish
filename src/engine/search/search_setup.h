@@ -10,8 +10,8 @@
 // `search_id.zig` (ssPrologue / ssTmInit / ssContext / skillLevel).
 // Golden: `Stockfish/src/search.cpp: Search::Worker::start_searching`.
 
-#ifndef CCFISH_SEARCH_SETUP_H
-#define CCFISH_SEARCH_SETUP_H
+#ifndef MCFISH_SEARCH_SETUP_H
+#define MCFISH_SEARCH_SETUP_H
 
 #include "root_move_build.h"
 #include "search_types.h"
@@ -60,4 +60,4 @@ void search_id_state_init(SearchIdState *id,
                           bool *stop_on_ponderhit,
                           atomic_bool *increase_depth);
 
-#endif  // CCFISH_SEARCH_SETUP_H
+#endif  // MCFISH_SEARCH_SETUP_H

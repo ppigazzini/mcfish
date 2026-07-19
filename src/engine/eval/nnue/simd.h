@@ -1,7 +1,7 @@
 // Own the vector vocabulary the NNUE kernels compute through: fixed-width integer
 // lane vectors plus the element-wise operations over them.
 //
-// Provide ONE vocabulary in TWO implementations. `CCFISH_SIMD_VECTOR` (the default
+// Provide ONE vocabulary in TWO implementations. `MCFISH_SIMD_VECTOR` (the default
 // under GCC/clang) types a vector as the `vector_size` extension; the fallback types
 // it as a struct wrapping an array and spells every operation as a lane loop.
 //
@@ -27,16 +27,16 @@
 // Ported from zfish `engine/eval/nnue_acc_rowops.zig` (portable `@Vector`) against the
 // upstream golden `nnue/simd.h`.
 
-#ifndef CCFISH_NNUE_SIMD_H
-#define CCFISH_NNUE_SIMD_H
+#ifndef MCFISH_NNUE_SIMD_H
+#define MCFISH_NNUE_SIMD_H
 
 #include <stddef.h>
 #include <stdint.h>
 
-#if !defined(CCFISH_SIMD_SCALAR) && (defined(__GNUC__) || defined(__clang__))
-    #define CCFISH_SIMD_VECTOR 1
+#if !defined(MCFISH_SIMD_SCALAR) && (defined(__GNUC__) || defined(__clang__))
+    #define MCFISH_SIMD_VECTOR 1
 #else
-    #define CCFISH_SIMD_VECTOR 0
+    #define MCFISH_SIMD_VECTOR 0
 #endif
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@
                           | ((b) & ~((__typeof__(a)) ((a) > (b))))))
 #endif
 
-#if CCFISH_SIMD_VECTOR
+#if MCFISH_SIMD_VECTOR
 
     #define NNUE_SIMD_TYPE(Type, Elem, Width) \
         typedef Elem Type __attribute__((vector_size((Width) * sizeof(Elem))))
@@ -187,7 +187,7 @@
             return r; \
         }
 
-#endif  // CCFISH_SIMD_VECTOR
+#endif  // MCFISH_SIMD_VECTOR
 
 // ---------------------------------------------------------------------------
 // The families the NNUE kernels use. Widths are the kernels' tile widths, pinned
@@ -310,7 +310,7 @@ NNUE_SIMD_REINTERPRET(nnue_v16_u32x4_as_u8, NnueV16u8, NnueV4u32)
 // value-identical for the reason argued above: no intermediate can saturate, and
 // vpdpbusd accumulates in exact int32 with no intermediate at all.
 
-#if CCFISH_SIMD_VECTOR && defined(__AVX512VNNI__) && defined(__AVX512F__)
+#if MCFISH_SIMD_VECTOR && defined(__AVX512VNNI__) && defined(__AVX512F__)
 
     #include <immintrin.h>
     #define NNUE_DOT_LANES 16
@@ -330,7 +330,7 @@ static inline int32_t nnue_dot_lane(NnueDotAcc a, size_t i) {
 }
 static inline NnueDotAcc nnue_dot_add(NnueDotAcc a, NnueDotAcc b) { return _mm512_add_epi32(a, b); }
 
-#elif CCFISH_SIMD_VECTOR && defined(__AVX2__)
+#elif MCFISH_SIMD_VECTOR && defined(__AVX2__)
 
     #include <immintrin.h>
     #define NNUE_DOT_LANES 8
@@ -348,7 +348,7 @@ static inline int32_t nnue_dot_lane(NnueDotAcc a, size_t i) {
 }
 static inline NnueDotAcc nnue_dot_add(NnueDotAcc a, NnueDotAcc b) { return _mm256_add_epi32(a, b); }
 
-#elif CCFISH_SIMD_VECTOR && defined(__SSSE3__)
+#elif MCFISH_SIMD_VECTOR && defined(__SSSE3__)
 
     #include <tmmintrin.h>
     #define NNUE_DOT_LANES 4
@@ -397,4 +397,4 @@ static inline NnueDotAcc nnue_dot_add(NnueDotAcc a, NnueDotAcc b) {
     #pragma GCC diagnostic pop
 #endif
 
-#endif  // CCFISH_NNUE_SIMD_H
+#endif  // MCFISH_NNUE_SIMD_H

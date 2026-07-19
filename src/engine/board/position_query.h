@@ -15,8 +15,8 @@
 // `Stockfish/src/position.h` (the accessors) and `Stockfish/src/uci.cpp` (the WDL
 // material model).
 
-#ifndef CCFISH_POSITION_QUERY_H
-#define CCFISH_POSITION_QUERY_H
+#ifndef MCFISH_POSITION_QUERY_H
+#define MCFISH_POSITION_QUERY_H
 
 #include "position_snapshot.h"
 #include "position_types.h"
@@ -41,4 +41,4 @@ void pos_fill_snapshot(const Position *pos, PositionSnapshot *out);
 // nothing else. PIECES_OUT must have room for SQUARE_NB entries.
 void pos_accumulator_snapshot(const Position *pos, Piece *pieces_out);
 
-#endif  // CCFISH_POSITION_QUERY_H
+#endif  // MCFISH_POSITION_QUERY_H

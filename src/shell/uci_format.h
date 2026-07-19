@@ -21,8 +21,8 @@
 // (on_update_full), `uci.cpp:664` (on_iter), `uci.cpp:675` (on_bestmove),
 // `uci.cpp:684` (terminate_on_critical_error).
 
-#ifndef CCFISH_UCI_FORMAT_H
-#define CCFISH_UCI_FORMAT_H
+#ifndef MCFISH_UCI_FORMAT_H
+#define MCFISH_UCI_FORMAT_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -117,4 +117,4 @@ size_t uci_format_unknown_command(const char *command, char *buf, size_t buf_len
 size_t
 uci_format_critical_error(const char *command, const char *message, char *buf, size_t buf_len);
 
-#endif  // CCFISH_UCI_FORMAT_H
+#endif  // MCFISH_UCI_FORMAT_H

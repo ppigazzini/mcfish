@@ -117,7 +117,7 @@ bool eval_nnue_load(const char *root_directory, const char *evalfile_path) {
     const NetworkVerifyResult result = network_verify(evalfile_path, name_len);
 
     // Diverge from upstream here on purpose: Network::verify calls exit(EXIT_FAILURE)
-    // on a net it could not load (network.cpp:188). ccfish must keep playing on the
+    // on a net it could not load (network.cpp:188). mcfish must keep playing on the
     // classical fallback instead, so report the failure and carry on.
     if (result.should_exit) {
         snprintf(StatusMessage, sizeof StatusMessage,
@@ -196,7 +196,7 @@ void eval_acc_pop(void) {
 // ---------------------------------------------------------------------------
 
 // Bound the evaluation away from the tablebase range, as upstream's
-// VALUE_TB_WIN_IN_MAX_PLY does. ccfish has no tablebase sentinels yet, so derive
+// VALUE_TB_WIN_IN_MAX_PLY does. mcfish has no tablebase sentinels yet, so derive
 // the same figure from VALUE_MATE and MAX_PLY rather than pin a literal.
 enum { EVAL_TB_WIN_IN_MAX_PLY = VALUE_MATE_IN_MAX_PLY - MAX_PLY - 1 };
 
@@ -427,7 +427,7 @@ static void trace_classical(const Position *pos, char *buf, int buf_len) {
       pos->side_to_move == WHITE ? evaluate_classical(pos) : (Value) -evaluate_classical(pos);
 
     snprintf(buf, (size_t) buf_len,
-             "\n Classical evaluation (ccfish placeholder, not upstream NNUE)\n"
+             "\n Classical evaluation (mcfish placeholder, not upstream NNUE)\n"
              "\n     Term     |  White  |  Black  |  Total \n"
              " -------------+---------+---------+--------\n"
              "     Material |  %6.2f |  %6.2f | %6.2f\n"

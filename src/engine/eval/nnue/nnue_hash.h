@@ -14,8 +14,8 @@
 // Mirrors zfish nnue_hash.zig; golden src/nnue/network.cpp (get_content_hash),
 // src/nnue/nnue_architecture.h (get_hash_value), src/misc.cpp (hash_bytes).
 
-#ifndef CCFISH_NNUE_HASH_H
-#define CCFISH_NNUE_HASH_H
+#ifndef MCFISH_NNUE_HASH_H
+#define MCFISH_NNUE_HASH_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -66,4 +66,4 @@ size_t nnue_eval_file_content_hash(const char *default_name,
                                    const char *description,
                                    size_t description_len);
 
-#endif  // CCFISH_NNUE_HASH_H
+#endif  // MCFISH_NNUE_HASH_H

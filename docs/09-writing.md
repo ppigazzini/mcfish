@@ -30,10 +30,10 @@ The convention:
 
 - A zfish module, relative to zfish's own `src/`: *zfish `engine/eval/nnue_ft.zig`*.
 - A Stockfish golden, relative to Stockfish's `src/`: *upstream `nnue/network.cpp`*.
-- The mapping between them and the ccfish owner: cite the row in
+- The mapping between them and the mcfish owner: cite the row in
   `tools/upstream/port_map.tsv`, and cite `./build.sh port-status` for counts.
 
-Never write a reserved ccfish path — a file the port map names but nobody has
+Never write a reserved mcfish path — a file the port map names but nobody has
 written — as if it existed. Name the zfish source instead. The port map is the one
 place a reserved path is allowed to appear, because it is a work list, not a claim
 about the tree.
@@ -43,7 +43,7 @@ about the tree.
 Each one is here because breaking it shipped a defect in this project or in zfish.
 
 **Describe a gap as a gap, never as a design.** This is the rule this set was
-rewritten to fix. *"ccfish does not aim to match Stockfish"* and *"the evaluation
+rewritten to fix. *"mcfish does not aim to match Stockfish"* and *"the evaluation
 is a classical placeholder"* read as architecture. They were not: NNUE, Syzygy,
 Lazy-SMP and NUMA are **required**, and the classical evaluation is scaffolding
 scheduled for deletion. Framing a hole as a decision is what keeps it alive —
@@ -74,11 +74,11 @@ delete your line.
 
 **Verify the claim against the tree; drive the binary when it is behavioural.**
 Not "read it carefully" — run it. `grep -n` for a symbol, `printf 'uci\n' |
-./build/ccfish` for a handshake. Several claims in the first draft of this set
+./build/mcfish` for a handshake. Several claims in the first draft of this set
 were false and each took seconds to disprove.
 
-**Separate upstream fact from ccfish state.** "Upstream does X" is checkable
-against the SHA in `tools/upstream/UPSTREAM_BASE`. "ccfish does Y" is a claim
+**Separate upstream fact from mcfish state.** "Upstream does X" is checkable
+against the SHA in `tools/upstream/UPSTREAM_BASE`. "mcfish does Y" is a claim
 about a tree mid-port, and the reader needs to know whether Y is the target or the
 scaffolding. Blur them and nobody can tell what they are allowed to change.
 
@@ -205,8 +205,8 @@ sentence is load-bearing for the next reader who might have fixed it.
   `verify/…` or `scripts/…` spelled out in prose is a claim about *a* tree, and
   must resolve under one of three roots: `.`, `../Stockfish`, or `../zfish`.
   **That is the limit to hold in mind**: a `src/…` path that exists only in
-  Stockfish passes this gate while reading, in a ccfish page, as a claim about
-  ccfish. The naming convention above is what keeps the two apart, and nothing
+  Stockfish passes this gate while reading, in a mcfish page, as a claim about
+  mcfish. The naming convention above is what keeps the two apart, and nothing
   mechanical enforces it.
 - **A quoted bench signature.** The current value of `tools/signature.golden`
   appearing anywhere in a doc is a failure, with the message pointing at

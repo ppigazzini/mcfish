@@ -24,8 +24,8 @@
 // `types.h`: this header names `Position`, `position.h` names `DirtyThreats`, and
 // the record depends on neither. That is upstream's split exactly.
 
-#ifndef CCFISH_THREATS_H
-#define CCFISH_THREATS_H
+#ifndef MCFISH_THREATS_H
+#define MCFISH_THREATS_H
 
 #include <stddef.h>
 
@@ -62,4 +62,4 @@ void threats_update_piece(bool compute_ray,
                           DirtyThreats *dts,
                           Bitboard no_rays);
 
-#endif  // CCFISH_THREATS_H
+#endif  // MCFISH_THREATS_H

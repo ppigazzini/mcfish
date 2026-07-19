@@ -19,8 +19,8 @@
 // Upstream: search.h:311 (Worker), search.h:242 (SearchManager), thread.h (ThreadPool).
 // Port source: zfish src/engine/state/worker_layout.zig.
 
-#ifndef CCFISH_WORKER_LAYOUT_H
-#define CCFISH_WORKER_LAYOUT_H
+#ifndef MCFISH_WORKER_LAYOUT_H
+#define MCFISH_WORKER_LAYOUT_H
 
 #include "../../platform/thread_pool.h"
 #include "../../platform/thread_runtime.h"
@@ -189,4 +189,4 @@ uint64_t worker_pool_tb_hits(const ThreadPool *pool);
 // Return thread 0's SearchManager, or null before the pool is built.
 SearchManager *worker_pool_main_manager(const ThreadPool *pool);
 
-#endif  // CCFISH_WORKER_LAYOUT_H
+#endif  // MCFISH_WORKER_LAYOUT_H

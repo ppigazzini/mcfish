@@ -125,7 +125,7 @@ static void install_seams(void) {
 // ---- per-search state ---------------------------------------------------
 //
 // Hold what upstream keeps on the SearchManager. Upstream resets all of it in
-// `ThreadPool::clear` (thread.cpp), on `ucinewgame`; ccfish's shell has no such
+// `ThreadPool::clear` (thread.cpp), on `ucinewgame`; mcfish's shell has no such
 // hook, so the facade resets it per `go` alongside the history block, which is
 // also what keeps two searches of the same position node-for-node identical.
 

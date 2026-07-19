@@ -17,8 +17,8 @@
 // Golden: `Stockfish/src/syzygy/tbprobe.cpp: rank_root_moves` and
 // `Stockfish/src/search.cpp: Search::Worker::start_searching`.
 
-#ifndef CCFISH_ROOT_MOVE_BUILD_H
-#define CCFISH_ROOT_MOVE_BUILD_H
+#ifndef MCFISH_ROOT_MOVE_BUILD_H
+#define MCFISH_ROOT_MOVE_BUILD_H
 
 #include "search_types.h"
 
@@ -45,4 +45,4 @@ bool root_moves_build(const Position *pos,
 
 void root_moves_free(RootMoveList *list);
 
-#endif  // CCFISH_ROOT_MOVE_BUILD_H
+#endif  // MCFISH_ROOT_MOVE_BUILD_H

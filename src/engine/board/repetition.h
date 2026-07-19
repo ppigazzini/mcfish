@@ -15,8 +15,8 @@
 // (is_draw / is_repetition / has_repeated / upcoming_repetition) and
 // `Stockfish/src/position.cpp` Position::init (the cuckoo table).
 
-#ifndef CCFISH_REPETITION_H
-#define CCFISH_REPETITION_H
+#ifndef MCFISH_REPETITION_H
+#define MCFISH_REPETITION_H
 
 #include "position.h"
 #include "types.h"
@@ -48,4 +48,4 @@ bool pos_upcoming_repetition(const Position *pos, int ply);
 // to "never repeated": the module is faithful, its input is not yet wired.
 static inline int state_repetition(const StateInfo *si) { return si->repetition; }
 
-#endif  // CCFISH_REPETITION_H
+#endif  // MCFISH_REPETITION_H

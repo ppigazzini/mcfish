@@ -18,8 +18,8 @@
 // Upstream: search.h:47 (PVMoves), search.h:126 (RootMove), search.cpp (stable_sort of
 // rootMoves). Port source: zfish src/engine/state/root_move.zig.
 
-#ifndef CCFISH_ROOT_MOVE_H
-#define CCFISH_ROOT_MOVE_H
+#ifndef MCFISH_ROOT_MOVE_H
+#define MCFISH_ROOT_MOVE_H
 
 #include "../board/types.h"
 
@@ -125,4 +125,4 @@ static inline RootMove *root_move_list_at(RootMoveList *list, size_t index) {
 // Stably sort [FIRST, LAST) by root_move_less. LAST must not exceed the count.
 void root_move_list_sort(RootMoveList *list, size_t first, size_t last);
 
-#endif  // CCFISH_ROOT_MOVE_H
+#endif  // MCFISH_ROOT_MOVE_H

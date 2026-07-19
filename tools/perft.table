@@ -1,8 +1,8 @@
-# ccfish perft gate: FEN|depth|expected-nodes, pipe-separated, '#' comments.
+# mcfish perft gate: FEN|depth|expected-nodes, pipe-separated, '#' comments.
 #
 # Deliberately NOT named *.golden: these counts are FACTS about chess, identical
 # for every correct engine, so `golden-update` must never touch them. A mismatch
-# here is always a movegen bug in ccfish — never a stale expectation.
+# here is always a movegen bug in mcfish — never a stale expectation.
 #
 # Between them these positions cover castling on both sides, en-passant including
 # the pinned-ep case, under-promotion, double check, and king-safety edge cases.

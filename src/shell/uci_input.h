@@ -10,8 +10,8 @@
 // Port source: zfish `shell/uci_input.zig`. Golden: upstream `uci.cpp:87`
 // (`std::getline(std::cin, cmd)` in UCIEngine::loop).
 
-#ifndef CCFISH_UCI_INPUT_H
-#define CCFISH_UCI_INPUT_H
+#ifndef MCFISH_UCI_INPUT_H
+#define MCFISH_UCI_INPUT_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -41,4 +41,4 @@ void uci_input_init(UciInput *in, FILE *stream);
 // empty span, not as end of input.
 const char *uci_input_read_line(UciInput *in, size_t *len_out);
 
-#endif  // CCFISH_UCI_INPUT_H
+#endif  // MCFISH_UCI_INPUT_H

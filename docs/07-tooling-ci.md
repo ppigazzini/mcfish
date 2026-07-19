@@ -59,7 +59,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `fmt` / `fmt-fix` | `clang-format --dry-run --Werror` over `src/` and `tests/` | formatting. Exits **127** when no `clang-format` is found |
 | `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) | dead internal links, named paths that do not exist, a quoted bench signature. See [09-writing.md](09-writing.md) |
 | `port-status` | [`../tools/port_status.sh`](../tools/port_status.sh) over the port map | nothing — it *reports*. It is the number to quote instead of writing one down |
-| `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | the finish line: ccfish's bench against a pristine upstream build. Red until the port completes — see below |
+| `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | the finish line: mcfish's bench against a pristine upstream build. Red until the port completes — see below |
 | `parity` | the aggregate | the nine gates listed below it — every in-repo gate, and neither `upstream-parity` nor `port-status` |
 | `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*. It never downloads: the net is a runtime input, not a build product, and fetching it would make every clean build a network dependency |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
@@ -69,10 +69,10 @@ battery. `./build.sh help` prints the list; this table says what each step
 `perft`, `golden`, `tb`.
 
 `tools/tb.golden` is **oracle-derived**: `./build.sh tb-update` regenerates it by
-running the pristine upstream binary over the same battery, never ccfish. It pins
+running the pristine upstream binary over the same battery, never mcfish. It pins
 each position's root `score` and `tbhits` from the **depth-1** info line and
 deliberately pins neither nodes, pv nor bestmove — upstream early-returns at depth
-1 once the root is in the tablebase while ccfish searches on, and among
+1 once the root is in the tablebase while mcfish searches on, and among
 equally-optimal TB moves either may pick a different winning one. Gating that
 would be fake parity. See [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md).
 
@@ -122,7 +122,7 @@ position. They do not depend on this engine, on its evaluation, on its search, o
 on the port's progress. **A perft mismatch is always a move generation bug**, and
 there is no circumstance in which the correct response is to edit the number. The
 same is true of the deep counts hardcoded in
-[`../.github/workflows/ccfish_perft.yml`](../.github/workflows/ccfish_perft.yml).
+[`../.github/workflows/mcfish_perft.yml`](../.github/workflows/mcfish_perft.yml).
 
 **`tools/*.golden` are goldens.** They record what *this* binary printed, and they
 move legitimately whenever behaviour changes on purpose. `tools/signature.golden`
@@ -134,7 +134,7 @@ Two node counts. They are not the same number and must never be conflated.
 
 | | What it is | Where |
 | --- | --- | --- |
-| **The anchor** | ccfish's *current* bench total. Exists so a refactor cannot silently change behaviour today. | [`../tools/signature.golden`](../tools/signature.golden), asserted by `./build.sh signature` |
+| **The anchor** | mcfish's *current* bench total. Exists so a refactor cannot silently change behaviour today. | [`../tools/signature.golden`](../tools/signature.golden), asserted by `./build.sh signature` |
 | **The finish line** | upstream Stockfish's own `Bench:` for the pinned commit. The target of the whole port. | derived from the SHA in [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE) |
 
 The anchor is expected to move repeatedly as modules land. The finish line does
@@ -150,10 +150,10 @@ Stockfish at the pinned SHA into a detached worktree outside the repo, runs both
 benches, and compares the totals.
 
 Pristine is the point. The oracle is upstream's own source built by upstream's own
-Makefile, with no ccfish edit near it — a shared tree would let a bug present in
+Makefile, with no mcfish edit near it — a shared tree would let a bug present in
 both cancel out and pass.
 
-**It is red today, and that is correct**, not a regression: ccfish cannot match
+**It is red today, and that is correct**, not a regression: mcfish cannot match
 upstream's node count while the evaluation and search are unported. That is
 exactly why it is **not** part of `./build.sh parity`, which must stay green on a
 correct in-progress tree. Run it deliberately, and read the milestone it gates in
@@ -194,7 +194,7 @@ Two workflows in [`../.github/workflows/`](../.github/workflows). None of them
 does anything a developer cannot reproduce with `./build.sh`; anything that
 diverges is a bug in the workflow file.
 
-### `ccfish_parity.yml` — the blocking lane
+### `mcfish_parity.yml` — the blocking lane
 
 Runs on every push and PR, with four jobs:
 
@@ -222,7 +222,7 @@ Runs on every push and PR, with four jobs:
   This lane is the reason the `packed struct` and wrapping-arithmetic rules in
   [06-idiomatic-c.md](06-idiomatic-c.md) are rules and not preferences.
 
-### `ccfish_perft.yml` — nightly deep perft
+### `mcfish_perft.yml` — nightly deep perft
 
 The push lane's perft is capped by a sub-minute budget, and depth is what perft
 coverage is made of: en passant exposing a pin, a castling right lost to a rook

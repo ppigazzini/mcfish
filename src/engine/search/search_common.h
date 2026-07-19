@@ -15,8 +15,8 @@
 // Ported from zfish `engine/search/search.zig`, `search_values.zig`,
 // `search_common.zig` and `search_acc.zig`. Golden: `Stockfish/src/search.cpp`.
 
-#ifndef CCFISH_SEARCH_COMMON_H
-#define CCFISH_SEARCH_COMMON_H
+#ifndef MCFISH_SEARCH_COMMON_H
+#define MCFISH_SEARCH_COMMON_H
 
 #include "search_types.h"
 #include "tt.h"
@@ -238,4 +238,4 @@ void search_tt_save(
 // race it cannot justify (upstream 319d61eff).
 void search_tt_penalize(TTEntry *writer, int amount);
 
-#endif  // CCFISH_SEARCH_COMMON_H
+#endif  // MCFISH_SEARCH_COMMON_H

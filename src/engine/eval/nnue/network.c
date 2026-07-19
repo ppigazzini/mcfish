@@ -221,7 +221,7 @@ static void load_user_net(const char *dir, size_t dir_len, const char *name, siz
     free(bytes);
 }
 
-// Load the internal net. ccfish embeds none — the net is a runtime input — so the
+// Load the internal net. mcfish embeds none — the net is a runtime input — so the
 // blob is the same one-byte stub zfish carries, which fails the header read and
 // leaves the search to fall through to the on-disk candidates. The branch is kept
 // so the candidate order matches upstream's.

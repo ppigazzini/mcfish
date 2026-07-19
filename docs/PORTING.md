@@ -1,6 +1,6 @@
-# Porting ccfish to bit-exactness
+# Porting mcfish to bit-exactness
 
-ccfish's goal is a **bit-exact 1:1 clone of Stockfish in C23**: the same `bench`
+mcfish's goal is a **bit-exact 1:1 clone of Stockfish in C23**: the same `bench`
 node count, the same bestmove, the same NNUE evaluation, the same Syzygy probing,
 the same Lazy-SMP threading. Anything less is an unfinished port, not a variant.
 
@@ -18,7 +18,7 @@ decisions, and its result is **proven bit-exact against upstream**. Its modules 
 small, single-responsibility, and written in a language with no hidden control
 flow. Translating that into C23 is close to mechanical.
 
-So each row of the port map reads *zfish module → ccfish module*, with the
+So each row of the port map reads *zfish module → mcfish module*, with the
 Stockfish file named as the **golden**:
 
 | Role | Repo | Use |
@@ -27,7 +27,7 @@ Stockfish file named as the **golden**:
 | Golden | `../Stockfish` | the definition of correct behaviour |
 
 **Where zfish and Stockfish disagree, Stockfish wins.** The differential gate
-compares ccfish against a pristine upstream build, never against zfish. A zfish
+compares mcfish against a pristine upstream build, never against zfish. A zfish
 divergence found this way is a bug in zfish and should be reported there.
 
 ## The anchor
@@ -37,7 +37,7 @@ count for the pinned commit.
 
 - `tools/upstream/UPSTREAM_BASE` pins the Stockfish SHA being ported to.
 - Upstream's own `Bench:` for that commit is the target number.
-- `tools/signature.golden` holds ccfish's **current** count, which is *not* the
+- `tools/signature.golden` holds mcfish's **current** count, which is *not* the
   target yet. It exists so a refactor cannot silently change behaviour mid-port.
 
 **Do not confuse the two.** The signature golden stops accidental drift today; the
@@ -137,10 +137,10 @@ Still open: 5-man tables, so the cursed-win / blessed-loss branches of
 Everything wired together, the differential gate green at `UPSTREAM_BASE`, and the
 upstream-sync workflow running so the port tracks a moving upstream.
 
-**Gate:** `./build.sh upstream-parity` — ccfish's bench equals the pristine
+**Gate:** `./build.sh upstream-parity` — mcfish's bench equals the pristine
 upstream build's bench, at the pinned SHA.
 
-## Where ccfish is today
+## Where mcfish is today
 
 Read the counts from the map, not from this section:
 

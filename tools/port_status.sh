@@ -17,7 +17,7 @@ rows=$(grep -v '^#' "$MAP" | grep -v '^[[:space:]]*$')
 count() { printf '%s\n' "$rows" | awk -F'\t' -v s="$1" '$4 == s' | wc -l | tr -d ' '; }
 
 ported=$(count PORTED)
-# A zfish module ccfish folded into a larger file. Its code IS in the binary, but
+# A zfish module mcfish folded into a larger file. Its code IS in the binary, but
 # the row cannot name a one-to-one path, so it is counted apart from PORTED rather
 # than inflating a per-file percentage that no longer describes the tree.
 consolidated=$(count CONSOLIDATED)
@@ -28,12 +28,12 @@ total=$(printf '%s\n' "$rows" | wc -l | tr -d ' ')
 live=$((total - skip))
 done_pct=$(( (ported * 100) / (live > 0 ? live : 1) ))
 
-printf '\n\033[1mccfish port status\033[0m — target: bit-exact 1:1 Stockfish clone\n\n'
+printf '\n\033[1mmcfish port status\033[0m — target: bit-exact 1:1 Stockfish clone\n\n'
 printf '  upstream base : %s\n' "$(cat tools/upstream/UPSTREAM_BASE 2>/dev/null || echo '<unpinned>')"
 printf '  port source   : ../zfish (Zig, already bit-exact)\n'
 printf '  golden        : ../Stockfish\n\n'
 printf '  \033[32mPORTED \033[0m %3d\n' "$ported"
-printf '  \033[32mFOLDED \033[0m %3d   (merged into a larger ccfish file)\n' "$consolidated"
+printf '  \033[32mFOLDED \033[0m %3d   (merged into a larger mcfish file)\n' "$consolidated"
 printf '  \033[33mPARTIAL\033[0m %3d   (compiles, not upstream-faithful)\n' "$partial"
 printf '  \033[31mTODO   \033[0m %3d\n' "$todo"
 printf '  SKIP     %3d\n' "$skip"

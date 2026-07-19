@@ -4,8 +4,8 @@
 // king's real destination in standard chess and the rook square in Chess960. That
 // asymmetry lives here and nowhere else.
 
-#ifndef CCFISH_UCI_MOVE_H
-#define CCFISH_UCI_MOVE_H
+#ifndef MCFISH_UCI_MOVE_H
+#define MCFISH_UCI_MOVE_H
 
 #include "position.h"
 #include "types.h"
@@ -17,4 +17,4 @@ void move_to_uci(const Position *pos, Move m, char *buf);
 // which is also how an illegal or malformed token is reported.
 Move move_from_uci(const Position *pos, const char *str);
 
-#endif  // CCFISH_UCI_MOVE_H
+#endif  // MCFISH_UCI_MOVE_H

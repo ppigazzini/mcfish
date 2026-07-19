@@ -13,8 +13,8 @@
 // Ported from zfish `engine/eval/nnue_inference.zig` against the upstream golden
 // `nnue/network.cpp`.
 
-#ifndef CCFISH_NNUE_INFERENCE_H
-#define CCFISH_NNUE_INFERENCE_H
+#ifndef MCFISH_NNUE_INFERENCE_H
+#define MCFISH_NNUE_INFERENCE_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -62,4 +62,4 @@ NnueTraceOutput nnue_inference_trace_evaluate(const Position *pos,
                                               NnueAccumulatorStack *stack,
                                               NnueRefreshCache *cache);
 
-#endif  // CCFISH_NNUE_INFERENCE_H
+#endif  // MCFISH_NNUE_INFERENCE_H

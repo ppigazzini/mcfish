@@ -9,8 +9,8 @@
 // Upstream: history.h (CorrectionHistory), search.cpp (update_correction_history,
 // correction_value). Port source: zfish src/engine/state/correction_bundle.zig.
 
-#ifndef CCFISH_CORRECTION_BUNDLE_H
-#define CCFISH_CORRECTION_BUNDLE_H
+#ifndef MCFISH_CORRECTION_BUNDLE_H
+#define MCFISH_CORRECTION_BUNDLE_H
 
 #include "../board/types.h"
 #include "../search/history.h"
@@ -45,4 +45,4 @@ void correction_bundle_page_clear(CorrectionBundle page[COLOR_NB]);
 // cleared in.
 void correction_bundle_clear_range(CorrectionBundle (*pages)[COLOR_NB], size_t count);
 
-#endif  // CCFISH_CORRECTION_BUNDLE_H
+#endif  // MCFISH_CORRECTION_BUNDLE_H

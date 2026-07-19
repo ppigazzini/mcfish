@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and gate ccfish. One clang invocation per translation unit, no build
+# Build and gate mcfish. One clang invocation per translation unit, no build
 # system: the source set is small and fully enumerated below, so a Makefile would
 # only add a dependency-tracking layer that the `clean && build` cycle already
 # covers. Steps mirror the gate battery — run `./build.sh help` for the list.
@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-BIN=${BIN:-build/ccfish}
+BIN=${BIN:-build/mcfish}
 CC=${CC:-clang}
 
 # Select the C23 flag this compiler spells. GCC only learned `-std=c23` in 14;
@@ -56,7 +56,7 @@ CFLAGS_COMMON=(
 #
 # Getting this wrong is not a small error. zfish's shipped binary on this host is
 # x86-64-avx512icl with VNNI -- a single vpdpbusd does the whole u8xi8 dot product
-# that the SSE4.1 path needs pmaddubsw + pmaddwd + paddd for. Every ccfish-vs-zfish
+# that the SSE4.1 path needs pmaddubsw + pmaddwd + paddd for. Every mcfish-vs-zfish
 # nps number taken before this was SSE4.1 against AVX-512, which measures the tier
 # and not the port. zfish records the same rule (docs/09-tooling-ci.md: "Comparing a
 # native AVX-512 zfish against the SSE4.1 oracle measures the ARCH, not the code").
@@ -64,12 +64,12 @@ CFLAGS_COMMON=(
 # The node count must not move across tiers -- the evaluation is integer-exact, so
 # it is arch-invariant by construction. `./build.sh arch-determinism` is what checks
 # that claim instead of trusting it.
-CCFISH_ARCH=${CCFISH_ARCH:-sse41}
-case "$CCFISH_ARCH" in
+MCFISH_ARCH=${MCFISH_ARCH:-sse41}
+case "$MCFISH_ARCH" in
   sse41)  CFLAGS_ARCH=(-msse -msse2 -msse3 -mssse3 -msse4.1 -mpopcnt) ;;
   avx2)   CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt) ;;
   native) CFLAGS_ARCH=(-march=native) ;;
-  *)      red "unknown CCFISH_ARCH: $CCFISH_ARCH (want sse41, avx2 or native)"; exit 2 ;;
+  *)      red "unknown MCFISH_ARCH: $MCFISH_ARCH (want sse41, avx2 or native)"; exit 2 ;;
 esac
 
 # -flto is load-bearing, not a default worth having by habit. The NNUE kernels sit
@@ -229,10 +229,10 @@ do_build() {
 }
 
 do_debug() {
-  info "building build/ccfish-debug (asan+ubsan)"
+  info "building build/mcfish-debug (asan+ubsan)"
   mkdir -p build
-  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_DEBUG[@]}" -o build/ccfish-debug "${SOURCES[@]}" -lm
-  green "built build/ccfish-debug"
+  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_DEBUG[@]}" -o build/mcfish-debug "${SOURCES[@]}" -lm
+  green "built build/mcfish-debug"
 }
 
 do_zone_check() {
@@ -266,7 +266,7 @@ do_net() {
   info "expected net: $name"
   echo
   echo "The engine searches three directories, in this order:"
-  echo "  1. <internal>     ccfish embeds no net, so this candidate always misses"
+  echo "  1. <internal>     mcfish embeds no net, so this candidate always misses"
   echo "  2. .              the working directory the engine was launched from"
   echo "  3. <binary dir>/  the directory holding the executable"
   echo
@@ -329,7 +329,7 @@ do_signature_update() {
   need_binary
   local actual
   actual=$("$BIN" bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
-  { echo "# ccfish bench node signature: the full default position list at depth 13,"
+  { echo "# mcfish bench node signature: the full default position list at depth 13,"
     echo "# Threads 1, Hash 16, and a SINGLE ucinewgame -- the table and the history"
     echo "# block carry across positions. Every one of those four facts changes the"
     echo "# number; see src/shell/benchmark.c. Requires a net: a fallback-eval run"
@@ -361,13 +361,13 @@ do_simd_scalar() {
   # zfish gates the same class through its C backend (tools/c_backend_check.sh),
   # where it caught a @Vector(N, bool) bitcast that was correct only under LLVM's
   # bit-packing and benched a wrong number through every other gate.
-  info "simd-scalar: rebuilding with CCFISH_SIMD_SCALAR and re-asserting the anchor"
+  info "simd-scalar: rebuilding with MCFISH_SIMD_SCALAR and re-asserting the anchor"
   mkdir -p build
-  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -DCCFISH_SIMD_SCALAR \
-    -o build/ccfish-scalar "${SOURCES[@]}" -lm
+  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -DMCFISH_SIMD_SCALAR \
+    -o build/mcfish-scalar "${SOURCES[@]}" -lm
 
   local net_probe
-  net_probe=$(build/ccfish-scalar bench 1 2>&1 || true)
+  net_probe=$(build/mcfish-scalar bench 1 2>&1 || true)
   if grep -q 'was not loaded' <<< "$net_probe"; then
     red "no NNUE net reachable — the simd-scalar gate did NOT run."
     return 127
@@ -375,7 +375,7 @@ do_simd_scalar() {
 
   local expected actual
   expected=$(grep -v '^#' tools/signature.golden | tr -d '[:space:]')
-  actual=$(build/ccfish-scalar bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
+  actual=$(build/mcfish-scalar bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
   if [[ $actual == "$expected" ]]; then
     green "simd-scalar OK: $actual nodes — vector and scalar paths agree"
   else
@@ -404,8 +404,8 @@ do_arch_determinism() {
   info "arch-determinism: ${tiers[*]} must all bench $expected"
   local tier actual failed=0
   for tier in "${tiers[@]}"; do
-    CCFISH_ARCH=$tier BIN=build/ccfish-$tier "$0" build > /dev/null || { red "$tier: build failed"; failed=1; continue; }
-    actual=$(build/ccfish-$tier bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
+    MCFISH_ARCH=$tier BIN=build/mcfish-$tier "$0" build > /dev/null || { red "$tier: build failed"; failed=1; continue; }
+    actual=$(build/mcfish-$tier bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
     if [[ $actual == "$expected" ]]; then
       green "  ok   $tier: $actual"
     else
@@ -447,10 +447,10 @@ normalize() {
   # Elide what is volatile, and DROP what is a declared gap -- never both silently.
   #
   # The identity banner carries a version and a git sha, so it differs between
-  # ccfish and the oracle by construction and cannot be compared; it is replaced,
+  # mcfish and the oracle by construction and cannot be compared; it is replaced,
   # not removed, so its ABSENCE is still a diff.
   #
-  # The dropped lines below are upstream output ccfish does not yet produce because
+  # The dropped lines below are upstream output mcfish does not yet produce because
   # the corresponding subsystem is unwired. Each is a GAP, and this filter is the
   # only thing keeping it out of the goldens -- so when the subsystem lands, delete
   # its line here FIRST and let the gate go red. A filter that outlives its gap
@@ -458,7 +458,7 @@ normalize() {
   #   - "Available processors" / "Using N thread" / "Network replica": thread pool
   #     and NNUE shared-memory replication (src/platform/thread_pool.c, unwired).
   sed -E 's/ nps [0-9]+//; s/ time [0-9]+//; s/^Total time \(ms\) *: [0-9]+$/Total time (ms) : <elided>/; s/^Nodes\/second *: [0-9]+$/Nodes\/second    : <elided>/' \
-    | sed -E 's/^(ccfish|Stockfish) [^ ]+ by .*/<engine banner>/' \
+    | sed -E 's/^(mcfish|Stockfish) [^ ]+ by .*/<engine banner>/' \
     | grep -vE '^info string (Available processors|Using [0-9]+ thread|Network replica)' \
     | tr -d '\r'
 }
@@ -517,8 +517,8 @@ do_test() {
   info "unit + property tests"
   mkdir -p build
   "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=address,undefined \
-    -o build/ccfish-test "${ENGINE_SOURCES[@]}" tests/test_main.c -lm
-  ./build/ccfish-test
+    -o build/mcfish-test "${ENGINE_SOURCES[@]}" tests/test_main.c -lm
+  ./build/mcfish-test
 }
 
 # Re-run the suite under ThreadSanitizer.
@@ -536,8 +536,8 @@ do_tsan() {
   mkdir -p build
   "$CC" "$STD_FLAG" -Wall -Wextra -Isrc -D_POSIX_C_SOURCE=200809L -O1 -g \
     -fsanitize=thread \
-    -o build/ccfish-tsan "${ENGINE_SOURCES[@]}" tests/test_main.c -lm
-  ./build/ccfish-tsan
+    -o build/mcfish-tsan "${ENGINE_SOURCES[@]}" tests/test_main.c -lm
+  ./build/mcfish-tsan
   green "tsan clean"
 }
 
@@ -634,7 +634,7 @@ do_tb_fetch() {
 # position, the ROOT probe's score and tbhits.
 #
 # Score and tbhits are pinned; nodes, seldepth, pv and bestmove are NOT. Upstream
-# early-returns at depth 1 once the root is in the tablebase while ccfish searches
+# early-returns at depth 1 once the root is in the tablebase while mcfish searches
 # on, and among equally-optimal TB moves either may pick a different (also winning)
 # one. Pinning those would gate a difference that is not a defect. Both engines'
 # DEPTH-1 line is the comparable one, so that is the line read here.
@@ -692,13 +692,13 @@ do_tb() {
   fi
 }
 
-# Re-derive tools/tb.golden from the ORACLE, never from ccfish. The oracle is run
+# Re-derive tools/tb.golden from the ORACLE, never from mcfish. The oracle is run
 # from its own directory, so the table path must be absolute.
 do_tb_update() {
   local f n=0
   for f in "$TB_DIR"/*.rtbw "$TB_DIR"/*.rtbz; do [[ -s $f ]] && n=$((n + 1)) || true; done
   [[ $n -eq 10 ]] || { red "need all 10 files in $TB_DIR; run './build.sh tb-fetch'"; return 1; }
-  local oracle=/home/usr00/_git/.ccfish-upstream-oracle/src/stockfish
+  local oracle=/home/usr00/_git/.mcfish-upstream-oracle/src/stockfish
   [[ -x $oracle ]] || { red "no oracle at $oracle"; return 1; }
   # Run the oracle from its own directory so it finds its net, and hand it
   # absolute paths for both the battery and the tables.
@@ -770,8 +770,8 @@ do_help() {
   cat <<'EOF'
 usage: ./build.sh <step> [args]
 
-  build              compile the release binary          -> build/ccfish
-  debug              compile with asan+ubsan             -> build/ccfish-debug
+  build              compile the release binary          -> build/mcfish
+  debug              compile with asan+ubsan             -> build/mcfish-debug
   test               build and run the unit/property suite (asan+ubsan)
   tsan               re-run the suite under ThreadSanitizer (the thread-pool gate)
   bench [depth]      run the benchmark (default depth 13)

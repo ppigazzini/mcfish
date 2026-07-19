@@ -1,6 +1,6 @@
-# ccfish
+# mcfish
 
-**ccfish** is a **C23 port of the [Stockfish][stockfish] chess engine**, written
+**mcfish** is a **C23 port of the [Stockfish][stockfish] chess engine**, written
 against the full modern C23 feature set. The goal is a **bit-exact 1:1 clone**: the same `bench` node
 signature, the same bestmove, NNUE evaluation, Syzygy tablebases and Lazy-SMP
 threading. Like Stockfish, it is a UCI engine, not a GUI.
@@ -36,7 +36,7 @@ Stockfish disagree, Stockfish wins.
 Requires **clang with C23 support** and bash. No build system, no dependencies.
 
 ```
-./build.sh              # build the engine (-O3) -> build/ccfish
+./build.sh              # build the engine (-O3) -> build/mcfish
 ./build.sh test         # unit + property suite, ASan+UBSan
 ./build.sh bench        # run the benchmark and print the node signature
 ./build.sh parity       # the full in-repo gate battery
@@ -53,7 +53,7 @@ Requires **clang with C23 support** and bash. No build system, no dependencies.
 
 ## License
 
-ccfish is a derivative of Stockfish and is distributed under the **GNU General
+mcfish is a derivative of Stockfish and is distributed under the **GNU General
 Public License v3** — see [Copying.txt](Copying.txt). All chess strength and the
 NNUE networks come from the [Stockfish project][stockfish]; see
 [AUTHORS](AUTHORS). The networks are trained on [Leela Chess Zero data][lc0-data]

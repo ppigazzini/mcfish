@@ -1,8 +1,8 @@
-# ccfish Developer Documentation
+# mcfish Developer Documentation
 
 ## Overview
 
-ccfish is a **C23 port of Stockfish**, written against the full modern C23
+mcfish is a **C23 port of Stockfish**, written against the full modern C23
 feature set. The goal is a **bit-exact 1:1 clone**: the same `bench` node
 signature, the same bestmove, NNUE evaluation, Syzygy tablebases, Lazy-SMP
 threading and NUMA. Like Stockfish it is a UCI engine, not a GUI.
@@ -65,7 +65,7 @@ bare, a path under `src/` is a claim that the file exists **here**, which
 - a Stockfish golden is written relative to Stockfish's `src/`, as *upstream
   `nnue/network.cpp`*.
 
-The mapping between the two, plus the ccfish owner and the status, is
+The mapping between the two, plus the mcfish owner and the status, is
 `tools/upstream/port_map.tsv`.
 
 ## Documents
@@ -90,7 +90,7 @@ Requires **clang with C23 support** and a POSIX host. There are no other build
 dependencies; `clang-format` is needed only by the `fmt` step.
 
 ```bash
-./build.sh                  # build the release binary -> build/ccfish
+./build.sh                  # build the release binary -> build/mcfish
 ./build.sh net              # where the NNUE net must be, and how to obtain it
 ./build.sh test             # unit + property suite under ASan/UBSan
 ./build.sh bench            # run the bench and print the node total
@@ -133,7 +133,7 @@ scoping decisions. The engine is not a Stockfish clone without them.
 ## Project layout
 
 ```
-ccfish/
+mcfish/
 |-- build.sh             -- the build, the SOURCES arrays, and the whole gate battery
 |-- src/
 |   |-- engine/          -- the chess library
@@ -150,7 +150,7 @@ ccfish/
 |   `-- shell/           -- main (composition root), the live uci.c, bench, and
 |                           engine.c (a dead duplicate of uci.c's option table)
 |-- tools/               -- the gate inputs, and upstream/ (the port map and the SHA pin)
-|-- tests/               -- test_main.c (ccfish-owned) plus upstream Stockfish mirrors
+|-- tests/               -- test_main.c (mcfish-owned) plus upstream Stockfish mirrors
 |-- scripts/             -- upstream Stockfish mirrors
 |-- docs/                -- this documentation
 `-- Copying.txt, AUTHORS -- GPL v3; Stockfish attribution
@@ -162,6 +162,6 @@ tests reach them — but nothing in the engine calls them, so no gate can tell w
 they would still be *correct* when it does.
 
 `src/`, `build.sh`, `tools/`, `tests/test_main.c` and `docs/` are
-ccfish-owned. The rest of `tests/` and `scripts/net.sh` are upstream Stockfish
+mcfish-owned. The rest of `tests/` and `scripts/net.sh` are upstream Stockfish
 mirrors, kept verbatim so a future rebase is a copy rather than a merge; they do
-not run against ccfish today and are not edited here.
+not run against mcfish today and are not edited here.

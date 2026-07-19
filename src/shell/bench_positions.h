@@ -12,18 +12,18 @@
 //
 // NOTE: `src/shell/benchmark.c` still carries `BenchFens`, a REDUCED 16-position
 // set that pins tools/signature.golden today. The two are deliberately separate:
-// this one is upstream's, that one is ccfish's current anchor. Cutting the
+// this one is upstream's, that one is mcfish's current anchor. Cutting the
 // signature over to this table is an intended behaviour change and moves the
 // golden — see docs/PORTING.md on re-deriving it.
 //
 // Port source: zfish `shell/bench_positions.zig`. Golden: upstream
 // `benchmark.cpp:31` (Defaults).
 
-#ifndef CCFISH_BENCH_POSITIONS_H
-#define CCFISH_BENCH_POSITIONS_H
+#ifndef MCFISH_BENCH_POSITIONS_H
+#define MCFISH_BENCH_POSITIONS_H
 
 // Read the bench script. Static storage, immutable, valid for the process.
 extern const char *const BenchDefaults[];
 extern const int BenchDefaultsCount;
 
-#endif  // CCFISH_BENCH_POSITIONS_H
+#endif  // MCFISH_BENCH_POSITIONS_H

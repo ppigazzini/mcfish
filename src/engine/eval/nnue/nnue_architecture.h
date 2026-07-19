@@ -10,8 +10,8 @@
 // Mirrors src/nnue/nnue_architecture.h:36-72 and the layer sizes pinned in
 // zfish network.zig:65-75.
 
-#ifndef CCFISH_NNUE_ARCHITECTURE_H
-#define CCFISH_NNUE_ARCHITECTURE_H
+#ifndef MCFISH_NNUE_ARCHITECTURE_H
+#define MCFISH_NNUE_ARCHITECTURE_H
 
 #include "nnue_common.h"
 
@@ -73,4 +73,4 @@ static inline size_t nnue_layer_weights_bytes(size_t idx) {
     return Bytes[idx];
 }
 
-#endif  // CCFISH_NNUE_ARCHITECTURE_H
+#endif  // MCFISH_NNUE_ARCHITECTURE_H

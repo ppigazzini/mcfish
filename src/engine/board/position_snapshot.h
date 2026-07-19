@@ -16,8 +16,8 @@
 // two entry points here call `position_query` and `legality` directly and no hook
 // registration exists or is needed.
 
-#ifndef CCFISH_POSITION_SNAPSHOT_H
-#define CCFISH_POSITION_SNAPSHOT_H
+#ifndef MCFISH_POSITION_SNAPSHOT_H
+#define MCFISH_POSITION_SNAPSHOT_H
 
 #include "position_types.h"
 #include "types.h"
@@ -54,4 +54,4 @@ void snapshot_fill(const Position *pos, PositionSnapshot *out);
 // pos_legal, mirroring zfish's `moveIsLegal` hook.
 bool snapshot_move_is_legal(const Position *pos, Move m);
 
-#endif  // CCFISH_POSITION_SNAPSHOT_H
+#endif  // MCFISH_POSITION_SNAPSHOT_H

@@ -11,8 +11,8 @@
 // Mirror upstream `syzygy/tbprobe.cpp:1080` (set_sizes) and `:602`
 // (decompress_pairs). Port source: zfish `platform/syzygy/decode.zig`.
 
-#ifndef CCFISH_SYZYGY_DECODE_H
-#define CCFISH_SYZYGY_DECODE_H
+#ifndef MCFISH_SYZYGY_DECODE_H
+#define MCFISH_SYZYGY_DECODE_H
 
 #include "tables.h"
 
@@ -41,4 +41,4 @@ bool decode_set_sizes(
 // yields false and a meaningless value, never an out-of-bounds read.
 int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok);
 
-#endif  // CCFISH_SYZYGY_DECODE_H
+#endif  // MCFISH_SYZYGY_DECODE_H

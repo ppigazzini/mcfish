@@ -24,7 +24,7 @@ for f in -std=c23 -std=c2x; do ... done
 
 GCC only learned `-std=c23` in 14; GCC 13 accepts the same language as
 `-std=c2x`. Probing is what lets the second-compiler lane in
-[`../.github/workflows/ccfish_parity.yml`](../.github/workflows/ccfish_parity.yml)
+[`../.github/workflows/mcfish_parity.yml`](../.github/workflows/mcfish_parity.yml)
 run on a stock toolchain. **There is no fallback to a pre-C23 mode**, and that is
 deliberate: an older mode silently accepts `nullptr` and fixed-underlying-type
 enums as extensions, with different diagnostics and, for the enums, potentially a
@@ -39,7 +39,7 @@ clang and gcc both implement may be used directly: `nullptr`, `enum : uint8_t`,
 `unreachable`, and the `{}` empty initialiser.
 The tree reaches for whichever of them states the intent most directly, and the
 only thing that constrains the choice is that both compilers in
-[`../.github/workflows/ccfish_parity.yml`](../.github/workflows/ccfish_parity.yml)
+[`../.github/workflows/mcfish_parity.yml`](../.github/workflows/mcfish_parity.yml)
 accept it.
 
 **That rules out a deductive verifier as a gate**, and it is worth saying why so

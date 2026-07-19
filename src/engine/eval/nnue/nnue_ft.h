@@ -11,8 +11,8 @@
 // Ported from zfish `engine/eval/nnue_ft.zig` against the upstream golden
 // `nnue/nnue_feature_transformer.h`.
 
-#ifndef CCFISH_NNUE_FT_H
-#define CCFISH_NNUE_FT_H
+#ifndef MCFISH_NNUE_FT_H
+#define MCFISH_NNUE_FT_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -59,4 +59,4 @@ const int32_t *nnue_ft_threat_psqt_weights(const NnueFeatureTransformer *ft);
 
 static inline size_t nnue_ft_blob_bytes(void) { return NNUE_FT_BLOB_BYTES; }
 
-#endif  // CCFISH_NNUE_FT_H
+#endif  // MCFISH_NNUE_FT_H

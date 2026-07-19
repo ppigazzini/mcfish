@@ -14,8 +14,8 @@
 // Upstream: search.h:160 (LimitsType), uci.cpp (parse of `go`). Port source: zfish
 // src/engine/state/limits_type.zig.
 
-#ifndef CCFISH_LIMITS_TYPE_H
-#define CCFISH_LIMITS_TYPE_H
+#ifndef MCFISH_LIMITS_TYPE_H
+#define MCFISH_LIMITS_TYPE_H
 
 #include "../board/types.h"
 
@@ -81,4 +81,4 @@ static inline const SearchMoveText *limits_searchmove_at(const LimitsType *limit
     return &limits->searchmoves[index];
 }
 
-#endif  // CCFISH_LIMITS_TYPE_H
+#endif  // MCFISH_LIMITS_TYPE_H

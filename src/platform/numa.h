@@ -21,8 +21,8 @@
 // (suggests_binding_threads), numa.h:1290 (NumaReplicationContext).
 // Port source: zfish src/platform/numa.zig, numa/config.zig, numa/replication.zig.
 
-#ifndef CCFISH_NUMA_H
-#define CCFISH_NUMA_H
+#ifndef MCFISH_NUMA_H
+#define MCFISH_NUMA_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -187,4 +187,4 @@ void numa_execute_on_node(const NumaReplicationContext *ctx,
                           void (*callback)(void *ctx),
                           void *callback_ctx);
 
-#endif  // CCFISH_NUMA_H
+#endif  // MCFISH_NUMA_H

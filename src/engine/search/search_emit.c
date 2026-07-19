@@ -114,7 +114,7 @@ void search_emit_pv(SearchCtx *ctx, int depth) {
         // Report the PV that belongs to the score being reported. A root move still
         // carrying the previous iteration's score has a `pv` the current iteration
         // never verified, so upstream selects previousPV in exactly that case
-        // (Stockfish/src/search.cpp:2262). ccfish already maintained previous_pv and
+        // (Stockfish/src/search.cpp:2262). mcfish already maintained previous_pv and
         // read it in two other places; only the emitter was reading past it.
         char pv_text[PV_TEXT_MAX];
         render_pv(pos, use_prev ? &rm->previous_pv : &rm->pv, pv_text, sizeof pv_text);

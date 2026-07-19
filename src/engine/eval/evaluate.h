@@ -15,8 +15,8 @@
 // Golden: Stockfish/src/evaluate.cpp:41 (Eval::evaluate), :75 (Eval::trace).
 // Port source: zfish `engine/eval/evaluate.zig`, `engine/search/search_acc.zig`.
 
-#ifndef CCFISH_EVALUATE_H
-#define CCFISH_EVALUATE_H
+#ifndef MCFISH_EVALUATE_H
+#define MCFISH_EVALUATE_H
 
 #include "../board/position.h"
 #include "../board/types.h"
@@ -52,7 +52,7 @@ void eval_nnue_shutdown(void);
 // nullptr or "" for either to skip it, and nullptr for EVALFILE_PATH to take the
 // build's default name. Return true when a usable net is resident afterwards; a
 // missing, truncated or mismatched file leaves the classical fallback in place
-// rather than terminating, which is where ccfish deliberately parts from
+// rather than terminating, which is where mcfish deliberately parts from
 // upstream's `exit(EXIT_FAILURE)` in Network::verify.
 bool eval_nnue_load(const char *root_directory, const char *evalfile_path);
 
@@ -92,4 +92,4 @@ void eval_acc_push(DirtyPiece **dp, DirtyThreats **dts);
 // Drop the top ply. Pair with eval_acc_push around pos_undo_move.
 void eval_acc_pop(void);
 
-#endif  // CCFISH_EVALUATE_H
+#endif  // MCFISH_EVALUATE_H

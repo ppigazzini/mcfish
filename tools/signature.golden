@@ -1,4 +1,4 @@
-# ccfish bench node signature: the full default position list at depth 13,
+# mcfish bench node signature: the full default position list at depth 13,
 # Threads 1, Hash 16, and a SINGLE ucinewgame -- the table and the history
 # block carry across positions. Every one of those four facts changes the
 # number; see src/shell/benchmark.c. Requires a net: a fallback-eval run

@@ -12,8 +12,8 @@
 //
 // Ported from zfish `engine/search/tb_source.zig`.
 
-#ifndef CCFISH_TB_SOURCE_H
-#define CCFISH_TB_SOURCE_H
+#ifndef MCFISH_TB_SOURCE_H
+#define MCFISH_TB_SOURCE_H
 
 #include "../board/position.h"
 
@@ -39,4 +39,4 @@ extern TbProbeResult (*TbProbeFen)(const char *fen, size_t fen_len, bool chess96
 // capture recursion and restore it exactly.
 extern TbProbeResult (*TbProbeWdlPos)(Position *pos);
 
-#endif  // CCFISH_TB_SOURCE_H
+#endif  // MCFISH_TB_SOURCE_H

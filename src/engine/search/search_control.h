@@ -11,8 +11,8 @@
 // Ported from zfish `engine/search/search_control.zig`.
 // Golden: `Stockfish/src/search.cpp: check_time` / `search<Root>` bookkeeping.
 
-#ifndef CCFISH_SEARCH_CONTROL_H
-#define CCFISH_SEARCH_CONTROL_H
+#ifndef MCFISH_SEARCH_CONTROL_H
+#define MCFISH_SEARCH_CONTROL_H
 
 #include "search_types.h"
 
@@ -54,4 +54,4 @@ static inline bool in_last_iter_pv(const SearchCtx *ctx, int ply_minus_1, Move m
     return idx < pv->length && pv->moves[idx] == move;
 }
 
-#endif  // CCFISH_SEARCH_CONTROL_H
+#endif  // MCFISH_SEARCH_CONTROL_H

@@ -3,8 +3,8 @@
 # print the binary path.
 #
 # Pristine is the point. The oracle must be upstream's own code, built by upstream's
-# own Makefile, with no ccfish edit anywhere near it — otherwise the differential
-# gate compares ccfish against something ccfish influenced, and a shared bug cancels
+# own Makefile, with no mcfish edit anywhere near it — otherwise the differential
+# gate compares mcfish against something mcfish influenced, and a shared bug cancels
 # out on both sides and passes.
 #
 # Usage:  upstream_oracle.sh [sha]        # defaults to tools/upstream/UPSTREAM_BASE
@@ -14,7 +14,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 UPSTREAM_REPO=${UPSTREAM_REPO:-../Stockfish}
-ORACLE_DIR=${ORACLE_DIR:-../.ccfish-upstream-oracle}
+ORACLE_DIR=${ORACLE_DIR:-../.mcfish-upstream-oracle}
 
 sha=${1:-$(cat tools/upstream/UPSTREAM_BASE)}
 verify=${2:-}
@@ -29,7 +29,7 @@ info()  { printf '\033[36m==>\033[0m %s\n' "$*" >&2; }
 }
 
 # Use a detached worktree rather than checking out in the main clone: the sync
-# workflow reads the upstream tree while ccfish is mid-edit, and a checkout in the
+# workflow reads the upstream tree while mcfish is mid-edit, and a checkout in the
 # shared clone would yank the tree out from under whoever is reading it.
 if [[ ! -d $ORACLE_DIR ]]; then
   info "creating oracle worktree at $ORACLE_DIR"

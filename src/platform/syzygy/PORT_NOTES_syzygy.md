@@ -26,7 +26,7 @@ prober only through the `tb_source.h` function pointers.
   `search_gives_check(pos, m)`, as upstream's `search<CheckZeroingMoves>` does via
   the two-argument `do_move`.
 - **No `d`-command probe lines.** Upstream prints `Tablebases WDL:` /
-  `Tablebases DTZ:`; ccfish has no such inspection surface, so there is no
+  `Tablebases DTZ:`; mcfish has no such inspection surface, so there is no
   per-position probe output to gate.
 - **The `tb` gate is 3-man only.** The cursed-win / blessed-loss branches of
   `map_score_dtz` and `probe_dtz` need DTZ > 100, reachable only from 5-man
@@ -34,7 +34,7 @@ prober only through the `tb_source.h` function pointers.
 
 ## Fidelity gap: the material key is local
 
-Upstream looks tables up by `Position::material_key`, which ccfish's `Position`
+Upstream looks tables up by `Position::material_key`, which mcfish's `Position`
 does not carry. `registry.c` therefore hashes `pos->piece_count` with a private
 fixed-seed table (`syzygy_material_key`). This is correct — a registered table and
 a probed position are hashed by the same function, and the key never leaves the

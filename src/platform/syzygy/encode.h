@@ -10,8 +10,8 @@
 // Mirror upstream `syzygy/tbprobe.cpp:1397` (Tablebases::init).
 // Port source: zfish `platform/syzygy/encode.zig`.
 
-#ifndef CCFISH_SYZYGY_ENCODE_H
-#define CCFISH_SYZYGY_ENCODE_H
+#ifndef MCFISH_SYZYGY_ENCODE_H
+#define MCFISH_SYZYGY_ENCODE_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -60,4 +60,4 @@ static inline int32_t lead_pawn_idx_at(size_t lead_cnt, unsigned sq) {
     return LeadPawnIdx[lead_cnt][sq];
 }
 
-#endif  // CCFISH_SYZYGY_ENCODE_H
+#endif  // MCFISH_SYZYGY_ENCODE_H

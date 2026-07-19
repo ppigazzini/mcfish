@@ -87,7 +87,7 @@ derived from `argv[0]`. **That root must carry its trailing separator**, because
 
 `report_net()` prints `eval_nnue_status()` through `info string` at the four sites
 upstream prints it. **Do not make a failed load silent.** Upstream terminates on a
-net it cannot load; ccfish keeps playing on the classical fallback instead, so the
+net it cannot load; mcfish keeps playing on the classical fallback instead, so the
 `info string` is the only thing distinguishing "running NNUE" from "running a
 placeholder" — and without it a missing file reads as a strength regression. See
 [03-engine-eval.md](03-engine-eval.md).
@@ -137,8 +137,8 @@ funnel exactly.
 `uci_loop` has two modes:
 
 - **Argv mode.** With any argument, the words are joined into one line, executed,
-  and the process exits without reading stdin. `./build/ccfish bench 8` and
-  `./build/ccfish "go depth 5"` both work, which is what
+  and the process exits without reading stdin. `./build/mcfish bench 8` and
+  `./build/mcfish "go depth 5"` both work, which is what
   [`../build.sh`](../build.sh) relies on for the `bench` and `signature` steps.
 - **Interactive mode.** `fgets` into a 4096-byte buffer until `quit` or EOF.
 
@@ -227,8 +227,8 @@ to `token` before `continue` — but the `for` statement's increment
 assignment is dead and the token is lost anyway. Drive it and see:
 
 ```
-$ printf 'go infinite depth 2\n' | ./build/ccfish     # searches without a depth limit
-$ printf 'go depth 2 infinite\n' | ./build/ccfish     # honours depth 2
+$ printf 'go infinite depth 2\n' | ./build/mcfish     # searches without a depth limit
+$ printf 'go depth 2 infinite\n' | ./build/mcfish     # honours depth 2
 ```
 
 Keywords that take values are unaffected, and no golden case covers the broken
@@ -363,7 +363,7 @@ from that file, never from memory and never from a doc** — which is why no num
 for it appears anywhere in this documentation set, and why `./build.sh docs-lint`
 fails a page that quotes it.
 
-That anchor is **ccfish's current count, not the target.** The target is
+That anchor is **mcfish's current count, not the target.** The target is
 upstream's own `Bench:` for the SHA pinned in
 [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE), and the
 whole port exists to reach it. The anchor's job is narrower: stop a refactor

@@ -17,8 +17,8 @@
 // Port source: zfish src/platform/thread_pool.zig, src/platform/thread.zig:172
 // (reconfigure).
 
-#ifndef CCFISH_THREAD_POOL_H
-#define CCFISH_THREAD_POOL_H
+#ifndef MCFISH_THREAD_POOL_H
+#define MCFISH_THREAD_POOL_H
 
 #include "numa.h"
 #include "thread.h"
@@ -140,4 +140,4 @@ bool thread_pool_reconfigure(ThreadPool *pool,
                              const ThreadBuilder *builder,
                              const SharedHistoryHooks *histories);
 
-#endif  // CCFISH_THREAD_POOL_H
+#endif  // MCFISH_THREAD_POOL_H

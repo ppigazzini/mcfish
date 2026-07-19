@@ -17,8 +17,8 @@
 // Upstream: uci.cpp (StateListPtr states), position.h (Position, StateInfo). Port source:
 // zfish src/engine/state/position_storage.zig, src/engine/state/page_alloc.zig.
 
-#ifndef CCFISH_POSITION_STORAGE_H
-#define CCFISH_POSITION_STORAGE_H
+#ifndef MCFISH_POSITION_STORAGE_H
+#define MCFISH_POSITION_STORAGE_H
 
 #include "../board/position.h"
 
@@ -66,4 +66,4 @@ static inline Position *position_storage_pos(PositionStorage *ps) { return &ps->
 
 static inline size_t position_storage_count(const PositionStorage *ps) { return ps->count; }
 
-#endif  // CCFISH_POSITION_STORAGE_H
+#endif  // MCFISH_POSITION_STORAGE_H

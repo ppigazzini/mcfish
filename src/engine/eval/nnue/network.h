@@ -11,8 +11,8 @@
 //
 // Mirrors zfish network.zig; golden src/nnue/network.cpp, src/nnue/network.h.
 
-#ifndef CCFISH_NETWORK_H
-#define CCFISH_NETWORK_H
+#ifndef MCFISH_NETWORK_H
+#define MCFISH_NETWORK_H
 
 #include "nnue_architecture.h"
 
@@ -81,4 +81,4 @@ NnueEvalOutput network_evaluate(const Position *pos, void *accumulator_stack, vo
 NnueTraceOutput
 network_trace_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache);
 
-#endif  // CCFISH_NETWORK_H
+#endif  // MCFISH_NETWORK_H

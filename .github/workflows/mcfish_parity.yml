@@ -1,10 +1,10 @@
-# The main gate for ccfish: build the C23 engine with clang and run `./build.sh parity`
+# The main gate for mcfish: build the C23 engine with clang and run `./build.sh parity`
 # -- the aggregate of every in-repo gate (build, zone-check, fmt, test, signature, perft,
 # golden). There is no build system to configure: build.sh drives one clang invocation per
 # translation unit, so CI's whole job is to provide a toolchain new enough for the C23 the
 # source actually uses and then run the same driver a developer runs locally. Anything CI
 # does that a developer cannot reproduce with `./build.sh parity` is a bug in this file.
-name: ccfish parity
+name: mcfish parity
 
 on:
   push:
@@ -138,7 +138,7 @@ jobs:
   # Sanitizer lane. `parity` already builds the TEST binary with -fsanitize=address,undefined
   # (see do_test in build.sh), but the tests only drive the engine zone -- they never run the
   # release search at bench depth or the UCI/perft path through shell/. This job adds that:
-  # the ASan+UBSan ENGINE binary (build/ccfish-debug) driven through a real bench and a real
+  # the ASan+UBSan ENGINE binary (build/mcfish-debug) driven through a real bench and a real
   # perft, which is where an out-of-bounds table index, a signed-overflow in the eval, or a
   # misaligned TT access would actually be exercised. Kept out of the parity job because the
   # instrumented binary is roughly an order of magnitude slower.
@@ -176,7 +176,7 @@ jobs:
       - name: Instrumented unit + property suite
         run: CC="clang-$CLANG_VERSION" ./build.sh test
 
-      # Build the instrumented ENGINE (not the test binary): build/ccfish-debug.
+      # Build the instrumented ENGINE (not the test binary): build/mcfish-debug.
       - name: Build the ASan+UBSan engine
         run: CC="clang-$CLANG_VERSION" ./build.sh debug
 
@@ -184,16 +184,16 @@ jobs:
       # owns that, and an instrumented build is far too slow for depth 8) -- it is running
       # the real search, eval and TT code paths with the sanitizers armed.
       - name: Instrumented bench smoke
-        run: ./build/ccfish-debug bench 4
+        run: ./build/mcfish-debug bench 4
 
       # Perft smoke through the UCI front end: exercises the shell/ parser and the
       # movegen/make/unmake loop under ASan. Deliberately shallow; the deep, count-checked
-      # perft lives in ccfish_perft.yml.
+      # perft lives in mcfish_perft.yml.
       - name: Instrumented perft smoke (via UCI)
         run: |
           set -euo pipefail
           printf 'position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\ngo perft 4\nquit\n' \
-            | ./build/ccfish-debug | tee /tmp/perft.txt
+            | ./build/mcfish-debug | tee /tmp/perft.txt
           grep -q 'Nodes searched *: *197281' /tmp/perft.txt \
             || { echo 'FAIL: instrumented perft(startpos, 4) != 197281' >&2; exit 1; }
 

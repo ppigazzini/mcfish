@@ -13,8 +13,8 @@
 // (PairsData), `:1006` (set_groups), `:1061` (set_symlen).
 // Port source: zfish `platform/syzygy/probe.zig`.
 
-#ifndef CCFISH_SYZYGY_TABLES_H
-#define CCFISH_SYZYGY_TABLES_H
+#ifndef MCFISH_SYZYGY_TABLES_H
+#define MCFISH_SYZYGY_TABLES_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -116,4 +116,4 @@ void set_groups(PairsData *d, EntryInfo e, const int32_t order[2], size_t f);
 // is acyclic, so the recursion terminates.
 uint8_t set_sym_len(PairsData *d, Sym s, bool *visited);
 
-#endif  // CCFISH_SYZYGY_TABLES_H
+#endif  // MCFISH_SYZYGY_TABLES_H

@@ -1,14 +1,14 @@
 # Where each golden came from
 
-A golden is not automatically a reference. When it is regenerated from ccfish, it
-is a **photograph of ccfish** — and it will pin a defect exactly as faithfully as it
+A golden is not automatically a reference. When it is regenerated from mcfish, it
+is a **photograph of mcfish** — and it will pin a defect exactly as faithfully as it
 pins correct behaviour, after which the gate passes *because* the engine is wrong.
 
 That is not hypothetical here. `board.golden` and `errors.golden` were both
-generated from ccfish and both pinned real divergences for as long as they existed:
+generated from mcfish and both pinned real divergences for as long as they existed:
 
 - `board.golden` recorded a `d` output with **no `Checkers:` line**, which upstream
-  always prints, and recorded ccfish silently accepting the illegal move `b4b6`
+  always prints, and recorded mcfish silently accepting the illegal move `b4b6`
   and continuing.
 - `errors.golden` recorded three invalid FENs each producing an identical start
   position and **no diagnostic at all**, where upstream names a reason and exits 1.
@@ -28,22 +28,22 @@ Both gates were green throughout.
 | `handshake` | **oracle**, one line substituted | byte-for-byte upstream except `id name` |
 | `search` | **oracle** | byte-for-byte upstream |
 
-Regenerate an oracle-derived golden from the oracle. Never from ccfish: that
+Regenerate an oracle-derived golden from the oracle. Never from mcfish: that
 converts a red gate into a recorded bug. `tb` has its own regenerator,
 `./build.sh tb-update`, which runs the oracle and refuses to run without the full
-3-man set — there is no ccfish-derived path to that golden at all.
+3-man set — there is no mcfish-derived path to that golden at all.
 
 ```sh
 NORM=$(sed -n '/^normalize()/,/^}/p' build.sh)
-cd ../.ccfish-upstream-oracle/src && eval "$NORM"
-{ ./stockfish < /home/usr00/_git/ccfish/tools/cases/<case>.uci 2>&1; printf 'exit=%d\n' "$?"; } \
-  | normalize > /home/usr00/_git/ccfish/tools/<case>.golden
+cd ../.mcfish-upstream-oracle/src && eval "$NORM"
+{ ./stockfish < /home/usr00/_git/mcfish/tools/cases/<case>.uci 2>&1; printf 'exit=%d\n' "$?"; } \
+  | normalize > /home/usr00/_git/mcfish/tools/<case>.golden
 ```
 
 ## `handshake`: the one legitimate substitution
 
 `handshake` is derived from the oracle and then has exactly one line rewritten,
-because exactly one line cannot be compared: ccfish is not named Stockfish, and
+because exactly one line cannot be compared: mcfish is not named Stockfish, and
 `normalize` rewrites the *banner* but not `id name`. Every other line — the option
 order, every type, default and bound, the blank line upstream emits before the
 first option — is upstream's own bytes.
@@ -51,8 +51,8 @@ first option — is upstream's own bytes.
 ```sh
 W=$PWD
 NORM=$(sed -n '/^normalize()/,/^}/p' build.sh)
-CC_ID=$(printf 'uci\nquit\n' | ./build/ccfish | grep '^id name ')
-( cd ../.ccfish-upstream-oracle/src && eval "$NORM"
+CC_ID=$(printf 'uci\nquit\n' | ./build/mcfish | grep '^id name ')
+( cd ../.mcfish-upstream-oracle/src && eval "$NORM"
   { ./stockfish < "$W/tools/cases/handshake.uci" 2>&1; printf 'exit=%d\n' "$?"; } | normalize ) \
   | sed "s|^id name Stockfish .*|$CC_ID|" > tools/handshake.golden
 ```
@@ -71,8 +71,8 @@ the oracle's directory, not this tree's:
 
 ```sh
 W=$PWD; NORM=$(sed -n '/^normalize()/,/^}/p' build.sh); eval "$NORM"
-diff <(./build/ccfish < tools/cases/search.uci 2>&1 | normalize) \
-     <(cd ../.ccfish-upstream-oracle/src && ./stockfish < "$W/tools/cases/search.uci" 2>&1 | normalize)
+diff <(./build/mcfish < tools/cases/search.uci 2>&1 | normalize) \
+     <(cd ../.mcfish-upstream-oracle/src && ./stockfish < "$W/tools/cases/search.uci" 2>&1 | normalize)
 ```
 
 `handshake` reaches zero on every line but `id name`, which is why it is
@@ -80,7 +80,7 @@ oracle-derived with that one line substituted rather than self-generated.
 
 ## What `normalize` hides, and why that is dangerous
 
-`normalize` elides volatile fields (time, nps) and **drops** upstream lines ccfish
+`normalize` elides volatile fields (time, nps) and **drops** upstream lines mcfish
 does not yet emit because the subsystem is unwired — the thread-pool and
 shared-memory `info string`s. Those drops are the only thing keeping a gap out of
 the goldens, so when the subsystem lands, delete its line from `normalize` FIRST
@@ -101,11 +101,11 @@ shows it is byte-identical. Use:
 ```sh
 drive_oracle() {
   { while IFS= read -r l; do printf '%s\n' "$l"; case "$l" in go*) sleep 5;; esac; done < "$1"
-    sleep 1; } | (cd ../.ccfish-upstream-oracle/src && ./stockfish) 2>&1
+    sleep 1; } | (cd ../.mcfish-upstream-oracle/src && ./stockfish) 2>&1
 }
 { drive_oracle tools/cases/<case>.uci; printf 'exit=0\n'; } | normalize \
-  | sed -E 's/^(ccfish|Stockfish) [^ ]+ by .*/<engine banner>/' > tools/<case>.golden
+  | sed -E 's/^(mcfish|Stockfish) [^ ]+ by .*/<engine banner>/' > tools/<case>.golden
 ```
 
-ccfish's own `go` is synchronous, so the gate itself may pipe — only the oracle
+mcfish's own `go` is synchronous, so the gate itself may pipe — only the oracle
 side needs this.

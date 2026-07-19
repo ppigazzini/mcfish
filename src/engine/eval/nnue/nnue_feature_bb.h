@@ -15,8 +15,8 @@
 // Ported from zfish `engine/eval/nnue_feature_bb.zig` against the upstream golden
 // `nnue/features/half_ka_v2_hm.cpp` and `nnue/features/full_threats.cpp`.
 
-#ifndef CCFISH_NNUE_FEATURE_BB_H
-#define CCFISH_NNUE_FEATURE_BB_H
+#ifndef MCFISH_NNUE_FEATURE_BB_H
+#define MCFISH_NNUE_FEATURE_BB_H
 
 #include <stdint.h>
 
@@ -112,4 +112,4 @@ void nnue_bb_make_piece_indices_type(uint8_t piece_type, uint8_t out[64][64]);
 // As above, for PIECE's pawn push-or-attack set.
 void nnue_bb_make_piece_indices_pawn(uint8_t piece, uint8_t out[64][64]);
 
-#endif  // CCFISH_NNUE_FEATURE_BB_H
+#endif  // MCFISH_NNUE_FEATURE_BB_H

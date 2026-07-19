@@ -14,8 +14,8 @@
 // (aligned_large_pages_alloc_with_hint), memory.cpp:182 (has_large_pages).
 // Port source: zfish src/platform/memory.zig, src/engine/state/page_alloc.zig.
 
-#ifndef CCFISH_MEMORY_H
-#define CCFISH_MEMORY_H
+#ifndef MCFISH_MEMORY_H
+#define MCFISH_MEMORY_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -56,4 +56,4 @@ void page_free(void *ptr);
 // free.
 void page_alloc_set(void *(*alloc_fn)(size_t size), void (*free_fn)(void *ptr));
 
-#endif  // CCFISH_MEMORY_H
+#endif  // MCFISH_MEMORY_H

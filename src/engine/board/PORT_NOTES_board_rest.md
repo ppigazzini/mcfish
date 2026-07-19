@@ -68,7 +68,7 @@ no-pawns. Verified: the generated tables are identical to the current
 
 Note this is **not** zfish's order. `zfish/src/engine/board/zobrist.zig` skips
 pieces 7 and 8 and zeroes the pawn rows on the promotion ranks, which shifts every
-key from `B_PAWN` onward. ccfish's existing sequence is the one in force and the
+key from `B_PAWN` onward. mcfish's existing sequence is the one in force and the
 one reproduced; changing to zfish's is a separate, deliberate, signature-moving
 commit.
 
@@ -127,7 +127,7 @@ not on the mover.
 
 `PositionSnapshot` is zfish's `position_snapshot.zig` struct minus
 `castling_impeded[16]`. Upstream computes it as `pieces() & castling_path[cr]`,
-and ccfish's `Position` has **no `castling_path`** — `set_castling_right` records
+and mcfish's `Position` has **no `castling_path`** — `set_castling_right` records
 the rook square but not the path. Add the field, and this line to
 `pos_fill_snapshot`, when Chess960 castling paths land:
 
@@ -163,13 +163,13 @@ disagreements with the current `pos_set` and zero differences in `key`,
 `castling_rights`, `ep_square`, `rule50`, `game_ply`, `checkers`, `blockers` or
 `pinners` on the accepted ones.
 
-zfish's parser is **stricter** than ccfish's and those extra rejections are
+zfish's parser is **stricter** than mcfish's and those extra rejections are
 deliberately NOT ported here — pawns on the back ranks, more than 32 pieces,
 unreachable promotion counts, counter range checks, and the king-can-be-captured
 test (`fen_parse.zig:118-165`). Each is a real upstream check
 (`Stockfish/src/position.cpp:279-290`) and each changes which inputs reach the
 search, so each belongs in its own commit with the golden re-derived. `pos_fen`'s
-Chess960 castling output (upstream emits the rook file letter, ccfish emits
+Chess960 castling output (upstream emits the rook file letter, mcfish emits
 `KQkq`) is the same kind of gap and is likewise untouched.
 
 The signature does not move on this commit. If it does, the split was not faithful.

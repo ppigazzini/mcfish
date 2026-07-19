@@ -40,7 +40,7 @@ Requested: a `void search_clear(void)` in `search.h`, called from `uci.c`'s
 
 - **"Move Overhead"** is not a UCI option in `src/shell/uci.c`, so
   `TimemanOptions.move_overhead` is hardcoded to upstream's default of 10 ms.
-- **"Ponder"** is an option upstream; ccfish only has `go ponder`, so
+- **"Ponder"** is an option upstream; mcfish only has `go ponder`, so
   `TimemanOptions.ponder` is fed from `SearchLimits.ponder`. These coincide
   during a ponder search and differ when the option is on but the search is not
   a ponder search.

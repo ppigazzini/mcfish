@@ -1,6 +1,6 @@
 # AGENTS.md
 
-ccfish is a **C23 port of Stockfish**, built with clang by `./build.sh`. The goal
+mcfish is a **C23 port of Stockfish**, built with clang by `./build.sh`. The goal
 is a **bit-exact 1:1 clone** — same bench signature, NNUE, Syzygy, Lazy-SMP.
 
 **Read [docs/PORTING.md](docs/PORTING.md) before writing any engine code**, then
@@ -20,7 +20,7 @@ translating C++ → C23 means re-making every design decision zfish already made
 `../Stockfish` is the **golden** — it defines correct behaviour and the
 differential gate compares against it. Where the two disagree, Stockfish wins.
 
-`tools/upstream/port_map.tsv` maps every zfish module to its ccfish owner, its
+`tools/upstream/port_map.tsv` maps every zfish module to its mcfish owner, its
 Stockfish golden, and its status. `./build.sh port-status` prints the live counts.
 
 ## The port is unfinished, and that is not a design
@@ -61,7 +61,7 @@ in `build.sh`'s `SOURCES`, because a module outside it is unwired, not deferred:
   `bench <tt> <threads> <N> default nodes` will not match upstream's total.
 
 The bench signature in `tools/signature.golden` is **upstream's number**, and
-ccfish currently produces it — matching Stockfish at
+mcfish currently produces it — matching Stockfish at
 `tools/upstream/UPSTREAM_BASE`, and matching zfish. It is a bit-exactness anchor,
 not a local snapshot; run `./build.sh signature` for the value. A change that moves it is a behaviour change and must say
 what moved it.
@@ -75,7 +75,7 @@ moves, which appear in no bench list and no golden.
 ## Setup
 
 ```sh
-./build.sh              # binary is `ccfish`, at build/ccfish
+./build.sh              # binary is `mcfish`, at build/mcfish
 ./build.sh help         # every step
 ./build.sh parity       # the aggregate gate — run before calling anything done
 ./build.sh port-status  # how far from bit-exact

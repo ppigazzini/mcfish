@@ -118,7 +118,7 @@ static void test_fen(void) {
     // A castling right whose rook or king is missing is DROPPED, not an error.
     // Upstream applies a right only when both squares resolve ("Only apply castling
     // rights if they can be valid", position.cpp) and accepts the position either
-    // way. This case previously sat in the reject list above, asserting ccfish's own
+    // way. This case previously sat in the reject list above, asserting mcfish's own
     // over-strictness -- verified against the oracle, which renders `w - -` here.
     {
         Position pos;
@@ -556,7 +556,7 @@ static void test_draw_detection(void) {
 // primitive against an independent scalar reference here, hardest at the boundary
 // the argument turns on.
 //
-// This is ccfish's analogue of zfish's C-backend oracle (tools/c_backend_check.sh):
+// This is mcfish's analogue of zfish's C-backend oracle (tools/c_backend_check.sh):
 // one source, two lowerings, and a gate that they agree. zfish's caught a real bug
 // of exactly this shape -- a @Vector(N, bool) bitcast that was correct only under
 // LLVM's packing -- which benched a wrong number through every other gate.

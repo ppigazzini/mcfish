@@ -1,11 +1,11 @@
 # AUTHORS
 
-ccfish is a derivative of Stockfish. The list below is Stockfish's own AUTHORS
+mcfish is a derivative of Stockfish. The list below is Stockfish's own AUTHORS
 file, kept verbatim: the engine design, the search structure, the bench position
-set and the UCI surface that ccfish reimplements in C23 all originate with these
+set and the UCI surface that mcfish reimplements in C23 all originate with these
 people, and the GPL requires their attribution to travel with the derivative.
 
-ccfish's own contributors are listed in CITATION.cff and in the git history.
+mcfish's own contributors are listed in CITATION.cff and in the git history.
 
 --------------------------------------------------------------------------------
 

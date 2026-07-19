@@ -11,8 +11,8 @@
 // Mirror upstream `syzygy/tbprobe.cpp:772` (do_probe_table), `:1305`
 // (probe_table), `:1332` (search). Port source: zfish `platform/syzygy/wdl.zig`.
 
-#ifndef CCFISH_SYZYGY_WDL_H
-#define CCFISH_SYZYGY_WDL_H
+#ifndef MCFISH_SYZYGY_WDL_H
+#define MCFISH_SYZYGY_WDL_H
 
 #include "registry.h"
 
@@ -62,4 +62,4 @@ int32_t probe_table(const Position *pos, bool dtz, int32_t wdl_score, int32_t *s
 // probe needs; a WDL probe passes false.
 TbProbeValue search_wdl(Position *pos, bool check_zeroing);
 
-#endif  // CCFISH_SYZYGY_WDL_H
+#endif  // MCFISH_SYZYGY_WDL_H

@@ -6,8 +6,8 @@
 // wall-clock time (a time check inside the recursion, a nondeterministic move
 // order) breaks the gate rather than merely slowing things down.
 
-#ifndef CCFISH_SEARCH_H
-#define CCFISH_SEARCH_H
+#ifndef MCFISH_SEARCH_H
+#define MCFISH_SEARCH_H
 
 #include "../board/position.h"
 #include "../board/types.h"
@@ -74,4 +74,4 @@ void search_reset_last_nodes_searched(void);
 // Count the leaves of the legal move tree at DEPTH, printing the per-move split.
 uint64_t perft(Position *pos, int depth, bool root);
 
-#endif  // CCFISH_SEARCH_H
+#endif  // MCFISH_SEARCH_H

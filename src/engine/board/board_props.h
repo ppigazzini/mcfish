@@ -13,8 +13,8 @@
 // is_chess960, game_ply, checkers, piece_array) and `Stockfish/src/uci.cpp`
 // (the WDL material count).
 
-#ifndef CCFISH_BOARD_PROPS_H
-#define CCFISH_BOARD_PROPS_H
+#ifndef MCFISH_BOARD_PROPS_H
+#define MCFISH_BOARD_PROPS_H
 
 #include "position.h"
 #include "types.h"
@@ -32,4 +32,4 @@ int board_wdl_material(const Position *pos);
 // accumulator callers that need the board and nothing else.
 void board_copy_pieces(const Position *pos, Piece *pieces_out);
 
-#endif  // CCFISH_BOARD_PROPS_H
+#endif  // MCFISH_BOARD_PROPS_H

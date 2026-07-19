@@ -16,8 +16,8 @@
 // Upstream: search.h:332 (Worker history members), search.cpp (Worker::clear). Port
 // source: zfish src/engine/state/worker_histories.zig.
 
-#ifndef CCFISH_WORKER_HISTORIES_H
-#define CCFISH_WORKER_HISTORIES_H
+#ifndef MCFISH_WORKER_HISTORIES_H
+#define MCFISH_WORKER_HISTORIES_H
 
 #include "../search/history.h"
 #include "shared_history_types.h"
@@ -51,4 +51,4 @@ void worker_histories_clear(WorkerHistories *wh);
 // within its NUMA node and TOTAL is that node's worker count; TOTAL 0 is treated as 1.
 void worker_histories_clear_shared(SharedHistories *sh, size_t thread_idx, size_t total);
 
-#endif  // CCFISH_WORKER_HISTORIES_H
+#endif  // MCFISH_WORKER_HISTORIES_H

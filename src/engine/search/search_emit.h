@@ -10,8 +10,8 @@
 // Ported from zfish `engine/search/search_emit.zig`.
 // Golden: `Stockfish/src/engine.cpp` / `search.cpp` (the info-line assembly).
 
-#ifndef CCFISH_SEARCH_EMIT_H
-#define CCFISH_SEARCH_EMIT_H
+#ifndef MCFISH_SEARCH_EMIT_H
+#define MCFISH_SEARCH_EMIT_H
 
 #include "search_types.h"
 
@@ -31,4 +31,4 @@ void search_emit_bestmove(const Position *pos, const RootMove *best);
 // Emit "info depth D currmove M currmovenumber N" from inside the root move loop.
 void search_emit_root_on_iter(const SearchCtx *ctx, int depth, Move move, int move_count);
 
-#endif  // CCFISH_SEARCH_EMIT_H
+#endif  // MCFISH_SEARCH_EMIT_H

@@ -11,8 +11,8 @@
 // (Score::Score) and `Stockfish/src/types.h:158-178` (the thresholds and
 // is_win/is_loss/is_decisive).
 
-#ifndef CCFISH_SCORE_H
-#define CCFISH_SCORE_H
+#ifndef MCFISH_SCORE_H
+#define MCFISH_SCORE_H
 
 #include "types.h"
 
@@ -51,4 +51,4 @@ static inline bool value_is_win(Value v) { return v >= VALUE_TB_WIN_IN_MAX_PLY; 
 static inline bool value_is_loss(Value v) { return v <= VALUE_TB_LOSS_IN_MAX_PLY; }
 static inline bool value_is_decisive(Value v) { return value_is_win(v) || value_is_loss(v); }
 
-#endif  // CCFISH_SCORE_H
+#endif  // MCFISH_SCORE_H

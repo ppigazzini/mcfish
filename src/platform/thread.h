@@ -15,8 +15,8 @@
 // (wait_for_search_finished), thread.cpp:71 (run_custom_job).
 // Port source: zfish src/platform/search_thread.zig, src/platform/thread_runtime.zig:123.
 
-#ifndef CCFISH_THREAD_H
-#define CCFISH_THREAD_H
+#ifndef MCFISH_THREAD_H
+#define MCFISH_THREAD_H
 
 #include "thread_runtime.h"
 
@@ -77,4 +77,4 @@ bool thread_set_affinity(const size_t *cpus, size_t count);
 // Return the number of logical CPUs the process may run on, at least 1.
 size_t thread_hardware_concurrency(void);
 
-#endif  // CCFISH_THREAD_H
+#endif  // MCFISH_THREAD_H

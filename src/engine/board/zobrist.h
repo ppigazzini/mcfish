@@ -17,12 +17,12 @@
 // set. The tables are written once at startup and READ-ONLY thereafter.
 //
 // Ported from zfish `engine/board/zobrist.zig`, whose draw order differs (it skips
-// pieces 7 and 8 and zeroes the pawn promotion ranks); ccfish's existing
+// pieces 7 and 8 and zeroes the pawn promotion ranks); mcfish's existing
 // `position_init` is the sequence in force here and the one reproduced.
 // Golden: `Stockfish/src/position.cpp: Position::init`.
 
-#ifndef CCFISH_ZOBRIST_H
-#define CCFISH_ZOBRIST_H
+#ifndef MCFISH_ZOBRIST_H
+#define MCFISH_ZOBRIST_H
 
 #include "types.h"
 
@@ -39,4 +39,4 @@ extern Key Zobrist_side;
 // rather than the zero every empty XOR fold produces.
 extern Key Zobrist_no_pawns;
 
-#endif  // CCFISH_ZOBRIST_H
+#endif  // MCFISH_ZOBRIST_H

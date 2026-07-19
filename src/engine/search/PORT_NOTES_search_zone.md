@@ -94,7 +94,7 @@ Deferred, and each one is a node-count difference until it lands:
   Both are board-zone predicates, and `src/engine/board/legality.c` already holds
   the canonical `pos_pseudo_legal` — delete the copy in the commit that puts that
   module in `SOURCES`. `search_gives_check` additionally recomputes upstream's
-  `StateInfo::checkSquares` on every call, because ccfish's `StateInfo` does not
+  `StateInfo::checkSquares` on every call, because mcfish's `StateInfo` does not
   cache it; port `set_check_info`'s `check_squares[]` and this becomes a lookup.
 - **`pos_non_pawn_material` is a function, not cached state.** Upstream and zfish
   read `st->non_pawn_material[c]`. Step 14 calls it twice per move; caching it on

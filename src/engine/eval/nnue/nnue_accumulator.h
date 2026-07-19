@@ -19,8 +19,8 @@
 // `nnue_acc_rowops.zig`, `nnue_acc_update.zig` and `nnue_refresh_cache.zig` against the
 // upstream golden `nnue/nnue_accumulator.cpp`.
 
-#ifndef CCFISH_NNUE_ACCUMULATOR_H
-#define CCFISH_NNUE_ACCUMULATOR_H
+#ifndef MCFISH_NNUE_ACCUMULATOR_H
+#define MCFISH_NNUE_ACCUMULATOR_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -106,4 +106,4 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
                               uint8_t *output,
                               NnueNnzBitset *nnz);
 
-#endif  // CCFISH_NNUE_ACCUMULATOR_H
+#endif  // MCFISH_NNUE_ACCUMULATOR_H

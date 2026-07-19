@@ -15,17 +15,17 @@ The oracle that `upstream_oracle.sh` builds uses gcc, which is correct for node
 counts and wrong for any cost ratio. Build a clang oracle for perf work:
 
 ```sh
-cd ../.ccfish-upstream-oracle/src
+cd ../.mcfish-upstream-oracle/src
 make clean && make -j4 build ARCH=x86-64-sse41-popcnt COMP=clang EXE=sf_clang
 ./sf_clang bench          # must print the anchor before you trust anything
 ```
 
-and build ccfish at the matching tier with `CCFISH_ARCH=sse41`. Then subtract
+and build mcfish at the matching tier with `MCFISH_ARCH=sse41`. Then subtract
 startup from both: the ~90 MB net parse and the magic init are around 40% of a
 shallow profile, and leaving them in flattens every ratio toward 1.
 
 ```sh
-valgrind --tool=callgrind --callgrind-out-file=cc.out ./ccfish bench 16 1 8
+valgrind --tool=callgrind --callgrind-out-file=cc.out ./mcfish bench 16 1 8
 valgrind --tool=callgrind --callgrind-out-file=up.out ./sf_clang bench 16 1 8
 python3 ../zfish/tools/perf_fingerprint.py costs cc.out
 ```
@@ -39,9 +39,9 @@ real 0.99x parity into a reported "1.87x, the worst component".
 Both engines built at their own native tier, which on this host is AVX-512 VNNI
 for each, node counts asserted equal by `nps_ab.sh`, machine idle, ten rounds:
 
-    ccfish / zfish = 1.014 and 1.006 across two independent runs
+    mcfish / zfish = 1.014 and 1.006 across two independent runs
 
-That is parity. Take it as parity and not as "ccfish is faster" -- 0.6-1.4% is
+That is parity. Take it as parity and not as "mcfish is faster" -- 0.6-1.4% is
 inside what this method resolves, and the tool says so itself.
 
 The number is load-sensitive in a way worth remembering: the same two binaries
@@ -55,13 +55,13 @@ the one to work on, because it is deterministic and does not care about load.
 
 ## The distribution
 
-Search instructions, startup subtracted, ccfish against the clang oracle at
+Search instructions, startup subtracted, mcfish against the clang oracle at
 SSE4.1: **1.154x** with LTO (1.242x before it). The table below was taken at
 1.242x; LTO folded the cross-TU helpers into their callers and moved every row,
 but the shape -- accumulator worst, move picking at parity, `do_move` ahead --
 did not change.
 
-| path | ccfish | oracle | ratio |
+| path | mcfish | oracle | ratio |
 | --- | ---: | ---: | ---: |
 | accumulator update (`apply_combined` + `acc_rows_i16` + `apply_psqt_delta_in_place` + `nnue_full_append_changed` + `nnue_bb_pieces_of_exact`) | 872M | 601M | **1.45** |
 | affine (`nnue_affine_32` vs `propagate`) | 398M | 316M | 1.26 |

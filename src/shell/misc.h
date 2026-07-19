@@ -10,23 +10,23 @@
 // (engine_version_info), `misc.cpp:177` (engine_info), `misc.cpp:190`
 // (compiler_info), `misc.cpp` str_to_size_t.
 
-#ifndef CCFISH_MISC_H
-#define CCFISH_MISC_H
+#ifndef MCFISH_MISC_H
+#define MCFISH_MISC_H
 
 #include <stddef.h>
 #include <stdint.h>
 
-// Name this engine, not upstream. ccfish is a port in progress and must not
+// Name this engine, not upstream. mcfish is a port in progress and must not
 // answer `uci` as "Stockfish": a GUI, a tournament manager, and every bug report
 // key off this string, and claiming upstream's identity while the search, NNUE
 // and Syzygy are unported misattributes the results. The `id` lines are pinned
 // byte-for-byte by tools/handshake.golden.
-#define ENGINE_NAME "ccfish"
+#define ENGINE_NAME "mcfish"
 #define ENGINE_VERSION "dev"
 #define ENGINE_AUTHORS "the Stockfish developers (see AUTHORS file)"
 
 // Return "<name> <version>". Upstream appends the git date and SHA to a `dev`
-// build (misc.cpp:145); ccfish's build.sh injects no git metadata, so the
+// build (misc.cpp:145); mcfish's build.sh injects no git metadata, so the
 // version stands alone. Wiring that in means defining GIT_DATE and GIT_SHA at
 // compile time and is a build.sh change, not a source one.
 const char *engine_version_info(void);
@@ -59,4 +59,4 @@ bool is_whitespace(const char *s);
 // unsigned arithmetic below is the definition, not an accident to be "fixed".
 uint64_t hash_bytes(const void *data, size_t len);
 
-#endif  // CCFISH_MISC_H
+#endif  // MCFISH_MISC_H

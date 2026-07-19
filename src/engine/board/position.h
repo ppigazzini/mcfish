@@ -8,8 +8,8 @@
 // StateInfo must be written by pos_do_move before the recursion, or unmake will
 // restore a stale value.
 
-#ifndef CCFISH_POSITION_H
-#define CCFISH_POSITION_H
+#ifndef MCFISH_POSITION_H
+#define MCFISH_POSITION_H
 
 #include "attacks.h"
 #include "bitboard.h"
@@ -97,7 +97,7 @@ void pos_pretty(const Position *pos, char *buf, int buf_len);
 // `&pos->scratch_dp` and `&pos->scratch_dts`.
 //
 // GIVES_CHECK is upstream's parameter (position.cpp:815), where it selects the new
-// checkers set. ccfish's set_check_info recomputes checkers from the board on every
+// checkers set. mcfish's set_check_info recomputes checkers from the board on every
 // move, so the value is accepted for signature parity and is not yet read; when
 // Position::gives_check is ported, the checkers assignment moves here and starts
 // trusting it.
@@ -157,4 +157,4 @@ static inline bool is_capture(const Position *pos, Move m) {
 // Count the non-pawn material of C in centipawn-equivalent units.
 Value pos_non_pawn_material(const Position *pos, Color c);
 
-#endif  // CCFISH_POSITION_H
+#endif  // MCFISH_POSITION_H

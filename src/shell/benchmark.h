@@ -9,8 +9,8 @@
 // Golden: `Stockfish/src/benchmark.cpp: setup_bench` and
 // `Stockfish/src/uci.cpp: UCIEngine::bench`.
 
-#ifndef CCFISH_BENCHMARK_H
-#define CCFISH_BENCHMARK_H
+#ifndef MCFISH_BENCHMARK_H
+#define MCFISH_BENCHMARK_H
 
 #include <stdint.h>
 
@@ -32,4 +32,4 @@ enum { BENCH_DEFAULT_DEPTH = 13 };
 // anchor is defined against. Golden: `Stockfish/src/benchmark.cpp:390`.
 uint64_t benchmark_run(const char *args);
 
-#endif  // CCFISH_BENCHMARK_H
+#endif  // MCFISH_BENCHMARK_H

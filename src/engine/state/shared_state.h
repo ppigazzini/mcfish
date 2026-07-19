@@ -13,8 +13,8 @@
 // Upstream: search.h:187 (SharedState). Port source: zfish
 // src/engine/state/shared_state.zig.
 
-#ifndef CCFISH_SHARED_STATE_H
-#define CCFISH_SHARED_STATE_H
+#ifndef MCFISH_SHARED_STATE_H
+#define MCFISH_SHARED_STATE_H
 
 #include "../../platform/thread_pool.h"
 #include "shared_history_types.h"
@@ -47,4 +47,4 @@ bool shared_state_increase_depth(const SharedState *ss);
 uint64_t shared_state_nodes_searched(const SharedState *ss);
 uint64_t shared_state_tb_hits(const SharedState *ss);
 
-#endif  // CCFISH_SHARED_STATE_H
+#endif  // MCFISH_SHARED_STATE_H

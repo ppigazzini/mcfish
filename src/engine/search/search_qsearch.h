@@ -10,8 +10,8 @@
 // Ported from zfish `engine/search/search_qsearch.zig`.
 // Golden: `Stockfish/src/search.cpp: qsearch`.
 
-#ifndef CCFISH_SEARCH_QSEARCH_H
-#define CCFISH_SEARCH_QSEARCH_H
+#ifndef MCFISH_SEARCH_QSEARCH_H
+#define MCFISH_SEARCH_QSEARCH_H
 
 #include "search_types.h"
 
@@ -59,4 +59,4 @@ static inline int cont_val(const int16_t *page, Piece pc, Square to) {
 // Search the captures (and, in check, the evasions) until the position is quiet.
 Value qsearch_node(SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, bool pv_node);
 
-#endif  // CCFISH_SEARCH_QSEARCH_H
+#endif  // MCFISH_SEARCH_QSEARCH_H

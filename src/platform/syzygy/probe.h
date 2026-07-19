@@ -11,8 +11,8 @@
 // Mirror upstream `syzygy/tbprobe.cpp:1601` (probe_dtz), `:1569` (probe_wdl),
 // `:177` (dtz_before_zeroing). Port source: zfish `platform/syzygy/wdl.zig`.
 
-#ifndef CCFISH_SYZYGY_PROBE_H
-#define CCFISH_SYZYGY_PROBE_H
+#ifndef MCFISH_SYZYGY_PROBE_H
+#define MCFISH_SYZYGY_PROBE_H
 
 #include "wdl.h"
 
@@ -44,4 +44,4 @@ TbProbeResult syzygy_probe_fen(const char *fen, size_t len, bool chess960);
 // capture recursion and restore it exactly; the accumulator stack is untouched.
 TbProbeResult syzygy_probe_wdl_pos(Position *pos);
 
-#endif  // CCFISH_SYZYGY_PROBE_H
+#endif  // MCFISH_SYZYGY_PROBE_H

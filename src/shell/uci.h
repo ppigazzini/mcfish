@@ -5,13 +5,13 @@
 // sink `uci_loop` installs (search_set_output), which is what lets a gate drive a
 // search and read its output without a subprocess.
 
-#ifndef CCFISH_UCI_H
-#define CCFISH_UCI_H
+#ifndef MCFISH_UCI_H
+#define MCFISH_UCI_H
 
 #include <stddef.h>
 
 // Read commands from stdin until `quit` or EOF. Handle ARGC/ARGV as a single
-// command first, so `ccfish bench` and `ccfish "go depth 5"` work non-interactively.
+// command first, so `mcfish bench` and `mcfish "go depth 5"` work non-interactively.
 void uci_loop(int argc, char **argv);
 
 // Run one command through the same handler the loop uses, so bench drives the
@@ -23,4 +23,4 @@ void uci_execute(const char *line);
 // Write the current position's FEN into BUF (needs >= 128 bytes).
 void uci_current_fen(char *buf, size_t buf_len);
 
-#endif  // CCFISH_UCI_H
+#endif  // MCFISH_UCI_H

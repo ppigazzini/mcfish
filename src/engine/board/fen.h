@@ -13,12 +13,12 @@
 // edit.
 //
 // Ported from zfish `engine/board/fen.zig` (formatFen), re-expressed over the live
-// `Position` rather than zfish's loose primitives because ccfish has no
+// `Position` rather than zfish's loose primitives because mcfish has no
 // caller that formats from raw board bytes. Golden:
 // `Stockfish/src/position.cpp: Position::fen`.
 
-#ifndef CCFISH_FEN_H
-#define CCFISH_FEN_H
+#ifndef MCFISH_FEN_H
+#define MCFISH_FEN_H
 
 #include "position_types.h"
 #include "types.h"
@@ -30,4 +30,4 @@ void pos_fen(const Position *pos, char *buf);
 // it. Truncate at BUF_LEN.
 void pos_pretty(const Position *pos, char *buf, int buf_len);
 
-#endif  // CCFISH_FEN_H
+#endif  // MCFISH_FEN_H

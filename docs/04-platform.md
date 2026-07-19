@@ -209,7 +209,7 @@ values and binds `TbMaxCardinality` / `TbProbeFen` / `TbProbeWdlPos` and the thr
 
 `registry.c` **deviates from upstream on a corrupt file**: upstream
 (`syzygy/tbprobe.cpp:267`) prints `Corrupt tablebase file` and `exit()`s, while
-ccfish prints the same diagnostic and reports the file unavailable, so one bad
+mcfish prints the same diagnostic and reports the file unavailable, so one bad
 file does not take a GUI's engine down mid-game. Keep the diagnostic — without it
 a corrupt table is indistinguishable from an absent one.
 
@@ -272,7 +272,7 @@ That is POSIX.1-2008, the level at which `clock_gettime`, `CLOCK_MONOTONIC`, and
 translation unit compiled against a different set of declarations than its
 neighbours.
 
-**This is the portability boundary of the whole repo.** ccfish builds on POSIX
+**This is the portability boundary of the whole repo.** mcfish builds on POSIX
 hosts. A Windows build would need a `now_ms` backed by `QueryPerformanceCounter`, a
 replacement for the shell zone's `strtok` usage, and Windows equivalents for the
 `pthread`, `mmap` and `/sys` dependencies in the unwired modules above. Adding that

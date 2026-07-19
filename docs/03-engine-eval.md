@@ -73,7 +73,7 @@ network dependency.
 
 **A failed load is not fatal, and that is a deliberate divergence from upstream.**
 Upstream's `Network::verify` calls `exit(EXIT_FAILURE)` on a net it could not load.
-ccfish reports the failure, leaves `NetLoaded` false, and keeps playing on the
+mcfish reports the failure, leaves `NetLoaded` false, and keeps playing on the
 classical fallback. That choice is why `evaluate` needs the branch at all, and it is
 why the status line matters:
 
@@ -318,18 +318,18 @@ The trace's exact bytes are pinned by the `eval` golden, which is derived **from
 the oracle** — see [`../tools/cases/eval.uci`](../tools/cases/eval.uci),
 [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md) and
 [07-tooling-ci.md](07-tooling-ci.md). Because it is oracle-derived, regenerating it
-from ccfish would convert a red gate into a recorded bug; regenerate it from the
+from mcfish would convert a red gate into a recorded bug; regenerate it from the
 oracle or not at all.
 
 ## What is still missing here
 
 - **Optimism is hardcoded to zero**, pending the ported search.
 - **The classical fallback is still in the tree**, and its deletion waits on the
-  point where a netless run is no longer something ccfish needs to support.
+  point where a netless run is no longer something mcfish needs to support.
 - **Bit-exactness with upstream is not reached**, and the evaluation is only one of
   its preconditions: the search is still `search.c` rather than the ported node
   bodies, so the tree diverges regardless of how good the leaf score is. The count in
-  [`../tools/signature.golden`](../tools/signature.golden) is ccfish's *current*
+  [`../tools/signature.golden`](../tools/signature.golden) is mcfish's *current*
   total, not the target; the finish line is upstream's own `Bench:` at the SHA in
   [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE). See
   [07-tooling-ci.md](07-tooling-ci.md).

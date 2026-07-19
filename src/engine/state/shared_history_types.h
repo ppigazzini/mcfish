@@ -14,8 +14,8 @@
 // Upstream: search.h (SharedHistories), history.h (CorrectionHistory, PawnHistory).
 // Port source: zfish src/engine/state/shared_history_types.zig.
 
-#ifndef CCFISH_SHARED_HISTORY_TYPES_H
-#define CCFISH_SHARED_HISTORY_TYPES_H
+#ifndef MCFISH_SHARED_HISTORY_TYPES_H
+#define MCFISH_SHARED_HISTORY_TYPES_H
 
 #include "../board/types.h"
 #include "../search/history.h"
@@ -59,4 +59,4 @@ static inline int16_t *shared_histories_pawn_row(const SharedHistories *sh, Key 
     return &sh->pawn_data[((size_t) pawn_key & sh->pawn_hist_size_minus1) * HIST_PIECETO];
 }
 
-#endif  // CCFISH_SHARED_HISTORY_TYPES_H
+#endif  // MCFISH_SHARED_HISTORY_TYPES_H

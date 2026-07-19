@@ -9,12 +9,12 @@
 //
 // Ported from zfish `engine/search/time_source.zig`.
 
-#ifndef CCFISH_TIME_SOURCE_H
-#define CCFISH_TIME_SOURCE_H
+#ifndef MCFISH_TIME_SOURCE_H
+#define MCFISH_TIME_SOURCE_H
 
 #include <stdint.h>
 
 // Return monotonic time in milliseconds.
 extern int64_t (*TimeNowMs)(void);
 
-#endif  // CCFISH_TIME_SOURCE_H
+#endif  // MCFISH_TIME_SOURCE_H

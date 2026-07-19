@@ -20,7 +20,7 @@ tsan.supp
 tests/syzygy
 tests/bench_tmp.epd
 
-# Neural network files (ccfish does not use one today; keep the pattern so a
+# Neural network files (mcfish does not use one today; keep the pattern so a
 # stray download from an upstream script is never committed)
 **/*.nnue
 

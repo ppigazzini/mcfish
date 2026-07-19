@@ -16,7 +16,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define ENGINE_NAME "ccfish"
+#define ENGINE_NAME "mcfish"
 #define ENGINE_VERSION "dev"
 #define ENGINE_AUTHORS "the Stockfish developers (see AUTHORS file)"
 
@@ -117,7 +117,7 @@ static void start_logger(const char *fname) {
 
 // Report the resident net, or why the classical fallback is in use. Upstream
 // prints this before every go, perft and eval (engine.cpp:150, :157, :329) and
-// terminates when no net loaded; ccfish keeps playing on the fallback instead, so
+// terminates when no net loaded; mcfish keeps playing on the fallback instead, so
 // the same three sites print and none exits.
 static void report_net(void) { uci_printf("info string %s\n", eval_nnue_status()); }
 
@@ -219,7 +219,7 @@ static const char *on_eval_file(const UciOption *o) {
     load_net();
 
     // Drop the search state the previous net produced. Upstream follows every
-    // load with threads.clear() (engine.cpp:313), and search_clear is ccfish's
+    // load with threads.clear() (engine.cpp:313), and search_clear is mcfish's
     // analogue: without it the next search reads history tables and carried-over
     // scores accumulated under a DIFFERENT evaluation, which is a different tree.
     search_clear();
@@ -307,7 +307,7 @@ static void register_options(void) {
 // Report an invalid command and stop the process, as upstream does
 // (Stockfish/src/uci.cpp:684). Terminating IS the contract: a GUI that sent a
 // position the engine could not set must not receive a `bestmove` about some other
-// board. ccfish previously reset to the start position and carried on answering,
+// board. mcfish previously reset to the start position and carried on answering,
 // which is worse than an error -- it is a confident answer to a question nobody
 // asked, and two goldens were generated over it and pinned it.
 static void terminate_on_critical_error(const char *command, const char *reason) {
@@ -611,7 +611,7 @@ void uci_loop(int argc, char **argv) {
     set_root_directory(argc > 0 ? argv[0] : nullptr);
     load_net();
 
-    // Join the argv words into one command so `ccfish go depth 5` behaves as if
+    // Join the argv words into one command so `mcfish go depth 5` behaves as if
     // that line were typed, then exit without entering the loop.
     if (argc > 1) {
         char line[4096] = { 0 };

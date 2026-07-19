@@ -15,8 +15,8 @@
 // Ported from zfish `engine/eval/nnue_feature.zig` against the upstream goldens
 // `nnue/features/half_ka_v2_hm.cpp` and `nnue/features/full_threats.cpp`.
 
-#ifndef CCFISH_NNUE_FEATURE_H
-#define CCFISH_NNUE_FEATURE_H
+#ifndef MCFISH_NNUE_FEATURE_H
+#define MCFISH_NNUE_FEATURE_H
 
 #include "nnue_architecture.h"
 #include <stdbool.h>
@@ -146,4 +146,4 @@ nnue_full_requires_refresh(uint8_t us, uint8_t prev_ksq, uint8_t ksq, uint8_t pe
     return perspective == us && (((int8_t) ksq & 0x4) != ((int8_t) prev_ksq & 0x4));
 }
 
-#endif  // CCFISH_NNUE_FEATURE_H
+#endif  // MCFISH_NNUE_FEATURE_H

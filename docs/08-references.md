@@ -7,7 +7,7 @@ Audience: all developers.
 
 ## The two repositories that define the work
 
-The port path is **zfish → ccfish**, with Stockfish as the golden. See
+The port path is **zfish → mcfish**, with Stockfish as the golden. See
 [PORTING.md](PORTING.md).
 
 - [Stockfish][stockfish] — the **golden**. It defines correct behaviour, and the
@@ -20,7 +20,7 @@ The port path is **zfish → ccfish**, with Stockfish as the golden. See
   classes, RAII and operator overloading already removed. It is a sibling
   checkout at `../zfish`, not a URL this page can pin; its own `docs/` holds the
   per-zone pages this set mirrors, and its `03-engine-eval` and
-  `04-multithreading` describe the NNUE and Lazy-SMP designs ccfish is porting
+  `04-multithreading` describe the NNUE and Lazy-SMP designs mcfish is porting
   against. The module-by-module mapping is `tools/upstream/port_map.tsv`.
 
 ## Chess programming
@@ -62,7 +62,7 @@ The port path is **zfish → ccfish**, with Stockfish as the golden. See
 
 ## Licensing
 
-- [GNU GPL v3][gpl3] — ccfish is a derivative of Stockfish and inherits it. See
+- [GNU GPL v3][gpl3] — mcfish is a derivative of Stockfish and inherits it. See
   [`../Copying.txt`](../Copying.txt) and [`../AUTHORS`](../AUTHORS).
 
 [clang-diag]:   https://clang.llvm.org/docs/DiagnosticsReference.html

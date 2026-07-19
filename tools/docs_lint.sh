@@ -10,9 +10,9 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Docs here legitimately name paths in THREE repos: ccfish's own tree, the zfish
+# Docs here legitimately name paths in THREE repos: mcfish's own tree, the zfish
 # port source, and the Stockfish golden. A path is a valid claim if it resolves in
-# any of them. Checking only ccfish would flag every upstream citation -- and the
+# any of them. Checking only mcfish would flag every upstream citation -- and the
 # whole repo is about porting, so those citations are the common case, not the
 # exception.
 SEARCH_ROOTS=(. ../Stockfish ../zfish)

@@ -13,8 +13,8 @@
 //
 // Ported from zfish `engine/search/output_sink.zig`.
 
-#ifndef CCFISH_OUTPUT_SINK_H
-#define CCFISH_OUTPUT_SINK_H
+#ifndef MCFISH_OUTPUT_SINK_H
+#define MCFISH_OUTPUT_SINK_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -31,4 +31,4 @@ extern bool (*OutputIsQuiet)(void);
 // failure: silent — discards it; no shell means no signature line to read it.
 extern void (*OutputSetLastNodesSearched)(uint64_t nodes);
 
-#endif  // CCFISH_OUTPUT_SINK_H
+#endif  // MCFISH_OUTPUT_SINK_H

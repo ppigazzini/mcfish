@@ -5,8 +5,8 @@
 // attack table, so widening a type without widening its `*_NB` bound turns a
 // bounds check into a silent out-of-range read.
 
-#ifndef CCFISH_TYPES_H
-#define CCFISH_TYPES_H
+#ifndef MCFISH_TYPES_H
+#define MCFISH_TYPES_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -307,4 +307,4 @@ static inline bool dirty_threat_add(uint32_t d) { return (d >> DIRTY_THREAT_ADD_
 // Empty the list. The king squares are written by the make/unmake hooks, not here.
 static inline void dirty_threats_clear(DirtyThreats *dts) { dts->list_size = 0; }
 
-#endif  // CCFISH_TYPES_H
+#endif  // MCFISH_TYPES_H

@@ -373,7 +373,7 @@ bool search_pseudo_legal(const Position *pos, Move m) {
 }
 
 // Return the squares from which PT would check THEM's king, given the current
-// occupancy — upstream's StateInfo::checkSquares, recomputed here because ccfish's
+// occupancy — upstream's StateInfo::checkSquares, recomputed here because mcfish's
 // StateInfo does not cache it yet.
 static Bitboard check_squares(const Position *pos, PieceType pt, Color them) {
     const Square ksq = king_square(pos, them);

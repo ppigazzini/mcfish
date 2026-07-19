@@ -44,7 +44,7 @@ void worker_write_constructor_fields(Worker *w, const WorkerCtorInputs *in) {
 
     // Initialise the tablebase config HERE, not by relying on a zeroed block. Upstream's
     // Tablebases::Config carries its own in-class initialisers (tbprobe.h:41), so a Worker
-    // that never runs a root setup still reads cardinality 0 and never probes; ccfish's
+    // that never runs a root setup still reads cardinality 0 and never probes; mcfish's
     // TablebaseConfig is a plain struct with none, so without this line a worker built
     // before the first `go` reads a stale cardinality and probes a tablebase the root
     // ranking never resolved.

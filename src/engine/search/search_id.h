@@ -10,8 +10,8 @@
 // Ported from zfish `engine/search/search_id_loop.zig` + the loop helpers in
 // `search_id.zig`. Golden: `Stockfish/src/search.cpp: iterative_deepening`.
 
-#ifndef CCFISH_SEARCH_ID_H
-#define CCFISH_SEARCH_ID_H
+#ifndef MCFISH_SEARCH_ID_H
+#define MCFISH_SEARCH_ID_H
 
 #include "search_types.h"
 
@@ -36,4 +36,4 @@ void move_to_front(RootMove *rm, size_t count, Move target);
 // for the final iteration, so the caller knows not to repeat it.
 bool iterative_deepening(SearchCtx *ctx, SearchIdState *id);
 
-#endif  // CCFISH_SEARCH_ID_H
+#endif  // MCFISH_SEARCH_ID_H

@@ -24,8 +24,8 @@
 // PendingStateStorage). Golden: `Stockfish/src/uci.h` (`StateListPtr`) and
 // `Stockfish/src/uci.cpp: UCIEngine::position`.
 
-#ifndef CCFISH_STATE_LIST_H
-#define CCFISH_STATE_LIST_H
+#ifndef MCFISH_STATE_LIST_H
+#define MCFISH_STATE_LIST_H
 
 #include <stddef.h>
 
@@ -79,4 +79,4 @@ bool pending_states_has_states(const PendingStateStorage *storage);
 // already moved out. The caller becomes responsible for `state_list_destroy`.
 StateList *pending_states_move_out(PendingStateStorage *storage);
 
-#endif  // CCFISH_STATE_LIST_H
+#endif  // MCFISH_STATE_LIST_H

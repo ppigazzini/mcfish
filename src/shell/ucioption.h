@@ -11,8 +11,8 @@
 // `shell/option_parse.zig`. Golden: upstream `ucioption.cpp:73` (Option::add),
 // `ucioption.cpp:152` (Option::operator=), `ucioption.cpp:186` (operator<<).
 
-#ifndef CCFISH_UCIOPTION_H
-#define CCFISH_UCIOPTION_H
+#ifndef MCFISH_UCIOPTION_H
+#define MCFISH_UCIOPTION_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -120,4 +120,4 @@ const char *options_get_string(const OptionsMap *map, const char *name);
 // number of bytes written, excluding the NUL; truncate rather than overrun.
 size_t options_render(const OptionsMap *map, char *buf, size_t buf_len);
 
-#endif  // CCFISH_UCIOPTION_H
+#endif  // MCFISH_UCIOPTION_H

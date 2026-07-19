@@ -8,8 +8,8 @@
 // must establish `b != 0` first, which is why the tree writes `while (b) { ...
 // pop_lsb(&b) }` and never a do/while.
 
-#ifndef CCFISH_BITBOARD_H
-#define CCFISH_BITBOARD_H
+#ifndef MCFISH_BITBOARD_H
+#define MCFISH_BITBOARD_H
 
 #include "types.h"
 
@@ -71,4 +71,4 @@ static inline Bitboard pawn_attacks_bb(Color c, Bitboard b) {
                       : shift_bb(SOUTH_WEST, b) | shift_bb(SOUTH_EAST, b);
 }
 
-#endif  // CCFISH_BITBOARD_H
+#endif  // MCFISH_BITBOARD_H

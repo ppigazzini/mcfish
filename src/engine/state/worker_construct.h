@@ -14,8 +14,8 @@
 // Upstream: search.cpp (Worker::Worker, Worker::clear), search.cpp:696 (reductions fill).
 // Port source: zfish src/engine/state/worker_construct.zig.
 
-#ifndef CCFISH_WORKER_CONSTRUCT_H
-#define CCFISH_WORKER_CONSTRUCT_H
+#ifndef MCFISH_WORKER_CONSTRUCT_H
+#define MCFISH_WORKER_CONSTRUCT_H
 
 #include "shared_history_types.h"
 #include "shared_state.h"
@@ -76,4 +76,4 @@ Worker *worker_construct_full(void *block, const WorkerCtorInputs *in, bool *net
 // with worker_block_free, which the block's allocator owns.
 void worker_destruct(Worker *w);
 
-#endif  // CCFISH_WORKER_CONSTRUCT_H
+#endif  // MCFISH_WORKER_CONSTRUCT_H

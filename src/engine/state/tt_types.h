@@ -10,8 +10,8 @@
 // Upstream: tt.h:60 (TTEntry), tt.cpp:29 (Cluster, ClusterSize), tt.h:104
 // (TranspositionTable). Port source: zfish src/engine/state/tt_types.zig.
 
-#ifndef CCFISH_TT_TYPES_H
-#define CCFISH_TT_TYPES_H
+#ifndef MCFISH_TT_TYPES_H
+#define MCFISH_TT_TYPES_H
 
 #include "../search/tt.h"
 
@@ -37,4 +37,4 @@ typedef struct {
     uint8_t generation8;
 } TranspositionTable;
 
-#endif  // CCFISH_TT_TYPES_H
+#endif  // MCFISH_TT_TYPES_H

@@ -18,10 +18,10 @@
 // Ported from zfish `engine/search/movepick.zig`, `movepick_score.zig`,
 // `movepick_history.zig` and `movepick_snapshot.zig` against the upstream golden
 // `movepick.cpp`. `see_ge` mirrors upstream `position.cpp: Position::see_ge`,
-// which ccfish has not split out into the board zone yet.
+// which mcfish has not split out into the board zone yet.
 
-#ifndef CCFISH_MOVEPICK_H
-#define CCFISH_MOVEPICK_H
+#ifndef MCFISH_MOVEPICK_H
+#define MCFISH_MOVEPICK_H
 
 #include "history.h"
 
@@ -107,4 +107,4 @@ static inline void movepick_skip_quiets(MovePicker *mp) { mp->skip_quiets = true
 // `0 >= threshold`, as upstream does.
 bool see_ge(const Position *pos, Move m, int threshold);
 
-#endif  // CCFISH_MOVEPICK_H
+#endif  // MCFISH_MOVEPICK_H

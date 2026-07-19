@@ -21,14 +21,14 @@
 // when it sets the square.
 //
 // Ported from zfish `engine/board/fen_parse.zig` (setPosition), narrowed to the
-// acceptance set ccfish's `position.c: pos_set` already established: zfish's extra
+// acceptance set mcfish's `position.c: pos_set` already established: zfish's extra
 // rejections (pawns on the back ranks, >32 pieces, unreachable promotion counts,
 // counter range checks, king-can-be-captured) are NOT reproduced here, because
 // they would change which of `tools/cases/errors.uci` and `tools/cases/board.uci`
 // are accepted. Golden: `Stockfish/src/position.cpp: Position::set`.
 
-#ifndef CCFISH_FEN_PARSE_H
-#define CCFISH_FEN_PARSE_H
+#ifndef MCFISH_FEN_PARSE_H
+#define MCFISH_FEN_PARSE_H
 
 #include "position_types.h"
 #include "types.h"
@@ -41,4 +41,4 @@
 // must discard POS on false, never inspect it.
 bool pos_set(Position *pos, const char *fen, bool chess960, StateInfo *si);
 
-#endif  // CCFISH_FEN_PARSE_H
+#endif  // MCFISH_FEN_PARSE_H

@@ -1,6 +1,6 @@
 # Upstream tracking
 
-ccfish targets a **bit-exact 1:1 clone of Stockfish**. This directory holds the
+mcfish targets a **bit-exact 1:1 clone of Stockfish**. This directory holds the
 state and the tooling that makes that checkable.
 
 ## The two repos
@@ -15,17 +15,17 @@ templates, classes, RAII and operator overloading are already gone, the engine i
 decomposed into small modules, and the result is proven bit-exact. Translating
 Zig → C23 is close to mechanical.
 
-The differential gate compares ccfish against a **pristine upstream build**, never
+The differential gate compares mcfish against a **pristine upstream build**, never
 against zfish. Where zfish and Stockfish disagree, Stockfish wins, and the
 divergence is a bug report for zfish.
 
 ## State files
 
-- **`UPSTREAM_BASE`** — the Stockfish SHA ccfish is porting to. The bench count of
+- **`UPSTREAM_BASE`** — the Stockfish SHA mcfish is porting to. The bench count of
   *this commit* is the finish line. Advance it only when `upstream-parity` is green.
 - **`UPSTREAM_TARGET`** — the SHA being ported toward when catching up to a moving
   upstream; equal to `UPSTREAM_BASE` when synced.
-- **`port_map.tsv`** — the work list: every zfish module → its ccfish owner → its
+- **`port_map.tsv`** — the work list: every zfish module → its mcfish owner → its
   Stockfish golden → status → risk tier.
 
 ## Tools
@@ -34,14 +34,14 @@ divergence is a bug report for zfish.
 |---|---|
 | `../port_status.sh` | progress report off `port_map.tsv`. Run via `./build.sh port-status`. |
 | `upstream_oracle.sh [sha]` | builds **pristine** upstream at `sha` in a detached worktree and prints the binary path |
-| `upstream_parity.sh [bin] [sha]` | the finish-line gate: ccfish bench vs the oracle bench. Run via `./build.sh upstream-parity`. |
+| `upstream_parity.sh [bin] [sha]` | the finish-line gate: mcfish bench vs the oracle bench. Run via `./build.sh upstream-parity`. |
 
 ## Why the oracle is a separate worktree
 
 The oracle must be upstream's own code built by upstream's own Makefile, with no
-ccfish edit anywhere near it. If the two shared a tree, a bug present in both
+mcfish edit anywhere near it. If the two shared a tree, a bug present in both
 would cancel out and the gate would pass on a wrong engine. The worktree lives
-outside the repo (`../.ccfish-upstream-oracle`) and is never committed.
+outside the repo (`../.mcfish-upstream-oracle`) and is never committed.
 
 ## Why `upstream-parity` is not in `parity`
 
@@ -49,7 +49,7 @@ It is **red until the port completes**, by construction. `./build.sh parity` mus
 stay green on a correct in-progress tree, so the finish-line gate is a separate
 step you run deliberately.
 
-Day to day, `./build.sh signature` is the anchor: it pins ccfish's *current*
+Day to day, `./build.sh signature` is the anchor: it pins mcfish's *current*
 behaviour so a refactor cannot change it silently. That number is not the target
 and never will be — see [../../docs/PORTING.md](../../docs/PORTING.md).
 
@@ -60,7 +60,7 @@ and never will be — see [../../docs/PORTING.md](../../docs/PORTING.md).
 # pick a module; read its zfish source and its Stockfish golden
 $EDITOR ../zfish/src/<module>.zig
 git -C ../Stockfish show HEAD -- src/<golden>
-# translate into the ccfish owner named in port_map.tsv, then:
+# translate into the mcfish owner named in port_map.tsv, then:
 ./build.sh parity                           # nothing already working may break
 # flip the row's status in port_map.tsv, commit ONE module with the zfish source named
 ./build.sh upstream-parity                  # red until the last module lands

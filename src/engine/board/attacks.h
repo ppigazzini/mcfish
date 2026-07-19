@@ -2,7 +2,7 @@
 //
 // Ported from zfish `engine/board/bitboard.zig` (the magic search) against the
 // upstream golden `attacks.cpp`. Upstream now carries several slider backends
-// selected by macro; ccfish implements the classic magic-bitboard one, which is
+// selected by macro; mcfish implements the classic magic-bitboard one, which is
 // what zfish proved bit-exact.
 //
 // A magic replaces the per-node ray walk with mask/multiply/shift/load. The
@@ -10,8 +10,8 @@
 // single-threaded startup init is the only writer, which is what makes them safe
 // to share across the search threads M4 will add.
 
-#ifndef CCFISH_ATTACKS_H
-#define CCFISH_ATTACKS_H
+#ifndef MCFISH_ATTACKS_H
+#define MCFISH_ATTACKS_H
 
 #include "types.h"
 
@@ -46,4 +46,4 @@ static inline bool aligned(Square s1, Square s2, Square s3) {
     return (LineBB[s1][s2] & ((Bitboard) 1 << s3)) != 0;
 }
 
-#endif  // CCFISH_ATTACKS_H
+#endif  // MCFISH_ATTACKS_H

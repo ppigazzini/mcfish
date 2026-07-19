@@ -24,8 +24,8 @@
 // `nnue_inference.zig`, against the upstream goldens `nnue/layers/affine_transform.h`,
 // `nnue/layers/affine_transform_sparse_input.h` and `nnue/layers/clipped_relu.h`.
 
-#ifndef CCFISH_NNUE_AFFINE_H
-#define CCFISH_NNUE_AFFINE_H
+#ifndef MCFISH_NNUE_AFFINE_H
+#define MCFISH_NNUE_AFFINE_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -70,4 +70,4 @@ void nnue_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]);
 // regardless. That is the property upstream's saturating `packs_epi32` relies on.
 void nnue_sqr_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]);
 
-#endif  // CCFISH_NNUE_AFFINE_H
+#endif  // MCFISH_NNUE_AFFINE_H

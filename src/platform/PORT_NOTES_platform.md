@@ -66,7 +66,7 @@ zone must not name:
 
 - **`thread.zig`'s `startThinking` / `clear` / `reconfigure` glue.** It reads
   `worker_layout.Worker`, `search_driver`, `root_move_build` and `state_list`, none of
-  which exist in ccfish yet. The NUMA-distribution half of `reconfigure` **is** ported (it
+  which exist in mcfish yet. The NUMA-distribution half of `reconfigure` **is** ported (it
   is pure platform); the root-move and limits half is not.
 - **`thread_vote.zig`.** It is a pure read over `RootMove`/`Worker` fields, so it belongs
   with the search zone that defines them, not here.

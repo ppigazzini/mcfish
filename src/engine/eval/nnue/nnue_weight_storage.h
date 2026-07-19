@@ -12,8 +12,8 @@
 //
 // Mirrors zfish nnue_weight_storage.zig; golden src/nnue/network.cpp.
 
-#ifndef CCFISH_NNUE_WEIGHT_STORAGE_H
-#define CCFISH_NNUE_WEIGHT_STORAGE_H
+#ifndef MCFISH_NNUE_WEIGHT_STORAGE_H
+#define MCFISH_NNUE_WEIGHT_STORAGE_H
 
 #include "nnue_architecture.h"
 
@@ -70,4 +70,4 @@ const uint8_t *nnue_layer_ptr(size_t bucket, size_t idx, NnueLayerPart part);
 // re-allocates.
 void nnue_weight_storage_free(void);
 
-#endif  // CCFISH_NNUE_WEIGHT_STORAGE_H
+#endif  // MCFISH_NNUE_WEIGHT_STORAGE_H

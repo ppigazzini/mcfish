@@ -5,7 +5,7 @@ the search start time it cannot read from `SearchLimits` are passed in as
 parameters (`TimemanOptions`, `start_time`). Record the gaps here so the wiring
 commit can close them deliberately rather than by accident.
 
-## `SearchLimits` fields upstream carries and ccfish lacks
+## `SearchLimits` fields upstream carries and mcfish lacks
 
 Requested only when the corresponding feature is wired; none is needed to compile
 or to use this module.

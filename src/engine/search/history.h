@@ -19,8 +19,8 @@
 // `history.h` and `search.cpp` (update_all_stats / update_continuation_histories
 // / update_quiet_histories / update_correction_history).
 
-#ifndef CCFISH_HISTORY_H
-#define CCFISH_HISTORY_H
+#ifndef MCFISH_HISTORY_H
+#define MCFISH_HISTORY_H
 
 #include "../board/position.h"
 #include "../board/types.h"
@@ -191,4 +191,4 @@ void history_update_correction(Histories *h,
                                const HistoryStack *hs,
                                int bonus);
 
-#endif  // CCFISH_HISTORY_H
+#endif  // MCFISH_HISTORY_H

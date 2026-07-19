@@ -12,7 +12,7 @@
 # This job spends the time the push lane cannot: the same positions at greater depth,
 # against the published reference counts, once a night. It is a pure gate -- it builds,
 # counts, compares, and writes nothing back to the repository.
-name: ccfish perft (nightly)
+name: mcfish perft (nightly)
 
 on:
   schedule:
@@ -30,7 +30,7 @@ permissions:
   contents: read
 
 env:
-  # Track the pin in ccfish_parity.yml -- deep perft is only meaningful if it exercises
+  # Track the pin in mcfish_parity.yml -- deep perft is only meaningful if it exercises
   # the same binary the blocking gate does.
   CLANG_VERSION: "21"
 
@@ -55,7 +55,7 @@ jobs:
 
       # Release build (-O3), NOT the debug/sanitizer build: at these depths an
       # instrumented binary would be an order of magnitude too slow, and perft is a
-      # counting check -- the sanitizer lane in ccfish_parity.yml owns memory safety.
+      # counting check -- the sanitizer lane in mcfish_parity.yml owns memory safety.
       - name: Build (release)
         run: CC="clang-$CLANG_VERSION" ./build.sh build
 
@@ -87,7 +87,7 @@ jobs:
             local start elapsed got
             start=$SECONDS
             got=$(printf 'position fen %s\ngo perft %s\nquit\n' "$fen" "$depth" \
-                  | ./build/ccfish | grep 'Nodes searched' | awk '{print $NF}')
+                  | ./build/mcfish | grep 'Nodes searched' | awk '{print $NF}')
             elapsed=$((SECONDS - start))
             if [ "$got" = "$expected" ]; then
               printf '  ok   %-12s depth %s  %14s nodes  (%ss)\n' "$name" "$depth" "$got" "$elapsed"

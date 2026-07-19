@@ -16,8 +16,8 @@
 // Port source: zfish `shell/uci_output.zig`. Golden: upstream `misc.h:73`
 // (sync_cout / sync_endl), `misc.cpp:249` (the `Debug Log File` tee).
 
-#ifndef CCFISH_UCI_OUTPUT_H
-#define CCFISH_UCI_OUTPUT_H
+#ifndef MCFISH_UCI_OUTPUT_H
+#define MCFISH_UCI_OUTPUT_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -57,4 +57,4 @@ void uci_output_reset_last_nodes_searched(void);
 void uci_output_set_quiet(bool quiet);
 bool uci_output_is_quiet(void);
 
-#endif  // CCFISH_UCI_OUTPUT_H
+#endif  // MCFISH_UCI_OUTPUT_H

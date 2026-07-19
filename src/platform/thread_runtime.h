@@ -15,8 +15,8 @@
 // Upstream: thread.h:60 (mutex, cv), thread.h:105 (the pool's stop flag).
 // Port source: zfish src/platform/thread_runtime.zig.
 
-#ifndef CCFISH_THREAD_RUNTIME_H
-#define CCFISH_THREAD_RUNTIME_H
+#ifndef MCFISH_THREAD_RUNTIME_H
+#define MCFISH_THREAD_RUNTIME_H
 
 #include <pthread.h>
 #include <stdatomic.h>
@@ -82,4 +82,4 @@ uint64_t atomic_u64_load(const AtomicU64 *a);
 // unsigned arithmetic does.
 uint64_t atomic_u64_fetch_add(AtomicU64 *a, uint64_t delta);
 
-#endif  // CCFISH_THREAD_RUNTIME_H
+#endif  // MCFISH_THREAD_RUNTIME_H

@@ -11,8 +11,8 @@
 //
 // Ported from zfish `engine/search/option_source.zig`.
 
-#ifndef CCFISH_OPTION_SOURCE_H
-#define CCFISH_OPTION_SOURCE_H
+#ifndef MCFISH_OPTION_SOURCE_H
+#define MCFISH_OPTION_SOURCE_H
 
 // Read an integer UCI option by name; 0 when unset or no model is attached.
 extern int (*OptionIntByName)(const char *name);
@@ -23,4 +23,4 @@ extern int (*OptionSyzygyProbeDepth)(void);
 extern int (*OptionSyzygyProbeLimit)(void);
 extern bool (*OptionSyzygy50MoveRule)(void);
 
-#endif  // CCFISH_OPTION_SOURCE_H
+#endif  // MCFISH_OPTION_SOURCE_H

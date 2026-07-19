@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare ccfish against a pristine upstream build node-for-node.
+"""Compare mcfish against a pristine upstream build node-for-node.
 
 WHY RANDOM POSITIONS
 --------------------
@@ -28,8 +28,8 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-CCFISH = REPO / "build" / "ccfish"
-ORACLE = REPO.parent / ".ccfish-upstream-oracle" / "src" / "stockfish"
+MCFISH = REPO / "build" / "mcfish"
+ORACLE = REPO.parent / ".mcfish-upstream-oracle" / "src" / "stockfish"
 
 START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -128,19 +128,19 @@ def main():
     ap.add_argument("--plies", type=int, default=12)
     args = ap.parse_args()
 
-    if not CCFISH.exists():
-        sys.exit(f"no ccfish binary at {CCFISH} -- run ./build.sh first")
+    if not MCFISH.exists():
+        sys.exit(f"no mcfish binary at {MCFISH} -- run ./build.sh first")
     if not ORACLE.exists():
         sys.exit(f"no oracle at {ORACLE} -- run tools/upstream/upstream_oracle.sh")
 
     rng = random.Random(args.seed)
-    cc = Engine(CCFISH, CCFISH.parent)
+    cc = Engine(MCFISH, MCFISH.parent)
     up = Engine(ORACLE, ORACLE.parent)
     cc.setup()
     up.setup()
 
     # Generate positions with the ORACLE, so the sample cannot be biased by
-    # anything ccfish does. A position ccfish cannot reach is a bug in ccfish.
+    # anything mcfish does. A position mcfish cannot reach is a bug in mcfish.
     fens = []
     while len(fens) < args.positions:
         moves = []
