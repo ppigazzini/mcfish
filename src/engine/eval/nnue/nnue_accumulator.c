@@ -98,27 +98,6 @@ static inline NnueV64u16 load_psq_row(const int16_t *w) {
     return nnue_v64u16_load((const uint16_t *) w);
 }
 
-// Apply a whole row list to the accumulator, upstream's `apply_combined` way: tile the
-// accumulator, hold the tile in a register, and walk the rows INSIDE. The rows are the
-// inner loop, so the accumulator is loaded and stored once per tile rather than once per
-// row — which is what a row-outer loop costs, since each row streams all
-// NNUE_HALF_DIMENSIONS of it through memory.
-//
-// Order per element is unchanged, and uint16 wrap-around addition is associative
-// regardless, so this is bit-identical to applying the rows one at a time.
-static void acc_rows_i16(
-  bool add, int16_t *target, const uint32_t *rows, size_t row_count, const int16_t *weights) {
-    for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
-        NnueV64u16 acc = nnue_v64u16_load((const uint16_t *) (target + d));
-        for (size_t r = 0; r < row_count; r++) {
-            const NnueV64u16 w =
-              load_psq_row(weights + (size_t) rows[r] * NNUE_HALF_DIMENSIONS + d);
-            acc = add ? nnue_v64u16_add(acc, w) : nnue_v64u16_sub(acc, w);
-        }
-        nnue_v64u16_store((uint16_t *) (target + d), acc);
-    }
-}
-
 static void acc_rows_i8(
   bool add, int16_t *target, const uint32_t *rows, size_t row_count, const int8_t *weights) {
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
@@ -138,8 +117,27 @@ static void apply_delta_in_place_i16(int16_t *target,
                                      const uint32_t *added,
                                      size_t added_len,
                                      const int16_t *weights) {
-    acc_rows_i16(false, target, removed, removed_len, weights);
-    acc_rows_i16(true, target, added, added_len, weights);
+    // Fuse removed and added into ONE tile sweep. Two calls to acc_rows_i16 loaded
+    // and stored the whole accumulator twice -- the row-inner tiling saves the
+    // per-row traffic but the removed/added split threw half of that back, so the
+    // update read and wrote NNUE_HALF_DIMENSIONS twice over. This is upstream's
+    // actual apply_combined shape (nnue_feature_transformer.h): hold the tile in a
+    // register, subtract every removed row and add every added row into it, store
+    // once.
+    //
+    // Bit-identical: (target - sum(removed)) + sum(added) is the same value however
+    // the terms are grouped, and uint16 wrap addition is associative and
+    // commutative, so no per-element order changes.
+    for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
+        NnueV64u16 acc = nnue_v64u16_load((const uint16_t *) (target + d));
+        for (size_t r = 0; r < removed_len; r++)
+            acc = nnue_v64u16_sub(
+              acc, load_psq_row(weights + (size_t) removed[r] * NNUE_HALF_DIMENSIONS + d));
+        for (size_t r = 0; r < added_len; r++)
+            acc = nnue_v64u16_add(
+              acc, load_psq_row(weights + (size_t) added[r] * NNUE_HALF_DIMENSIONS + d));
+        nnue_v64u16_store((uint16_t *) (target + d), acc);
+    }
 }
 
 static void
