@@ -233,6 +233,11 @@ static void registry_register(const uint8_t *pieces, size_t n_pieces) {
         return;
     }
     memset(t, 0, sizeof *t);
+    // Initialise the two publication flags explicitly rather than leaning on the
+    // memset: a zeroed atomic is a valid `false` on every platform mcfish builds
+    // for, but only atomic_init makes that a guarantee rather than an observation.
+    atomic_bool_init(&t->ready, false);
+    atomic_bool_init(&t->dtz_ready, false);
     t->key = key;
     t->key2 = key2;
     t->piece_count = (int32_t) n_pieces;
@@ -525,44 +530,75 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
     return true;
 }
 
+// Serialise the lazy maps. Upstream's `mapped` declares `static std::mutex mutex`
+// inside a function template, so WDL and DTZ each get their own; keep that split
+// rather than one lock, or a thread mapping a `.rtbz` blocks one mapping an
+// unrelated `.rtbw`. Static-initialised because there is no init hook to run and
+// PTHREAD_MUTEX_INITIALIZER is exactly what a `static std::mutex` compiles to.
+static Mutex WdlMapMutex = { .handle = PTHREAD_MUTEX_INITIALIZER };
+static Mutex DtzMapMutex = { .handle = PTHREAD_MUTEX_INITIALIZER };
+
+// Golden: `Stockfish/src/syzygy/tbprobe.cpp: mapped` (1263-1302), which every
+// probing thread may enter at once.
+//
+// The flag is published LAST, and only after `set` has filled the PairsData. It
+// used to be raised on entry, before the file was even opened: a second thread
+// then took the fast path and read either a null base -- reporting "no such
+// table" for a table that exists -- or a base whose records were still being
+// parsed underneath it.
+//
+// mcfish's AtomicBool is seq_cst where upstream is acquire/release. That is
+// strictly stronger, so the guarantee upstream relies on -- that a thread seeing
+// `ready` also sees every write made before it was set -- holds; the difference
+// costs a fence on a path taken once per table per game.
 bool registry_map_wdl(TBTable *t) {
-    if (t->ready) {
+    if (atomic_bool_load(&t->ready))
+        return t->base != nullptr;
+
+    mutex_lock(&WdlMapMutex);
+    if (atomic_bool_load(&t->ready)) {  // recheck: another thread may have mapped it
+        mutex_unlock(&WdlMapMutex);
         return t->base != nullptr;
     }
-    t->ready = true;
+
     size_t size = 0;
     const uint8_t *buf = map_file(t, ".rtbw", WdlMagic, &size);
-    if (buf == nullptr) {
-        t->base = nullptr;
-        return false;
+    if (buf != nullptr && set(t, false, buf, size)) {
+        t->base = buf;
+        t->base_size = size;
+    } else {
+        t->base = nullptr;  // a mapping made here stays owned by the chunk list
     }
-    if (!set(t, false, buf, size)) {
-        t->base = nullptr;  // the mapping stays owned by the chunk list
-        return false;
-    }
-    t->base = buf;
-    t->base_size = size;
-    return true;
+
+    const bool mapped = t->base != nullptr;
+    atomic_bool_store(&t->ready, true);
+    mutex_unlock(&WdlMapMutex);
+    return mapped;
 }
 
 bool registry_map_dtz(TBTable *t) {
-    if (t->dtz_ready) {
+    if (atomic_bool_load(&t->dtz_ready))
+        return t->dtz_base != nullptr;
+
+    mutex_lock(&DtzMapMutex);
+    if (atomic_bool_load(&t->dtz_ready)) {
+        mutex_unlock(&DtzMapMutex);
         return t->dtz_base != nullptr;
     }
-    t->dtz_ready = true;
+
     size_t size = 0;
     const uint8_t *buf = map_file(t, ".rtbz", DtzMagic, &size);
-    if (buf == nullptr) {
+    if (buf != nullptr && set(t, true, buf, size)) {
+        t->dtz_base = buf;
+        t->dtz_base_size = size;
+    } else {
         t->dtz_base = nullptr;
-        return false;
     }
-    if (!set(t, true, buf, size)) {
-        t->dtz_base = nullptr;
-        return false;
-    }
-    t->dtz_base = buf;
-    t->dtz_base_size = size;
-    return true;
+
+    const bool mapped = t->dtz_base != nullptr;
+    atomic_bool_store(&t->dtz_ready, true);
+    mutex_unlock(&DtzMapMutex);
+    return mapped;
 }
 
 // ---- init: enumerate every material configuration ---------------------------

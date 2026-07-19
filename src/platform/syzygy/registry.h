@@ -5,7 +5,12 @@
 // Keep the probe ALGORITHM out of this file — wdl.c and probe.c import this one
 // and never the reverse, so neither side becomes a god-file. A TBTable's mapped
 // pointers stay valid until the next `registry_init`, which unmaps every file and
-// frees every allocation at once; nothing here is thread-safe, exactly as upstream.
+// frees every allocation at once.
+//
+// `registry_init` is NOT thread-safe and is not called concurrently: upstream
+// runs it from the `SyzygyPath` option callback, off the search. The two lazy
+// maps ARE, because every probing thread reaches them — upstream says so at
+// tbprobe.cpp:1266 ("Function is thread safe and can be called concurrently").
 //
 // A material key is computed here rather than read from Position, which carries
 // none: only self-consistency matters, because the key never leaves this module.
@@ -17,6 +22,7 @@
 #ifndef MCFISH_SYZYGY_REGISTRY_H
 #define MCFISH_SYZYGY_REGISTRY_H
 
+#include "../thread_runtime.h"
 #include "tables.h"
 
 #include <stdbool.h>
@@ -35,13 +41,17 @@ typedef struct TBTable {
     size_t stem_len;
 
     // WDL (.rtbw): two sides by up to four files.
-    bool ready;
+    //
+    // `ready` is the publication flag for everything below it, and it is read
+    // without the lock on the fast path, so it must be atomic: see
+    // registry_map_wdl. Golden: tbprobe.cpp:384 (`std::atomic_bool ready`).
+    AtomicBool ready;
     const uint8_t *base;  // whole mapped file, nullptr when the load failed
     size_t base_size;
     PairsData items[2][4];
 
     // DTZ (.rtbz): one side by up to four files, plus the value-remap table.
-    bool dtz_ready;
+    AtomicBool dtz_ready;
     const uint8_t *dtz_base;
     size_t dtz_base_size;
     const uint8_t *dtz_map;  // set_dtz_map: base of the DTZ value maps
