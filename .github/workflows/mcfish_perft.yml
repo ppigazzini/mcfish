@@ -32,7 +32,7 @@ permissions:
 env:
   # Track the pin in mcfish_parity.yml -- deep perft is only meaningful if it exercises
   # the same binary the blocking gate does.
-  CLANG_VERSION: "21"
+  CLANG_VERSION: "22"
 
 jobs:
   deep-perft:

@@ -35,7 +35,7 @@ env:
   # different. The engine was developed against clang 22; anything from 20 up handles the
   # constructs above. Bumping this is a one-line change and should be done deliberately,
   # not floated, so a toolchain regression is attributable to a commit here.
-  CLANG_VERSION: "21"
+  CLANG_VERSION: "22"
 
 jobs:
   # Formatting gate, split out and run first because it is the cheapest signal in the
