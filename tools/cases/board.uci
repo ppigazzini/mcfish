@@ -15,6 +15,14 @@ d
 position fen r3k2r/8/8/8/8/8/8/R3K2R w Kq - 5 12
 flip
 d
+position fen 8/8/8/8/8/4k3/8/R3K3 w
+d
+position fen 8/8/8/8/8/4k3/8/R3K3 w KQ
+d
+position fen 8/8/8/8/8/4k3/8/R3K3 w KQ - - 7
+d
+position fen 8/8/8/8/8/4k3/8/R3K3 w KQ - e3
+d
 position fen 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 11 moves b4b6
 d
 quit
