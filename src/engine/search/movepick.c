@@ -1,5 +1,7 @@
 #include "movepick.h"
 
+#include "../board/legality.h"
+
 #include "history.h"
 
 #include "../board/attacks.h"
@@ -22,88 +24,6 @@ enum { KIND_CAPTURES = 0, KIND_QUIETS = 1, KIND_EVASIONS = 2 };
 
 enum { GOOD_QUIET_THRESHOLD = -14000 };
 
-static inline Bitboard least_significant_bb(Bitboard b) { return b & (~b + 1); }
-
-bool see_ge(const Position *pos, Move m, int threshold) {
-    if (move_type(m) != NORMAL)
-        return 0 >= threshold;
-
-    const Square from = move_from(m);
-    const Square to = move_to(m);
-
-    int swap = piece_value(type_of_piece(piece_on(pos, to))) - threshold;
-    if (swap < 0)
-        return false;
-
-    swap = piece_value(type_of_piece(piece_on(pos, from))) - swap;
-    if (swap <= 0)
-        return true;
-
-    Bitboard occupied = pieces(pos) ^ square_bb(from) ^ square_bb(to);
-    Color stm = pos->side_to_move;
-    Bitboard attackers = pos_attackers_to_occ(pos, to, occupied);
-    int res = 1;
-
-    const Bitboard bishops_queens = pos->by_type[BISHOP] | pos->by_type[QUEEN];
-    const Bitboard rooks_queens = pos->by_type[ROOK] | pos->by_type[QUEEN];
-
-    for (;;) {
-        stm = flip_color(stm);
-        attackers &= occupied;
-
-        Bitboard stm_attackers = attackers & pieces_c(pos, stm);
-        if (stm_attackers == 0)
-            break;
-
-        // Ignore an attacker that is pinned to its own king, but only while the
-        // pinner is still on the board.
-        if ((pos->st->pinners[flip_color(stm)] & occupied) != 0) {
-            stm_attackers &= ~pos->st->blockers[stm];
-            if (stm_attackers == 0)
-                break;
-        }
-
-        res ^= 1;
-
-        Bitboard bb;
-        if ((bb = stm_attackers & pos->by_type[PAWN]) != 0) {
-            swap = PAWN_VALUE - swap;
-            if (swap < res)
-                break;
-            occupied ^= least_significant_bb(bb);
-            attackers |= attacks_bb(BISHOP, to, occupied) & bishops_queens;
-        } else if ((bb = stm_attackers & pos->by_type[KNIGHT]) != 0) {
-            swap = KNIGHT_VALUE - swap;
-            if (swap < res)
-                break;
-            occupied ^= least_significant_bb(bb);
-        } else if ((bb = stm_attackers & pos->by_type[BISHOP]) != 0) {
-            swap = BISHOP_VALUE - swap;
-            if (swap < res)
-                break;
-            occupied ^= least_significant_bb(bb);
-            attackers |= attacks_bb(BISHOP, to, occupied) & bishops_queens;
-        } else if ((bb = stm_attackers & pos->by_type[ROOK]) != 0) {
-            swap = ROOK_VALUE - swap;
-            if (swap < res)
-                break;
-            occupied ^= least_significant_bb(bb);
-            attackers |= attacks_bb(ROOK, to, occupied) & rooks_queens;
-        } else if ((bb = stm_attackers & pos->by_type[QUEEN]) != 0) {
-            swap = QUEEN_VALUE - swap;
-            occupied ^= least_significant_bb(bb);
-            attackers |= (attacks_bb(BISHOP, to, occupied) & bishops_queens)
-                       | (attacks_bb(ROOK, to, occupied) & rooks_queens);
-        } else {
-            // Only the king is left: reverse the result if the opponent still has
-            // an attacker, because capturing into check is not available.
-            return (attackers & ~pieces_c(pos, stm)) != 0 ? (res ^ 1) != 0 : res != 0;
-        }
-    }
-
-    return res != 0;
-}
-
 // Return the squares from which PT gives check to the side not to move.
 static Bitboard check_squares(const Position *pos, PieceType pt) {
     const Color them = flip_color(pos->side_to_move);
@@ -125,6 +45,7 @@ static Bitboard check_squares(const Position *pos, PieceType pt) {
         return 0;
     }
 }
+
 
 // Return the union of the attacks of C's PT pieces. Pawns resolve as a set in two
 // shifts, as upstream's attacks_by<PAWN> does; the other types walk piece by piece.

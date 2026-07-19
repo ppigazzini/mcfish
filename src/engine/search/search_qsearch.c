@@ -1,4 +1,5 @@
 #include "search_qsearch.h"
+#include "../board/legality.h"
 
 #include "movepick.h"
 #include "search_common.h"

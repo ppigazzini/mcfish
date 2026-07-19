@@ -104,6 +104,5 @@ static inline void movepick_skip_quiets(MovePicker *mp) { mp->skip_quiets = true
 // Test whether M wins at least THRESHOLD material in the static exchange on its
 // destination square. Non-NORMAL moves are not evaluated; they answer
 // `0 >= threshold`, as upstream does.
-bool see_ge(const Position *pos, Move m, int threshold);
 
 #endif  // MCFISH_MOVEPICK_H

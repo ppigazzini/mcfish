@@ -1,5 +1,7 @@
 #include "movegen.h"
 
+#include "legality.h"
+
 // Emit the promotion pieces for a pawn arriving on the back rank.
 //
 // ENEMY says whether this promotion is a capture. It decides which stage the

@@ -1,4 +1,6 @@
 // Run the unit and property suite against the engine zone.
+
+#include "../src/engine/board/legality.h"
 //
 // This links engine/ + platform/ WITHOUT shell/, so it doubles as a zone check:
 // a test that needs a shell symbol fails to link, which is the signal that an

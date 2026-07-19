@@ -118,18 +118,9 @@ void pos_undo_move(Position *pos, Move m);
 void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThreats *dts);
 void pos_undo_null_move(Position *pos);
 
-// Test whether M — which must be pseudo-legal for POS — leaves our king safe.
-bool pos_legal(const Position *pos, Move m);
-
-// Test whether M could have been generated for POS. This is the guard a move from
-// an untrusted source (a TT hit, a killer, a UCI string) must pass before
-// pos_legal, which assumes pseudo-legality. Upstream Position::pseudo_legal.
-bool pos_pseudo_legal(const Position *pos, Move m);
-
-// Test whether the static exchange evaluation of M is at least THRESHOLD, without
-// generating the exchange sequence. Non-NORMAL moves are assumed to pass a
-// zero-threshold test, as upstream does. Upstream Position::see_ge.
-bool pos_see_ge(const Position *pos, Move m, Value threshold);
+// Legality, pseudo-legality and the static exchange evaluation live in
+// legality.h: they are questions ABOUT a position rather than transitions of one,
+// and keeping them here is what made this header the whole board zone's surface.
 
 // Return the set of pieces of either color attacking S, given OCCUPIED.
 Bitboard pos_attackers_to_occ(const Position *pos, Square s, Bitboard occupied);

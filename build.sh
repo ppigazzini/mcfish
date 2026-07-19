@@ -124,6 +124,7 @@ SOURCES=(
   src/engine/board/threats.c
   src/engine/board/zobrist.c
   src/engine/board/state_list.c
+  src/engine/board/legality.c
   src/engine/board/position.c
   src/engine/board/board_props.c
   src/engine/board/score.c
@@ -194,6 +195,7 @@ ENGINE_SOURCES=(
   src/engine/board/threats.c
   src/engine/board/zobrist.c
   src/engine/board/state_list.c
+  src/engine/board/legality.c
   src/engine/board/position.c
   src/engine/board/board_props.c
   src/engine/board/score.c

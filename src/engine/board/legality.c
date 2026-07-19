@@ -95,17 +95,20 @@ bool pos_pseudo_legal(const Position *pos, Move m) {
         return false;
     }
 
-    const Bitboard ck = checkers(pos);
-    if (ck != 0) {
-        if (type_of_piece(pc) != KING) {
-            if (bb_more_than_one(ck))  // double check: only the king may move
-                return false;
-            if ((BetweenBB[king_square(pos, us)][lsb(ck)] & square_bb(to)) == 0)
-                return false;
-        } else if ((pos_attackers_to_occ(pos, to, all ^ square_bb(from)) & pieces_c(pos, them))
-                   != 0) {
+    // Only NON-KING moves are constrained here, exactly as upstream constrains
+    // them (position.cpp: pseudo_legal). A king move that walks into an attacked
+    // square is rejected by `pos_legal`, not here: adding that test would make
+    // this function stricter than upstream's and put an attackers_to scan on a
+    // path upstream keeps cheap. Every caller pairs the two.
+    if (checkers(pos) && type_of_piece(pc) != KING) {
+        // Only a king move evades a double check.
+        if (bb_more_than_one(checkers(pos)))
             return false;
-        }
+
+        // Otherwise the move must block the checker or capture it -- BetweenBB
+        // includes the checker's own square, so both are one test.
+        if (!(BetweenBB[king_square(pos, us)][lsb(checkers(pos))] & square_bb(to)))
+            return false;
     }
 
     return true;
