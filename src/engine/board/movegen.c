@@ -1,13 +1,26 @@
 #include "movegen.h"
 
-// Emit the four promotion pieces for a pawn arriving on the back rank. Captures
-// and quiets both reach here; the queen goes in the capture set because it is the
-// only promotion the capture-only search wants to see.
-static ExtMove *make_promotions(ExtMove *list, Square to, Square from, GenType type) {
-    if (type == GEN_CAPTURES || type == GEN_EVASIONS || type == GEN_NON_EVASIONS)
+// Emit the promotion pieces for a pawn arriving on the back rank.
+//
+// ENEMY says whether this promotion is a capture. It decides which stage the
+// UNDER-promotions belong to (movegen.cpp:87): a capture-underpromotion is a
+// capture and belongs with GEN_CAPTURES; a push-underpromotion is quiet. The
+// queen goes in the capture set either way, because it is the only promotion the
+// capture-only search wants to see.
+//
+// Dropping ENEMY leaves the union over both stages unchanged, so perft — which
+// only ever asks for GEN_EVASIONS / GEN_NON_EVASIONS — cannot see the mistake.
+// The search can: MovePicker maps the two stages separately, so a misfiled
+// capture-underpromotion is scored, SEE-tested and pruned as a quiet, and is
+// generated after the whole capture stage instead of inside it.
+static ExtMove *
+make_promotions(ExtMove *list, Square to, Square from, GenType type, bool enemy) {
+    const bool all = type == GEN_EVASIONS || type == GEN_NON_EVASIONS;
+
+    if (type == GEN_CAPTURES || all)
         (list++)->move = make_move_typed(PROMOTION, from, to, QUEEN);
 
-    if (type == GEN_QUIETS || type == GEN_EVASIONS || type == GEN_NON_EVASIONS) {
+    if ((type == GEN_CAPTURES && enemy) || (type == GEN_QUIETS && !enemy) || all) {
         (list++)->move = make_move_typed(PROMOTION, from, to, ROOK);
         (list++)->move = make_move_typed(PROMOTION, from, to, BISHOP);
         (list++)->move = make_move_typed(PROMOTION, from, to, KNIGHT);
@@ -63,15 +76,15 @@ generate_pawn_moves(const Position *pos, ExtMove *list, Color us, Bitboard targe
 
         while (b1) {
             const Square to = pop_lsb(&b1);
-            list = make_promotions(list, to, sq_sub(to, up_right), type);
+            list = make_promotions(list, to, sq_sub(to, up_right), type, true);
         }
         while (b2) {
             const Square to = pop_lsb(&b2);
-            list = make_promotions(list, to, sq_sub(to, up_left), type);
+            list = make_promotions(list, to, sq_sub(to, up_left), type, true);
         }
         while (b3) {
             const Square to = pop_lsb(&b3);
-            list = make_promotions(list, to, sq_sub(to, up), type);
+            list = make_promotions(list, to, sq_sub(to, up), type, false);
         }
     }
 
