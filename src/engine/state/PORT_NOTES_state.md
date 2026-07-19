@@ -14,11 +14,10 @@ src/engine/state/position_storage.c
 src/engine/state/root_move.c
 src/engine/state/shared_state.c
 src/engine/state/worker_construct.c
-src/engine/state/worker_histories.c
 src/engine/state/worker_layout.c
 ```
 
-**Status: all seven are now in `SOURCES` and `ENGINE_SOURCES`, so the zone links and
+**Status: all six are now in `SOURCES` and `ENGINE_SOURCES`, so the zone links and
 compiles under the full warning set.** It is still not *driven*: nothing constructs a
 `Worker`, and no test does either. See
 [docs/04-multithreading.md](../../../docs/04-multithreading.md).
@@ -46,32 +45,23 @@ the UCI `go` parser fills `LimitsType` directly. `limits_type.h` deliberately do
 not include `search.h` — it stays a POD leaf — so no conversion helper is offered
 here.
 
-## 4. `Histories` mixes per-worker and shared tables
+## 4. `Histories` mixes per-worker and shared tables — DONE
 
-`src/engine/search/history.h` defines one flat `Histories` block holding both the
-per-worker tables (main, low-ply, capture, continuation, continuation-correction,
-tt-move) and the two shared, key-indexed ones (correction, pawn). Upstream splits
-them: the shared pair is one bank per NUMA node, sized to the node's thread count.
+`src/engine/search/history.h` now splits them the way upstream does. `Histories` holds
+only what one worker owns and writes unsynchronised (main, low-ply, capture,
+continuation-correction, tt-move) plus a `SharedHistories *` naming its NUMA node's
+bank; the bank holds the two key-indexed tables (correction, pawn) and — following
+upstream `search.h:341`, which mcfish previously had on the wrong side — the
+continuation block.
 
-`worker_histories.h` embeds the whole block and reaches the shared pair only through
-`SharedHistories`, so a worker that owns its node's bank binds to its own block
-(`worker_histories_bind_own`) and one that does not binds to someone else's
-(`worker_histories_bind_shared`). That is correct today and wastes ~17 MiB per extra
-worker on a shared node.
+`history_clear` is upstream's `Worker::clear` (search.cpp:676): per-worker tables in
+full, the shared continuation block in full on every worker, and only this worker's
+stripe of the two key-indexed tables. `worker_histories.c` / `.h` and
+`shared_history_types.h` were deleted rather than kept as a second shape of the same
+thing — `Worker` embeds a `Histories` directly.
 
-The eventual change in `history.h`: split `Histories` into `WorkerTables` and
-`SharedTables`, and have `history_clear` clear only the former. Two consequences
-here:
-
-- `worker_histories_clear` currently calls `history_clear`, which also refills this
-  block's shared sub-tables. After the split it clears only the per-worker ones and
-  the striped `worker_histories_clear_shared` becomes the sole shared-table writer.
-- `worker_histories.c` repeats history.c's two shared fill values
-  (`-6` correction, `-1262` pawn) because the striped clear writes a *range*, which
-  `history_clear` does not express. They must move together on an upstream change.
-
-Also: `history_clear` at `history.c:69` does not touch `low_ply_history`; it is
-refilled per search by `history_fill_low_ply`. `worker_clear` matches that.
+`history_clear` still does not touch `low_ply_history`; it is refilled per search by
+`history_fill_low_ply`.
 
 ## 5. `tt.c` still owns a static table
 

@@ -29,13 +29,16 @@
 #include <stdint.h>
 
 enum {
-    HIST_UINT16 = 65536,                  // UINT_16_HISTORY_SIZE: one row per raw move word
-    LOW_PLY_HISTORY_SIZE = 5,             // LOW_PLY_HISTORY_SIZE
-    HIST_PIECE_TYPE_NB = 8,               // capture history's third index is 8-wide, not 7
-    HIST_PIECETO = PIECE_NB * SQUARE_NB,  // one PieceToHistory page, indexed pc * 64 + to
-    CORRECTION_HISTORY_SIZE = 65536,      // CORRHIST_BASE_SIZE at one thread
-    PAWN_HISTORY_SIZE = 8192,             // PAWN_HISTORY_BASE_SIZE at one thread
+    HIST_UINT16 = 65536,                   // UINT_16_HISTORY_SIZE: one row per raw move word
+    LOW_PLY_HISTORY_SIZE = 5,              // LOW_PLY_HISTORY_SIZE
+    HIST_PIECE_TYPE_NB = 8,                // capture history's third index is 8-wide, not 7
+    HIST_PIECETO = PIECE_NB * SQUARE_NB,   // one PieceToHistory page, indexed pc * 64 + to
+    CORRECTION_HISTORY_BASE_SIZE = 65536,  // CORRHIST_BASE_SIZE, the size at ONE thread
+    PAWN_HISTORY_BASE_SIZE = 8192,         // PAWN_HISTORY_BASE_SIZE, the size at ONE thread
     CORRECTION_HISTORY_LIMIT = 1024,
+
+    // Hold the continuation block's page count: continuationHistory[in_check][capture].
+    CONTINUATION_PAGES = 2 * 2 * HIST_PIECETO,
 };
 
 // State the cleared values of the two key-indexed tables once, here, because three places
@@ -56,21 +59,48 @@ typedef struct {
     int16_t nonpawn_black;
 } CorrectionBundle;
 
-// Hold every history table. The shared (pawn / correction) tables live here too:
-// the engine is single-threaded, so there is exactly one NUMA node's block.
+// Hold the tables the workers of ONE NUMA node share: the key-indexed correction and
+// pawn tables, whose sizes scale with that node's thread count, and the continuation
+// block, whose size does not. Upstream keeps all three in `SharedHistories` and hands
+// every Worker a reference (search.h:341); only the tables above stay per-worker.
+//
+// The two masks are the sizes minus one and the sizes are powers of two, so an index is
+// a mask and never a modulo. Binding a pointer without its mask is what turns a wrapped
+// index into an out-of-range read, so `shared_histories_create` is the only writer.
+//
+// Upstream: history.h:202 (SharedHistories), history.h:95 (DynStats).
+typedef struct SharedHistories {
+    size_t corr_size;
+    size_t corr_size_minus1;
+    CorrectionBundle (*correction_history)[COLOR_NB];
+
+    size_t pawn_size;
+    size_t pawn_size_minus1;
+    int16_t *pawn_history;
+
+    int16_t *continuation_history;  // CONTINUATION_PAGES * HIST_PIECETO entries
+} SharedHistories;
+
+// Allocate one node's bank sized for THREAD_COUNT threads, or null. THREAD_COUNT must be
+// a power of two and at least 1 -- upstream asserts exactly that (history.h:205), because
+// the size multiplier is what keeps the index a mask.
+SharedHistories *shared_histories_create(size_t thread_count);
+void shared_histories_destroy(SharedHistories *sh);
+
+// Hold one worker's own tables plus the reference to its node's bank. `shared` is never
+// null once the worker is constructed; every accessor below dereferences it.
 typedef struct {
     int16_t main_history[COLOR_NB * HIST_UINT16];
     int16_t low_ply_history[LOW_PLY_HISTORY_SIZE * HIST_UINT16];
     int16_t capture_history[PIECE_NB * SQUARE_NB * HIST_PIECE_TYPE_NB];
-    int16_t continuation_history[2 * 2 * HIST_PIECETO * HIST_PIECETO];
     int16_t continuation_correction_history[HIST_PIECETO * HIST_PIECETO];
     int16_t tt_move_history;
-    CorrectionBundle correction_history[CORRECTION_HISTORY_SIZE][COLOR_NB];
-    int16_t pawn_history[PAWN_HISTORY_SIZE * HIST_PIECETO];
+    SharedHistories *shared;
 } Histories;
 
-// Return the engine's single history block. M4 replaces this with a per-worker
-// instance; nothing but the accessor changes.
+// Return the engine's single history block, bound to a single-thread shared bank. It is
+// the block the netless / headless callers -- the unit tests and any `search_go` driven
+// without a pool -- run against. Return null when the bank could not be allocated.
 Histories *histories(void);
 
 // Mirror one search-stack frame. `continuation_history` points at a
@@ -133,7 +163,7 @@ static inline int16_t *
 cont_hist_page(Histories *h, bool in_check, bool capture, Piece pc, Square to) {
     const size_t block = ((size_t) in_check * 2 + (size_t) capture) * HIST_PIECETO
                        + (size_t) pc * SQUARE_NB + (size_t) to;
-    return &h->continuation_history[block * HIST_PIECETO];
+    return &h->shared->continuation_history[block * HIST_PIECETO];
 }
 
 // Return the continuation-correction page for (pc, to).
@@ -144,14 +174,14 @@ static inline int16_t *cont_corr_page(Histories *h, Piece pc, Square to) {
 
 // Return the pawn-history page for PAWN_KEY: HIST_PIECETO entries, pc * 64 + to.
 static inline int16_t *pawn_history_row(Histories *h, Key pawn_key) {
-    const size_t idx = (size_t) (pawn_key & (Key) (PAWN_HISTORY_SIZE - 1));
-    return &h->pawn_history[idx * HIST_PIECETO];
+    const size_t idx = (size_t) pawn_key & h->shared->pawn_size_minus1;
+    return &h->shared->pawn_history[idx * HIST_PIECETO];
 }
 
 // Return correctionHistory[key & mask][us].
 static inline CorrectionBundle *corr_bundle(Histories *h, Key key, Color us) {
-    const size_t idx = (size_t) (key & (Key) (CORRECTION_HISTORY_SIZE - 1));
-    return &h->correction_history[idx][us];
+    const size_t idx = (size_t) key & h->shared->corr_size_minus1;
+    return &h->shared->correction_history[idx][us];
 }
 
 // Return &captureHistory[pc][to][captured_pt].
@@ -160,8 +190,18 @@ static inline int16_t *capture_entry(Histories *h, Piece pc, Square to, PieceTyp
                                + (size_t) to * HIST_PIECE_TYPE_NB + (size_t) captured];
 }
 
-// Reset every table to its cleared value. Call once per `ucinewgame`.
-void history_clear(Histories *h);
+// Reset one worker's tables and ITS STRIPE of the node's shared tables, exactly as
+// upstream's Worker::clear does (search.cpp:676). NUMA_THREAD_IDX is this worker's index
+// within its NUMA node and NUMA_TOTAL that node's worker count; a NUMA_TOTAL of 0 is read
+// as 1. The stripe is `[i * n / total, (i + 1) * n / total)`, so with one worker the slice
+// is the whole table -- and with several, every entry falls in exactly one worker's slice.
+//
+// The shared CONTINUATION block is deliberately NOT striped: upstream has every worker
+// fill all of it (search.cpp:690-694), so the clear is a benign write race by design and
+// striping it would be a divergence, not a fix.
+//
+// Call once per `ucinewgame`, on every worker.
+void history_clear(Histories *h, size_t numa_thread_idx, size_t numa_total);
 
 // Decay the main history once per iterative-deepening iteration: v * 729 / 1024.
 void history_age_main(Histories *h);

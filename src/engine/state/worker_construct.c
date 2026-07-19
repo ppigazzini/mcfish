@@ -25,7 +25,7 @@ void worker_ctor_inputs_from_shared(WorkerCtorInputs *in,
 }
 
 void worker_write_constructor_fields(Worker *w, const WorkerCtorInputs *in) {
-    worker_histories_bind_shared(&w->histories, in->shared_history);
+    w->histories.shared = in->shared_history;
 
     w->threads = in->threads;
     w->tt = in->tt;
@@ -68,8 +68,7 @@ void worker_fill_reductions(int *reductions, size_t count) {
 }
 
 void worker_clear(Worker *w) {
-    worker_histories_clear(&w->histories);
-    worker_histories_clear_shared(w->histories.shared_history, w->numa_thread_idx, w->numa_total);
+    history_clear(&w->histories, w->numa_thread_idx, w->numa_total);
     worker_fill_reductions(w->reductions, MAX_MOVES);
     nnue_acc_stack_reset(w->accumulator_stack);
 }
@@ -112,7 +111,7 @@ void worker_destruct(Worker *w) {
     if (w == nullptr)
         return;
     root_move_list_free(&w->root_moves);
-    w->histories.shared_history = nullptr;
+    w->histories.shared = nullptr;
     w->threads = nullptr;
     w->tt = nullptr;
     w->manager = nullptr;

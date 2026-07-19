@@ -77,7 +77,9 @@ static TimeManagement Tm = { .available_nodes = -1 };
 static double OriginalTimeAdjust = -1.0;
 
 void search_clear(void) {
-    history_clear(histories());
+    Histories *const h = histories();
+    if (h != nullptr)
+        history_clear(h, 0, 1);
     eval_nnue_clear_refresh_cache();
     BestPreviousScore = VALUE_INFINITE;
     BestPreviousAverageScore = VALUE_INFINITE;
@@ -205,6 +207,13 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
 
     ExtMove legal[MAX_MOVES];
     const size_t count = (size_t) (generate_legal(pos, legal) - legal);
+    if (h == nullptr) {
+        // The shared history bank could not be allocated, so there is nothing to search
+        // against. Return a legal move rather than MOVE_NONE, as the root-move allocation
+        // failure below does.
+        result.best_move = count != 0 ? legal[0].move : MOVE_NONE;
+        return result;
+    }
     if (count == 0) {
         result.score = board_has_checkers(pos) ? mated_in(0) : VALUE_DRAW;
         search_emit_no_moves(pos);

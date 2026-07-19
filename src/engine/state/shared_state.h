@@ -16,7 +16,7 @@
 #define MCFISH_SHARED_STATE_H
 
 #include "../../platform/thread_pool.h"
-#include "shared_history_types.h"
+#include "../search/history.h"
 #include "tt_types.h"
 
 #include <stdbool.h>

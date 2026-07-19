@@ -30,7 +30,7 @@
 #include "limits_type.h"
 #include "root_move.h"
 #include "tt_types.h"
-#include "worker_histories.h"
+#include "../search/history.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -86,7 +86,8 @@ bool search_manager_ponder(const SearchManager *sm);
 void search_manager_set_stop_on_ponderhit(SearchManager *sm, bool value);
 
 typedef struct Worker {
-    WorkerHistories histories;
+    // Hold this worker's own tables, with `shared` pointing at its NUMA node's bank.
+    Histories histories;
 
     LimitsType limits;
 

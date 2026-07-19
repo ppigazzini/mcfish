@@ -171,7 +171,6 @@ SOURCES=(
   src/engine/state/position_storage.c
   src/engine/state/root_move.c
   src/engine/state/shared_state.c
-  src/engine/state/worker_histories.c
   src/engine/state/worker_construct.c
   src/engine/state/worker_layout.c
   src/platform/clock.c
@@ -243,7 +242,6 @@ ENGINE_SOURCES=(
   src/engine/state/position_storage.c
   src/engine/state/root_move.c
   src/engine/state/shared_state.c
-  src/engine/state/worker_histories.c
   src/engine/state/worker_construct.c
   src/engine/state/worker_layout.c
   src/platform/clock.c
@@ -781,8 +779,16 @@ do_fmt_fix() {
 # The 3-man Syzygy set the `tb` gate runs against: KPvK KNvK KBvK KRvK KQvK, WDL
 # and DTZ. Never committed -- 10 binary files are a runtime input, like the net.
 TB_DIR=$RESOURCES_DIR/syzygy
+TB5_DIR=$RESOURCES_DIR/syzygy5
 
+# `tb-fetch` gets the 3-man set (10 files, ~60 KiB). `tb-fetch 5` adds KNNvKP
+# (~24 MiB), the smallest table carrying CURSED WINS -- a win whose DTZ exceeds
+# 100 plies, which the fifty-move rule turns into a draw. That pair of branches in
+# `map_score_dtz` and `probe_dtz` is unreachable from any 3-man table, so the `tb`
+# gate cannot exercise it without this.
 do_tb_fetch() {
+  local want5=0
+  [[ ${1:-} == 5 ]] && want5=1
   info "fetching the 3-man Syzygy set into $TB_DIR"
   mkdir -p "$TB_DIR"
   local stem ext dir magic f code got fails=0
@@ -808,6 +814,28 @@ do_tb_fetch() {
   done
   [[ $fails -eq 0 ]] || { red "tb-fetch: $fails file(s) failed"; return 1; }
   green "3-man set present in $TB_DIR"
+
+  [[ $want5 -eq 1 ]] || { printf '  (run `./build.sh tb-fetch 5` to add the 5-man cursed-win table)\n'; return 0; }
+
+  info "fetching KNNvKP (5-man, cursed wins) into $TB5_DIR"
+  mkdir -p "$TB5_DIR"
+  for ext in rtbw rtbz; do
+    if [[ $ext == rtbw ]]; then dir=3-4-5-wdl; magic=71e8235d; else dir=3-4-5-dtz; magic=d7660ca5; fi
+    f="$TB5_DIR/KNNvKP.$ext"
+    [[ -s $f ]] && continue
+    code=$(curl -sS -o "$f" -w '%{http_code}' \
+      "https://tablebase.lichess.ovh/tables/standard/$dir/KNNvKP.$ext") || code=000
+    got=$(xxd -p -l 4 "$f" 2> /dev/null || true)
+    if [[ $code != 200 || $got != "$magic" ]]; then
+      red "  REJECT KNNvKP.$ext (http=$code magic=${got:-none} want=$magic)"
+      rm -f "$f"
+      fails=$((fails + 1))
+    else
+      printf '  ok   %s (%s bytes)\n' "KNNvKP.$ext" "$(stat -c%s "$f")"
+    fi
+  done
+  [[ $fails -eq 0 ]] || { red "tb-fetch: $fails 5-man file(s) failed"; return 1; }
+  green "5-man cursed-win table present in $TB5_DIR"
 }
 
 # Emit the fingerprint the `tb` gate compares: the discovery report for an absent
@@ -976,7 +1004,7 @@ usage: ./build.sh <step> [args]
   signature          assert the bench node count vs tools/signature.golden
   perft              assert perft counts vs tools/perft.table
   golden             diff the UCI case outputs vs tools/*.golden
-  tb-fetch           download + magic-verify the 3-man Syzygy set -> resources/syzygy
+  tb-fetch [5]       download + magic-verify the Syzygy sets -> resources/syzygy[5]
   tb                 assert Syzygy discovery and the root probe vs tools/tb.golden
   zone-check         assert engine/+platform/ link without shell/
   fmt / fmt-fix      check / apply clang-format
@@ -1012,7 +1040,7 @@ case "${1:-build}" in
   perft)            do_perft ;;
   golden)           do_golden ;;
   tb)               do_tb ;;
-  tb-fetch)         do_tb_fetch ;;
+  tb-fetch)         shift; do_tb_fetch "$@" ;;
   tb-update)        do_tb_update ;;
   golden-update)    do_golden_update ;;
   zone-check)       do_zone_check ;;

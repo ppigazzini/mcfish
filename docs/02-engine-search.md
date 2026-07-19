@@ -292,16 +292,26 @@ picker's own — and collapsing them is board-zone work, not search work.
 ## History
 
 [`history.h`](../src/engine/search/history.h) /
-[`history.c`](../src/engine/search/history.c) own every ordering table as one flat
-`Histories` block: butterfly (main), low-ply, capture, continuation,
-continuation-correction, and the two key-indexed tables (pawn, correction). One
-block, so a per-worker port is a second instance rather than a re-shape — the
-per-worker owner is
-[`../src/engine/state/worker_histories.c`](../src/engine/state/worker_histories.c),
-which is built and tested but not yet the block the search reads. Its striped shared
-clear and `history_clear` share the fill constants `CORRECTION_HISTORY_FILL` and
-`PAWN_HISTORY_FILL`, declared once in `history.h`: **neither is zero**, so any clear
-that reaches for `memset` writes the wrong table.
+[`history.c`](../src/engine/search/history.c) own the ordering tables, split the way
+upstream splits them. `Histories` is what ONE worker owns and writes without
+synchronisation — butterfly (main), low-ply, capture, continuation-correction and the
+tt-move counter — plus a pointer to the `SharedHistories` bank its NUMA node shares:
+the two key-indexed tables (pawn, correction) and the continuation block
+(upstream `history.h:202`, `search.h:341`).
+
+The bank's key-indexed tables are **sized by the node's thread count**, as upstream's
+`DynStats` sizes them, so the index masks a one-thread run takes are upstream's
+one-thread masks. `shared_histories_create` is the only writer of a size and its mask
+together — binding one without the other turns a wrapped index into an out-of-range
+read.
+
+`history_clear` is upstream's `Worker::clear`: it fills this worker's own tables, fills
+the whole shared continuation block (upstream has every worker fill all of it), and
+clears only **its stripe** `[i * n / total, (i + 1) * n / total)` of the two
+key-indexed tables. With one worker the stripe is the whole table, which is why the
+single-threaded clear is unchanged by the split. The fill constants
+`CORRECTION_HISTORY_FILL` and `PAWN_HISTORY_FILL` are declared once in `history.h`:
+**neither is zero**, so any clear that reaches for `memset` writes the wrong table.
 
 **The main and low-ply tables are indexed by the raw 16-bit move word**, one row per
 colour (or per low ply). That is why the move encoding in

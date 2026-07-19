@@ -16,7 +16,7 @@
 #ifndef MCFISH_WORKER_CONSTRUCT_H
 #define MCFISH_WORKER_CONSTRUCT_H
 
-#include "shared_history_types.h"
+#include "../search/history.h"
 #include "shared_state.h"
 #include "worker_layout.h"
 
