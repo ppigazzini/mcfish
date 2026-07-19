@@ -58,6 +58,15 @@ detect_std_flag() {
 
 STD_FLAG=$(detect_std_flag)
 
+# -lpthread on every link line. src/platform/thread*.c and numa.c call
+# pthread_create, pthread_mutex_* and sched_setaffinity directly. It links today
+# without this ONLY because glibc >= 2.34 folded the pthread symbols into libc --
+# on any older glibc, or a musl/BSD host, the same sources fail at link. Asking
+# for the library the code uses is not a portability nicety, it is the honest
+# dependency; PORT_NOTES_platform.md has carried it as an open request since the
+# thread modules landed.
+LIBS=(-lm -lpthread)
+
 CFLAGS_COMMON=(
   "$STD_FLAG"
   -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-prototypes
@@ -261,14 +270,14 @@ need_binary() { [[ -x $BIN ]] || do_build; }
 do_build() {
   info "building $BIN (release)"
   mkdir -p build
-  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -o "$BIN" "${SOURCES[@]}" -lm
+  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -o "$BIN" "${SOURCES[@]}" -lm -lpthread
   green "built $BIN"
 }
 
 do_debug() {
   info "building build/mcfish-debug (asan+ubsan)"
   mkdir -p build
-  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_DEBUG[@]}" -o build/mcfish-debug "${SOURCES[@]}" -lm
+  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_DEBUG[@]}" -o build/mcfish-debug "${SOURCES[@]}" -lm -lpthread
   green "built build/mcfish-debug"
 }
 
@@ -278,7 +287,7 @@ do_zone_check() {
   # Link with a stub main so the archive is exercised, not just compiled: a
   # forbidden call into shell/ is a link error, which compiling alone would miss.
   echo 'int main(void){return 0;}' > build/zone_stub.c
-  "$CC" "${CFLAGS_COMMON[@]}" -O1 -o build/zone-check "${ENGINE_SOURCES[@]}" build/zone_stub.c -lm
+  "$CC" "${CFLAGS_COMMON[@]}" -O1 -o build/zone-check "${ENGINE_SOURCES[@]}" build/zone_stub.c -lm -lpthread
   green "zone check passed"
 }
 
@@ -409,7 +418,7 @@ do_simd_scalar() {
   info "simd-scalar: rebuilding with MCFISH_SIMD_SCALAR and re-asserting the anchor"
   mkdir -p build
   "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -DMCFISH_SIMD_SCALAR \
-    -o build/mcfish-scalar "${SOURCES[@]}" -lm
+    -o build/mcfish-scalar "${SOURCES[@]}" -lm -lpthread
 
   local net_probe
   net_probe=$(engine_at build/mcfish-scalar bench 1 2>&1 || true)
@@ -562,7 +571,7 @@ do_test() {
   info "unit + property tests"
   mkdir -p build
   "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=address,undefined \
-    -o build/mcfish-test "${ENGINE_SOURCES[@]}" tests/test_main.c -lm
+    -o build/mcfish-test "${ENGINE_SOURCES[@]}" tests/test_main.c -lm -lpthread
   ./build/mcfish-test
 }
 
@@ -581,7 +590,7 @@ do_tsan() {
   mkdir -p build
   "$CC" "$STD_FLAG" -Wall -Wextra -Isrc -D_POSIX_C_SOURCE=200809L -O1 -g \
     -fsanitize=thread \
-    -o build/mcfish-tsan "${ENGINE_SOURCES[@]}" tests/test_main.c -lm
+    -o build/mcfish-tsan "${ENGINE_SOURCES[@]}" tests/test_main.c -lm -lpthread
   ./build/mcfish-tsan
   green "tsan clean"
 }
@@ -614,7 +623,7 @@ do_tsan_search() {
   mkdir -p build
   "$CC" "$STD_FLAG" -Wall -Isrc -D_POSIX_C_SOURCE=200809L -O1 -g \
     -fsanitize=thread "${CFLAGS_ARCH[@]}" \
-    -o build/mcfish-tsan-engine "${SOURCES[@]}" -lm
+    -o build/mcfish-tsan-engine "${SOURCES[@]}" -lm -lpthread
 
   local log; log=$(mktemp)
   printf 'setoption name Threads value %d\nsetoption name Hash value 1\nucinewgame\nposition startpos\ngo depth %d\nquit\n' \

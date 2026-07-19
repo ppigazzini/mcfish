@@ -13,9 +13,9 @@ what the wiring commit has to decide.
 All five are listed in `SOURCES` and in `ENGINE_SOURCES`, alongside
 `src/platform/clock.c`.
 
-**Still open:** neither link line carries `-lpthread`. That works only because glibc ≥ 2.34
-folds the pthread symbols into libc, so the omission is invisible on this host and is not
-portable. Add it with the wiring.
+**DONE.** Every link line carries `-lpthread` (build.sh `LIBS`). It linked without it only
+because glibc ≥ 2.34 folds the pthread symbols into libc; on an older glibc, or a musl or
+BSD host, the same sources failed at link.
 
 ## 2. `build.sh` — `-D_GNU_SOURCE` in `CFLAGS_COMMON`
 
