@@ -20,15 +20,34 @@
 #include "../board/position.h"
 #include "../board/types.h"
 
+// Own the two NNUE arenas ONE search worker evaluates through: the incremental
+// accumulator stack and the refresh cache. The accumulator is a running diff of the
+// board a single recursion is walking, so two workers sharing one arena evaluate a
+// position neither of them is on — this is per-worker state, not a cache.
+//
+// Opaque: the arena's size is a runtime function of the resident net's architecture.
+typedef struct EvalArena EvalArena;
+
+// Allocate one arena, or null. The refresh cache is left unseeded; call
+// eval_arena_clear_refresh_cache once a net is resident.
+EvalArena *eval_arena_create(void);
+void eval_arena_destroy(EvalArena *arena);
+
+// Return the process-wide arena, allocating it on first use. It is what a caller with
+// no worker of its own evaluates through: the `eval` command, the trace, and any direct
+// `evaluate`. Null when the allocation failed, which leaves the classical fallback.
+EvalArena *eval_default_arena(void);
+
 // Return the static score of POS in centipawns, positive when the side to move
 // stands better. Never returns a mate-range value.
 //
 // OPTIMISM is the search's per-colour aspiration bias, read for the side to move.
 // It scales against the network's own complexity and against material, so it is
 // part of the evaluation rather than a correction applied afterwards — pass the
-// search's value from inside a search. `evaluate` is the standalone form and
-// passes zero, which is upstream's own value at `eval` and in the trace.
-Value evaluate_with_optimism(const Position *pos, int optimism);
+// search's value from inside a search. `evaluate` is the standalone form: it passes
+// zero, which is upstream's own value at `eval` and in the trace, and evaluates
+// through the default arena.
+Value evaluate_with_optimism(EvalArena *arena, const Position *pos, int optimism);
 Value evaluate(const Position *pos);
 
 // Render the evaluation breakdown for the UCI `eval` command into BUF.
@@ -36,11 +55,11 @@ void evaluate_trace(const Position *pos, char *buf, int buf_len);
 
 // ---- NNUE runtime -----------------------------------------------------------
 
-// Allocate the accumulator arenas and build the feature tables. Run this once at
-// startup, in the same phase as bitboards_init and attacks_init: the feature
-// tables are zero, not garbage, before it, so the failure mode is a silent
-// all-zero feature set. Return false when an arena allocation failed, which
-// leaves the evaluation on the classical fallback.
+// Build the feature tables and the default arena. Run this once at startup, in the
+// same phase as bitboards_init and attacks_init: the feature tables are zero, not
+// garbage, before it, so the failure mode is a silent all-zero feature set. Return
+// false when the default arena could not be allocated, which leaves the evaluation on
+// the classical fallback.
 bool eval_nnue_init(void);
 
 // Release the arenas and the loaded weights.
@@ -69,26 +88,30 @@ const char *eval_nnue_default_file_name(void);
 
 // ---- accumulator bracketing --------------------------------------------------
 
-// Drop back to a single uncomputed root slot. Call at the root of every search
-// and before any standalone evaluate, so the first evaluation refreshes from the
-// board rather than from a stale ply's diff.
-// Re-seed the NNUE refresh cache from the resident net's feature-transformer
-// biases. Upstream does this in Worker::clear (search.cpp:698), reached from
+// Re-seed ARENA's refresh cache from the resident net's feature-transformer
+// biases. Upstream does this in Worker::clear (search.cpp:699), reached from
 // `ucinewgame` -- not only on net load. A cache still holding entries seeded from
 // a PREVIOUS net makes the incremental refresh path produce wrong accumulator
 // values, and a forced full refresh cannot expose it because that path bypasses
 // the cache entirely.
-void eval_nnue_clear_refresh_cache(void);
+void eval_arena_clear_refresh_cache(EvalArena *arena);
 
-void eval_acc_reset(void);
+// Drop ARENA back to a single uncomputed root slot. Call at the root of every search
+// and before any standalone evaluate, so the first evaluation refreshes from the
+// board rather than from a stale ply's diff.
+void eval_acc_reset(EvalArena *arena);
 
 // Push one ply and hand back the two records pos_do_move must fill. The pointers
-// address the accumulator's own arena, so the make-move writes its delta straight
-// into the slot and nothing is copied. Both are always non-NULL: without a net
-// they address private scratch, so a call site needs no branch.
-void eval_acc_push(DirtyPiece **dp, DirtyThreats **dts);
+// address ARENA's own storage, so the make-move writes its delta straight into the
+// slot and nothing is copied. Both are always non-NULL: a ply the stack cannot hold
+// lands in the arena's private scratch, so a call site needs no branch.
+//
+// ARENA must not be null. A search that could not get one must not start: without a
+// place to absorb the diff there is no evaluation to fall back TO, and a shared
+// scratch record would be exactly the cross-worker aliasing the arena exists to end.
+void eval_acc_push(EvalArena *arena, DirtyPiece **dp, DirtyThreats **dts);
 
 // Drop the top ply. Pair with eval_acc_push around pos_undo_move.
-void eval_acc_pop(void);
+void eval_acc_pop(EvalArena *arena);
 
 #endif  // MCFISH_EVALUATE_H

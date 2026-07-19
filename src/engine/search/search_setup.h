@@ -29,6 +29,7 @@ void search_stack_init(Stack *stack, size_t count, Histories *h, PVMoves *root_p
 // root move list and the stop flag. LIMITS is copied, not aliased.
 void search_ctx_init(SearchCtx *ctx,
                      Histories *h,
+                     EvalArena *eval_arena,
                      Position *root_pos,
                      const SearchZoneLimits *limits,
                      const RootMoveList *rml,

@@ -32,6 +32,7 @@ void search_stack_init(Stack *stack, size_t count, Histories *h, PVMoves *root_p
 
 void search_ctx_init(SearchCtx *ctx,
                      Histories *h,
+                     EvalArena *eval_arena,
                      Position *root_pos,
                      const SearchZoneLimits *limits,
                      const RootMoveList *rml,
@@ -39,6 +40,7 @@ void search_ctx_init(SearchCtx *ctx,
     memset(ctx, 0, sizeof *ctx);
 
     ctx->hist = h;
+    ctx->eval_arena = eval_arena;
     ctx->root_pos = root_pos;
     ctx->stop = stop;
     ctx->limits = *limits;

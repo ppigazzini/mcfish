@@ -440,7 +440,7 @@ Value search_evaluate(SearchCtx *ctx, const Position *pos) {
     // Index optimism by the side to move at THIS node, not at the root: the
     // aspiration loop writes both colours and the sign has to follow the mover
     // down the tree (upstream search.cpp:1867).
-    return evaluate_with_optimism(pos, ctx->optimism[pos->side_to_move]);
+    return evaluate_with_optimism(ctx->eval_arena, pos, ctx->optimism[pos->side_to_move]);
 }
 
 void search_set_cont_hist(
@@ -497,16 +497,15 @@ void search_do_move(
     ctx->nodes += 1;
     DirtyPiece *dp;
     DirtyThreats *dts;
-    eval_acc_push(&dp, &dts);
+    eval_acc_push(ctx->eval_arena, &dp, &dts);
     pos_do_move(pos, m, st, gives_check, dp, dts);
     ss->current_move = m;
     search_set_cont_hist(ctx, ss, ss->in_check, capture, moved_pc, to);
 }
 
 void search_undo_move(SearchCtx *ctx, Position *pos, Move m) {
-    (void) ctx;
     pos_undo_move(pos, m);
-    eval_acc_pop();
+    eval_acc_pop(ctx->eval_arena);
 }
 
 // ---- transposition-table adapter ---------------------------------------

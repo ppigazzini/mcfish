@@ -17,23 +17,30 @@
 // NNUE runtime state
 // ---------------------------------------------------------------------------
 
-// Own the two per-search-worker arenas. They are single instances because the
-// search is single-threaded; when the thread pool lands (M4) each worker owns one
-// of each, and only the feature-transformer blob stays shared and read-only
-// (nnue/PORT_NOTES_accumulator.md §6).
-static NnueAccumulatorStack *AccStack = nullptr;
-static NnueRefreshCache *RefreshCache = nullptr;
+// Own the two arenas ONE worker evaluates through. Only the feature-transformer blob
+// is shared, and it is read-only (nnue/PORT_NOTES_accumulator.md §6); everything here
+// is a running diff of one recursion's board and must never be shared between
+// workers.
+//
+// `acc_depth` counts the plies pushed above the root slot, so a push can never run
+// past the stack. The search's `ply >= MAX_PLY` guard already bounds it below
+// NNUE_MAX_STACK_SIZE; the check exists so a caller that loses that guard degrades to
+// a stale evaluation rather than writing outside the arena.
+//
+// `scratch_dp` / `scratch_dts` absorb the diff of a ply that could not be pushed, so
+// eval_acc_push always returns writable records and its callers need no branch. They
+// are per-arena for the same reason the stack is: two workers sharing one scratch
+// record would interleave their overflow plies.
+struct EvalArena {
+    NnueAccumulatorStack *acc_stack;
+    NnueRefreshCache *refresh_cache;
+    size_t acc_depth;
+    DirtyPiece scratch_dp;
+    DirtyThreats scratch_dts;
+};
 
-// Count the plies pushed above the root slot, so a push can never run past the
-// arena. The search's `ply >= MAX_PLY` guard already bounds it below
-// NNUE_MAX_STACK_SIZE; the check exists so a future caller that loses that guard
-// degrades to a stale evaluation rather than writing outside the arena.
-static size_t AccDepth = 0;
-
-// Absorb the diff of a ply that could not be pushed, so eval_acc_push always
-// returns writable records and its callers need no branch.
-static DirtyPiece ScratchDp;
-static DirtyThreats ScratchDts;
+// Hold the arena every caller with no worker of its own evaluates through.
+static EvalArena *DefaultArena = nullptr;
 
 static bool NetLoaded = false;
 static char StatusMessage[512] = "";
@@ -71,30 +78,50 @@ static void *alloc_arena(size_t n) {
     return p;
 }
 
+EvalArena *eval_arena_create(void) {
+    EvalArena *const arena = calloc(1, sizeof *arena);
+    if (arena == nullptr)
+        return nullptr;
+
+    arena->acc_stack = alloc_arena(nnue_accumulator_stack_bytes());
+    arena->refresh_cache = alloc_arena(nnue_refresh_cache_bytes());
+    if (arena->acc_stack == nullptr || arena->refresh_cache == nullptr) {
+        eval_arena_destroy(arena);
+        return nullptr;
+    }
+    return arena;
+}
+
+void eval_arena_destroy(EvalArena *arena) {
+    if (arena == nullptr)
+        return;
+    free(arena->acc_stack);
+    free(arena->refresh_cache);
+    free(arena);
+}
+
+EvalArena *eval_default_arena(void) {
+    if (DefaultArena == nullptr)
+        DefaultArena = eval_arena_create();
+    return DefaultArena;
+}
+
 bool eval_nnue_init(void) {
     // Build the feature index tables first: every accumulator refresh reads them,
     // and they are zero rather than garbage beforehand, so a missing call shows up
     // as an all-zero feature set instead of a crash.
     nnue_feature_init();
 
-    if (AccStack == nullptr)
-        AccStack = alloc_arena(nnue_accumulator_stack_bytes());
-    if (RefreshCache == nullptr)
-        RefreshCache = alloc_arena(nnue_refresh_cache_bytes());
-
     snprintf(StatusMessage, sizeof StatusMessage,
              "NNUE evaluation is not in use: no network file has been loaded, so the "
              "classical placeholder evaluation is active");
 
-    return AccStack != nullptr && RefreshCache != nullptr;
+    return eval_default_arena() != nullptr;
 }
 
 void eval_nnue_shutdown(void) {
-    free(AccStack);
-    free(RefreshCache);
-    AccStack = nullptr;
-    RefreshCache = nullptr;
-    AccDepth = 0;
+    eval_arena_destroy(DefaultArena);
+    DefaultArena = nullptr;
     NetLoaded = false;
     nnue_weight_storage_free();
 }
@@ -102,7 +129,8 @@ void eval_nnue_shutdown(void) {
 bool eval_nnue_load(const char *root_directory, const char *evalfile_path) {
     NetLoaded = false;
 
-    if (AccStack == nullptr || RefreshCache == nullptr) {
+    EvalArena *const arena = eval_default_arena();
+    if (arena == nullptr) {
         snprintf(StatusMessage, sizeof StatusMessage,
                  "NNUE evaluation is unavailable: the accumulator arenas could not be "
                  "allocated, so the classical placeholder evaluation is active");
@@ -137,9 +165,9 @@ bool eval_nnue_load(const char *root_directory, const char *evalfile_path) {
         // drop any accumulator state that describes the previous net.
         const NnueFeatureTransformer *ft =
           (const NnueFeatureTransformer *) (const void *) nnue_ft_ptr();
-        nnue_clear_refresh_cache(RefreshCache, nnue_ft_biases(ft));
+        nnue_clear_refresh_cache(arena->refresh_cache, nnue_ft_biases(ft));
     }
-    eval_acc_reset();
+    eval_acc_reset(arena);
 
     return NetLoaded;
 }
@@ -152,25 +180,26 @@ const char *eval_nnue_status(void) { return StatusMessage; }
 // Accumulator bracketing
 // ---------------------------------------------------------------------------
 
-void eval_nnue_clear_refresh_cache(void) {
-    if (!NetLoaded)
+void eval_arena_clear_refresh_cache(EvalArena *arena) {
+    if (!NetLoaded || arena == nullptr)
         return;
 
     const NnueFeatureTransformer *const ft =
       (const NnueFeatureTransformer *) (const void *) nnue_ft_ptr();
-    nnue_clear_refresh_cache(RefreshCache, nnue_ft_biases(ft));
+    nnue_clear_refresh_cache(arena->refresh_cache, nnue_ft_biases(ft));
 }
 
-void eval_acc_reset(void) {
-    AccDepth = 0;
-    if (AccStack != nullptr)
-        nnue_acc_stack_reset(AccStack);
+void eval_acc_reset(EvalArena *arena) {
+    if (arena == nullptr)
+        return;
+    arena->acc_depth = 0;
+    nnue_acc_stack_reset(arena->acc_stack);
 }
 
-void eval_acc_push(DirtyPiece **dp, DirtyThreats **dts) {
-    if (AccStack != nullptr && AccDepth + 2 <= (size_t) NNUE_MAX_STACK_SIZE) {
-        const NnueStackPushOutput out = nnue_acc_stack_push(AccStack);
-        ++AccDepth;
+void eval_acc_push(EvalArena *arena, DirtyPiece **dp, DirtyThreats **dts) {
+    if (arena->acc_depth + 2 <= (size_t) NNUE_MAX_STACK_SIZE) {
+        const NnueStackPushOutput out = nnue_acc_stack_push(arena->acc_stack);
+        ++arena->acc_depth;
         // Hand the arena slot straight to the make-move. The two record pairs are
         // byte-identical by contract (static_asserts above), which is what lets the
         // board zone write through its own names.
@@ -179,15 +208,17 @@ void eval_acc_push(DirtyPiece **dp, DirtyThreats **dts) {
         return;
     }
 
-    *dp = &ScratchDp;
-    *dts = &ScratchDts;
-    ScratchDts.list_size = 0;
+    // Absorb the overflow ply in this arena's own scratch. Per-arena, not file-scope:
+    // a shared pair would let two workers interleave their overflow plies.
+    *dp = &arena->scratch_dp;
+    *dts = &arena->scratch_dts;
+    arena->scratch_dts.list_size = 0;
 }
 
-void eval_acc_pop(void) {
-    if (AccStack != nullptr && AccDepth != 0) {
-        nnue_acc_stack_pop(AccStack);
-        --AccDepth;
+void eval_acc_pop(EvalArena *arena) {
+    if (arena->acc_depth != 0) {
+        nnue_acc_stack_pop(arena->acc_stack);
+        --arena->acc_depth;
     }
 }
 
@@ -340,19 +371,20 @@ static Value evaluate_classical(const Position *pos) {
 // Entry points
 // ---------------------------------------------------------------------------
 
-Value evaluate_with_optimism(const Position *pos, int optimism) {
+Value evaluate_with_optimism(EvalArena *arena, const Position *pos, int optimism) {
     // The classical placeholder produces neither network half, so there is nothing
     // for optimism to scale against; it is scaffolding to be deleted and never
     // grows a blend of its own.
-    if (!NetLoaded)
+    if (!NetLoaded || arena == nullptr)
         return evaluate_classical(pos);
 
-    const NnueEvalOutput out = network_evaluate(pos, AccStack, RefreshCache);
+    const NnueEvalOutput out = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
     return nnue_scaled_value(pos, out.psqt, out.positional, optimism);
 }
 
-// Evaluate with no search bias. Upstream's own value at `eval` and in the trace.
-Value evaluate(const Position *pos) { return evaluate_with_optimism(pos, 0); }
+// Evaluate with no search bias, through the default arena. Upstream's own value at
+// `eval` and in the trace.
+Value evaluate(const Position *pos) { return evaluate_with_optimism(eval_default_arena(), pos, 0); }
 
 // Write one table cell: a sign column, then the magnitude in pawns right-aligned
 // in six columns. The sign is read off the raw internal value, NOT off the pawn
@@ -371,9 +403,10 @@ static int format_cp_aligned_dot(Value v, int material, char *buf, size_t n) {
 // "(Normalized, ...)", and printing raw internal units under that header would
 // misreport every cell by the win-rate `a` factor for the position's material.
 // Port of upstream `nnue/nnue_misc.cpp:59` trace and `evaluate.cpp:75` Eval::trace.
-static void trace_nnue(const Position *pos, char *buf, int buf_len) {
-    eval_acc_reset();
-    const NnueTraceOutput trace = network_trace_evaluate(pos, AccStack, RefreshCache);
+static void trace_nnue(EvalArena *arena, const Position *pos, char *buf, int buf_len) {
+    eval_acc_reset(arena);
+    const NnueTraceOutput trace =
+      network_trace_evaluate(pos, arena->acc_stack, arena->refresh_cache);
     const int material = board_wdl_material(pos);
 
     // Two leading newlines: upstream `engine.cpp:331` prints one before the trace
@@ -401,8 +434,8 @@ static void trace_nnue(const Position *pos, char *buf, int buf_len) {
     if (n <= 0 || n >= buf_len)
         return;
 
-    eval_acc_reset();
-    const NnueEvalOutput out = network_evaluate(pos, AccStack, RefreshCache);
+    eval_acc_reset(arena);
+    const NnueEvalOutput out = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
     const Value internal = (Value) (out.psqt + out.positional);
     const Value white_internal = pos->side_to_move == WHITE ? internal : (Value) -internal;
     const Value scaled = nnue_scaled_value(pos, out.psqt, out.positional, 0);
@@ -448,8 +481,9 @@ void evaluate_trace(const Position *pos, char *buf, int buf_len) {
         return;
     }
 
-    if (NetLoaded)
-        trace_nnue(pos, buf, buf_len);
+    EvalArena *const arena = eval_default_arena();
+    if (NetLoaded && arena != nullptr)
+        trace_nnue(arena, pos, buf, buf_len);
     else
         trace_classical(pos, buf, buf_len);
 }

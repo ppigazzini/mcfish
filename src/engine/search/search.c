@@ -80,7 +80,7 @@ void search_clear(void) {
     Histories *const h = histories();
     if (h != nullptr)
         history_clear(h, 0, 1);
-    eval_nnue_clear_refresh_cache();
+    eval_arena_clear_refresh_cache(eval_default_arena());
     BestPreviousScore = VALUE_INFINITE;
     BestPreviousAverageScore = VALUE_INFINITE;
     PreviousTimeReduction = 0.85;
@@ -198,7 +198,8 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     // Drop the accumulator to one uncomputed root slot, so the first evaluation
     // refreshes from this board rather than from the previous search's diffs.
     // Once per `go`, not once per iteration.
-    eval_acc_reset();
+    EvalArena *const arena = eval_default_arena();
+    eval_acc_reset(arena);
 
 
     Histories *const h = histories();
@@ -207,10 +208,10 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
 
     ExtMove legal[MAX_MOVES];
     const size_t count = (size_t) (generate_legal(pos, legal) - legal);
-    if (h == nullptr) {
-        // The shared history bank could not be allocated, so there is nothing to search
-        // against. Return a legal move rather than MOVE_NONE, as the root-move allocation
-        // failure below does.
+    if (h == nullptr || arena == nullptr) {
+        // The shared history bank or the evaluation arena could not be allocated, so
+        // there is nothing to search against. Return a legal move rather than MOVE_NONE,
+        // as the root-move allocation failure below does.
         result.best_move = count != 0 ? legal[0].move : MOVE_NONE;
         return result;
     }
@@ -239,7 +240,7 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
 
     const SearchZoneLimits zone_limits = to_zone_limits(limits, start);
 
-    search_ctx_init(&Ctx, h, pos, &zone_limits, &rml, &Stop);
+    search_ctx_init(&Ctx, h, arena, pos, &zone_limits, &rml, &Stop);
     search_tm_init(&Ctx, &Tm, &OriginalTimeAdjust);
     search_time_state_init(&Ctx, &Tm, &CallsCnt, &Ponder, &StopOnPonderhit);
 

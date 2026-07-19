@@ -16,6 +16,7 @@
 #include "timeman.h"
 
 #include "../board/position.h"
+#include "../eval/evaluate.h"
 #include "../board/types.h"
 
 #include <stdatomic.h>
@@ -154,6 +155,12 @@ typedef struct {
 // read-only for the duration of the tree.
 typedef struct SearchCtx {
     Histories *hist;
+
+    // Evaluate through THIS worker's arena. The accumulator is a running diff of the
+    // board this recursion is walking, so it is per-worker and never null in a search
+    // that started.
+    EvalArena *eval_arena;
+
     Position *root_pos;
 
     uint64_t nodes;
