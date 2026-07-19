@@ -274,6 +274,111 @@ Whichever form, say in the header what the object's state is after a failure.
 `pos_set` leaving `pos` *unspecified* on `false` is the contract; a caller that
 keeps using it is the defect, and only the header can say so.
 
+## Translate an intrinsic instead of reaching for one
+
+Upstream writes its hot NNUE kernels in x86 intrinsics, one path per ISA. mcfish
+writes them **once** in GCC/clang vector extensions
+([`simd.h`](../src/engine/eval/nnue/simd.h)) and lets the backend lower them —
+AVX-512, AVX2 or SSE on x86, NEON on aarch64. An intrinsic is the last resort,
+for the few kernels where the portable form leaves measurable throughput behind.
+
+```c
+typedef int16_t V __attribute__((vector_size(16 * sizeof(int16_t))));
+V acc = a + b;   // vpaddw on AVX2, vaddw on NEON — the backend's job
+```
+
+The evaluation is integer-exact and therefore arch-invariant: every tier must
+bench the same number. `./build.sh arch-determinism` runs the real bench on each
+ISA the host can execute and asserts they agree, and `./build.sh simd-scalar`
+re-asserts the anchor with **every vector type compiled out** — that second gate
+is what makes the table below safe to rely on, because a portable spelling that
+lowers differently from the scalar body shows up there as a moved anchor rather
+than as a wrong evaluation nobody notices.
+
+The mapping worth knowing before touching a kernel.
+
+**Memory.** Alignment is a property of the pointer, not the operation. mcfish
+loads and stores through `__builtin_memcpy` into a vector-typed local, which
+compiles to a single move and is correct at any alignment:
+
+| upstream C++ | mcfish C23 |
+| --- | --- |
+| `_mm256_load_si256` / `_mm256_store_si256` | `__builtin_memcpy(&v, p, sizeof v)` on an aligned buffer |
+| `_mm256_loadu_si256` / `_mm_loadu_si128` | the same expression — there is no separate unaligned spelling |
+| `_mm_cvtsi32_si128` / `_mm_cvtsi128_si32` | a cast between a scalar and a 1-lane vector, or `v[0]` |
+
+**Constants and reinterpretation.** Free — type-level, no instruction:
+
+| upstream C++ | mcfish C23 |
+| --- | --- |
+| `_mm256_setzero_si256` | `(V) { 0 }` |
+| `_mm512_set1_epi8` / `_epi16` / `_epi32` | `(V) { 0 } + x` — the lane type comes from `V` |
+| `_mm256_castsi256_ps`, `_mm256_castsi256_si512` | `(Dst) v`, a cast between equal-width vector types |
+| `_mm256_extracti128_si256`, `_mm512_inserti64x4` | `__builtin_shufflevector` with constant indices — **no use in the tree today**; the kernels that would need it keep their intrinsics |
+
+**Arithmetic.** The plain C operators are lane-wise on a vector type:
+
+| upstream C++ | mcfish C23 |
+| --- | --- |
+| `_mm256_add_epi16` / `_epi32`, `_mm256_sub_epi16` / `_epi32` | `a + b`, `a - b` |
+| `_mm256_mullo_epi16` | `a * b` |
+| `_mm_min_epi16` + `_mm_max_epi16` (ClippedReLU) | `NNUE_VEC_MIN` / `NNUE_VEC_MAX` |
+| `_mm_madd_epi16`, `_mm_maddubs_epi16`, `_mm512_dpbusd_epi32` | `nnue_dot_step` — the one place mcfish keeps per-ISA intrinsics |
+
+**There are no saturating operators.** C has no `+|`, and the vector extensions
+add none. Upstream's `_mm_adds_epi8` and the `_mm_packs_*` family saturate in
+hardware; mcfish reaches the same values by clamping with `NNUE_VEC_MIN`/`MAX`
+before a narrowing `__builtin_convertvector`. Writing the plain `+` where
+upstream saturates is a **silent correctness change**, not a slow path — and the
+one place it genuinely matters is `nnue_dot_step`, where `pmaddubsw` saturates
+its int16 intermediate and the scalar body cannot. That the two agree is an
+argument (activations are capped at 127, weights are int8, so the pair sum peaks
+at 32512), and `simd-scalar` is what checks the argument.
+
+**Comparison produces an integer mask, not a bool vector.** This is the sharpest
+difference from upstream's intrinsics and from any language with a real mask
+type. A vector comparison in GCC/clang yields a vector of the same width whose
+lanes are **all-ones** for true and all-zeros for false — so it is consumed with
+bitwise `&` / `|` / `~`, exactly as `NNUE_VEC_MIN` does:
+
+```c
+#define NNUE_VEC_MIN(a, b) \
+    ((__typeof__(a)) (((a) & ((__typeof__(a)) ((a) < (b)))) \
+                      | ((b) & ~((__typeof__(a)) ((a) < (b))))))
+```
+
+| upstream C++ | mcfish C23 |
+| --- | --- |
+| `_mm_cmpeq_epi8`, `_mm_cmpgt_epi8` / `_epi32` | `a == b`, `a > b` — result is an all-ones mask |
+| `_mm512_cmpgt_epi32_mask` | the same comparison; there is no separate mask register type |
+| `_mm256_movemask_epi8` | mask, `&` a lane-bit constant, then reduce with `|` |
+
+**Do not assume a mask's representation beyond all-ones/all-zeros.** The width is
+the source vector's, the true value is `-1` in the lane's signed type, and
+anything past that is the backend's choice.
+
+**Width conversion.** `__builtin_convertvector` between families of the same lane
+COUNT. Widening sign- or zero-extends by the SOURCE element's signedness;
+narrowing truncates — which is the C conversion the scalar body writes out, and
+is why the two paths agree:
+
+| upstream C++ | mcfish C23 |
+| --- | --- |
+| `_mm_cvtepi8_epi16` (sign-extend widen) | `__builtin_convertvector` to a wider signed lane |
+| `_mm_packs_epi16` / `_mm_packs_epi32` (signed saturate) | clamp with `NNUE_VEC_MIN`/`MAX`, then `__builtin_convertvector` |
+| `_mm_packus_epi16` (unsigned saturate) | the same, clamped to the unsigned range |
+| `_mm_unpacklo_epi8`, `_mm_shuffle_epi32` | `__builtin_shufflevector` — **no use in the tree today**, same reason |
+
+**Shifts.** `v << s` and `v >> s` take a scalar count. Signedness of the LANE
+picks the instruction — `>>` on a signed lane is arithmetic (`_mm_srai_epi16`),
+on an unsigned lane logical (`_mm_srli_epi16`). That is the whole distinction;
+there is no separate spelling, so the lane type is load-bearing.
+
+**Scalar bit operations** keep upstream's builtins: `__builtin_popcountll` for
+`popcount`, `__builtin_ctzll` for `_tzcnt_u64`. Both need the ISA flags
+`build.sh` already sets — without `-mpopcnt`, `__builtin_popcountll` lowers to a
+library call.
+
 ## Measurement discipline
 
 The port is allowed to be slow. It is not allowed to be a guess.
