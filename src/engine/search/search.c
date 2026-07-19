@@ -69,12 +69,23 @@ static Value BestPreviousScore = VALUE_INFINITE;
 static Value BestPreviousAverageScore = VALUE_INFINITE;
 static double PreviousTimeReduction = 0.85;
 
+// The time manager carries across `go` for the same reason, and upstream clears
+// it in the same place: `main_manager()->originalTimeAdjust` and `tm.clear()` sit
+// in that one block (thread.cpp:266-271). Both only steer the clock, so neither
+// moves the depth-limited anchor -- but resetting `available_nodes` per `go`
+// hands `nodestime` a fresh budget every move instead of one per game, and
+// resetting the adjust makes every move take the first-move-of-a-game path.
+static TimeManagement Tm = { .available_nodes = -1 };
+static double OriginalTimeAdjust = -1.0;
+
 void search_clear(void) {
     history_clear(histories());
     eval_nnue_clear_refresh_cache();
     BestPreviousScore = VALUE_INFINITE;
     BestPreviousAverageScore = VALUE_INFINITE;
     PreviousTimeReduction = 0.85;
+    OriginalTimeAdjust = -1.0;
+    timeman_clear(&Tm);
 }
 
 uint64_t search_last_nodes_searched(void) { return LastNodesSearched; }
@@ -124,19 +135,16 @@ static void install_seams(void) {
 
 // ---- per-search state ---------------------------------------------------
 //
-// Hold what upstream keeps on the SearchManager. Upstream resets all of it in
-// `ThreadPool::clear` (thread.cpp), on `ucinewgame`; mcfish's shell has no such
-// hook, so the facade resets it per `go` alongside the history block, which is
-// also what keeps two searches of the same position node-for-node identical.
+// Hold the flags one `go` owns outright. Everything upstream resets only in
+// `ThreadPool::clear` lives in the per-game block above instead; these are the
+// fields a fresh search genuinely re-arms, so resetting them per `go` is what
+// keeps two searches of the same position node-for-node identical.
 
 static atomic_bool Stop = false;
 static atomic_bool Ponder = false;
 static atomic_bool IncreaseDepth = true;
 static bool StopOnPonderhit = false;
 static int CallsCnt = 0;
-static TimeManagement Tm = { .available_nodes = -1 };
-
-static double OriginalTimeAdjust = -1.0;
 
 void search_stop(void) { atomic_store(&Stop, true); }
 
@@ -186,8 +194,6 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     atomic_store(&IncreaseDepth, true);
     StopOnPonderhit = false;
     CallsCnt = 0;
-    Tm = (TimeManagement) { .available_nodes = -1 };
-    OriginalTimeAdjust = -1.0;
 
     // Drop the accumulator to one uncomputed root slot, so the first evaluation
     // refreshes from this board rather than from the previous search's diffs.
@@ -241,6 +247,15 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     id.previous_time_reduction = PreviousTimeReduction;
 
     const bool uci_pv_sent = iterative_deepening(&Ctx, &id);
+
+    // In `nodes as time` mode, subtract what this search spent from the budget
+    // before returning (Stockfish/src/search.cpp:235-237). Read the limit here,
+    // not from the snapshot taken before `search_tm_init`: that call is what
+    // writes `npmsec` from the `nodestime` option, and it also scales `inc` by
+    // it, so both fields only hold the values upstream subtracts once it has run.
+    if (Ctx.limits.npmsec != 0)
+        timeman_advance_nodes_time(&Tm,
+                                   (int64_t) Ctx.nodes - Ctx.limits.inc[board_side_to_move(pos)]);
 
     // Record what this search concluded, so the next `go` in this game seeds its
     // aspiration window and its falling-eval term from it. Upstream assigns these
