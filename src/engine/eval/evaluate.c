@@ -149,6 +149,15 @@ const char *eval_nnue_status(void) { return StatusMessage; }
 // Accumulator bracketing
 // ---------------------------------------------------------------------------
 
+void eval_nnue_clear_refresh_cache(void) {
+    if (!NetLoaded)
+        return;
+
+    const NnueFeatureTransformer *const ft =
+      (const NnueFeatureTransformer *) (const void *) nnue_ft_ptr();
+    nnue_clear_refresh_cache(RefreshCache, nnue_ft_biases(ft));
+}
+
 void eval_acc_reset(void) {
     AccDepth = 0;
     if (AccStack != nullptr)

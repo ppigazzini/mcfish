@@ -73,6 +73,14 @@ const char *eval_nnue_default_file_name(void);
 // Drop back to a single uncomputed root slot. Call at the root of every search
 // and before any standalone evaluate, so the first evaluation refreshes from the
 // board rather than from a stale ply's diff.
+// Re-seed the NNUE refresh cache from the resident net's feature-transformer
+// biases. Upstream does this in Worker::clear (search.cpp:698), reached from
+// `ucinewgame` -- not only on net load. A cache still holding entries seeded from
+// a PREVIOUS net makes the incremental refresh path produce wrong accumulator
+// values, and a forced full refresh cannot expose it because that path bypasses
+// the cache entirely.
+void eval_nnue_clear_refresh_cache(void);
+
 void eval_acc_reset(void);
 
 // Push one ply and hand back the two records pos_do_move must fill. The pointers

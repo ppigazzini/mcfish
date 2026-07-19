@@ -71,6 +71,7 @@ static double PreviousTimeReduction = 0.85;
 
 void search_clear(void) {
     history_clear(histories());
+    eval_nnue_clear_refresh_cache();
     BestPreviousScore = VALUE_INFINITE;
     BestPreviousAverageScore = VALUE_INFINITE;
     PreviousTimeReduction = 0.85;
