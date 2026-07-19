@@ -25,15 +25,22 @@ divergence is a bug report for zfish.
   *this commit* is the finish line. Advance it only when `upstream-parity` is green.
 - **`UPSTREAM_TARGET`** — the SHA being ported toward when catching up to a moving
   upstream; equal to `UPSTREAM_BASE` when synced.
-- **`ZFISH_BASE`** — the zfish SHA mcfish has been ported **up to** (`8eece8b3b`).
+- **`ZFISH_BASE`** — the zfish SHA mcfish has been ported **up to** (`6a4a80887`).
   The three atomics fixes, the mirror drop, the `resources/` rename, the
   TSan-to-zero work and the intrinsic-translation docs are all reflected here
   (some via a different mechanism than zfish's — the C23 intrinsic doc, `build.sh`
-  gates rather than `build.zig` steps). zfish's `074b972fe` is a fix to its Zig
-  test harness and has no mcfish counterpart. Two zfish commits past this pin are
-  genuinely unported: `6a4a80887` and `afd4f2d56`, both bench-neutral VNNI/affine
-  PERF optimisations, not correctness — deliberately deferred, since a perf change
-  that moves a rounding boundary moves the node count. Advance it in
+  gates rather than `build.zig` steps). `074b972fe` is a fix to zfish's Zig test
+  harness with no mcfish counterpart. `6a4a80887` (hoist the sparse-affine bases
+  per nnz word) is already present: mcfish's unified `nnue_affine_32` hoists per
+  word with a word-local bit index from the start, having never had zfish's
+  per-tier `affineVnni` split to un-hoist.
+
+  One zfish commit past this pin is genuinely NOT ported and cannot be a drop-in:
+  `afd4f2d56` widens `transform_vec_width` 32→64. It is bench-neutral in zfish's
+  loop structure and MOVES mcfish's anchor (`./build.sh signature` drifts) because
+  mcfish's transform tile is a different shape. Taking it means restructuring the transform
+  loop to stay behaviour-preserving, not flipping a constant — real NNUE work, and
+  exactly the "improving while porting moves the node count" trap. Advance it in
   the commit that ports the last change from that range, not before: it is a record
   of what has landed here, not a bookmark of what was read.
 - **`port_map.tsv`** — the work list: every zfish module → its mcfish owner → its
