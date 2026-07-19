@@ -21,10 +21,27 @@ static inline uint32_t load_group(const uint8_t *input) {
 
 // --- OUT = 32 (N = 128 interleaved lanes) -----------------------------------------
 
-static inline NnueV128i32 group_products_32(uint32_t packed, const int8_t *weights) {
-    const NnueV128i32 in = nnue_v128_u8_to_i32(nnue_v128_u32x32_as_u8(nnue_v32u32_splat(packed)));
-    const NnueV128i32 w = nnue_v128_i8_to_i32(nnue_v128i8_load(weights));
-    return nnue_v128i32_mul(in, w);
+// Accumulate the 32 outputs as EIGHT vectors of four int32 rather than one vector of
+// 128. Both hold the same 32 sums; the difference is that this shape folds each
+// output's four sublanes inside the multiply (nnue_dot4_i32) instead of widening to
+// int32 first and folding at the end. 128 int32 lanes is 512 bytes against a 256-byte
+// SSE register file, so the wide accumulator spilled and reloaded on every group --
+// which was the whole nps deficit against zfish, not a constant factor on it.
+//
+// Chunk c covers weight bytes [c*16, c*16+16) of the group. The scrambled layout
+// (g*OUT*4 + j*4 + m) makes that exactly outputs 4c..4c+3 across all four sublanes, so
+// chunk c's four result lanes ARE outputs 4c..4c+3 and no shuffle is needed anywhere.
+enum { AFFINE_CHUNKS_32 = 8 };
+
+static inline void
+group_accumulate_32(NnueV4i32 acc[AFFINE_CHUNKS_32], uint32_t packed, const int8_t *weights) {
+    // Broadcast the group's four bytes across sixteen, so byte 4q+s is sublane s for
+    // every q. The uint32 round trip keeps this endianness-neutral: the same four bytes
+    // land in the same four positions on either byte order.
+    const NnueV16u8 in = nnue_v16_u32x4_as_u8(nnue_v4u32_splat(packed));
+    for (size_t c = 0; c < AFFINE_CHUNKS_32; c++) {
+        acc[c] = nnue_v4i32_add(acc[c], nnue_dot4_i32(in, nnue_v16i8_load(weights + c * 16)));
+    }
 }
 
 void nnue_affine_32(bool sparse,
@@ -36,7 +53,9 @@ void nnue_affine_32(bool sparse,
                     const uint64_t *nnz) {
     enum { OUT = 32, N = OUT * 4 };
     const size_t groups = input_len / 4;
-    NnueV128i32 acc = nnue_v128i32_splat(0);
+    NnueV4i32 acc[AFFINE_CHUNKS_32];
+    for (size_t c = 0; c < AFFINE_CHUNKS_32; c++)
+        acc[c] = nnue_v4i32_splat(0);
 
     if (sparse) {
         // Walk the bitset in upstream's shape (affine_transform_sparse_input.h): load a
@@ -49,22 +68,19 @@ void nnue_affine_32(bool sparse,
             while (bits != 0) {
                 const size_t i = (size_t) __builtin_ctzll(bits);
                 bits &= bits - 1;
-                acc = nnue_v128i32_add(
-                  acc, group_products_32(load_group(in_base + i * 4), w_base + i * N));
+                group_accumulate_32(acc, load_group(in_base + i * 4), w_base + i * N);
             }
         }
     } else {
         for (size_t g = 0; g < groups; g++) {
-            acc =
-              nnue_v128i32_add(acc, group_products_32(load_group(input + g * 4), weights + g * N));
+            group_accumulate_32(acc, load_group(input + g * 4), weights + g * N);
         }
     }
 
-    // Fold each output's four interleaved sublanes together. Exact int32 addition, so the
-    // order is free — see the header.
+    // The sublane fold already happened inside nnue_dot4_i32, so each lane is a finished
+    // dot product and only the bias remains.
     for (size_t j = 0; j < OUT; j++) {
-        out[j] = biases[j] + nnue_v128i32_lane(acc, j * 4) + nnue_v128i32_lane(acc, j * 4 + 1)
-               + nnue_v128i32_lane(acc, j * 4 + 2) + nnue_v128i32_lane(acc, j * 4 + 3);
+        out[j] = biases[j] + nnue_v4i32_lane(acc[j / 4], j % 4);
     }
 }
 

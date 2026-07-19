@@ -241,6 +241,70 @@ NNUE_SIMD_CONVERT(nnue_v4_i8_to_i32, NnueV4i32, NnueV4i8)
 NNUE_SIMD_CONVERT(nnue_v4_u8_to_i32, NnueV4i32, NnueV4u8)
 NNUE_SIMD_REINTERPRET(nnue_v4_u32x1_as_u8, NnueV4u8, NnueV1u32)
 
+// ---------------------------------------------------------------------------
+// THE ONE REDUCING PRIMITIVE. Read the header comment's bit-identity argument
+// first: everything above this line is element-wise, and this is not. It gets its
+// own proof.
+//
+// nnue_dot4_i32 computes, for each of four output lanes q:
+//
+//     result[q] = sum over s in 0..3 of  in[4q + s] * w[4q + s]
+//
+// It exists because it is the whole affine kernel's cost. Accumulating in the
+// interleaved OUT*4 domain needs 128 int32 lanes for the 32-output layer -- 512
+// bytes against a 256-byte SSE register file -- so the accumulator spills and
+// reloads every group. Folding the four sublanes INSIDE the multiply makes the
+// accumulator 8 vectors of 4 int32 and it stays in registers.
+//
+// WHY THE TWO BODIES AGREE. The vector body is pmaddubsw followed by pmaddwd.
+// pmaddubsw multiplies uint8 by int8 and adds ADJACENT PAIRS with SIGNED
+// SATURATION to int16 -- so it is only equal to the scalar body if that
+// intermediate cannot saturate. It cannot: affine inputs are activation outputs,
+// which both nnue_clipped_relu_32 and nnue_sqr_clipped_relu_32 cap at 127, and
+// weights are int8. The largest pair sum is 127 * 128 * 2 = 32512 < 32767, and the
+// smallest is -32512 > -32768. The bound is strict with 255 to spare, and it does
+// not depend on the net: it holds for every representable weight. pmaddwd then
+// adds adjacent int16 pairs into int32, which cannot overflow at that magnitude.
+// So both bodies compute the same exact integer, and the node count cannot move.
+//
+// tests/test_main.c drives both bodies over the saturation boundary rather than
+// taking this paragraph on trust.
+// ---------------------------------------------------------------------------
+
+NNUE_SIMD_TYPE(NnueV16u8, uint8_t, 16);
+NNUE_SIMD_TYPE(NnueV16i8, int8_t, 16);
+NNUE_SIMD_FAMILY(nnue_v16u8, NnueV16u8, uint8_t, 16);
+NNUE_SIMD_FAMILY(nnue_v16i8, NnueV16i8, int8_t, 16);
+NNUE_SIMD_TYPE(NnueV4u32, uint32_t, 4);
+NNUE_SIMD_FAMILY(nnue_v4u32, NnueV4u32, uint32_t, 4);
+NNUE_SIMD_REINTERPRET(nnue_v16_u32x4_as_u8, NnueV16u8, NnueV4u32)
+
+#if CCFISH_SIMD_VECTOR && defined(__SSSE3__)
+
+    #include <tmmintrin.h>
+
+static inline NnueV4i32 nnue_dot4_i32(NnueV16u8 in, NnueV16i8 w) {
+    const __m128i pairs = _mm_maddubs_epi16((__m128i) in, (__m128i) w);
+    return (NnueV4i32) _mm_madd_epi16(pairs, _mm_set1_epi16(1));
+}
+
+#else
+
+static inline NnueV4i32 nnue_dot4_i32(NnueV16u8 in, NnueV16i8 w) {
+    int32_t r[4];
+    for (size_t q = 0; q < 4; q++) {
+        int32_t acc = 0;
+        for (size_t s = 0; s < 4; s++) {
+            acc +=
+              (int32_t) nnue_v16u8_lane(in, q * 4 + s) * (int32_t) nnue_v16i8_lane(w, q * 4 + s);
+        }
+        r[q] = acc;
+    }
+    return nnue_v4i32_load(r);
+}
+
+#endif
+
 #if defined(__GNUC__) && !defined(__clang__)
     #pragma GCC diagnostic pop
 #endif

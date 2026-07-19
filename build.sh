@@ -271,6 +271,51 @@ do_signature_update() {
   green "signature golden set to $actual"
 }
 
+do_simd_scalar() {
+  # Build the engine with EVERY vector type and intrinsic compiled out, and require
+  # the same bench anchor.
+  #
+  # This is the correctness oracle for src/engine/eval/nnue/simd.h. That header
+  # provides one vocabulary in two implementations -- GCC vector extensions and a
+  # plain lane loop -- and asserts they are value-identical. Every other gate here
+  # runs the vector path only, so a wrong assumption about vector lowering is
+  # invisible to all of them, and the failure mode is not a crash: the engine
+  # searches a different tree and still looks like a working chess engine.
+  #
+  # nnue_dot4_i32 is the specific reason this gate exists. On x86 it lowers to
+  # pmaddubsw + pmaddwd, and pmaddubsw SATURATES its int16 intermediate; the scalar
+  # body cannot. They agree only because activation outputs are capped at 127 and
+  # weights are int8, so the pair sum peaks at 32512. That is an argument, and this
+  # gate is what checks it against the real net rather than believing it.
+  #
+  # zfish gates the same class through its C backend (tools/c_backend_check.sh),
+  # where it caught a @Vector(N, bool) bitcast that was correct only under LLVM's
+  # bit-packing and benched a wrong number through every other gate.
+  info "simd-scalar: rebuilding with CCFISH_SIMD_SCALAR and re-asserting the anchor"
+  mkdir -p build
+  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -DCCFISH_SIMD_SCALAR \
+    -o build/ccfish-scalar "${SOURCES[@]}" -lm
+
+  local net_probe
+  net_probe=$(build/ccfish-scalar bench 1 2>&1 || true)
+  if grep -q 'was not loaded' <<< "$net_probe"; then
+    red "no NNUE net reachable — the simd-scalar gate did NOT run."
+    return 127
+  fi
+
+  local expected actual
+  expected=$(grep -v '^#' tools/signature.golden | tr -d '[:space:]')
+  actual=$(build/ccfish-scalar bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
+  if [[ $actual == "$expected" ]]; then
+    green "simd-scalar OK: $actual nodes — vector and scalar paths agree"
+  else
+    red "simd-scalar MISMATCH: scalar=$actual vector=$expected"
+    red "The two bodies of simd.h are NOT value-identical. Suspect the one reducing"
+    red "primitive (nnue_dot4_i32) and its saturation argument first."
+    return 1
+  fi
+}
+
 do_perft() {
   need_binary
   info "perft gate vs tools/perft.table"
@@ -423,6 +468,7 @@ do_parity() {
   # clang-format is absent: the gate could not run. Name it as skipped rather than
   # let a fallback-tree node count read as an anchor comparison.
   do_signature || { [[ $? -eq 127 ]] && skipped+=(signature) || return 1; }
+  do_simd_scalar || { [[ $? -eq 127 ]] && skipped+=(simd-scalar) || return 1; }
 
   do_perft
   do_golden
@@ -466,6 +512,7 @@ usage: ./build.sh <step> [args]
   debug              compile with asan+ubsan             -> build/ccfish-debug
   test               build and run the unit/property suite
   bench [depth]      run the benchmark (default depth 13)
+  simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
   net                report where the NNUE net must be and how to obtain it
   signature          assert the bench node count vs tools/signature.golden
   perft              assert perft counts vs tools/perft.table
@@ -493,6 +540,7 @@ case "${1:-build}" in
   bench)            do_bench "${2:-}" ;;
   net)              do_net ;;
   signature)        do_signature ;;
+  simd-scalar)      do_simd_scalar ;;
   signature-update) do_signature_update ;;
   perft)            do_perft ;;
   golden)           do_golden ;;

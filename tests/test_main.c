@@ -19,6 +19,7 @@
 #include "../src/engine/eval/evaluate.h"
 #include "../src/engine/search/search.h"
 #include "../src/engine/search/tt.h"
+#include "../src/engine/eval/nnue/simd.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -518,6 +519,64 @@ static void test_draw_detection(void) {
     CHECK(!pos_is_draw(&pos, 0), "99 plies is not yet a draw");
 }
 
+// nnue_dot4_i32 is the ONE reducing primitive in simd.h, and the only place the
+// NNUE kernels depend on something the C standard does not give them: on x86 it is
+// pmaddubsw + pmaddwd, and pmaddubsw SATURATES its int16 intermediate. simd.h argues
+// that saturation is unreachable because affine inputs are activation outputs capped
+// at 127 and weights are int8, so the largest pair sum is 127*128*2 = 32512. That is
+// an argument, not a check -- and if it is ever wrong the engine does not crash, it
+// searches a different tree while every other gate stays green. So drive the
+// primitive against an independent scalar reference here, hardest at the boundary
+// the argument turns on.
+//
+// This is ccfish's analogue of zfish's C-backend oracle (tools/c_backend_check.sh):
+// one source, two lowerings, and a gate that they agree. zfish's caught a real bug
+// of exactly this shape -- a @Vector(N, bool) bitcast that was correct only under
+// LLVM's packing -- which benched a wrong number through every other gate.
+static void test_nnue_dot4(void) {
+    // A reference that shares nothing with simd.h: plain scalar C, no vector type,
+    // no intrinsic, and deliberately int32 throughout so a saturating intermediate
+    // in the implementation shows up as a disagreement rather than being mirrored.
+    uint8_t in[16];
+    int8_t w[16];
+    uint64_t rng = 0x9E3779B97F4A7C15ULL;
+
+    for (int trial = 0; trial < 20000; ++trial) {
+        for (int i = 0; i < 16; ++i) {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            if (trial < 200) {
+                // The boundary the saturation argument rests on: max magnitude in
+                // every lane, both signs of weight. If pmaddubsw ever saturates on
+                // legal data, it saturates here first.
+                in[i] = 127;
+                w[i] = (int8_t) ((rng & 1) ? -128 : 127);
+            } else {
+                in[i] = (uint8_t) (rng % 128);  // activations are capped at 127
+                w[i] = (int8_t) ((int) (rng >> 8 & 0xFF) - 128);
+            }
+        }
+
+        int32_t expect[4];
+        for (int q = 0; q < 4; ++q) {
+            int32_t acc = 0;
+            for (int s = 0; s < 4; ++s)
+                acc += (int32_t) in[q * 4 + s] * (int32_t) w[q * 4 + s];
+            expect[q] = acc;
+        }
+
+        const NnueV4i32 got = nnue_dot4_i32(nnue_v16u8_load(in), nnue_v16i8_load(w));
+        for (int q = 0; q < 4; ++q)
+            CHECK(nnue_v4i32_lane(got, (size_t) q) == expect[q],
+                  "nnue_dot4_i32 disagrees with the scalar reference");
+    }
+
+    // State the bound the whole argument turns on, so a future net format or a wider
+    // activation cap trips a test rather than silently saturating.
+    CHECK(127 * 128 * 2 < 32768, "pmaddubsw pair sum must not reach int16 saturation");
+}
+
 int main(void) {
     bitboards_init();
     attacks_init();
@@ -535,6 +594,7 @@ int main(void) {
     test_tt();
     test_search();
     test_draw_detection();
+    test_nnue_dot4();
 
     printf("\n%d checks, %d failures\n", Checks, Failures);
     if (Failures) {
