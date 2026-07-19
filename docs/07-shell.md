@@ -283,13 +283,14 @@ What differs is whether anything reads the value.
 | `SyzygyPath`, `SyzygyProbeDepth`, `Syzygy50MoveRule`, `SyzygyProbeLimit` | the prober and the root ranker | Live. `SyzygyPath` loads the tables; the other three reach the search through `option_source.h`. |
 | `EvalFile` | `eval_nnue_load` | Re-loads the net and reports the outcome. |
 
-**`Threads` advertises a range it cannot honour, deliberately.** The maximum is
-upstream's `max(1024, 4 * hardware_concurrency)` because a narrower one is a
-different handshake, and the handshake is what a GUI configures against. The search
-is single-threaded, so any value above 1 is accepted and ignored — and the
-on-change callback says exactly that on the wire, because a GUI that sets
-`Threads 8` and sees silence has no way to learn otherwise. Golden: upstream
-`thread.cpp`.
+**`Threads` is live.** The maximum advertised is upstream's
+`max(1024, 4 * hardware_concurrency)` because a narrower one is a different
+handshake, and the handshake is what a GUI configures against. The callback
+rebuilds the worker set rather than resizing it — a thread must be created on the
+NUMA node it will run on — which drops every history table, exactly as upstream's
+`ThreadPool::set` does. `NumaPolicy` chooses the topology that rebuild binds
+under, and re-applies the current thread count so the change takes effect at once.
+Golden: upstream `thread.cpp`, `numa.h`.
 
 **The four Syzygy options are live.** `syzygy_option_install` binds the
 `TbMaxCardinality` / `TbProbeFen` / `TbProbeWdlPos` seams in

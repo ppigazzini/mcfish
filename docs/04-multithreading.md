@@ -1,27 +1,27 @@
 # Multithreaded search (Lazy-SMP)
 
 Upstream searches with N workers sharing a transposition table and almost nothing
-else. mcfish has the machinery and does not yet run it.
+else. mcfish runs it.
 
 Audience: engine and platform contributors. The zone layout is in
 [00-architecture.md](00-architecture.md); the OS primitives themselves are in
 [06-platform.md](06-platform.md).
 
-## Read this first: the search is single-threaded
+## Read this first: the pool is driven
 
-**Every module on this page is compiled, linked and unit-tested. None of it is
-driven.** `Threads` above 1 is accepted and ignored, and the search runs on the
-calling thread against file-scope statics.
+`Threads` builds a worker set, `NumaPolicy` chooses the topology it binds under,
+and a `go` runs N workers over one root. Node counts scale with the thread count
+and the bestmove is the pool's vote.
 
-That is two different claims and only the first is true of every row below. Being
-in `SOURCES` and `ENGINE_SOURCES` means a module compiles under the full warning
-set, links into `zone-check`, and is reachable by `./build.sh test` and
-`./build.sh tsan`. Being *driven* means the engine's behaviour changes when the
-module does — and for all of it, it still does not.
+[`search_threads.c`](../src/engine/search/search_threads.c) is the driver: it owns
+the pool, one `SearchWorker` per thread, one shared history bank per occupied NUMA
+node, the summed counters and the thread vote.
+[`search.c`](../src/engine/search/search.c) sets every worker up on the root,
+starts the siblings, searches thread 0 on the calling thread, joins, and votes.
 
-**This is a gap, not a design.** A module verified in isolation and called by
-nothing is a module no gate defends when the wiring lands. What follows names
-what that wiring commit has to decide.
+**Thread 0 runs on the calling thread.** Its OS thread is spawned and left parked.
+`search_go` blocks, so the caller has a thread to spare; upstream hands thread 0 a
+job only because its `go` returns immediately. The tree is the same either way.
 
 ## Modules
 
@@ -32,7 +32,9 @@ what that wiring commit has to decide.
 | [`thread_pool.c`](../src/platform/thread_pool.c) | the worker pool, the shared stop flag, the NUMA binding plan |
 | [`numa.c`](../src/platform/numa.c) | the topology model, thread distribution, the replication registry |
 | [`memory.c`](../src/platform/memory.c) | large-page aligned allocation and the page-allocator seam |
-| [`../src/engine/state/`](../src/engine/state) | the per-worker layout the search's globals must move into |
+| [`../src/engine/state/`](../src/engine/state) | the per-worker `SearchWorker` block and its construction |
+| [`search_threads.c`](../src/engine/search/search_threads.c) | the worker set, the shared banks, the counter sums, the vote |
+| [`pool_source.h`](../src/engine/search/pool_source.h) | the seam through which the search reads the pool's totals |
 
 Goldens: upstream `thread.cpp` / `thread.h` for the pool and the idle loop,
 `numa.h` for the topology, `memory.cpp` for the allocator, `search.h:311`
@@ -47,10 +49,10 @@ communication — the shared TT is the entire coordination mechanism.
 
 Two consequences shape everything here:
 
-- **`Threads 1` must be bit-identical to no pool at all.** The pool is inert
-  until `thread_pool_set` is called, and a pool of one performs no binding, no
-  distribution and no cross-thread synchronisation beyond a single idle-loop
-  handshake. That is the property the `signature` gate rests on.
+- **`Threads 1` must be bit-identical to no pool at all.** A pool of one performs
+  no binding, no distribution and no cross-thread synchronisation beyond a single
+  idle-loop handshake, its summed counters are thread 0's own counters, and its
+  vote has one candidate. That is the property the `signature` gate rests on.
 - **Nothing may make thread 0's behaviour depend on an address, a clock or
   scheduling.** A worker that reads its own node count is deterministic; one that
   reads the *pool's* sum is not, because the sum depends on when the other
@@ -80,50 +82,67 @@ worker's one allocation is first-touched on the node that will own it.
 
 ## Shared vs per-worker state
 
-This is the whole of the remaining work, and it is not a matter of calling
-`thread_pool_set`. The live search keeps every piece of per-worker state in
-file-scope globals:
+Every piece of per-worker state now lives in one `SearchWorker` block, built by
+[`worker_construct.c`](../src/engine/state/worker_construct.c) and allocated from
+the page allocator so it arrives zeroed and first-touched on the node its thread
+will run on.
 
-| Global | Where | What it is upstream |
+| What | Where it was | Where it is |
 | --- | --- | --- |
-| `Ctx` (a whole `SearchCtx`) | [`search.c`](../src/engine/search/search.c) | the `Worker`'s hot per-node context |
-| `Tables` (a whole `Histories`) | [`history.c`](../src/engine/search/history.c) | per-worker tables plus two shared, key-indexed ones |
-| `AccStack`, `RefreshCache`, `AccDepth` | [`evaluate.c`](../src/engine/eval/evaluate.c) | the per-worker NNUE arenas |
-| `CallsCnt`, `StopOnPonderhit` | [`search.c`](../src/engine/search/search.c) | per-`Worker` / per-manager scalars, and neither is atomic |
+| the whole `SearchCtx` | a static in `search.c` | `w->ctx` |
+| the history tables | a static `Histories` in `history.c` | `w->hist` |
+| the NNUE accumulator, refresh cache and ply counter | three statics in `evaluate.c` | `w->eval_arena`, an opaque `EvalArena` |
+| the time manager and the carried-over scores | statics in `search.c` | `w->manager`, thread 0's only |
+| `calls_cnt`, `stop_on_ponderhit`, `ponder` | statics in `search.c` | `w->manager` |
 
-Running two workers over those is not parallel search; it is a data race on tens
-of megabytes of history tables and one shared NNUE accumulator. `SearchCtx`'s own
-header says so — it holds by value what upstream reaches through a `Worker`
-pointer *because* the search is single-threaded.
+**A sibling has no `SearchManager` and that is the whole of the difference.**
+Upstream gives it a `NullSearchManager` whose one virtual does nothing; here
+`w->manager` is null and the time-management block is behind
+`!main_thread -> continue`, so nothing reads it.
 
-**`Histories` is one flat block and upstream's is not.** It mixes the per-worker
-tables (main, low-ply, capture, continuation, tt-move) with the two shared,
-key-indexed ones (correction, pawn), which upstream keeps as one bank
-per NUMA node sized to that node's thread count. Splitting it into worker-owned
-and node-shared halves, and clearing only the former per worker, is part of the
-same commit.
+`Histories` is split the way upstream splits it — see
+[02-engine-search.md](02-engine-search.md). The worker owns main, low-ply,
+capture, continuation-correction and the tt-move counter; its node's
+`SharedHistories` bank owns the correction and pawn tables (sized by that node's
+thread count) and the continuation block.
 
-The destination already exists: [`src/engine/state/`](../src/engine/state)
-defines the per-worker layout, in which **a Worker is one allocation** — the
-fixed struct at offset 0 with the accumulator stack and refresh cache following
-it, each 64-byte aligned. Keeping them in one block is not a convenience: the
-block is first-touched on the node its thread will run on, and splitting the
-arenas out would put the accumulator on whichever node happened to allocate it.
-
-Clearing shared tables is **striped**: each worker takes
+Clearing the shared tables is **striped**: each worker takes
 `[i * n / total, (i + 1) * n / total)`. With one worker the slice is the whole
 table, which is why the single-threaded clear matches upstream whether or not the
 stripe is honoured — and why it must still be honoured, or two workers race and a
-third range is never cleared at all.
+third range is never cleared at all. The continuation block is deliberately *not*
+striped: upstream has every worker fill all of it.
 
-### A duplicate that has to collapse
+### Reading the pool's totals
 
-`search.c` keeps its own `Stop`, `Ponder` and `IncreaseDepth` atomics while
-`ThreadPool` owns `stop` and `increase_depth`. That is precisely the mirrored
-copy the shared-state model warns against: one
-flag with one writer and many relaxed readers is the whole cross-thread protocol,
-and a second copy is how the siblings come to disagree about whether a search is
-still running. The wiring commit has to make the pool's flag the only one.
+Upstream reads `threads.nodes_searched()` / `tb_hits()` at exactly five places —
+`check_time`, `Worker::elapsed`, `output_pv`, the `nodes as time` settle, and the
+best-move-change collection — and the worker's own counter everywhere else. The
+distinction is not cosmetic: a value drawn from the pool sum depends on when the
+siblings were scheduled, so **no search decision may be taken on one**.
+
+[`pool_source.h`](../src/engine/search/pool_source.h) is that seam. Each hook is
+null until the driver installs it, and a null hook reads as this worker's own
+value. **At `Threads 1` the two are the same number** — the sum is over one
+worker, and that worker is thread 0 — which is what keeps `./build.sh signature`
+bit-exact across the wiring.
+
+`ctx->nodes`, `ctx->tb_hits` and `ctx->best_move_changes` are `_Atomic uint64_t`
+read and written **relaxed**, through the `ctx_*` accessors. Each has exactly one
+writer, so the read-modify-write needs no atomicity — only the store's visibility,
+which is why the accessors are a load/store pair and compile to the instructions
+the plain integers did.
+
+### The thread vote
+
+`search_threads_best` is upstream's `ThreadPool::get_best_thread`, including the
+shortest-mate rule and the PV-length tie-break. Upstream keeps the votes in a hash
+map; a scan over the same worker set is the same arithmetic in the same order, and
+the map's iteration order never reaches the result.
+
+**A depth-limited or skill-limited search skips the vote entirely** and plays
+thread 0's move, which is upstream's own condition — and why `bench`, and every
+`go depth N`, is unaffected by the thread count in its choice of move.
 
 ## Memory ordering
 
@@ -183,24 +202,20 @@ a wider accumulator would move the ties and hand a different node to a thread.
 
 ## What is missing, precisely
 
-Beyond the state split, these are absent rather than merely undriven:
-
-- **No `NumaPolicy` string dispatcher.** `numa_config_from_string` parses only
-  the explicit topology grammar; `auto`, `none`, `system` and `hardware` are
-  separate C functions. Nothing maps the option's string to them, so the option
-  is not even validated.
-- **The replication registry is never instantiated.** `NumaReplicatedBase` and
-  the attach/notify path exist, but the NNUE network does not register itself and
-  no `NumaReplicationContext` is constructed outside `numa.c`. Replacing the
-  config is supposed to notify every registered object to re-replicate; with an
-  empty registry a policy change is a silent no-op.
+- **The NNUE network is not registered for NUMA replication.** A
+  `NumaReplicationContext` is now constructed and `NumaPolicy` reaches it, but
+  nothing calls `numa_context_attach`, so the registry is empty and a policy
+  change re-partitions the threads without re-replicating any weights. On a
+  single-node host that is the whole of the difference; on a multi-node one every
+  worker reads the net from the node that loaded it.
 - **`numa_config_string` has no caller.** It is the function that would produce
   upstream's `info string Available processors: …`, which the golden harness
   currently filters out as a declared gap.
 - **`memory.c` has no unit test**, including its `page_alloc_set` seam.
-- **No `-lpthread` on any link line.** This works only because glibc ≥ 2.34 folds
-  the pthread symbols into libc; it is not portable and should be added with the
-  wiring.
+- **No test constructs a `SearchWorker`.** The pool churn test covers
+  `thread.c` / `thread_pool.c` / `thread_runtime.c`; the worker set, the shared
+  banks and the vote are covered only by `tsan-search` and by the multi-thread
+  runs, not by the unit suite.
 
 ## Testing
 
@@ -216,7 +231,7 @@ It is kept **out of `parity`**: it needs its own build of the whole engine and
 roughly triples the suite's runtime. Run it whenever `src/platform/thread*.c`
 changes.
 
-### `./build.sh tsan-search` — the search-race baseline
+### `./build.sh tsan-search` — the search under real threads
 
 `tsan` links the test binary, so the only concurrent code it reaches is the pool
 test. `tsan-search` builds the **whole engine**, shell included, and drives one
@@ -224,50 +239,32 @@ test. `tsan-search` builds the **whole engine**, shell included, and drives one
 observed at all. It takes an optional depth and thread count
 (`./build.sh tsan-search 14 8`).
 
-**It reports 0 races, and that number means less than it looks.** `Threads` is
-accepted and ignored, so the process never leaves one thread: TSan confirms it
-sees no thread creation, and a race needs two threads to fire. Zero here is a
-measurement of a single-threaded process, not evidence that the state described
-above is safe. It is recorded as a **baseline** so that the first run after the
-pool is driven is a comparison rather than a first look.
-
-The distinction matters because the tempting reading is the wrong one. zfish ran
-the same experiment once its pool was live and found **10,664 races** on an
-8-thread depth-14 search — on state it had, until then, been describing as
-latent. Latent and unmeasured are not the same claim, and only one of them is
-falsifiable. Every entry in the state table above is currently in the second
-category here.
-
-The suite covers the policy-string grammar and its refusals, the config-shape
-invariants, the single-thread no-bind rule, thread distribution, and a
-spawn/job/clear churn loop — construct/destroy is where a teardown race shows up,
-and a dropped join leaves a thread reading a freed `Thread`. Its counters are
-`atomic_int` deliberately: the pool runs those jobs on four threads at once, so a
-plain `int` would itself be a race, and one that hides whether the pool is
-running them concurrently at all.
-
-**What it does not cover:** no test constructs a `Worker`, and none exercises
-`thread_pool_reconfigure`, `numa_execute_on_node`, the replication context or the
-shared-history hooks. Because the only concurrent code the suite reaches is the
-pool test, TSan today gates `thread.c`, `thread_pool.c` and `thread_runtime.c`
-and nothing else — no engine code runs on more than one thread.
+This is now the gate that means something. Before the pool was driven it reported
+0 races **because the process never left one thread**, and that number was
+recorded as a baseline rather than a result: a race needs two threads to fire, and
+zero on one thread is a measurement of the thread count, not of the state. Read
+any run of this step against that history — the tempting reading of a small number
+is the wrong one. zfish ran the same experiment once its pool was live and found
+**10,664 races** on an 8-thread depth-14 search, on state it had until then been
+describing as latent. Latent and unmeasured are not the same claim, and only one
+of them is falsifiable.
 
 Also note the TSan build uses a reduced flag set and does not inherit
 `CFLAGS_COMMON`, so it is not a second warning gate.
 
-## The wiring commit
+## What the wiring commit decided
 
-What it has to do, in the order the dependencies force:
+For the record, in the order the dependencies forced:
 
-1. Split `Histories` into worker-owned and node-shared halves.
-2. Move `SearchCtx`, the NNUE arenas and the per-search scalars into the
-   `src/engine/state/` Worker block.
-3. Make the pool's `stop` / `increase_depth` the only copies.
-4. Route the node sum, the thread vote and `best_move_changes` through a seam
-   that answers with **thread 0's own values at `Threads 1`** — which is what
-   keeps `./build.sh signature` bit-exact across the change.
-5. Dispatch `NumaPolicy`, register the network for replication, and add
-   `-lpthread`.
+1. `Histories` split into worker-owned and node-shared halves, with the shared
+   bank sized by its node's thread count and cleared in stripes.
+2. `SearchCtx`, the NNUE arenas and the per-search scalars moved into the
+   `SearchWorker` block, which was itself rebuilt on the live search types after
+   the parallel record set in `src/engine/state/` was deleted.
+3. The pool's `stop` / `increase_depth` made the only copies.
+4. The node sum, the thread vote and `best_move_changes` routed through
+   `pool_source.h`, which answers with thread 0's own values at `Threads 1`.
+5. `NumaPolicy` dispatched to `numa_context_set_system` / `_hardware` / `_none` /
+   `_from_string`, and refused rather than degraded when it names no node.
 
-Step 4 is the one that decides whether the anchor survives. Everything else is
-mechanical by comparison.
+`-lpthread` was already on every link line.

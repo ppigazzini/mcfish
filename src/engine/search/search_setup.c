@@ -138,10 +138,16 @@ void search_id_state_init(SearchIdState *id,
     const int multipv_opt = OptionIntByName("MultiPV");
     id->multipv_option = multipv_opt > 0 ? (size_t) multipv_opt : 0;
 
-    id->tm_optimum = tm->optimum_time;
-    id->tm_maximum = tm->maximum_time;
-    id->tm_start_time = tm->start_time;
-    id->tm_use_nodes_time = tm->use_nodes_time;
+    // A sibling has no SearchManager, so TM is null and every field derived from it stays
+    // zero. That is safe rather than lucky: the whole time-management block is behind
+    // `!main_thread -> continue`, so a worker with no manager never reads one of them.
+    // Upstream says the same with a NullSearchManager whose one virtual does nothing.
+    if (tm != nullptr) {
+        id->tm_optimum = tm->optimum_time;
+        id->tm_maximum = tm->maximum_time;
+        id->tm_start_time = tm->start_time;
+        id->tm_use_nodes_time = tm->use_nodes_time;
+    }
 
     id->limits_depth = ctx->limits.depth;
     id->limits_mate = ctx->limits.mate;

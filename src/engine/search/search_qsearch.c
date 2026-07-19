@@ -89,7 +89,7 @@ Value qsearch_node(
 
     // Detect the upcoming-repetition draw.
     if (alpha < VALUE_DRAW && pos_upcoming_repetition(pos, ss->ply)) {
-        alpha = search_value_draw(ctx->nodes);
+        alpha = search_value_draw(ctx_nodes(ctx));
         if (alpha >= beta)
             return alpha;
     }

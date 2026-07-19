@@ -494,7 +494,7 @@ void search_do_move(
     // the piece standing on `to` afterwards.
     const Piece moved_pc = piece_on(pos, move_from(m));
     const Square to = move_to(m);
-    ctx->nodes += 1;
+    ctx_add_nodes(ctx, 1);
     DirtyPiece *dp;
     DirtyThreats *dts;
     eval_acc_push(ctx->eval_arena, &dp, &dts);

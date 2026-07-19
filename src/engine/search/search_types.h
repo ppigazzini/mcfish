@@ -163,9 +163,14 @@ typedef struct SearchCtx {
 
     Position *root_pos;
 
-    uint64_t nodes;
-    uint64_t tb_hits;
-    uint64_t best_move_changes;
+    // Publish these three for reporting. Each has exactly ONE writer -- this worker --
+    // and any number of readers, which is what upstream's RelaxedAtomic<u64> says
+    // (search.h:322). Relaxed is deliberate: the readers only report, and NO SEARCH
+    // DECISION MAY BE TAKEN ON ANOTHER WORKER'S COUNTER. Reach them through the
+    // accessors below, never directly.
+    _Atomic uint64_t nodes;
+    _Atomic uint64_t tb_hits;
+    _Atomic uint64_t best_move_changes;
 
     int32_t optimism[COLOR_NB];
     int32_t nmp_min_ply;
@@ -188,6 +193,33 @@ typedef struct SearchCtx {
     SearchZoneLimits limits;
     SearchTimeState time_state;
 } SearchCtx;
+
+// Read and bump this worker's own counters. The read-modify-write needs no atomicity --
+// there is one writer -- only the store's visibility, so each is a load/store pair and
+// compiles to the same instructions the plain integers did.
+static inline uint64_t ctx_nodes(const SearchCtx *ctx) {
+    return atomic_load_explicit(&ctx->nodes, memory_order_relaxed);
+}
+
+static inline void ctx_add_nodes(SearchCtx *ctx, uint64_t delta) {
+    atomic_store_explicit(&ctx->nodes, ctx_nodes(ctx) + delta, memory_order_relaxed);
+}
+
+static inline uint64_t ctx_tb_hits(const SearchCtx *ctx) {
+    return atomic_load_explicit(&ctx->tb_hits, memory_order_relaxed);
+}
+
+static inline void ctx_add_tb_hits(SearchCtx *ctx, uint64_t delta) {
+    atomic_store_explicit(&ctx->tb_hits, ctx_tb_hits(ctx) + delta, memory_order_relaxed);
+}
+
+static inline uint64_t ctx_best_move_changes(const SearchCtx *ctx) {
+    return atomic_load_explicit(&ctx->best_move_changes, memory_order_relaxed);
+}
+
+static inline void ctx_set_best_move_changes(SearchCtx *ctx, uint64_t value) {
+    atomic_store_explicit(&ctx->best_move_changes, value, memory_order_relaxed);
+}
 
 // Snapshot the iterative-deepening scalars once at entry, as upstream reads them
 // off the Worker and its SearchManager. Held separately from SearchCtx because

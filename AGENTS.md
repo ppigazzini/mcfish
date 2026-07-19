@@ -37,17 +37,14 @@ in `build.sh`'s `SOURCES`, because a module outside it is unwired, not deferred:
   without it the gate checks
   discovery only and says so. Still open: no 5-man/cursed-win coverage, and the
   `d` command prints no `Tablebases WDL:`/`DTZ:` lines.
-- **Lazy-SMP threading and NUMA** — the modules are **in the build** and gated.
-  `memory.c`, `thread_runtime.c`, `thread.c`, `thread_pool.c`, `numa.c` and all of
-  `src/engine/state/` are in `SOURCES` **and** `ENGINE_SOURCES`, covered by unit
-  tests and by `./build.sh tsan`. **Nothing drives them yet:** the search still runs
-  on one thread and `Threads` above 1 is accepted and ignored. That is not one call
-  away — the live search keeps its per-worker state in file-scope globals (the
-  `SearchCtx` in `search.c`, the `Histories` block in `history.c`, the accumulator
-  stack and refresh cache in `evaluate.c`), so running two workers over them is a
-  data race, not parallel search. Making that state per-worker, and routing the node
-  sum / thread vote / `best_move_changes` through a seam that answers with thread 0's
-  own values at `Threads 1`, is the remaining work. See
+- **Lazy-SMP threading and NUMA** — **wired.** `Threads` builds a worker set,
+  `NumaPolicy` chooses the topology it binds under, and a `go` runs N workers over
+  one root. `search_threads.c` is the driver; every piece of per-worker state that
+  was a file-scope static now lives in the `SearchWorker` block, and the pool's
+  totals reach the search only through `pool_source.h`, which answers with thread
+  0's own values at `Threads 1`. Still open: the NNUE network does not register
+  itself for NUMA replication, so a policy change re-partitions the threads without
+  re-replicating any weights, and no unit test constructs a `SearchWorker`. See
   [docs/04-multithreading.md](docs/04-multithreading.md).
 - **The option model** — the live UCI layer advertises a hand-written subset of
   upstream's option table, and the search answers its own option seam with

@@ -1,3 +1,4 @@
+#include "pool_source.h"
 #include "search_id.h"
 
 #include "search_common.h"
@@ -45,14 +46,21 @@ void move_to_front(RootMove *rm, size_t count, Move target) {
 static double fclamp(double v, double lo, double hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 static TimePoint id_elapsed(const SearchCtx *ctx, const SearchIdState *id) {
-    return id->tm_use_nodes_time ? (TimePoint) ctx->nodes : TimeNowMs() - id->tm_start_time;
+    // Upstream's Worker::elapsed reads the POOL's node count in `nodes as time` mode
+    // (search.cpp:1864). At one thread that is this worker's own count.
+    const uint64_t nodes =
+      PoolCounters.nodes != nullptr ? PoolCounters.nodes(PoolCounters.ctx) : ctx_nodes(ctx);
+    return id->tm_use_nodes_time ? (TimePoint) nodes : TimeNowMs() - id->tm_start_time;
 }
 
 // Sum and reset the per-worker bestMoveChanges counter. One worker today, so the
 // sum is that worker's; keep the shape so a pool is a loop, not a rewrite.
 static double id_collect_bmc(SearchCtx *ctx) {
-    const double total = (double) ctx->best_move_changes;
-    ctx->best_move_changes = 0;
+    if (PoolCounters.collect_best_move_changes != nullptr)
+        return (double) PoolCounters.collect_best_move_changes(PoolCounters.ctx);
+
+    const double total = (double) ctx_best_move_changes(ctx);
+    ctx_set_best_move_changes(ctx, 0);
     return total;
 }
 
@@ -240,7 +248,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                     break;
 
                 if (main_thread && multi_pv == 1 && (best_value <= alpha || best_value >= beta)
-                    && ctx->nodes > ID_NODES_LIMIT_OUTPUT)
+                    && ctx_nodes(ctx) > ID_NODES_LIMIT_OUTPUT)
                     search_emit_pv(ctx, ctx->root_depth);
 
                 if (best_value <= alpha) {
@@ -308,7 +316,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
             stable_sort_root(ctx->root_moves, pv_first, ctx->pv_idx + 1);
 
             if (main_thread && !id_stopped(ctx)
-                && (ctx->pv_idx + 1 == multi_pv || ctx->nodes > ID_NODES_LIMIT_OUTPUT)) {
+                && (ctx->pv_idx + 1 == multi_pv || ctx_nodes(ctx) > ID_NODES_LIMIT_OUTPUT)) {
                 search_emit_pv(ctx, ctx->root_depth);
                 uci_pv_sent = ctx->pv_idx + 1 == multi_pv;
             }
@@ -388,7 +396,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
         if (id->use_time_management && !id_stopped(ctx) && id->stop_on_ponderhit
             && !*id->stop_on_ponderhit) {
             const uint64_t nodes_effort =
-              ctx->root_moves[0].effort * 100000 / (ctx->nodes > 1 ? ctx->nodes : 1);
+              ctx->root_moves[0].effort * 100000 / (ctx_nodes(ctx) > 1 ? ctx_nodes(ctx) : 1);
 
             double falling_eval =
               (11.48 + 2.30 * (double) (id->best_previous_average_score - best_value)

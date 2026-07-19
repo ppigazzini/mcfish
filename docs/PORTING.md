@@ -120,13 +120,13 @@ NUMA replication of the network weights. Determinism is the hard part — the se
 must remain reproducible at fixed depth with one thread.
 
 The pool, the thread runtime, the NUMA model and the large-page allocator are in
-`src/platform/` and **in `SOURCES` and `ENGINE_SOURCES`**, alongside the per-worker
-layout in `src/engine/state/`; they are unit-tested and covered by `./build.sh
-tsan`. **Nothing calls them**, so the search is still single-threaded and
-`Threads` above 1 is accepted and ignored — `./build.sh tsan-search` measures
-that directly, reporting 0 races because the process never leaves one thread.
-See [04-multithreading.md](04-multithreading.md), which lists what the wiring
-commit has to decide.
+`src/platform/`, the per-worker `SearchWorker` block is in `src/engine/state/`, and
+`src/engine/search/search_threads.c` drives them: `Threads` builds the worker set,
+`NumaPolicy` chooses the topology, and a `go` runs N workers over one root.
+`./build.sh tsan-search` now measures a genuinely multi-threaded process.
+See [04-multithreading.md](04-multithreading.md) for the state split and the seam
+that keeps `Threads 1` bit-exact. Still open: the NNUE network does not register
+itself for NUMA replication.
 
 **Gate:** single-threaded signature unchanged; multi-threaded runs converge to the
 same bestmove; a NUMA-replicated run matches a non-replicated one.
@@ -172,7 +172,7 @@ dependency scanner. A file outside that array is compiled by nothing: not in the
 binary, not linked by `zone-check`, not reached by `./build.sh test`, and not
 covered by `signature`, `perft` or `golden`.
 
-**What the binary is today:** a single-threaded engine with magic slider attacks,
+**What the binary is today:** a Lazy-SMP engine with magic slider attacks,
 upstream's Zobrist tables and threat deltas, the decomposed search with its full
 pruning set and aspiration window, a staged move picker, the full history block,
 the time manager, upstream's cluster transposition table, and the NNUE evaluation

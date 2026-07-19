@@ -51,7 +51,9 @@ void search_time_state_init(SearchCtx *ctx,
 // set, otherwise the raw Skill Level option.
 double search_skill_level(void);
 
-// Snapshot the iterative-deepening scalars for one search.
+// Snapshot the iterative-deepening scalars for one search. TM, PONDER and
+// STOP_ON_PONDERHIT are the SearchManager's and are all null on a sibling, which has
+// none: the time-management block they feed is main-thread only.
 void search_id_state_init(SearchIdState *id,
                           const SearchCtx *ctx,
                           TimeManagement *tm,

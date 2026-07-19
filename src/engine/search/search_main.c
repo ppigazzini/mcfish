@@ -49,7 +49,7 @@ Value search_node(SearchCtx *ctx,
 
     // Detect the upcoming-repetition draw (non-root).
     if (!root_node && alpha < VALUE_DRAW && pos_upcoming_repetition(pos, ss->ply)) {
-        alpha = search_value_draw(ctx->nodes);
+        alpha = search_value_draw(ctx_nodes(ctx));
         if (alpha >= beta)
             return alpha;
     }
@@ -77,7 +77,7 @@ Value search_node(SearchCtx *ctx,
         if (search_stopped(ctx) || pos_is_draw(pos, ss->ply) || ss->ply >= MAX_PLY) {
             if (ss->ply >= MAX_PLY && !ss->in_check)
                 return search_evaluate(ctx, pos);
-            return search_value_draw(ctx->nodes);
+            return search_value_draw(ctx_nodes(ctx));
         }
 
         // Step 3. Prune by mate distance.
@@ -206,7 +206,7 @@ Value search_node(SearchCtx *ctx,
                 && pos->st->rule50 == 0 && pos->st->castling_rights == 0) {
                 const TbProbeResult res = TbProbeWdlPos(pos);
                 if (res.available != 0) {
-                    ctx->tb_hits += 1;
+                    ctx_add_tb_hits(ctx, 1);
                     const int draw_score = ctx->tb_config.use_rule50 ? 1 : 0;
                     const Value tb_value = (Value) (VALUE_TB - ss->ply);
                     const int wdl = res.wdl;

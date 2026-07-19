@@ -33,7 +33,9 @@ contract rather than an optimisation.
 [`movepick.c`](../src/engine/search/movepick.c),
 [`history.c`](../src/engine/search/history.c),
 [`timeman.c`](../src/engine/search/timeman.c),
-[`tt.c`](../src/engine/search/tt.c), plus the injection seams
+[`tt.c`](../src/engine/search/tt.c),
+[`search_threads.c`](../src/engine/search/search_threads.c), plus the injection seams
+[`pool_source.h`](../src/engine/search/pool_source.h),
 [`output_sink.h`](../src/engine/search/output_sink.h),
 [`option_source.h`](../src/engine/search/option_source.h),
 [`time_source.h`](../src/engine/search/time_source.h) and
@@ -47,24 +49,16 @@ the root move list, and hands the search to `iterative_deepening`. It must never
 re-derive a margin, a reduction or an info line; a facade that computes is a second
 search that drifts from the first.
 
-**The search is single-threaded, and that is unported, not a design.** There is no
-thread pool driving it, no shared root state, and no worker abstraction in the
-binary. `SearchCtx` is this port's stand-in for upstream's `Worker`, and the pool
-sum in `check_time`, `increase_depth`, thread voting and `best_move_changes`
-aggregation are all single-worker shapes. The pool itself is ported —
-`src/platform/thread_pool.c` and its neighbours, plus the per-worker layout in
-`src/engine/state/` — and is compiled, unit-tested and race-checked, but nothing
-constructs a pool; see [06-platform.md](06-platform.md). The cost is concrete: the
-main lever upstream uses for strength is absent, and a GUI that sets `Threads 8` gets
-one thread's worth of search.
-
-The blocker is on this side of the seam, not the pool's. Every piece of per-worker
-state is a file-scope global — `SearchCtx Ctx` in `search.c`, `Histories Tables` in
-`history.c`, the accumulator stack and refresh cache in `evaluate.c` — so two workers
-sharing them is a data race, not a parallel search. Making them per-worker, and
-routing the node sum, the vote and `best_move_changes` through a seam that answers
-with thread 0's own values at `Threads 1`, is what keeps the anchor bit-exact
-through the change.
+**The search runs on N threads.** `SearchCtx` is the hot per-node context every
+node body threads through, and it lives inside a `SearchWorker` — one per thread,
+holding that worker's history tables, its NNUE arena and, on thread 0 only, the
+`SearchManager`. The driver is
+[`search_threads.c`](../src/engine/search/search_threads.c); the pool sum in
+`check_time`, `Worker::elapsed`, `output_pv`, the `nodes as time` settle and the
+`best_move_changes` collection reach it through
+[`pool_source.h`](../src/engine/search/pool_source.h), which answers with thread
+0's own values at `Threads 1`. See
+[04-multithreading.md](04-multithreading.md).
 
 ## Iterative deepening
 

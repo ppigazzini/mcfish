@@ -1,3 +1,4 @@
+#include "pool_source.h"
 #include "search_control.h"
 
 #include "search_common.h"
@@ -21,7 +22,8 @@ void check_time(SearchCtx *ctx) {
     // this worker's own count IS the pool's; keep the quantity named for what it
     // is, because gating on a private count is what makes `go nodes N` overshoot
     // once the pool grows (upstream search.cpp:2073, 2088).
-    const uint64_t pool_nodes = ctx->nodes;
+    const uint64_t pool_nodes =
+      PoolCounters.nodes != nullptr ? PoolCounters.nodes(PoolCounters.ctx) : ctx_nodes(ctx);
 
     const TimePoint elapsed =
       ts->tm_use_nodes_time ? (TimePoint) pool_nodes : TimeNowMs() - ts->tm_start_time;
@@ -115,7 +117,7 @@ void root_update(SearchCtx *ctx,
             rm->pv.length = 1 + child_pv->length;
         }
         if (move_count > 1 && ctx->pv_idx == 0)
-            ctx->best_move_changes += 1;
+            ctx_set_best_move_changes(ctx, ctx_best_move_changes(ctx) + 1);
     } else {
         rm->score = -VALUE_INFINITE;
     }

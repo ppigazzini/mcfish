@@ -636,9 +636,9 @@ do_tsan_search() {
   fi
 
   if [[ $races -eq 0 ]]; then
-    green "tsan-search: 0 races over a depth-$depth search"
-    printf '  the process stayed on ONE thread (%s extra thread(s) seen): `Threads` is\n' "$threads_seen"
-    printf '  accepted and ignored, so this is a baseline, not a clean bill of health.\n'
+    green "tsan-search: 0 races over a depth-$depth search ($threads_seen extra thread(s) seen)"
+    printf '  Zero is only meaningful if the process actually left one thread. Check the\n'
+    printf '  extra-thread count above before reading this as a clean bill of health.\n'
     printf '  See docs/04-multithreading.md.\n'
   else
     red "tsan-search: $races race(s) reported"

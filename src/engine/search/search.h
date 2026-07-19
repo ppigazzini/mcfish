@@ -62,6 +62,19 @@ void search_stop(void);
 // and the engine searches a different tree than upstream.
 void search_clear(void);
 
+// Rebuild the worker set at COUNT threads, replacing any current one. Return false on an
+// allocation failure or a refused spawn, which leaves the set EMPTY -- the next
+// `search_go` rebuilds a one-thread set rather than searching nothing.
+//
+// A rebuild drops every history table, so reach it the way upstream does: from the
+// `Threads` option, whose change is a new pool.
+bool search_set_threads(size_t count);
+
+// Install the NumaPolicy the next `search_set_threads` binds under. Accept `auto`,
+// `none`, `system`, `hardware` or an explicit topology string. Return false when the
+// string names no node at all, leaving the previous topology in place.
+bool search_set_numa_policy(const char *policy);
+
 // Release everything the search owns: the worker block, its NNUE arena and the shared
 // history bank. Call once at process exit, after the last search has returned -- the
 // next `search_go` rebuilds them, so this is teardown and not a reset.

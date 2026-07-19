@@ -1,3 +1,4 @@
+#include "pool_source.h"
 #include "search_emit.h"
 
 #include "option_source.h"
@@ -12,6 +13,19 @@
 #include "../board/uci_move.h"
 
 #include <string.h>
+
+// Report the POOL's totals, as upstream's output_pv does (search.cpp:2235, :2239). A
+// null hook is a caller with no pool, which reads as this worker's own -- and at one
+// thread the two are the same number.
+static uint64_t pool_nodes(const SearchCtx *ctx) {
+    return PoolCounters.nodes != nullptr ? PoolCounters.nodes(PoolCounters.ctx) : ctx_nodes(ctx);
+}
+
+static uint64_t pool_tb_hits(const SearchCtx *ctx) {
+    return PoolCounters.tb_hits != nullptr ? PoolCounters.tb_hits(PoolCounters.ctx)
+                                           : ctx_tb_hits(ctx);
+}
+
 
 enum { PV_TEXT_MAX = 4096, LINE_MAX = 5120 };
 
@@ -60,7 +74,7 @@ static bool is_mate_or_mated(int v) {
 }
 
 void search_emit_pv(SearchCtx *ctx, int depth) {
-    OutputSetLastNodesSearched(ctx->nodes);
+    OutputSetLastNodesSearched(pool_nodes(ctx));
     if (OutputIsQuiet())
         return;
 
@@ -74,10 +88,11 @@ void search_emit_pv(SearchCtx *ctx, int depth) {
         multipv = ctx->root_moves_count;
 
     // Report the root-ranking probes as one hit per root move, as upstream does.
-    const uint64_t tb_hits = ctx->tb_hits + (ctx->tb_config.root_in_tb ? ctx->root_moves_count : 0);
+    const uint64_t tb_hits =
+      pool_tb_hits(ctx) + (ctx->tb_config.root_in_tb ? ctx->root_moves_count : 0);
     const TimePoint raw_elapsed = TimeNowMs() - ctx->time_state.tm_start_time;
     const uint64_t elapsed_ms = (uint64_t) (raw_elapsed > 1 ? raw_elapsed : 1);
-    const uint64_t nps = ctx->nodes * 1000 / elapsed_ms;
+    const uint64_t nps = pool_nodes(ctx) * 1000 / elapsed_ms;
     const int hashfull = tt_hashfull(0);
 
     for (size_t i = 0; i < multipv; ++i) {
@@ -129,8 +144,9 @@ void search_emit_pv(SearchCtx *ctx, int depth) {
         render_pv(pos, use_prev ? &rm->previous_pv : &rm->pv, pv_text, sizeof pv_text);
 
         char line[LINE_MAX];
-        uci_format_info_full(d, rm->sel_depth, i + 1, sbuf, bound_text, wbuf, show_wdl, ctx->nodes,
-                             nps, hashfull, tb_hits, elapsed_ms, pv_text, line, sizeof line);
+        uci_format_info_full(d, rm->sel_depth, i + 1, sbuf, bound_text, wbuf, show_wdl,
+                             pool_nodes(ctx), nps, hashfull, tb_hits, elapsed_ms, pv_text, line,
+                             sizeof line);
         emit(line);
     }
 }

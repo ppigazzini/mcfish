@@ -68,7 +68,7 @@ Value search_run_back(const SearchNodeState *nd) {
         move_count += 1;
         ss->move_count = move_count;
 
-        if (nd->root_node && ctx->nodes > ID_NODES_LIMIT_OUTPUT)
+        if (nd->root_node && ctx_nodes(ctx) > ID_NODES_LIMIT_OUTPUT)
             // Report moveCount + pvIdx, not moveCount: with MultiPV the number a GUI
             // shows is the move's index across all PV lines (search.cpp:1126).
             search_emit_root_on_iter(ctx, depth, move, move_count + (int) ctx->pv_idx);
@@ -166,7 +166,7 @@ Value search_run_back(const SearchNodeState *nd) {
             }
         }
 
-        const uint64_t node_count = nd->root_node ? ctx->nodes : 0;
+        const uint64_t node_count = nd->root_node ? ctx_nodes(ctx) : 0;
 
         // Step 16. Make the move.
         search_do_move(ctx, pos, move, &st, gc, ss);
@@ -252,13 +252,13 @@ Value search_run_back(const SearchNodeState *nd) {
             // (ss + 1)->pv is only valid (non-null) when this move ran a PV search,
             // i.e. move_count == 1 or value > alpha; otherwise it is ignored.
             const PVMoves *const cpv = (move_count == 1 || value > alpha) ? (ss + 1)->pv : nullptr;
-            root_update(ctx, move, value, ctx->nodes - node_count, move_count, alpha, nd->beta,
+            root_update(ctx, move, value, ctx_nodes(ctx) - node_count, move_count, alpha, nd->beta,
                         cpv);
         }
 
         const Value av = value < 0 ? -value : value;
         const int inc = (int) (value == best_value && ss->ply + 2 >= ctx->root_depth
-                               && (int) (ctx->nodes & 14) == 0 && !value_is_win(av + 1));
+                               && (int) (ctx_nodes(ctx) & 14) == 0 && !value_is_win(av + 1));
         if (value + inc > best_value) {
             best_value = value;
             if (value + inc > alpha) {
