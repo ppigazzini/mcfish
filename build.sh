@@ -578,6 +578,66 @@ do_tsan() {
   green "tsan clean"
 }
 
+# Run a REAL SEARCH under ThreadSanitizer, not the unit suite.
+#
+# `tsan` above builds ENGINE_SOURCES plus the test binary, so the only concurrent
+# code it reaches is the thread-pool test: it gates thread.c, thread_pool.c and
+# thread_runtime.c and no engine code at all. This step builds the whole engine,
+# shell included, and drives `go` through the UCI front end -- which is the only
+# way a race in the SEARCH can be observed.
+#
+# Today it reports zero, and that number is a measurement rather than a claim:
+# `Threads` is accepted and ignored, so the process never leaves one thread and
+# the shared state cannot be raced. Both halves are worth having on record. The
+# step exists now so that the day the pool is driven, the first run of it is a
+# comparison against a known-zero baseline instead of a first look.
+#
+# Do NOT read a green run as "the search is race-free". It says "no race FIRED on
+# one thread", which is a much weaker statement and stays weak until Threads > 1
+# does something.
+#
+# The instrumentation itself is known to work: making the pool test's counter a
+# plain int instead of an atomic_int makes `./build.sh tsan` report the race at
+# test_main.c:717 and exit 66. Re-run that experiment rather than trusting this
+# comment if a zero here ever needs to be believed.
+do_tsan_search() {
+  local depth=${1:-14} threads=${2:-8}
+  info "full engine under ThreadSanitizer: Threads=$threads, go depth $depth"
+  mkdir -p build
+  "$CC" "$STD_FLAG" -Wall -Isrc -D_POSIX_C_SOURCE=200809L -O1 -g \
+    -fsanitize=thread "${CFLAGS_ARCH[@]}" \
+    -o build/mcfish-tsan-engine "${SOURCES[@]}" -lm
+
+  local log; log=$(mktemp)
+  printf 'setoption name Threads value %d\nsetoption name Hash value 1\nucinewgame\nposition startpos\ngo depth %d\nquit\n' \
+    "$threads" "$depth" \
+    | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/build/mcfish-tsan-engine" ) > "$log" 2>&1
+
+  local races threads_seen
+  races=$(grep -c "WARNING: ThreadSanitizer" "$log" || true)
+  threads_seen=$(grep -c "ThreadSanitizer.*Thread T[1-9]" "$log" || true)
+
+  if ! grep -q "^bestmove" "$log"; then
+    red "tsan-search: the search did not complete -- this is not a clean run"
+    tail -20 "$log" >&2
+    rm -f "$log"
+    return 1
+  fi
+
+  if [[ $races -eq 0 ]]; then
+    green "tsan-search: 0 races over a depth-$depth search"
+    printf '  the process stayed on ONE thread (%s extra thread(s) seen): `Threads` is\n' "$threads_seen"
+    printf '  accepted and ignored, so this is a baseline, not a clean bill of health.\n'
+    printf '  See docs/04-multithreading.md.\n'
+  else
+    red "tsan-search: $races race(s) reported"
+    grep -A6 "WARNING: ThreadSanitizer" "$log" | head -40 >&2
+    rm -f "$log"
+    return 1
+  fi
+  rm -f "$log"
+}
+
 # Resolve clang-format, preferring a versioned binary. Echo the name, or nothing
 # when none is installed — never fall back to a no-op, because a formatting gate
 # that silently does nothing is worse than no gate at all.
@@ -872,6 +932,7 @@ usage: ./build.sh <step> [args]
   debug              compile with asan+ubsan             -> build/mcfish-debug
   test               build and run the unit/property suite (asan+ubsan)
   tsan               re-run the suite under ThreadSanitizer (the thread-pool gate)
+  tsan-search [d] [t] run a real search under ThreadSanitizer (the search-race baseline)
   bench [depth]      run the benchmark (default depth 13)
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
   arch-determinism   build every executable ISA tier and require one node count
@@ -904,6 +965,7 @@ case "${1:-build}" in
   debug)            do_debug ;;
   test)             do_test ;;
   tsan)             do_tsan ;;
+  tsan-search)      shift; do_tsan_search "$@" ;;
   bench)            do_bench "${2:-}" ;;
   net)              do_net ;;
   signature)        do_signature ;;

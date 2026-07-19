@@ -216,6 +216,28 @@ It is kept **out of `parity`**: it needs its own build of the whole engine and
 roughly triples the suite's runtime. Run it whenever `src/platform/thread*.c`
 changes.
 
+### `./build.sh tsan-search` — the search-race baseline
+
+`tsan` links the test binary, so the only concurrent code it reaches is the pool
+test. `tsan-search` builds the **whole engine**, shell included, and drives one
+`go` through the UCI front end — the only way a race in the *search* can be
+observed at all. It takes an optional depth and thread count
+(`./build.sh tsan-search 14 8`).
+
+**It reports 0 races, and that number means less than it looks.** `Threads` is
+accepted and ignored, so the process never leaves one thread: TSan confirms it
+sees no thread creation, and a race needs two threads to fire. Zero here is a
+measurement of a single-threaded process, not evidence that the state described
+above is safe. It is recorded as a **baseline** so that the first run after the
+pool is driven is a comparison rather than a first look.
+
+The distinction matters because the tempting reading is the wrong one. zfish ran
+the same experiment once its pool was live and found **10,664 races** on an
+8-thread depth-14 search — on state it had, until then, been describing as
+latent. Latent and unmeasured are not the same claim, and only one of them is
+falsifiable. Every entry in the state table above is currently in the second
+category here.
+
 The suite covers the policy-string grammar and its refusals, the config-shape
 invariants, the single-thread no-bind rule, thread distribution, and a
 spawn/job/clear churn loop — construct/destroy is where a teardown race shows up,
