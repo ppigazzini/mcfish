@@ -68,6 +68,11 @@ typedef struct {
 // Read and write one entry field with relaxed ordering. Spelled as macros so the
 // field name stays visible at the use site rather than becoming a pointer
 // expression.
+//
+// USE THESE, never a bare `entry->depth8`. A plain access on an `_Atomic` member
+// is SEQ_CST in C, which is not what upstream's RelaxedAtomic is: seq_cst stores
+// are lock-prefixed on x86 and upstream's are plain moves. The compiler accepts
+// the bare form silently, so nothing but this rule keeps the ordering upstream's.
 #define TT_LOAD(field) atomic_load_explicit(&(field), memory_order_relaxed)
 #define TT_STORE(field, v) atomic_store_explicit(&(field), (v), memory_order_relaxed)
 

@@ -40,21 +40,21 @@ static uint8_t depth_saturating_sub(uint8_t depth8, int32_t n) {
 // 0 - 1 == 31. The subtraction is unsigned so it borrows regardless of the pv and
 // bound bits sitting above the generation (tt.cpp:127).
 static uint8_t entry_relative_age(const TTEntry *entry, uint8_t curr_generation) {
-    return (uint8_t) (((uint32_t) curr_generation - (uint32_t) entry->gen_bound8)
+    return (uint8_t) (((uint32_t) curr_generation - (uint32_t) TT_LOAD(entry->gen_bound8))
                       & GENERATION_MASK);
 }
 
-static bool entry_is_occupied(const TTEntry *entry) { return entry->depth8 != 0; }
+static bool entry_is_occupied(const TTEntry *entry) { return TT_LOAD(entry->depth8) != 0; }
 
 // Convert the internal bitfields to external types (tt.cpp:65).
 static TTData entry_read(const TTEntry *entry) {
     return (TTData) {
-        .move = entry->move16,
-        .value = (Value) entry->value16,
-        .eval = (Value) entry->eval16,
-        .depth = DEPTH_ENTRY_OFFSET + (int32_t) entry->depth8,
-        .bound = (Bound) ((entry->gen_bound8 & BOUND_MASK) >> BOUND_SHIFT),
-        .is_pv = (entry->gen_bound8 & PV_MASK) != 0,
+        .move = TT_LOAD(entry->move16),
+        .value = (Value) TT_LOAD(entry->value16),
+        .eval = (Value) TT_LOAD(entry->eval16),
+        .depth = DEPTH_ENTRY_OFFSET + (int32_t) TT_LOAD(entry->depth8),
+        .bound = (Bound) ((TT_LOAD(entry->gen_bound8) & BOUND_MASK) >> BOUND_SHIFT),
+        .is_pv = (TT_LOAD(entry->gen_bound8) & PV_MASK) != 0,
     };
 }
 
@@ -130,7 +130,8 @@ TTProbeResult tt_probe(Key key) {
     // minus eight times relative age (tt.cpp:266).
     TTEntry *replace = tte;
     for (size_t i = 1; i < TT_CLUSTER_SIZE; ++i)
-        if ((int32_t) replace->depth8 - 8 * (int32_t) entry_relative_age(replace, TT.generation8)
+        if ((int32_t) TT_LOAD(replace->depth8)
+              - 8 * (int32_t) entry_relative_age(replace, TT.generation8)
             > (int32_t) tte[i].depth8 - 8 * (int32_t) entry_relative_age(&tte[i], TT.generation8))
             replace = &tte[i];
 
@@ -144,31 +145,32 @@ void tt_save(TTEntry *writer, Key k, Value v, bool pv, Bound b, int32_t d, Move 
     const uint16_t key16 = (uint16_t) k;
 
     // Preserve the old ttmove if we don't have a new one.
-    if (m != MOVE_NONE || key16 != writer->key16)
-        writer->move16 = m;
+    if (m != MOVE_NONE || key16 != TT_LOAD(writer->key16))
+        TT_STORE(writer->move16, m);
 
     // Overwrite less valuable entries, cheapest checks first (tt.cpp:100).
-    if (b == BOUND_EXACT || key16 != writer->key16
-        || d - DEPTH_ENTRY_OFFSET + 2 * (int32_t) pv > (int32_t) writer->depth8 - 4
+    if (b == BOUND_EXACT || key16 != TT_LOAD(writer->key16)
+        || d - DEPTH_ENTRY_OFFSET + 2 * (int32_t) pv > (int32_t) TT_LOAD(writer->depth8) - 4
         || entry_relative_age(writer, TT.generation8) != 0) {
-        writer->key16 = key16;
-        writer->depth8 = (uint8_t) (d - DEPTH_ENTRY_OFFSET);
-        writer->gen_bound8 =
-          (uint8_t) (TT.generation8 | ((uint8_t) b << BOUND_SHIFT) | ((uint8_t) pv << PV_SHIFT));
-        writer->value16 = (int16_t) v;
-        writer->eval16 = (int16_t) ev;
+        TT_STORE(writer->key16, key16);
+        TT_STORE(writer->depth8, (uint8_t) (d - DEPTH_ENTRY_OFFSET));
+        TT_STORE(writer->gen_bound8, (uint8_t) (TT.generation8 | ((uint8_t) b << BOUND_SHIFT)
+                                                | ((uint8_t) pv << PV_SHIFT)));
+        TT_STORE(writer->value16, (int16_t) v);
+        TT_STORE(writer->eval16, (int16_t) ev);
     }
     // Secondary aging. Important for elementary mate finding. Age a deep, decisive,
     // non-exact entry that this store is NOT overwriting (tt.cpp:113).
-    else if ((int32_t) writer->depth8 + DEPTH_ENTRY_OFFSET >= 5
-             && (Bound) ((writer->gen_bound8 & BOUND_MASK) >> BOUND_SHIFT) != BOUND_EXACT) {
+    else if ((int32_t) TT_LOAD(writer->depth8) + DEPTH_ENTRY_OFFSET >= 5
+             && (Bound) ((TT_LOAD(writer->gen_bound8) & BOUND_MASK) >> BOUND_SHIFT)
+                  != BOUND_EXACT) {
         // Keep upstream's inner test whole (tt.cpp:120): the `abs < VALUE_INFINITE`
         // half excludes an entry holding +/-VALUE_INFINITE, and is not the same
         // condition as the else-if above it.
-        const Value v16 = (Value) writer->value16;
+        const Value v16 = (Value) TT_LOAD(writer->value16);
         const Value abs16 = v16 < 0 ? -v16 : v16;
         if (abs16 < VALUE_INFINITE && value_is_decisive(v16))
-            writer->depth8 = depth_saturating_sub(writer->depth8, 1);
+            TT_STORE(writer->depth8, depth_saturating_sub(writer->depth8, 1));
     }
 }
 
@@ -176,7 +178,7 @@ void tt_penalize(TTEntry *writer, int32_t penalty) {
     if (!writer)
         return;
     // Guard against racy underflows, defaulting to "unoccupied" (tt.cpp:146).
-    writer->depth8 = depth_saturating_sub(writer->depth8, penalty);
+    TT_STORE(writer->depth8, depth_saturating_sub(writer->depth8, penalty));
 }
 
 int32_t tt_hashfull(int32_t max_age) {
