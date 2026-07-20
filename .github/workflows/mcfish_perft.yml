@@ -92,13 +92,15 @@ jobs:
         run: |
           set -uo pipefail
 
+          # Run the engine FROM resources/ so it loads the net -- perft never evaluates, but the
+          # engine loads the net at startup and terminates without it, printing no perft count.
           fails=0
           run_perft() {
             local name="$1" fen="$2" depth="$3" expected="$4"
             local start elapsed got
             start=$SECONDS
             got=$(printf 'position fen %s\ngo perft %s\nquit\n' "$fen" "$depth" \
-                  | ./build/mcfish | grep 'Nodes searched' | awk '{print $NF}')
+                  | ( cd resources && ../build/mcfish ) | grep 'Nodes searched' | awk '{print $NF}')
             elapsed=$((SECONDS - start))
             if [ "$got" = "$expected" ]; then
               printf '  ok   %-12s depth %s  %14s nodes  (%ss)\n' "$name" "$depth" "$got" "$elapsed"
