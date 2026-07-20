@@ -2,6 +2,7 @@
 
 #include "movegen.h"
 
+#include <strings.h>
 #include <string.h>
 
 void move_to_uci(const Position *pos, Move m, char *buf) {
@@ -40,7 +41,10 @@ Move move_from_uci(const Position *pos, const char *str) {
 
     for (const ExtMove *it = list; it != end; ++it) {
         move_to_uci(pos, it->move, buf);
-        if (strcmp(buf, str) == 0)
+        // Fold case before matching: upstream lowercases the input token first
+        // (Stockfish/src/uci.cpp:628, UCIEngine::to_move), so "E2E4"/"E7E8Q" match
+        // the always-lowercase rendered move.
+        if (strcasecmp(buf, str) == 0)
             return it->move;
     }
     return MOVE_NONE;
