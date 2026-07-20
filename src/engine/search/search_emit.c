@@ -189,6 +189,8 @@ void search_emit_root_on_iter(const SearchCtx *ctx, int depth, Move move, int mo
     move_to_uci(ctx->root_pos, move, mbuf);
 
     char line[96];
-    uci_format_info_iter(depth, mbuf, move_count + (int) ctx->pv_idx, line, sizeof line);
+    // MOVE_COUNT already carries moveCount + pvIdx from the caller (search_back.c);
+    // upstream forms it once at the emit site (search.cpp:1128). Do not re-add pvIdx.
+    uci_format_info_iter(depth, mbuf, move_count, line, sizeof line);
     emit(line);
 }

@@ -141,6 +141,9 @@ static bool id_stopped(const SearchCtx *ctx) {
 
 bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
     const bool main_thread = id->is_main;
+    // Publish the main-thread flag onto the ctx so the node bodies (search_back's
+    // root currmove line) can gate reporting the way upstream's is_mainthread() does.
+    ctx->is_main = main_thread;
 
     // Keep the stack automatic, not static: one array per search is what makes a
     // second worker a second call rather than a rewrite.

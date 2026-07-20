@@ -186,6 +186,10 @@ typedef struct SearchCtx {
 
     atomic_bool *stop;
 
+    // True only on the main worker. Gates the reporting that upstream restricts to
+    // is_mainthread() (e.g. the root currmove line). Set by iterative_deepening.
+    bool is_main;
+
     size_t pv_idx;
     size_t pv_last;
     RootMove *root_moves;
