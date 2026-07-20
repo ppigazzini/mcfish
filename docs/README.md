@@ -7,14 +7,10 @@ feature set. The goal is a **bit-exact 1:1 clone**: the same `bench` node
 signature, the same bestmove, NNUE evaluation, Syzygy tablebases, Lazy-SMP
 threading and NUMA. Like Stockfish it is a UCI engine, not a GUI.
 
-**The port is in progress.** Run `./build.sh port-status` for the live figure;
-read [PORTING.md](PORTING.md) before writing any engine code.
-
 **`../Stockfish` is the golden.** It defines correct behaviour, the differential
 gate compares against a pristine upstream build, and every module here cites the
 upstream file and line it was translated from. Where this tree and Stockfish
-disagree, Stockfish wins. [PORTING.md](PORTING.md) describes the sources a port
-is written from.
+disagree, Stockfish wins.
 
 ### The one structural fact to hold before reading anything else
 
@@ -43,9 +39,7 @@ The repository holds two things:
 
 - **The engine** — the runtime in C, split into three zones: `src/engine/` (the
   chess library: board, movegen, search, state, evaluation), `src/platform/` (the
-  OS runtime), and `src/shell/` (the process: UCI, bench, `main`). Every module
-  has a row in `tools/upstream/port_map.tsv` naming its Stockfish golden and its
-  status.
+  OS runtime), and `src/shell/` (the process: UCI, bench, `main`).
 - **The tooling** — [`../build.sh`](../build.sh) is the whole build system: one
   clang invocation per step, no Makefile and no generator. It also carries the
   gate battery — the bench anchor, the perft table, the UCI golden-diff cases,
@@ -59,14 +53,10 @@ Written bare, a path under `src/` is a claim that the file exists **here**, whic
 `./build.sh docs-lint` checks. So throughout this set a Stockfish golden is
 written relative to Stockfish's `src/`, as *upstream `nnue/network.cpp`*.
 
-The mcfish owner of each golden, plus its status, is
-`tools/upstream/port_map.tsv`.
-
 ## Documents
 
 | Document | Audience | Description |
 |---|---|---|
-| [PORTING.md](PORTING.md) | Anyone writing engine code | The goal, the port sources, the golden, the M1..M6 milestones and the gate that ends each one |
 | [00-architecture.md](00-architecture.md) | All contributors | The three zones, the dependency direction, how `zone-check` enforces it at link time, the composition root and its init order, what is wired into the binary and what is not, how one search flows |
 | [01-engine-board.md](01-engine-board.md) | Engine contributors | Types and the 16-bit move encoding, the bitboard leaf and the magic slider tables, Position/StateInfo, Zobrist, the threat deltas, FEN, move generation and legality |
 | [02-engine-search.md](02-engine-search.md) | Engine contributors | Iterative deepening, alpha-beta and qsearch, the staged move picker and the history block, the pruning set, the cluster transposition table, time management and determinism, the wired search decomposition |
@@ -92,7 +82,6 @@ dependencies; `clang-format` is needed only by the `fmt` step.
 ./build.sh bench            # run the bench and print the node total
 ./build.sh signature        # assert the bench total vs tools/signature.golden
 ./build.sh parity           # the whole in-repo gate battery
-./build.sh port-status      # progress toward bit-exactness
 ./build.sh help             # every step
 ```
 
@@ -127,8 +116,8 @@ none of them sees a ported file that is not in the array.
 | Endgames | Syzygy WDL/DTZ probing, wired: the prober in `src/platform/syzygy/`, the root ranking and the Step 6 in-search probe. Tables are a runtime input — with no `SyzygyPath` the engine never probes |
 | Protocol | UCI |
 
-The rows marked unwired or absent are milestones in [PORTING.md](PORTING.md), not
-scoping decisions. The engine is not a Stockfish clone without them.
+Any row marked unwired or absent is a known limitation, not a scoping decision. The
+engine is not a Stockfish clone without them.
 
 ## Project layout
 

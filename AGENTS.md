@@ -3,32 +3,22 @@
 mcfish is a **C23 port of Stockfish**, built with clang by `./build.sh`. The goal
 is a **bit-exact 1:1 clone** — same bench signature, NNUE, Syzygy, Lazy-SMP.
 
-**Read [docs/PORTING.md](docs/PORTING.md) before writing any engine code**, then
-[docs/](docs/README.md) for the architecture. [CONTRIBUTING.md](CONTRIBUTING.md)
-has the workflow. This file is only what an agent gets wrong before it has read
-either.
+Read [docs/](docs/README.md) for the architecture, and
+[CONTRIBUTING.md](CONTRIBUTING.md) for the workflow. This file is only what an agent
+gets wrong before it has read either.
 
-## The one thing agents get wrong here
+## The golden
 
-**Port from `../zfish`, not from `../Stockfish`.**
+`../Stockfish` is the **golden** — it defines correct behaviour and the differential
+gate compares mcfish against a pristine upstream build. Where mcfish and Stockfish
+disagree, Stockfish wins.
 
-zfish is a complete, bit-exact **Zig** port of Stockfish. Its templates, classes,
-RAII and operator overloading are already gone, it is decomposed into small
-modules, and it is proven bit-exact. Translating Zig → C23 is close to mechanical;
-translating C++ → C23 means re-making every design decision zfish already made.
+## Known limitations
 
-`../Stockfish` is the **golden** — it defines correct behaviour and the
-differential gate compares against it. Where the two disagree, Stockfish wins.
-
-`tools/upstream/port_map.tsv` maps every zfish module to its mcfish owner, its
-Stockfish golden, and its status. `./build.sh port-status` prints the live counts.
-
-## The port is unfinished, and that is not a design
-
-Do not document, gate, or optimise around the current shape as if it were
-intended. Each of these is **required**, not a scoping decision. Check the state
-against the tree before acting on it — the reliable test is whether a file appears
-in `build.sh`'s `SOURCES`, because a module outside it is unwired, not deferred:
+Do not document, gate, or optimise around the current shape as if it were the
+intended end state. Check the state against the tree before acting on it — the
+reliable test is whether a file appears in `build.sh`'s `SOURCES`, because a module
+outside it is unwired, not deferred:
 
 - **Syzygy tablebases** — wired. All six `src/platform/syzygy/` files plus
   `tablebase.c` are in `SOURCES` **and** `ENGINE_SOURCES`, the four UCI options
@@ -76,7 +66,6 @@ moves, which appear in no bench list and no golden.
 ./build.sh              # binary is `mcfish`, at build/mcfish
 ./build.sh help         # every step
 ./build.sh parity       # the aggregate gate — run before calling anything done
-./build.sh port-status  # how far from bit-exact
 ```
 
 There is **no Makefile and no build system**. A new `.c` file must be added to
@@ -100,17 +89,16 @@ nothing — never report it as a pass.
 
 | trap | where |
 |---|---|
-| Porting from Stockfish's C++ instead of zfish's Zig. Slower, and re-decides what zfish settled. | [docs/PORTING.md](docs/PORTING.md) |
 | `signature-update` / `golden-update` on a **red** gate launders a bug into the anchor. Fix the code, then re-derive. | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | `tools/perft.table` is **not** a golden. Those counts are facts about chess; a mismatch is always a movegen bug. | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| "Improving" on zfish or upstream while porting. A cleaner formulation that moves a rounding boundary moves the node count. | [docs/PORTING.md](docs/PORTING.md) |
-| Integer semantics differ across C++/Zig/C at the edges, and upstream relies on wrapping in places. | [docs/PORTING.md](docs/PORTING.md) |
+| "Improving" on upstream. A cleaner formulation that moves a rounding boundary moves the node count. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
+| Integer semantics differ across C++/C at the edges, and upstream relies on wrapping in places. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
 | Comments are **imperative mood**; never pin a number a gate computes. | [docs/README.md](docs/README.md) |
 
 ## Commits
 
-**One module per commit**, naming the zfish source in the body — a commit that
-ports three modules cannot be bisected when the node count moves.
+**One logical change per commit** — a commit that touches three modules cannot be
+bisected when the node count moves.
 
 Conventional subject ≤72 chars, blank line, body wrapped at 80 carrying the
 evidence: gate output and exit code, not "should work". **Don't** `git push` —

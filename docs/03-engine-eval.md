@@ -46,8 +46,6 @@ gate battery cover them.
 | [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv15 dimensions |
 
 Upstream's `nnue/` sources are the golden.
-`tools/upstream/port_map.tsv` carries the row-by-row mapping and
-`./build.sh port-status` prints the live status.
 
 ## Startup, loading, and the netless run
 

@@ -132,22 +132,6 @@ jobs:
           CC: clang-${{ env.CLANG_VERSION }}
         run: ./build.sh parity
 
-      # Publish how far the port is from bit-exactness. Informational, never a gate:
-      # the figure only moves when a module lands, and a job that failed on "not done
-      # yet" would be red for the whole life of the port. `upstream-parity` -- the real
-      # finish line -- is deliberately not run in CI for the same reason.
-      - name: Port progress (informational)
-        env:
-          CC: clang-${{ env.CLANG_VERSION }}
-        run: |
-          ./build.sh port-status | tee /tmp/port.txt
-          {
-            echo "## Port status"
-            echo ""
-            echo '```'
-            sed -E 's/\x1b\[[0-9;]*m//g' /tmp/port.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
 
   # Sanitizer lane. `parity` already builds the TEST binary with -fsanitize=address,undefined
   # (see do_test in build.sh), but the tests only drive the engine zone -- they never run the
