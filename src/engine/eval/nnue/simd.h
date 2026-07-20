@@ -211,38 +211,37 @@ NNUE_SIMD_FAMILY(nnue_v64i16, NnueV64i16, int16_t, 64);
 NNUE_SIMD_CONVERT(nnue_v64_i8_to_i16, NnueV64i16, NnueV64i8)
 NNUE_SIMD_REINTERPRET(nnue_v64_i16_as_u16, NnueV64u16, NnueV64i16)
 
-// Feature-transformer output tile: 32 lanes through int16 -> uint16 -> uint32 -> uint8.
-NNUE_SIMD_TYPE(NnueV32i16, int16_t, 32);
-NNUE_SIMD_TYPE(NnueV32u16, uint16_t, 32);
-NNUE_SIMD_TYPE(NnueV32u32, uint32_t, 32);
-NNUE_SIMD_TYPE(NnueV32u8, uint8_t, 32);
-NNUE_SIMD_TYPE(NnueV8u32, uint32_t, 8);
-NNUE_SIMD_FAMILY(nnue_v32i16, NnueV32i16, int16_t, 32);
-NNUE_SIMD_FAMILY(nnue_v32u16, NnueV32u16, uint16_t, 32);
-NNUE_SIMD_FAMILY(nnue_v32u32, NnueV32u32, uint32_t, 32);
-NNUE_SIMD_FAMILY(nnue_v32u8, NnueV32u8, uint8_t, 32);
-NNUE_SIMD_FAMILY(nnue_v8u32, NnueV8u32, uint32_t, 8);
-NNUE_SIMD_CONVERT(nnue_v32_i16_to_u16, NnueV32u16, NnueV32i16)
-NNUE_SIMD_CONVERT(nnue_v32_u16_to_u32, NnueV32u32, NnueV32u16)
-NNUE_SIMD_CONVERT(nnue_v32_u32_to_u16, NnueV32u16, NnueV32u32)
-NNUE_SIMD_CONVERT(nnue_v32_u16_to_u8, NnueV32u8, NnueV32u16)
-NNUE_SIMD_REINTERPRET(nnue_v32_u8_as_u32x8, NnueV8u32, NnueV32u8)
+// Feature-transformer output tile: 64 lanes through int16 -> uint16 -> uint32 -> uint8.
+// Reuses NnueV64i16/NnueV64u16 from the row-tile block above. Wider than the accumulator
+// row tile buys nothing there but does here: a sweep of TRANSFORM_VEC_WIDTH finds 64.
+NNUE_SIMD_TYPE(NnueV64u32, uint32_t, 64);
+NNUE_SIMD_TYPE(NnueV64u8, uint8_t, 64);
+NNUE_SIMD_TYPE(NnueV16u32, uint32_t, 16);
+NNUE_SIMD_FAMILY(nnue_v64u32, NnueV64u32, uint32_t, 64);
+NNUE_SIMD_FAMILY(nnue_v64u8, NnueV64u8, uint8_t, 64);
+NNUE_SIMD_FAMILY(nnue_v16u32, NnueV16u32, uint32_t, 16);
+NNUE_SIMD_CONVERT(nnue_v64_i16_to_u16, NnueV64u16, NnueV64i16)
+NNUE_SIMD_CONVERT(nnue_v64_u16_to_u32, NnueV64u32, NnueV64u16)
+NNUE_SIMD_CONVERT(nnue_v64_u32_to_u16, NnueV64u16, NnueV64u32)
+NNUE_SIMD_CONVERT(nnue_v64_u16_to_u8, NnueV64u8, NnueV64u16)
+NNUE_SIMD_REINTERPRET(nnue_v64_u8_as_u32x16, NnueV16u32, NnueV64u8)
 
-// Build the 8-bit movemask (bit g set iff 4-byte group g is non-zero) from DEFINED ops:
+// Build the 16-bit movemask (bit g set iff 4-byte group g is non-zero) from DEFINED ops:
 // (v != 0) yields all-ones per non-zero lane, AND with the per-lane bit weight, then a
 // horizontal OR. A reinterpret of a bool-vector would be shorter but assumes the
 // target-defined <N x i1> layout -- a backend using one byte per lane reads a few lanes as
 // the whole mask and corrupts the nnz set into a wrong positional eval. Port of zfish
 // d27ab1438. The scalar fallback spells the same per-lane reduction, so scalar==vector.
-static inline uint32_t nnue_v8u32_movemask(NnueV8u32 v) {
+static inline uint32_t nnue_v16u32_movemask(NnueV16u32 v) {
 #if MCFISH_SIMD_VECTOR && defined(__has_builtin) && __has_builtin(__builtin_reduce_or)
-    const NnueV8u32 lane_bits = { 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u };
-    const NnueV8u32 nonzero = v != nnue_v8u32_splat(0);
+    const NnueV16u32 lane_bits = { 1u,   2u,   4u,    8u,    16u,   32u,   64u,    128u,
+                                   256u, 512u, 1024u, 2048u, 4096u, 8192u, 16384u, 32768u };
+    const NnueV16u32 nonzero = v != nnue_v16u32_splat(0);
     return (uint32_t) __builtin_reduce_or(nonzero & lane_bits);
 #else
     uint32_t mask = 0;
-    for (size_t g = 0; g < 8; g++)
-        mask |= (uint32_t) (nnue_v8u32_lane(v, g) != 0) << g;
+    for (size_t g = 0; g < 16; g++)
+        mask |= (uint32_t) (nnue_v16u32_lane(v, g) != 0) << g;
     return mask;
 #endif
 }
@@ -261,7 +260,6 @@ NNUE_SIMD_FAMILY(nnue_v128i8, NnueV128i8, int8_t, 128);
 NNUE_SIMD_FAMILY(nnue_v128u8, NnueV128u8, uint8_t, 128);
 NNUE_SIMD_CONVERT(nnue_v128_i8_to_i32, NnueV128i32, NnueV128i8)
 NNUE_SIMD_CONVERT(nnue_v128_u8_to_i32, NnueV128i32, NnueV128u8)
-NNUE_SIMD_REINTERPRET(nnue_v128_u32x32_as_u8, NnueV128u8, NnueV32u32)
 
 NNUE_SIMD_TYPE(NnueV4i32, int32_t, 4);
 NNUE_SIMD_TYPE(NnueV4i8, int8_t, 4);
