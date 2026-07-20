@@ -10,8 +10,20 @@
 // re-ray-casts, and the threat update runs per piece touched per node.
 static Bitboard RayPassBB[SQUARE_NB][SQUARE_NB];
 
+// The single push square plus the two attack squares of a pawn of each color on
+// each square, precomputed so the per-node threat update reads one table entry
+// instead of a shift + OR + attack-table load (upstream PawnPushOrAttacks,
+// attacks.h:250).
+static Bitboard PawnPushOrAttacks[COLOR_NB][SQUARE_NB];
+
 void threats_init(void) {
     memset(RayPassBB, 0, sizeof RayPassBB);
+
+    for (Square s = SQ_A1; s <= SQ_H8; ++s) {
+        const Bitboard b = square_bb(s);
+        PawnPushOrAttacks[WHITE][s] = (b << 8) | PawnAttacksBB[WHITE][s];
+        PawnPushOrAttacks[BLACK][s] = (b >> 8) | PawnAttacksBB[BLACK][s];
+    }
 
     for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1) {
         const PieceType slider_types[2] = { BISHOP, ROOK };
@@ -39,11 +51,7 @@ static inline void add_dirty_threat(
 
 // Return the single push square plus the two attack squares of a color-C pawn on
 // S. The push cannot wrap a file, so it needs no edge mask.
-static inline Bitboard pawn_push_or_attacks(Color c, Square s) {
-    const Bitboard b = square_bb(s);
-    const Bitboard push = (c == WHITE) ? b << 8 : b >> 8;
-    return push | PawnAttacksBB[c][s];
-}
+static inline Bitboard pawn_push_or_attacks(Color c, Square s) { return PawnPushOrAttacks[c][s]; }
 
 // Count a threatened queen as a threat feature only when the slider is itself a
 // queen; every other threatened type always counts. Mirrors upstream
