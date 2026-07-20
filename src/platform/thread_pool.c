@@ -293,8 +293,8 @@ bool thread_pool_reconfigure(ThreadPool *pool,
 
     // Record the bound footprint AFTER set(): set() clears it, so assigning before was
     // silently undone. Upstream has the same order within one function -- ThreadPool::set
-    // clears boundThreadToNumaNode (thread.cpp:11) and assigns it further down
-    // (thread.cpp:37).
+    // clears boundThreadToNumaNode (thread.cpp:162) and assigns it further down
+    // (thread.cpp:188).
     const bool ok = thread_pool_bound_nodes_assign(pool, do_bind ? bound_nodes : nullptr,
                                                    do_bind ? requested : 0);
     free(bound_nodes);

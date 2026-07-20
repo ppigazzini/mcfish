@@ -92,8 +92,8 @@ static bool hook_insert_history(void *ctx, size_t node_index, size_t count, bool
 // Hold the thread -> node map and the per-node totals the builder needs.
 //
 // The pool publishes its bound vector only AFTER thread_pool_set returns -- upstream has
-// the same order, ThreadPool::set clears it (thread.cpp:11) and assigns it further down
-// (thread.cpp:37) -- so the builder cannot read it back while it is running. Compute the
+// the same order, ThreadPool::set clears it (thread.cpp:162) and assigns it further down
+// (thread.cpp:188) -- so the builder cannot read it back while it is running. Compute the
 // same distribution here first, from the same inputs and the same functions, and hand it
 // to the builder. Both are deterministic over the topology, so the two agree by
 // construction rather than by luck.
