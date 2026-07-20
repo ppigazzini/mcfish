@@ -1,73 +1,40 @@
+// Own the UCI transport and the command dispatch. The engine session lives in
+// engine.c; this file reads a line, routes it to an engine_* call, and prints
+// every byte the engine puts on the wire. See uci.h.
+
 #include "uci.h"
 
 #include "../engine/board/board_props.h"
-#include "../engine/board/movegen.h"
 #include "../engine/board/position.h"
-#include "../engine/board/state_list.h"
-#include "../engine/board/uci_move.h"
-#include "../engine/eval/evaluate.h"
 #include "../engine/search/search.h"
-#include "../engine/search/tt.h"
 #include "../platform/tablebase.h"
 #include "benchmark.h"
-#include "syzygy_option.h"
+#include "engine.h"
 #include "ucioption.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #define ENGINE_NAME "mcfish"
 #define ENGINE_VERSION "dev"
 #define ENGINE_AUTHORS "the Stockfish developers (see AUTHORS file)"
 
-#define START_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-
-
-// Keep the whole state chain alive for the game: pos_undo_move and the repetition
-// scan both follow StateInfo::previous, so a state popped off the C stack would
-// leave the chain pointing at freed memory.
-static Position Pos;
-
-// The chain grows with the move list the GUI sends, rather than being capped. A
-// fixed array had to stop somewhere, and stopping meant silently searching a
-// DIFFERENT position than the one asked for: the `moves` loop broke out at the
-// bound and the engine answered for a prefix of the game with no diagnostic.
-// Upstream's chain is a deque and has no bound (engine.cpp:210).
-//
-// Each record is its own allocation, so a push never moves one already handed
-// out -- `st->previous`, the repetition walk and the search's frames all hold
-// those addresses. See state_list.h.
-static StateList *States = nullptr;
-
-static OptionsMap Options;
-
-// Hold the directory the binary was launched from. The net is a runtime input,
-// never embedded, and network_load searches "<internal>", the working directory,
-// then this root — which must carry its trailing separator, because the
-// concatenation inserts none.
-static char RootDirectory[512];
-
 // ---------------------------------------------------------------------------
 // Output funnel and the debug log
 //
-// Every byte the engine writes to a GUI leaves through uci_write. That is what
-// makes `Debug Log File` implementable at all: upstream ties std::cout and
+// Every byte the engine writes to a GUI leaves through uci_write. That single
+// point is what makes `Debug Log File` implementable: upstream ties std::cout and
 // std::cin to a tee streambuf (misc.cpp, struct Tie), so the log holds the whole
-// session with each output line prefixed "<< " and each input line ">> ". With
-// scattered printf calls there is no single point to tee, and the log would
-// silently hold a subset of the session — which is worse than no log, because it
-// reads as a complete transcript.
+// session with each output line prefixed "<< " and each input line ">> ".
 // ---------------------------------------------------------------------------
 
 static FILE *LogFile = nullptr;
 
 // Track the last byte written to the log so a prefix is emitted exactly at line
-// starts, across the input/output boundary. Upstream shares one `last` between
-// the cin and cout ties (misc.cpp, Tie::log) and never resets it on reopen; keep
-// both properties, or a reopened log gains a stray prefix mid-line.
+// starts, across the input/output boundary. Never reset on reopen; upstream shares
+// one `last` between the cin and cout ties (misc.cpp, Tie::log).
 static int LogLast = '\n';
 
 static void log_bytes(const char *s, size_t n, const char *prefix) {
@@ -82,8 +49,8 @@ static void log_bytes(const char *s, size_t n, const char *prefix) {
     fflush(LogFile);
 }
 
-// Write S verbatim — no newline is appended, so a caller composing a multi-line
-// block controls its own line breaks.
+// Write S verbatim — no newline appended, so a caller composing a multi-line block
+// controls its own line breaks.
 static void uci_write(const char *s) {
     const size_t n = strlen(s);
     fwrite(s, 1, n, stdout);
@@ -100,7 +67,6 @@ static void uci_printf(const char *fmt, ...) {
     va_end(ap);
     if (n <= 0)
         return;
-    // vsnprintf reports what it WOULD have written; clamp to what it did.
     const size_t len = (size_t) n < sizeof buf ? (size_t) n : sizeof buf - 1;
     fwrite(buf, 1, len, stdout);
     fflush(stdout);
@@ -109,9 +75,9 @@ static void uci_printf(const char *fmt, ...) {
 
 // Open FNAME as the session log, closing any previous one. Exit on a path that
 // cannot be opened, as upstream does (misc.cpp, Logger::start): an operator who
-// asked for a transcript and silently got none cannot tell the run apart from
-// one where nothing happened.
-static void start_logger(const char *fname) {
+// asked for a transcript and silently got none cannot tell the run apart from one
+// where nothing happened.
+void uci_start_logger(const char *fname) {
     if (LogFile) {
         fclose(LogFile);
         LogFile = nullptr;
@@ -126,49 +92,17 @@ static void start_logger(const char *fname) {
     }
 }
 
-// Report the resident net, or why the classical fallback is in use. Upstream
-// prints this before every go, perft and eval (engine.cpp:150, :157, :329) and
-// terminates when no net loaded; mcfish keeps playing on the fallback instead, so
-// the same three sites print and none exits.
-static void report_net(void) { uci_printf("info string %s\n", eval_nnue_status()); }
-
-// Append upstream's two tablebase lines to `d`, when the position is small enough
-// to be in the tables and has no castling rights (position.cpp:88-100).
-//
-// Probed through the FEN, not the live board: upstream builds a FRESH Position
-// from `pos.fen()` for exactly this, so an inspection command cannot perturb the
-// state chain the next search will walk.
-//
-// Both ProbeState values are printed alongside their result because a 0 there is
-// the difference between "this position is a draw" and "the probe failed" -- and
-// the DTZ walk recurses through captures, so a missing CHILD table reads as a
-// plain draw rather than as an error. KNNvKP alone answers 0 for a cursed win;
-// it needs KNNvK to resolve.
-static void print_tablebase_lines(void) {
-    if (tablebase_max_cardinality() < (size_t) popcount_bb(pieces(&Pos)))
-        return;
-    if (Pos.st->castling_rights != 0)
-        return;
-
-    char fen[128];
-    pos_fen(&Pos, fen);
-    const TbProbeResult r = tablebase_probe_fen(fen, strlen(fen), board_is_chess960(&Pos));
-
-    uci_printf("Tablebases WDL: %4d (%d)\n", r.wdl, r.wdl_state);
-    uci_printf("Tablebases DTZ: %4d (%d)\n", r.dtz, r.dtz_state);
-}
-
 // Write the search's line and its terminator without going through uci_printf: a
-// PV info line is built in a 5120-byte buffer (search_emit.c LINE_MAX) and would
-// be silently truncated by the smaller printf staging buffer.
+// PV info line is built in a 5120-byte buffer (search_emit.c LINE_MAX) and would be
+// silently truncated by the smaller printf staging buffer.
 static void emit_stdout(const char *line) {
     uci_write(line);
     uci_write("\n");
 }
 
-// Route an on-change message, one "info string" line per line of text, as
-// upstream's UCIEngine::print_info_string does (uci.cpp:55). The callbacks return
-// bare text for exactly this reason: the prefix belongs to the transport.
+// Route an on-change message, one "info string" line per line of text, as upstream's
+// UCIEngine::print_info_string does (uci.cpp:55). The callbacks return bare text for
+// exactly this reason: the prefix belongs to the transport.
 static void emit_info_string(const char *message) {
     const char *line = message;
     while (*line) {
@@ -183,256 +117,37 @@ static void emit_info_string(const char *message) {
 }
 
 // ---------------------------------------------------------------------------
-// Option on-change callbacks
-//
-// Each returns bare text for the info listener, or nullptr for silence, matching
-// upstream's `std::optional<std::string>` OnChange. A callback whose subsystem is
-// unported says so on the wire rather than accepting the value silently — a GUI
-// that gets no answer cannot tell a no-op from a working feature.
+// Commands
 // ---------------------------------------------------------------------------
 
-static char MessageBuf[256];
-
-// Load the net named by the EvalFile option. Silent: a caller reports the outcome
-// through report_net, so a load and a re-load read the same on the wire.
-static bool NetOk = false;
-
-static void load_net(void) {
-    NetOk = eval_nnue_load(RootDirectory, options_get_string(&Options, "EvalFile"));
-}
-
-// Refuse to run without a usable net, as upstream does (nnue/network.cpp:165-187,
-// reached from engine.cpp:150 `go`, :157 `perft` and :329 `eval`).
-//
-// The engine used to play on a classical material+PSQT fallback instead. That is
-// strictly worse than stopping: the fallback is scaffolding, it is hundreds of Elo
-// weaker, and nothing on the wire distinguishes it from a working engine -- a GUI
-// sees legal moves and a plausible score, so a missing file reads as a strength
-// regression rather than as a missing file. Upstream terminates and so does zfish
-// (shell/engine/nnue.zig: verifyNetwork); mcfish now agrees with both.
-//
-// The message is upstream's five lines verbatim, including the file name and the
-// download URL, because the operator reading it needs the path that failed.
-static void verify_network(void) {
-    if (NetOk)
+// Append upstream's two tablebase lines to `d`, when the position is small enough to
+// be in the tables and has no castling rights (position.cpp:88-100). Probed through
+// the FEN, not the live board: upstream builds a FRESH Position from pos.fen() so an
+// inspection command cannot perturb the state chain the next search will walk.
+static void print_tablebase_lines(void) {
+    const Position *pos = engine_position();
+    if (tablebase_max_cardinality() < (size_t) popcount_bb(pieces(pos)))
+        return;
+    if (pos->st->castling_rights != 0)
         return;
 
-    const char *const want = options_get_string(&Options, "EvalFile");
-    fprintf(stderr,
-            "ERROR: Network evaluation parameters compatible with the engine must be "
-            "available.\n"
-            "ERROR: The network file %s was not loaded successfully.\n"
-            "ERROR: The UCI option EvalFile might need to specify the full path, including "
-            "the directory name, to the network file.\n"
-            "ERROR: The default net can be downloaded from: "
-            "https://tests.stockfishchess.org/api/nn/%s\n"
-            "ERROR: The engine will be terminated now.\n",
-            want, eval_nnue_default_file_name());
-    exit(EXIT_FAILURE);
+    char fen[128];
+    engine_current_fen(fen, sizeof fen);
+    const TbProbeResult r = tablebase_probe_fen(fen, strlen(fen), board_is_chess960(pos));
+
+    uci_printf("Tablebases WDL: %4d (%d)\n", r.wdl, r.wdl_state);
+    uci_printf("Tablebases DTZ: %4d (%d)\n", r.dtz, r.dtz_state);
 }
 
-static const char *on_hash(const UciOption *o) {
-    const size_t mb = (size_t) strtoul(o->current_value, nullptr, 10);
-    if (!tt_resize(mb)) {
-        snprintf(MessageBuf, sizeof MessageBuf, "failed to allocate %zu MB hash", mb);
-        return MessageBuf;
-    }
-    return nullptr;
-}
-
-// Clear the table AND the per-game state, as upstream's Engine::search_clear does
-// (engine.cpp:172). The button and `ucinewgame` reach the same function upstream,
-// so clearing only the TT here would leave a history block the next search reads.
-static const char *on_clear_hash(const UciOption *o) {
-    (void) o;
-    tt_clear();
-    search_clear();
-    return nullptr;
-}
-
-static const char *on_debug_log_file(const UciOption *o) {
-    start_logger(o->current_value);
-    return nullptr;
-}
-
-// Rebuild the worker set. Upstream reaches ThreadPool::set from the same option and
-// rebuilds rather than resizes, because a thread must be created on the NUMA node it will
-// run on. The rebuild drops every history table, which is upstream's behaviour too.
-// Owner: upstream `thread.cpp` (ThreadPool::set).
-static const char *on_threads(const UciOption *o) {
-    const size_t n = (size_t) strtoul(o->current_value, nullptr, 10);
-    if (!search_set_threads(n)) {
-        snprintf(MessageBuf, sizeof MessageBuf, "failed to build %zu search thread(s)", n);
-        return MessageBuf;
-    }
-    return nullptr;
-}
-
-// Install the NUMA topology the next pool binds under. `auto`, `none`, `system` and
-// `hardware` are the four upstream names; anything else is an explicit topology string,
-// which always binds. A string naming no node at all is REFUSED rather than degraded --
-// a config with zero nodes makes every distribution and binding decision divide by zero.
-//
-// Re-apply the current thread count so the policy takes effect now rather than at the
-// next `Threads`, which is what upstream's ThreadPool::set does on either option.
-// Owner: upstream `numa.h`, engine.cpp:227.
-static const char *on_numa_policy(const UciOption *o) {
-    if (!search_set_numa_policy(o->current_value)) {
-        snprintf(MessageBuf, sizeof MessageBuf, "NumaPolicy \"%s\" names no usable node",
-                 o->current_value);
-        return MessageBuf;
-    }
-    (void) search_set_threads((size_t) options_get_int(&Options, "Threads"));
-    return nullptr;
-}
-
-// Apply a Syzygy option by handing it to the module that owns the four of them
-// and the tablebase seams. The table has already range-checked the value, so this
-// only installs it. Golden: `Stockfish/src/engine.cpp:125-134`.
-static const char *on_syzygy(const UciOption *o) {
-    (void) syzygy_option_set(o->name, o->current_value);
-    return nullptr;
-}
-
-static const char *on_eval_file(const UciOption *o) {
-    (void) o;
-    load_net();
-
-    // Drop the search state the previous net produced. Upstream follows every
-    // load with threads.clear() (engine.cpp:313), and search_clear is mcfish's
-    // analogue: without it the next search reads history tables and carried-over
-    // scores accumulated under a DIFFERENT evaluation, which is a different tree.
-    search_clear();
-
-    // Report nothing here. Upstream's EvalFile callback returns std::nullopt
-    // (engine.cpp:137-140); the resident net is announced by verify_network on the
-    // next go, perft or eval, so returning the status here emits the line twice.
-    return nullptr;
-}
-
-// ---------------------------------------------------------------------------
-// Option registration
-//
-// The order below IS the wire order, and it is upstream's registration order in
-// engine.cpp:69 onward, not the enum order or an alphabetical one. A GUI reads the
-// handshake in this sequence and tools/handshake.golden diffs it byte for byte, so
-// do not reorder to group related options together.
-// ---------------------------------------------------------------------------
-
-// Skill's Elo window, from upstream `search.h` (Skill::LowestElo / HighestElo).
-enum { SKILL_LOWEST_ELO = 1320, SKILL_HIGHEST_ELO = 3190 };
-
-// Upstream's `MaxThreads = std::max(1024, 4 * get_hardware_concurrency())`
-// (engine.cpp:52). Ported as the expression, not as the constant it happens to
-// evaluate to here, so the advertised maximum tracks upstream on a machine with
-// more than 256 cores — where the two would otherwise disagree.
-static int max_threads(void) {
-    long online = 0;
-#if defined(_SC_NPROCESSORS_ONLN)
-    online = sysconf(_SC_NPROCESSORS_ONLN);
-#endif
-    const long scaled = online > 0 ? 4 * online : 0;
-    return scaled > 1024 ? (int) scaled : 1024;
-}
-
-// Upstream's `MaxHashMB = Is64Bit ? 33554432 : 2048` (engine.cpp:51).
-static int max_hash_mb(void) { return sizeof(size_t) >= 8 ? 33554432 : 2048; }
-
-// Read a spin or check option for the search zone. Registered through
-// search_set_option_source so MultiPV, Skill Level, UCI_LimitStrength, UCI_Elo,
-// Move Overhead, nodestime, Ponder and UCI_ShowWDL reach the search from the same
-// table the handshake renders — one source, so what a GUI sets is what runs.
-static int option_int_for_search(const char *name) { return options_get_int(&Options, name); }
-
-static void register_options(void) {
-    char elo[16];
-
-    options_clear(&Options);
-    options_set_info(&Options, emit_info_string);
-
-    options_add(&Options, "Debug Log File", OPTION_STRING, "", 0, 0, on_debug_log_file);
-    options_add(&Options, "NumaPolicy", OPTION_STRING, "auto", 0, 0, on_numa_policy);
-    options_add(&Options, "Threads", OPTION_SPIN, "1", 1, max_threads(), on_threads);
-    options_add(&Options, "Hash", OPTION_SPIN, "16", 1, max_hash_mb(), on_hash);
-    options_add(&Options, "Clear Hash", OPTION_BUTTON, "", 0, 0, on_clear_hash);
-    options_add(&Options, "Ponder", OPTION_CHECK, "false", 0, 0, nullptr);
-    options_add(&Options, "MultiPV", OPTION_SPIN, "1", 1, MAX_MOVES, nullptr);
-    options_add(&Options, "Skill Level", OPTION_SPIN, "20", 0, 20, nullptr);
-    options_add(&Options, "Move Overhead", OPTION_SPIN, "10", 0, 5000, nullptr);
-    options_add(&Options, "nodestime", OPTION_SPIN, "0", 0, 10000, nullptr);
-    options_add(&Options, "UCI_Chess960", OPTION_CHECK, "false", 0, 0, nullptr);
-    options_add(&Options, "UCI_LimitStrength", OPTION_CHECK, "false", 0, 0, nullptr);
-
-    snprintf(elo, sizeof elo, "%d", SKILL_LOWEST_ELO);
-    options_add(&Options, "UCI_Elo", OPTION_SPIN, elo, SKILL_LOWEST_ELO, SKILL_HIGHEST_ELO,
-                nullptr);
-
-    options_add(&Options, "UCI_ShowWDL", OPTION_CHECK, "false", 0, 0, nullptr);
-
-    // LIVE, all four. `on_syzygy` hands each value to syzygy_option.c, which owns
-    // the authoritative copy and binds both seam sets: the three option readers in
-    // option_source.h and the three probe pointers in
-    // src/engine/search/tb_source.h. syzygy_option_install runs before this
-    // function, so a value set here reaches a prober that is already registered.
-    //
-    // A path is still what arms them: with no SyzygyPath the cardinality stays 0,
-    // the root ranker never probes and Step 6 never fires. That is the state
-    // `bench` runs in, which is why the anchor is blind to this whole block.
-    options_add(&Options, "SyzygyPath", OPTION_STRING, "", 0, 0, on_syzygy);
-    options_add(&Options, "SyzygyProbeDepth", OPTION_SPIN, "1", 1, 100, on_syzygy);
-    options_add(&Options, "Syzygy50MoveRule", OPTION_CHECK, "true", 0, 0, on_syzygy);
-    options_add(&Options, "SyzygyProbeLimit", OPTION_SPIN, "7", 0, 7, on_syzygy);
-
-    options_add(&Options, "EvalFile", OPTION_STRING, eval_nnue_default_file_name(), 0, 0,
-                on_eval_file);
-}
-
-// Report an invalid command and stop the process, as upstream does
-// (Stockfish/src/uci.cpp:684). Terminating IS the contract: a GUI that sent a
-// position the engine could not set must not receive a `bestmove` about some other
-// board. mcfish previously reset to the start position and carried on answering,
-// which is worse than an error -- it is a confident answer to a question nobody
-// asked, and two goldens were generated over it and pinned it.
-static void terminate_on_critical_error(const char *command, const char *reason) {
-    // Two newlines again: upstream writes '\n' and then sync_endl (uci.cpp:685-687).
-    uci_printf("info string CRITICAL ERROR: Command `%s` failed. Reason: %s\n\n", command, reason);
-    exit(1);
-}
-
-// Hold the command being executed, so the diagnostic can quote it verbatim the way
-// upstream's `currentCmd` does.
+// Report an invalid command and stop the process, as upstream does (uci.cpp:684).
+// Terminating IS the contract: a GUI that sent a position the engine could not set
+// must not receive a `bestmove` about some other board.
 static char CurrentCmd[4096];
 
-// Reset the position and the state chain together. Any path that sets a new
-// position must come through here, or States accumulates across games.
-static void set_position_as(const char *fen, bool chess960) {
-    const char *reason = nullptr;
-    StateInfo *const root = state_list_reset(States);
-    if (!pos_set_reason(&Pos, fen, chess960, root, &reason))
-        terminate_on_critical_error(CurrentCmd, reason ? reason : "Invalid FEN.");
-}
-
-static void set_position(const char *fen) {
-    set_position_as(fen, options_get_int(&Options, "UCI_Chess960") != 0);
-}
-
-// Run `flip`: re-set the board from the colour-reversed form of its own FEN.
-//
-// The variant comes from the BOARD, not from the live option. Upstream ends
-// Position::flip with `set(f, is_chess960(), st)` (position.cpp:1633) -- chess960
-// is a property of the position being re-parsed, and a toggle of UCI_Chess960
-// between `position` and `flip` must not re-interpret rights already on the
-// board. Reading the option here would parse `HFhf` as file letters under one
-// variant and re-emit it as `KQkq` under the other, silently renaming the rights.
-static void cmd_flip(void) {
-    char fen[128];
-    pos_fen(&Pos, fen);
-
-    char flipped[128];
-    if (!pos_flip_fen(fen, flipped))
-        return;
-
-    set_position_as(flipped, board_is_chess960(&Pos));
+static void terminate_on_critical_error(const char *command, const char *reason) {
+    // Two newlines: upstream writes '\n' and then sync_endl (uci.cpp:685-687).
+    uci_printf("info string CRITICAL ERROR: Command `%s` failed. Reason: %s\n\n", command, reason);
+    exit(1);
 }
 
 static void cmd_position(char *args) {
@@ -440,12 +155,14 @@ static void cmd_position(char *args) {
     if (!token)
         return;
 
+    const char *reason = nullptr;
+
     if (strcmp(token, "startpos") == 0) {
-        set_position(START_FEN);
+        if (!engine_set_startpos(&reason))
+            terminate_on_critical_error(CurrentCmd, reason);
         token = strtok(nullptr, " \t\n");
     } else if (strcmp(token, "fen") == 0) {
-        // Reassemble the FEN: it is six space-separated fields, so it cannot be
-        // read as one token, and it ends at `moves` or at end of line.
+        // Reassemble the FEN: six space-separated fields, ending at `moves` or EOL.
         char fen[128] = { 0 };
         int n = 0;
         while ((token = strtok(nullptr, " \t\n")) && strcmp(token, "moves") != 0) {
@@ -457,7 +174,8 @@ static void cmd_position(char *args) {
             memcpy(fen + n, token, (size_t) len);
             n += len;
         }
-        set_position(fen);
+        if (!engine_set_position(fen, &reason))
+            terminate_on_critical_error(CurrentCmd, reason);
     } else {
         return;
     }
@@ -466,33 +184,16 @@ static void cmd_position(char *args) {
         token = strtok(nullptr, " \t\n");
 
     if (token && strcmp(token, "moves") == 0)
-        while ((token = strtok(nullptr, " \t\n"))) {
-            const Move m = move_from_uci(&Pos, token);
-            // An unrecognised move is a failed command, not a place to stop reading.
-            // Upstream's message names the move, and this text is compared against it.
-            if (m == MOVE_NONE) {
-                char msg[64];
-                snprintf(msg, sizeof msg, "Illegal move: %s", token);
-                terminate_on_critical_error(CurrentCmd, msg);
-            }
-            // Report an exhausted heap rather than truncating the game: a
-            // silently shortened move list answers for a position the GUI never
-            // asked about, which is indistinguishable from a search bug.
-            StateInfo *const st = state_list_push(States);
-            if (st == nullptr)
-                terminate_on_critical_error(CurrentCmd, "Out of memory extending the state chain.");
-            pos_do_move(&Pos, m, st, false, &Pos.scratch_dp, &Pos.scratch_dts);
-        }
+        while ((token = strtok(nullptr, " \t\n")))
+            if (!engine_play_move(token, &reason))
+                terminate_on_critical_error(CurrentCmd, reason);
 }
 
 static void cmd_go(char *args) {
     SearchLimits limits = { 0 };
 
     for (char *token = strtok(args, " \t\n"); token; token = strtok(nullptr, " \t\n")) {
-        // Zero-argument keywords first, reading NO lookahead token: upstream sets
-        // these from the bare token (uci.cpp:221-224). Reading an argument here
-        // would swallow the token that follows -- `go ponder wtime 1000` and
-        // `go infinite depth 5` must still see the keyword after the flag.
+        // Zero-argument keywords first, reading NO lookahead token (uci.cpp:221-224).
         if (strcmp(token, "infinite") == 0) {
             limits.infinite = true;
             continue;
@@ -502,10 +203,8 @@ static void cmd_go(char *args) {
             continue;
         }
 
-        // Every keyword below takes exactly one argument; read it only now, with
-        // the keyword already in hand, so a flag or an unrecognised token never
-        // consumes the next one (upstream reads the argument inside the matching
-        // branch, uci.cpp:192-225).
+        // Every keyword below takes exactly one argument; read it only now, with the
+        // keyword already in hand (uci.cpp:192-225).
         char *value = strtok(nullptr, " \t\n");
         if (!value)
             break;
@@ -528,39 +227,36 @@ static void cmd_go(char *args) {
         else if (strcmp(token, "nodes") == 0)
             limits.nodes = (uint64_t) v;
         else if (strcmp(token, "perft") == 0) {
-            report_net();
-            verify_network();
-            const uint64_t n = perft(&Pos, (int) v, true);
-            // Two newlines: upstream writes "\n" and then sync_endl, which adds its
-            // own (uci.cpp:481). The blank line is part of the output a GUI parses.
+            engine_report_net();
+            engine_verify_network();
+            const uint64_t n = engine_perft((int) v);
+            // Two newlines: upstream writes "\n" then sync_endl (uci.cpp:481).
             uci_printf("\nNodes searched: %llu\n\n", (unsigned long long) n);
             return;
         }
     }
 
-    // Default to a bounded depth rather than an unbounded search: an unqualified
-    // `go` from a script would otherwise never return.
+    // Default to a bounded depth rather than an unbounded search.
     if (!limits.depth && !limits.movetime_ms && !limits.nodes && !limits.infinite
         && !limits.time_ms[WHITE] && !limits.time_ms[BLACK])
         limits.depth = 8;
 
-    report_net();
-    verify_network();
-
-    // The search zone emits `bestmove` itself, through the sink installed here, so
-    // that the line is built once and in one place — upstream emits it from
-    // search.cpp too. Do not print a second one from the result.
-    (void) search_go(&Pos, &limits);
+    engine_report_net();
+    engine_verify_network();
+    engine_go(&limits);
 }
 
 static void cmd_setoption(char *args) {
     char name[OPTION_NAME_MAX] = { 0 };
-
-    // Hand the whole body to the table: it owns the `name ... value ...` grammar,
-    // including names and values that contain spaces, and it is the same parse
-    // upstream runs (ucioption.cpp:44).
-    if (options_setoption(&Options, args, name) == OPTION_SET_UNKNOWN)
+    if (engine_setoption(args, name) == OPTION_SET_UNKNOWN)
         uci_printf("No such option: %s\n", name);
+}
+
+static void cmd_flip(void) {
+    const char *reason = nullptr;
+    engine_flip(&reason);
+    if (reason)
+        terminate_on_critical_error(CurrentCmd, reason);
 }
 
 static void cmd_uci(void) {
@@ -569,11 +265,10 @@ static void cmd_uci(void) {
     uci_printf("id name %s %s\n", ENGINE_NAME, ENGINE_VERSION);
     uci_printf("id author %s\n", ENGINE_AUTHORS);
 
-    // The block opens with a newline of its own and closes without one, so the
-    // blank line between `id author` and the first option — which upstream emits
-    // and a byte-for-byte handshake diff sees — comes out of this composition and
-    // not out of an extra print. Golden: uci.cpp:120.
-    options_render(&Options, rendered, sizeof rendered);
+    // The block opens with a newline of its own and closes without one, so the blank
+    // line between `id author` and the first option comes out of this composition.
+    // Golden: uci.cpp:120.
+    engine_render_options(rendered, sizeof rendered);
     uci_write(rendered);
     uci_write("\nuciok\n");
 }
@@ -585,8 +280,7 @@ static bool execute(char *line) {
         ++cmd;
 
     // Snapshot the line before strtok chops it: a critical-error diagnostic quotes
-    // the command as the operator typed it, and by the time one is raised the
-    // tokeniser has already written NULs through this buffer.
+    // the command as the operator typed it.
     snprintf(CurrentCmd, sizeof CurrentCmd, "%s", cmd);
     for (char *e = CurrentCmd; *e; ++e)
         if (*e == '\n' || *e == '\r') {
@@ -603,18 +297,16 @@ static bool execute(char *line) {
     }
 
     if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "stop") == 0) {
-        search_stop();
+        engine_stop();
         return strcmp(cmd, "quit") != 0;
     }
     if (strcmp(cmd, "uci") == 0)
         cmd_uci();
     else if (strcmp(cmd, "isready") == 0) {
         uci_printf("readyok\n");
-    } else if (strcmp(cmd, "ucinewgame") == 0) {
-        tt_clear();
-        search_clear();
-        set_position(START_FEN);
-    } else if (strcmp(cmd, "position") == 0)
+    } else if (strcmp(cmd, "ucinewgame") == 0)
+        engine_new_game();
+    else if (strcmp(cmd, "position") == 0)
         cmd_position(args);
     else if (strcmp(cmd, "go") == 0)
         cmd_go(args);
@@ -624,24 +316,21 @@ static bool execute(char *line) {
         cmd_flip();
     else if (strcmp(cmd, "d") == 0) {
         char buf[1024];
-        pos_pretty(&Pos, buf, sizeof buf);
+        engine_visualize(buf, sizeof buf);
         uci_write(buf);
         print_tablebase_lines();
     } else if (strcmp(cmd, "eval") == 0) {
-        report_net();
-        verify_network();
+        engine_report_net();
+        engine_verify_network();
         char buf[2048];
-        evaluate_trace(&Pos, buf, sizeof buf);
+        engine_trace_eval(buf, sizeof buf);
         uci_write(buf);
     } else if (strcmp(cmd, "bench") == 0) {
-        // Hand the argument line to the bench, which owns upstream's whole grammar
-        // (`bench [ttSize] [threads] [limit] [fenFile] [limitType]`). Every field
-        // defaults from the left, so a bare `bench` is upstream's published run --
-        // which is the only form the signature anchor is comparable against.
+        // Hand the argument line to the bench, which owns upstream's whole grammar.
+        // A bare `bench` is upstream's published run -- the only form the signature
+        // anchor is comparable against.
         benchmark_run(args);
     } else if (strcmp(cmd, "compiler") == 0) {
-        // Report the actual compiler: the CI builds this tree with both clang and
-        // gcc, and a bug report that names the wrong one costs a round trip.
 #if defined(__clang__)
         uci_printf("Compiled by clang %d.%d.%d, C%ld\n", __clang_major__, __clang_minor__,
                    __clang_patchlevel__, __STDC_VERSION__);
@@ -658,26 +347,6 @@ static bool execute(char *line) {
     return true;
 }
 
-// Record the directory ARGV0 was launched from, with its trailing separator, as
-// the third candidate network_load searches. Leave it empty when argv[0] carries
-// no separator: the working directory is already candidate two, so an empty root
-// costs nothing.
-static void set_root_directory(const char *argv0) {
-    RootDirectory[0] = '\0';
-    if (argv0 == nullptr)
-        return;
-
-    const char *slash = strrchr(argv0, '/');
-    if (slash == nullptr)
-        return;
-
-    const size_t len = (size_t) (slash - argv0) + 1;
-    if (len >= sizeof RootDirectory)
-        return;
-    memcpy(RootDirectory, argv0, len);
-    RootDirectory[len] = '\0';
-}
-
 void uci_execute(const char *line) {
     // `execute` tokenises in place with strtok, so hand it a mutable copy.
     char buf[4096];
@@ -685,91 +354,44 @@ void uci_execute(const char *line) {
     (void) execute(buf);
 }
 
-void uci_current_fen(char *buf, size_t buf_len) {
-    char fen[128];
-    pos_fen(&Pos, fen);
-    snprintf(buf, buf_len, "%s", fen);
-}
+void uci_current_fen(char *buf, size_t buf_len) { engine_current_fen(buf, buf_len); }
 
 void uci_loop(int argc, char **argv) {
     // Announce the engine before reading a command, as upstream does from main
-    // (Stockfish/src/main.cpp:40). Not decoration: it is the first line a GUI and a
-    // human both use to tell which binary they launched, and its absence is exactly
-    // how one build gets mistaken for another mid-measurement.
+    // (main.cpp:40): the first line a GUI and a human use to tell which binary they
+    // launched, and its absence is how one build gets mistaken for another.
     uci_printf("%s %s by %s\n", ENGINE_NAME, ENGINE_VERSION, ENGINE_AUTHORS);
 
-    // Build the state chain before anything can set a position. Every later path
-    // resets or pushes onto it, and none of them can create it.
-    States = state_list_create();
-    if (States == nullptr) {
-        fprintf(stderr, "Out of memory allocating the state chain\n");
-        exit(EXIT_FAILURE);
-    }
+    // Install the transport sinks, then build the session against them.
+    engine_set_output(emit_stdout, emit_info_string);
+    engine_init(argc > 0 ? argv[0] : nullptr);
 
-    // Bind the tablebase seams before the first search: until this runs the engine
-    // reads the neutral defaults, which never probe.
-    syzygy_option_install();
-
-    search_set_output(emit_stdout);
-    register_options();
-
-    // Clear the search state before the first command, as upstream does from the
-    // Engine constructor: it calls resize_threads (engine.cpp:145), which reaches
-    // Worker::clear through ThreadPool::set. The histories are NOT zero when clear
-    // -- they carry non-zero fills (capture -742, continuation -586, correction -5,
-    // pawn -1338, low-ply 102) -- so an engine that skips this searches a different
-    // tree until the first `ucinewgame` supplies them. `bench` sends one and never
-    // saw it; a GUI issuing `position` then `go` does not.
-    search_clear();
-
-    // Point the search at this table rather than at its own defaults, so MultiPV,
-    // Skill Level, UCI_Elo, Move Overhead, nodestime, Ponder and UCI_ShowWDL are
-    // read from the same place the handshake advertises them. Without this the
-    // search keeps answering itself and a `setoption` a GUI sent has no effect
-    // anywhere — the failure mode that leaves an option looking wired.
-    search_set_option_source(option_int_for_search);
-
-    // Size the table from the registered default rather than a second literal, so
-    // `Hash`'s default and the table's initial size cannot drift apart.
-    tt_resize((size_t) options_get_int(&Options, "Hash"));
-    set_position(START_FEN);
-
-    // Load the net before the first command: `go`, `go perft` and `eval` all
-    // report the outcome, and a failed load leaves the classical fallback rather
-    // than terminating the process.
-    set_root_directory(argc > 0 ? argv[0] : nullptr);
-    load_net();
-
-    // Join the argv words into one command so `mcfish go depth 5` behaves as if
-    // that line were typed, then exit without entering the loop.
+    // Join the argv words into one command so `mcfish go depth 5` behaves as if that
+    // line were typed, then exit without entering the loop.
     if (argc > 1) {
         char line[4096] = { 0 };
         int n = 0;
         for (int i = 1; i < argc && n < (int) sizeof line - 2; ++i)
             n += snprintf(line + n, sizeof line - (size_t) n, "%s%s", i > 1 ? " " : "", argv[i]);
         execute(line);
-        tt_free();
+        engine_shutdown();
         return;
     }
 
-    // Read a WHOLE line however long it is. A fixed buffer split an over-long
-    // line across reads and ran each fragment as its own command, so a
-    // `position ... moves ...` line past the bound reported a bogus command
-    // instead of playing the game -- and 1200 plies of coordinate notation is
-    // about 6 KiB, which a real analysis session reaches. Upstream reads with
-    // `std::getline` into a std::string and has no bound (uci.cpp:106).
+    // Read a WHOLE line however long it is (upstream uses std::getline, unbounded --
+    // uci.cpp:106): a fixed buffer split an over-long `position ... moves ...` line
+    // across reads and ran each fragment as its own command.
     char *line = nullptr;
     size_t cap = 0;
     while (getline(&line, &cap, stdin) != -1) {
-        // Tee the command into the debug log before running it. Upstream logs on
-        // the read itself (misc.cpp, Tie::uflow), so the log interleaves commands
-        // and replies in the order they happened; logging after execute would put
-        // every command after its own answer.
+        // Tee the command into the debug log before running it, so the log
+        // interleaves commands and replies in the order they happened (misc.cpp,
+        // Tie::uflow).
         log_bytes(line, strlen(line), ">> ");
         if (!execute(line))
             break;
     }
     free(line);
 
-    tt_free();
+    engine_shutdown();
 }

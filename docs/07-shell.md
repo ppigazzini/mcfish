@@ -7,40 +7,26 @@ writes stdout, or knows the protocol exists.
 Audience: shell contributors. The zone rule this page depends on is in
 [00-architecture.md](00-architecture.md).
 
-## Where this zone stands
+## The split
 
-**Wired into the binary** ([`../build.sh`](../build.sh) `SOURCES`):
-[`main.c`](../src/shell/main.c), [`uci.c`](../src/shell/uci.c),
-[`ucioption.c`](../src/shell/ucioption.c),
-[`benchmark.c`](../src/shell/benchmark.c), the bench script data
-[`bench_positions.c`](../src/shell/bench_positions.c), and the Syzygy option
-delegate [`syzygy_option.c`](../src/shell/syzygy_option.c).
+The zone is two files with a seam between them, plus the pieces they drive:
 
-**Ported and not in `SOURCES`**, so not in the binary and not gated: the engine
-object [`engine.c`](../src/shell/engine.c), the identity and process utilities
-[`misc.c`](../src/shell/misc.c), and the decomposition of the
-loop itself — [`uci_strings.c`](../src/shell/uci_strings.c),
-[`uci_input.c`](../src/shell/uci_input.c),
-[`uci_parse.c`](../src/shell/uci_parse.c),
-[`uci_format.c`](../src/shell/uci_format.c),
-[`uci_output.c`](../src/shell/uci_output.c),
-[`uci_bench.c`](../src/shell/uci_bench.c).
+- [`engine.c`](../src/shell/engine.c) — **the session** ([`engine.h`](../src/shell/engine.h)).
+  It owns what upstream's `engine.cpp` owns: the position and its unbounded state
+  chain, the option table with its wired on-change callbacks, the resident net, and
+  the search wiring. It holds no stdio and knows no command grammar.
+- [`uci.c`](../src/shell/uci.c) — **the transport and the dispatch**
+  ([`uci.h`](../src/shell/uci.h)). It reads a line, routes it to an `engine_*` call,
+  and prints every byte the engine puts on the wire. It holds no engine state.
+- [`main.c`](../src/shell/main.c) — the composition root.
+- [`ucioption.c`](../src/shell/ucioption.c) — the typed option table.
+- [`benchmark.c`](../src/shell/benchmark.c) and its data
+  [`bench_positions.c`](../src/shell/bench_positions.c) — the fixed bench.
+- [`syzygy_option.c`](../src/shell/syzygy_option.c) — the Syzygy option delegate.
 
-**`uci.c` is still the monolith.** It holds the position, the state chain and the
-option table as file-scope statics, and it parses `go` and `position` inline.
-Everything under *The command loop* below describes that file. The ported
-replacements exist beside it and nothing calls them —
-[`../src/shell/PORT_NOTES_uci.md`](../src/shell/PORT_NOTES_uci.md) is the list of
-decisions the rewiring commit owes, and the last section of this page summarises
-them.
-
-**`engine.c` is written, unused, and now duplicates a live table.** It owns what
-upstream's `engine.cpp` owns — the position and its state chain, the option table,
-the search entry points — behind one seam, and it registers its own copy of the
-option set that `uci.c` registers for real. Two registrations, one of them dead, is
-a trap: edit the wrong one and the handshake does not move. When `engine.c` is
-wired, `uci.c`'s registration must be deleted in the same commit, not left as a
-fallback.
+The seam is the point: `uci.c` parses text and prints text, `engine.c` holds the
+state, and neither reaches into the other's job. That is why the option table is
+registered once (in `engine.c`) and the stdio funnel lives in one place (`uci.c`).
 
 ## main as the composition root
 
@@ -68,12 +54,12 @@ The ordering constraint — and its silent failure mode — is spelled out in
 built before `attacks_init` reads zeroed attack tables and generates no piece
 moves, which presents as a search bug.
 
-`uci_loop` performs the rest of the wiring, because it owns the state the wiring
-targets:
-
-it installs the output sink, sizes the transposition table, establishes the start
-position, resolves the root directory from `argv[0]`, defaults `EvalFile` to the
-name this build expects, and loads the net.
+`uci_loop` announces the engine, installs the transport sinks with
+`engine_set_output`, and hands the rest of the wiring to `engine_init`, which owns
+the state the wiring targets: it builds the state chain, registers the option table,
+clears the search state, points the search at that table, sizes the transposition
+table, establishes the start position, resolves the root directory from `argv[0]`,
+and loads the net.
 
 Establishing a position before any command matters more than it looks: a `go` or
 `d` arriving before any `position` command must operate on the start position, not
@@ -84,17 +70,17 @@ undefined behaviour, not a diagnosable error. See
 ### The net and the root directory
 
 The shell owns the net because it owns the `EvalFile` option; the engine zone
-allocates the arenas at startup and never touches the filesystem. `uci.c` keeps two
-strings for this: the option value, and the directory the binary was launched from,
-derived from `argv[0]`. **That root must carry its trailing separator**, because
-`network_load`'s concatenation inserts none.
+allocates the arenas at startup and never touches the filesystem. `engine.c` keeps
+two strings for this: the option value, and the directory the binary was launched
+from, derived from `argv[0]`. **That root must carry its trailing separator**,
+because `network_load`'s concatenation inserts none.
 
-`report_net()` prints `eval_nnue_status()` through `info string` at the four sites
-upstream prints it. **Do not make a failed load silent.** Upstream terminates on a
-net it cannot load; mcfish keeps playing on the classical fallback instead, so the
-`info string` is the only thing distinguishing "running NNUE" from "running a
-placeholder" — and without it a missing file reads as a strength regression. See
-[03-engine-eval.md](03-engine-eval.md).
+`engine_report_net()` prints `eval_nnue_status()` through `info string` before every
+`go`, `perft` and `eval`, and `engine_verify_network()` **terminates** the process
+right after when no usable net is loaded — upstream's five error lines verbatim, from
+the same three sites (nnue/network.cpp:165-187). Refusing to run is the honest
+answer: a placeholder eval that plays legal moves reads as a strength regression, not
+as a missing file. See [03-engine-eval.md](03-engine-eval.md).
 
 ## The output sink
 
@@ -131,10 +117,10 @@ which reads as a hang rather than as a wiring mistake.
 `fflush` after every line is not optional. stdout to a pipe is block-buffered, and a
 GUI waiting on `uciok` or `bestmove` would wait for a full buffer.
 
-The ported [`uci_output.c`](../src/shell/uci_output.c) is the module that generalises
-this: it is intended to be **the only module in the tree that writes to a stream**,
-with `uci_output_emit_line` carrying the sink signature so wiring it in preserves the
-funnel exactly.
+`uci.c` is the only module in the tree that writes to a stream. `emit_stdout` (the
+search/status sink) and `emit_info_string` (the option-message sink) both funnel
+through `uci_write`, which is also where the `Debug Log File` tee lives — so there is
+one point at which every outgoing byte can be copied to the session log.
 
 ## The command loop
 
@@ -144,7 +130,9 @@ funnel exactly.
   and the process exits without reading stdin. `./build/mcfish bench 8` and
   `./build/mcfish "go depth 5"` both work, which is what
   [`../build.sh`](../build.sh) relies on for the `bench` and `signature` steps.
-- **Interactive mode.** `fgets` into a 4096-byte buffer until `quit` or EOF.
+- **Interactive mode.** `getline` reads a whole line however long, until `quit` or
+  EOF — upstream's unbounded `std::getline` (uci.cpp:106), so a `position ... moves`
+  line past any fixed bound is not split across reads and run as fragments.
 
 `execute` skips leading whitespace, splits the first word off as the command, and
 dispatches. Every handler gets the remainder of the line as a mutable buffer, which
@@ -190,30 +178,31 @@ clears that per `go` instead, which is not where upstream clears it. See
 
 ### position
 
-`set_position` is the single entry point for establishing a position, and every path
-goes through it. It resets `StatesUsed` before parsing, which is what keeps the
-`States[MAX_GAME_PLIES]` array from accumulating across games.
+`engine_set_position` (and `engine_set_startpos`) is the single entry point for
+establishing a position, and every path in `uci.c`'s `cmd_position` goes through it.
+It calls `state_list_reset` before parsing, which returns the chain to its single
+root and is what keeps it from accumulating across games.
 
-That array is file-scope, and deliberately so: `pos_undo_move` and the repetition
-scan both follow `StateInfo::previous`, so a state allocated on `cmd_position`'s
-stack would leave the chain pointing into a dead frame the moment the handler
-returned. See [01-engine-board.md](01-engine-board.md). A chunked arena that grows
-by appending rather than reallocating would serve the same invariant — **once a
-state's address is handed out it must never move** — but the fixed array already
-does, so the shell owns this storage outright.
+The chain is an unbounded `StateList`, and deliberately so: `pos_undo_move` and the
+repetition scan both follow `StateInfo::previous`, so a state allocated on a
+handler's stack would leave the chain pointing into a dead frame the moment the
+handler returned. See [01-engine-board.md](01-engine-board.md). Each record is its
+own allocation that never moves once handed out, and the list has no bound —
+upstream's chain is a deque (engine.cpp:210), so a long analysis line of coordinate
+moves does not run into a cap.
 
 The FEN branch reassembles six space-separated fields into one buffer, stopping at
-`moves` or end of line, and bounded by the buffer size. If `pos_set` rejects the
-result, `set_position` falls back to the start position rather than leaving `Pos`
-unspecified — the `errors` golden case in
-[`../tools/cases/errors.uci`](../tools/cases/errors.uci) pins what a malformed FEN
-actually produces.
+`moves` or end of line, and bounded by the buffer size. `engine_set_position` returns
+the parse reason on a malformed record, and `cmd_position` **terminates** on it
+(`terminate_on_critical_error`) rather than answering for some other board — the
+`errors` golden case in [`../tools/cases/errors.uci`](../tools/cases/errors.uci) pins
+what a malformed FEN produces.
 
-Moves are applied one at a time with `move_from_uci`, which parses against the
-current position's legal moves, writing each move's NNUE deltas into the position's
-scratch slots. The walk stops at the first token that does not parse and at
-`MAX_GAME_PLIES`. It stops silently — an illegal move in a `moves` list truncates
-the game with no diagnostic.
+Moves are applied one at a time by `engine_play_move`, which parses each token with
+`move_from_uci` against the current position's legal moves and writes the move's NNUE
+deltas into the position's scratch slots. An illegal move or an exhausted chain is a
+**failed command** — `cmd_position` terminates on it, quoting the move, not a silent
+truncation of the game.
 
 ### go
 
@@ -224,30 +213,13 @@ Limits parsed: `depth`, `movetime`, `wtime`, `btime`, `winc`, `binc`, `movestogo
 When no limit at all is given, `cmd_go` sets `depth 8`. An unqualified `go` from a
 script would otherwise start an unbounded search that nothing can stop.
 
-**The parser eats a token after every valueless keyword, and the guard against it
-does not work.** The loop pulls a value token for every keyword before it knows
-whether the keyword takes one, so `infinite` and `ponder` each swallow whatever
-follows them. `infinite` carries an attempted fix — it assigns the lookahead back
-to `token` before `continue` — but the `for` statement's increment
-(`token = strtok(nullptr, ...)`) overwrites that assignment immediately, so the
-assignment is dead and the token is lost anyway. Drive it and see:
+The valueless keywords (`infinite`, `ponder`) are matched **first** and `continue`
+without reading a lookahead token, so they do not swallow the keyword that follows
+them (`go infinite depth 2` honours the depth). Every other keyword reads its single
+argument only once matched, upstream's shape (uci.cpp:192-225).
 
-```
-$ printf 'go infinite depth 2\n' | ./build/mcfish     # searches without a depth limit
-$ printf 'go depth 2 infinite\n' | ./build/mcfish     # honours depth 2
-```
-
-Keywords that take values are unaffected, and no golden case covers the broken
-ordering, so nothing fails. This is a defect, not a convention: do not write around
-it by fixing the argument order in a script.
-
-The ported [`uci_parse.c`](../src/shell/uci_parse.c) is the fix, and its
-contract is stricter than the current behaviour: **parsing is total** — no input
-crashes it and none is rejected mid-scan — and a value that will not convert is
-recorded in `bad_token` naming the **keyword**, not the offending value, because
-that is what upstream's post-scan `is.fail()` check reports.
-
-`go perft N` runs `perft` with `root = true` and prints the per-move split through
+`go perft N` runs `engine_perft` with `root = true` and prints the per-move split
+through
 the sink, then a `Nodes searched:` total on stdout. That total is what
 `./build.sh perft` greps.
 
@@ -331,10 +303,13 @@ stop taking effect.
 
 ### On-change callbacks
 
-`on_hash`, `on_threads`, `on_numa_policy`, `on_syzygy_path`, `on_debug_log_file`
-and `on_eval_file` are the seams through which a subsystem becomes reachable from a
-`setoption`. Each returns bare text or `nullptr`; the transport adds the
-`info string ` prefix, one line per line, as upstream's `print_info_string` does.
+`on_hash`, `on_clear_hash`, `on_threads`, `on_numa_policy`, `on_syzygy`,
+`on_debug_log_file` and `on_eval_file` (all in `engine.c`) are the seams through
+which a subsystem becomes reachable from a `setoption`. Each returns bare text or
+`nullptr`; the transport adds the `info string ` prefix, one line per line, as
+upstream's `print_info_string` does. `on_debug_log_file` reaches back into `uci.c`'s
+transport through `uci_start_logger`, because the log tees the stream the transport
+owns.
 
 **A callback whose subsystem is unported must say so.** Advertising a control that
 does nothing, in silence, is the one outcome worse than not advertising it: a GUI
@@ -389,40 +364,7 @@ identity: changing an entry is a behaviour change that cannot be compared agains
 upstream afterwards.
 
 `BenchFens` and `BenchFenCount` are exported from `benchmark.h` so other harnesses
-can walk the same position set.
-
-The ported [`uci_bench.c`](../src/shell/uci_bench.c) changes one thing that matters:
-it runs bench **through the engine's own UCI surface**, handing every script line to
-the injected dispatcher a GUI's input also reaches, so the signature measures the
-shipped command path rather than a private one that could drift from it.
-
-## What the rewiring commit owes
-
-[`../src/shell/PORT_NOTES_uci.md`](../src/shell/PORT_NOTES_uci.md) is the full list.
-The four decisions that are not mechanical:
-
-- **The node count has no publisher.** `uci_bench_run` reads each `go`'s node total
-  from `uci_output_last_nodes_searched()`, and **nothing sets it**. The search
-  driver must publish the count on completion, exactly as upstream's
-  `set_on_update_full` capture does. Until it does, bench through the dispatcher
-  totals zero — a silently wrong number, not an error.
-- **`engine.h` needs two functions it does not have**: an FEN accessor (so
-  `uci_bench.c` stops reaching through `engine_get_position()` and can drop its
-  `position.h` include entirely), and `engine_wait_for_search_finished()`, which is
-  a no-op while the search is synchronous and becomes required at M4.
-- **`START_FEN` is spelled three times** — in `uci.c`, as `UCI_START_FEN` in
-  `uci_strings.h`, and as `ENGINE_START_FEN` in `engine.h`. `uci_parse` cannot
-  include `engine.h` without dragging `position.h` into a leaf, so collapsing them
-  means moving the literal into a header both can reach.
-- **`uci_output.c` has no mutex, deliberately.** A lock is only needed once a
-  search thread and the listener can tear a line. `-lpthread` is on every link line
-  and the search is multi-threaded, but the live output path is still `uci.c`'s
-  `emit_stdout`; the lock lands when `uci_output.c` is wired in. The funnel is
-  preserved, so adding it is a one-function change — but it is a change that must
-  actually happen when the module is wired.
-
-One further deliberate divergence, already decided: `UciInput` bounds its line at
-64 KiB and sets `truncated` on overflow, consuming the tail so the next read starts
-on a line boundary. Upstream's `std::getline` is unbounded. The bounded form is
-strictly better behaved and 64 KiB is far past any reachable `position ... moves`
-line.
+can walk the same position set. `benchmark.c` drives the run **through the engine's
+own UCI surface** (`uci_execute`), handing every script line to the same dispatcher a
+GUI's input reaches, so the signature measures the shipped command path rather than a
+private one that could drift from it.

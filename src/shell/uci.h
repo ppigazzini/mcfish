@@ -1,9 +1,10 @@
-// Own the UCI protocol surface: the command loop, the option table, and every
-// line the engine prints.
+// Own the UCI protocol transport and the command dispatch: read a line, route it,
+// and print every byte the engine puts on the wire. The engine SESSION lives in
+// engine.c (engine.h); this file holds no engine state of its own.
 //
-// This is the only zone that touches stdio. The engine zone emits through the
-// sink `uci_loop` installs (search_set_output), which is what lets a gate drive a
-// search and read its output without a subprocess.
+// This is the only zone that touches stdio. The engine emits through the sink this
+// file installs via engine_set_output, which is what lets a gate drive a search and
+// read its output without a subprocess.
 
 #ifndef MCFISH_UCI_H
 #define MCFISH_UCI_H
@@ -13,6 +14,11 @@
 // Read commands from stdin until `quit` or EOF. Handle ARGC/ARGV as a single
 // command first, so `mcfish bench` and `mcfish "go depth 5"` work non-interactively.
 void uci_loop(int argc, char **argv);
+
+// Open FNAME as the session log, closing any previous one, or close the log when
+// FNAME is empty. This is the transport tee behind the `Debug Log File` option, so
+// engine.c's on-change callback reaches it here. Exits on a path it cannot open.
+void uci_start_logger(const char *fname);
 
 // Run one command through the same handler the loop uses, so bench drives the
 // engine over the real UCI surface rather than a private path. A second entry
