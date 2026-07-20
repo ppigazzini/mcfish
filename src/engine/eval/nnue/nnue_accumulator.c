@@ -233,11 +233,35 @@ static void apply_combined_psqt_delta(int32_t *target,
                                       size_t thr_added_len,
                                       const int32_t *psq_weights,
                                       const int32_t *thr_weights) {
-    memcpy(target, source, NNUE_PSQT_BUCKETS * sizeof(int32_t));
-    apply_psqt_delta_in_place(target, psq_removed, psq_removed_len, psq_added, psq_added_len,
-                              psq_weights);
-    apply_psqt_delta_in_place(target, thr_removed, thr_removed_len, thr_added, thr_added_len,
-                              thr_weights);
+    // Hold the 8 psqt buckets in a local so clang keeps them register-resident across
+    // all four lists, instead of a memcpy to `target` then two more passes each
+    // reloading target[] through a pointer whose aliasing blocks the optimizer. One
+    // load from source, one store to target; upstream's register-held psqt path.
+    int32_t acc[NNUE_PSQT_BUCKETS];
+    for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
+        acc[b] = source[b];
+    for (size_t i = 0; i < psq_removed_len; i++) {
+        const size_t row = (size_t) psq_removed[i] * NNUE_PSQT_BUCKETS;
+        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
+            acc[b] -= psq_weights[row + b];
+    }
+    for (size_t i = 0; i < psq_added_len; i++) {
+        const size_t row = (size_t) psq_added[i] * NNUE_PSQT_BUCKETS;
+        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
+            acc[b] += psq_weights[row + b];
+    }
+    for (size_t i = 0; i < thr_removed_len; i++) {
+        const size_t row = (size_t) thr_removed[i] * NNUE_PSQT_BUCKETS;
+        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
+            acc[b] -= thr_weights[row + b];
+    }
+    for (size_t i = 0; i < thr_added_len; i++) {
+        const size_t row = (size_t) thr_added[i] * NNUE_PSQT_BUCKETS;
+        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
+            acc[b] += thr_weights[row + b];
+    }
+    for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
+        target[b] = acc[b];
 }
 
 // ---------------------------------------------------------------------------
