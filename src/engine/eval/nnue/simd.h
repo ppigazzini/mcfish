@@ -246,9 +246,12 @@ static inline uint32_t nnue_v16u32_movemask(NnueV16u32 v) {
 #endif
 }
 
-// Affine post-activation tile: 8 int32_t lanes.
+// Affine post-activation tile: 16 int32_t lanes for the clipped-ReLU sweep, plus an
+// 8-lane tile the psqt refresh path pins to NNUE_PSQT_BUCKETS.
 NNUE_SIMD_TYPE(NnueV8i32, int32_t, 8);
 NNUE_SIMD_FAMILY(nnue_v8i32, NnueV8i32, int32_t, 8);
+NNUE_SIMD_TYPE(NnueV16i32, int32_t, 16);
+NNUE_SIMD_FAMILY(nnue_v16i32, NnueV16i32, int32_t, 16);
 
 // Affine dot-product tiles. The lane count is the layer's OUT*4, because the
 // int8 weight layout interleaves each output's four sublanes; see nnue_affine.h.
