@@ -148,37 +148,6 @@ uint64_t nnue_bb_pseudo_attacks(uint8_t piece_type, unsigned square) {
     }
 }
 
-uint64_t nnue_bb_pieces_of_exact(const uint8_t *pieces, uint8_t wanted) {
-    uint64_t bitboard = 0;
-    for (unsigned square = 0; square < NNUE_BB_SQUARE_COUNT; square++) {
-        if (pieces[square] == wanted) {
-            bitboard |= nnue_bb_square(square);
-        }
-    }
-    return bitboard;
-}
-
-uint64_t nnue_bb_pieces_of_type(const uint8_t *pieces, uint8_t wanted_type) {
-    uint64_t bitboard = 0;
-    for (unsigned square = 0; square < NNUE_BB_SQUARE_COUNT; square++) {
-        const uint8_t piece = pieces[square];
-        if (piece != NNUE_BB_NO_PIECE && nnue_bb_type_of(piece) == wanted_type) {
-            bitboard |= nnue_bb_square(square);
-        }
-    }
-    return bitboard;
-}
-
-uint64_t nnue_bb_occupied_from_pieces(const uint8_t *pieces) {
-    uint64_t bitboard = 0;
-    for (unsigned square = 0; square < NNUE_BB_SQUARE_COUNT; square++) {
-        if (pieces[square] != NNUE_BB_NO_PIECE) {
-            bitboard |= nnue_bb_square(square);
-        }
-    }
-    return bitboard;
-}
-
 void nnue_bb_make_piece_indices_type(uint8_t piece_type, uint8_t out[64][64]) {
     for (unsigned from = 0; from < 64; from++) {
         const uint64_t attacks = nnue_bb_pseudo_attacks(piece_type, from);

@@ -291,11 +291,11 @@ static void append_active_pawn_threats(NnueFullAppendResult *result,
                                        const uint8_t *pieces,
                                        uint64_t occupied,
                                        uint64_t pawns,
+                                       uint64_t color_pawns,
                                        uint8_t perspective,
                                        uint8_t color,
                                        uint8_t king_square) {
     const uint8_t attacker = nnue_bb_make_piece(color, NNUE_BB_PAWN);
-    const uint64_t color_pawns = nnue_bb_pieces_of_exact(pieces, attacker);
     const uint64_t pushers = nnue_bb_pawn_single_push((uint8_t) (color ^ 1), pawns) & color_pawns;
 
     if (color == NNUE_BB_WHITE) {
@@ -322,18 +322,26 @@ static void append_active_pawn_threats(NnueFullAppendResult *result,
 void nnue_full_append_active(uint8_t perspective,
                              uint8_t king_square,
                              const uint8_t *board,
+                             const uint64_t *by_type,
+                             const uint64_t *by_color,
                              NnueFullAppendResult *out) {
-    const uint64_t occupied = nnue_bb_occupied_from_pieces(board);
-    const uint64_t pawns = nnue_bb_pieces_of_type(board, NNUE_BB_PAWN);
+    // Read the piece sets from the Position's cached bitboards (by_type index 0 is the
+    // occupancy, and by_color[c] & by_type[pt] is the exact (colour, type) set --
+    // identical to scanning board[] because the nnue_bb piece/square encoding matches
+    // the engine's) instead of rebuilding ~10 bitboards by 64-square scans per refresh.
+    const uint64_t occupied = by_type[0];
+    const uint64_t pawns = by_type[NNUE_BB_PAWN];
 
     out->len = 0;
     for (uint8_t color_index = 0; color_index < 2; color_index++) {
         const uint8_t color = (uint8_t) (perspective ^ color_index);
-        append_active_pawn_threats(out, board, occupied, pawns, perspective, color, king_square);
+        const uint64_t color_pawns = by_color[color] & by_type[NNUE_BB_PAWN];
+        append_active_pawn_threats(out, board, occupied, pawns, color_pawns, perspective, color,
+                                   king_square);
 
         for (uint8_t piece_type = NNUE_BB_KNIGHT; piece_type < NNUE_BB_KING; piece_type++) {
             const uint8_t attacker = nnue_bb_make_piece(color, piece_type);
-            uint64_t attackers = nnue_bb_pieces_of_exact(board, attacker);
+            uint64_t attackers = by_color[color] & by_type[piece_type];
             while (attackers != 0) {
                 const unsigned from = nnue_bb_pop_lsb(&attackers);
                 uint64_t attacks = nnue_bb_attacks(piece_type, from, occupied) & occupied;

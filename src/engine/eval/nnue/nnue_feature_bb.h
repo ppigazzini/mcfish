@@ -95,11 +95,6 @@ uint64_t nnue_bb_attacks(uint8_t piece_type, unsigned square, uint64_t occupied)
 // Return PIECE_TYPE's attack set from SQUARE on an empty board.
 uint64_t nnue_bb_pseudo_attacks(uint8_t piece_type, unsigned square);
 
-// Fold a 64-entry piece array into a bitboard. PIECES must have 64 entries.
-uint64_t nnue_bb_pieces_of_exact(const uint8_t *pieces, uint8_t wanted);
-uint64_t nnue_bb_pieces_of_type(const uint8_t *pieces, uint8_t wanted_type);
-uint64_t nnue_bb_occupied_from_pieces(const uint8_t *pieces);
-
 static inline uint64_t nnue_bb_pawn_single_push(uint8_t color, uint64_t bitboard) {
     return color == NNUE_BB_WHITE ? nnue_bb_shift(NNUE_BB_NORTH, bitboard)
                                   : nnue_bb_shift(NNUE_BB_SOUTH, bitboard);

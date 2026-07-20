@@ -137,6 +137,8 @@ void nnue_full_append_changed(uint8_t perspective,
 void nnue_full_append_active(uint8_t perspective,
                              uint8_t king_square,
                              const uint8_t *board,
+                             const uint64_t *by_type,
+                             const uint64_t *by_color,
                              NnueFullAppendResult *out);
 
 // Report whether a king move crossing the board's centre file invalidates PERSPECTIVE's
