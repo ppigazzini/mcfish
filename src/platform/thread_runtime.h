@@ -9,7 +9,7 @@
 // Wrap pthreads: they supply exactly the std::mutex / std::condition_variable pair
 // upstream uses, so there is no reason to re-derive a futex protocol here.
 //
-// Upstream: thread.h:60 (mutex, cv), thread.h:105 (the pool's stop flag).
+// Upstream: thread.h:102-103 (mutex, cv), thread.h:157 (the pool's stop flag).
 
 #ifndef MCFISH_THREAD_RUNTIME_H
 #define MCFISH_THREAD_RUNTIME_H
@@ -47,8 +47,8 @@ void condition_broadcast(Condition *cv);
 //
 // AtomicBool is SEQUENTIALLY CONSISTENT, because upstream's `stop`, `increaseDepth` and
 // `ponder` are plain `std::atomic_bool` assignments and reads (thread.h:157) and only two
-// sites in the whole engine opt out -- the two in-tree abort checks, search.cpp:770 and
-// search.cpp:1403, which say `memory_order_relaxed` explicitly. Making every access
+// sites in the whole engine opt out -- the two in-tree abort checks, search.cpp:771 and
+// search.cpp:1405, which say `memory_order_relaxed` explicitly. Making every access
 // relaxed is not a free optimisation: `stop` is raised by one thread and must be seen by
 // the ID loop of every other, and under relaxed ordering the compiler may hoist the load
 // out of the depth loop entirely, so a `stop` arrives only when some unrelated barrier

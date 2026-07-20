@@ -242,10 +242,10 @@ static inline int16_t *capture_entry(Histories *h, Piece pc, Square to, PieceTyp
 // Call once per `ucinewgame`, on every worker.
 void history_clear(Histories *h, size_t numa_thread_idx, size_t numa_total);
 
-// Decay the main history once per iterative-deepening iteration: v * 729 / 1024.
+// Decay the main history once per search (before the ID loop): v * 729 / 1024.
 void history_age_main(Histories *h);
 
-// Refill the low-ply history with 100, once per search.
+// Refill the low-ply history with 102, once per search.
 void history_fill_low_ply(Histories *h);
 
 // Apply BONUS to the main / low-ply / continuation / pawn histories for MOVE.

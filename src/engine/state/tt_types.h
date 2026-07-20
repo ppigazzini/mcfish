@@ -7,8 +7,8 @@
 // exactly 32 bytes: the entries plus two bytes of explicit padding, so a cluster never
 // straddles a cache line in a 64-byte-aligned table.
 //
-// Upstream: tt.h:60 (TTEntry), tt.cpp:29 (Cluster, ClusterSize), tt.h:104
-// (TranspositionTable).
+// Upstream: tt.cpp:62 (TTEntry), tt.cpp:154 (ClusterSize), tt.cpp:156 (Cluster),
+// tt.h:79 (TranspositionTable).
 
 #ifndef MCFISH_TT_TYPES_H
 #define MCFISH_TT_TYPES_H

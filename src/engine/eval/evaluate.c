@@ -147,7 +147,7 @@ bool eval_nnue_load(const char *root_directory, const char *evalfile_path) {
     const NetworkVerifyResult result = network_verify(evalfile_path, name_len);
 
     // Diverge from upstream here on purpose: Network::verify calls exit(EXIT_FAILURE)
-    // on a net it could not load (network.cpp:188). mcfish must keep playing on the
+    // on a net it could not load (network.cpp:187). mcfish must keep playing on the
     // classical fallback instead, so report the failure and carry on.
     if (result.should_exit) {
         snprintf(StatusMessage, sizeof StatusMessage,
@@ -232,8 +232,8 @@ void eval_acc_pop(EvalArena *arena) {
 // ---------------------------------------------------------------------------
 
 // Bound the evaluation away from the tablebase range, as upstream's
-// VALUE_TB_WIN_IN_MAX_PLY does. mcfish has no tablebase sentinels yet, so derive
-// the same figure from VALUE_MATE and MAX_PLY rather than pin a literal.
+// VALUE_TB_WIN_IN_MAX_PLY does. This equals score.h's VALUE_TB_WIN_IN_MAX_PLY,
+// re-derived here from VALUE_MATE and MAX_PLY rather than pinned as a literal.
 enum { EVAL_TB_WIN_IN_MAX_PLY = VALUE_MATE_IN_MAX_PLY - MAX_PLY - 1 };
 
 static int64_t abs64(int64_t v) { return v < 0 ? -v : v; }

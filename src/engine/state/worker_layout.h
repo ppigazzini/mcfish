@@ -20,7 +20,7 @@
 // `nodes`, `tb_hits` and `best_move_changes` are read by other workers only for
 // reporting; NO SEARCH DECISION MAY BE TAKEN ON ANOTHER WORKER'S COUNTER.
 //
-// Upstream: search.h:311 (Worker), search.h:242 (SearchManager), thread.h (ThreadPool).
+// Upstream: search.h:312 (Worker), search.h:265 (SearchManager), thread.h (ThreadPool).
 
 #ifndef MCFISH_WORKER_LAYOUT_H
 #define MCFISH_WORKER_LAYOUT_H
@@ -47,7 +47,7 @@
 // `ponder` is polled by the search while the input thread writes it, so the two accesses
 // to the one location are both atomic.
 //
-// Upstream: search.h:242 (SearchManager).
+// Upstream: search.h:265 (SearchManager).
 typedef struct {
     TimeManagement tm;
     double original_time_adjust;

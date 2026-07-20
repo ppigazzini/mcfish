@@ -432,7 +432,7 @@ set_dtz_map(TBTable *t, const uint8_t *buf, size_t buf_len, size_t *pos, size_t 
     return *pos <= buf_len;
 }
 
-// Port upstream `set` (syzygy/tbprobe.cpp:1206), one function over WDL and DTZ.
+// Port upstream `set` (syzygy/tbprobe.cpp:1193), one function over WDL and DTZ.
 // BUF is the whole mapped file; parsing starts after the 4-byte magic. Return
 // false on a truncated or corrupt file, which leaves the table unusable.
 static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {

@@ -41,10 +41,9 @@ bool pos_has_repeated(const Position *pos);
 // no-progress-cycle test. Matches the outcome of pos_is_draw over all legal moves.
 bool pos_upcoming_repetition(const Position *pos, int ply);
 
-// Read StateInfo::repetition (maintained by pos_do_move, position.c).
-// `StateInfo` carries `int repetition` and `pos_do_move` fills it — see
-// PORT_NOTES_board.md. Until then this reads zero and every query above degrades
-// to "never repeated": the module is faithful, its input is not yet wired.
+// Read StateInfo::repetition, maintained by pos_do_move (position.c) as a mirror
+// of Stockfish/src/position.cpp:1048-1062: `StateInfo` carries `int repetition`
+// and every make/unmake fills it, so the queries above are live.
 static inline int state_repetition(const StateInfo *si) { return si->repetition; }
 
 #endif  // MCFISH_REPETITION_H

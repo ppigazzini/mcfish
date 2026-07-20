@@ -130,7 +130,7 @@ static size_t activation_content_hash(void) {
 uint32_t nnue_architecture_hash_value(void) {
     uint32_t hv = 0xEC42E90Du;
     hv ^= (uint32_t) NNUE_HALF_DIMENSIONS * 2u;  // TransformedFeatureDimensions * 2
-    hv = affine_hash_value(hv, 32);              // fc_0, OutputDimensions = FC_0_OUTPUTS + 1
+    hv = affine_hash_value(hv, 32);              // fc_0, OutputDimensions = FC_0_OUTPUTS
     hv = NNUE_CLIPPED_BASE + hv;                 // ac_0
     hv = affine_hash_value(hv, 32);              // fc_1, FC_1_OUTPUTS
     hv = NNUE_CLIPPED_BASE + hv;                 // ac_1

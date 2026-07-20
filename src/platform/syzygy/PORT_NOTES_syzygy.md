@@ -25,9 +25,10 @@ prober only through the `tb_source.h` function pointers.
   does the same. The day that parameter is read, both syzygy call sites must pass
   `search_gives_check(pos, m)`, as upstream's `search<CheckZeroingMoves>` does via
   the two-argument `do_move`.
-- **No `d`-command probe lines.** Upstream prints `Tablebases WDL:` /
-  `Tablebases DTZ:`; mcfish has no such inspection surface, so there is no
-  per-position probe output to gate.
+- **`d`-command probe lines.** Upstream prints `Tablebases WDL:` /
+  `Tablebases DTZ:`; mcfish emits the same lines from `uci.c`
+  (`print_tablebase_lines`) once a `SyzygyPath` covers the position, and
+  `tools/tb_cursed.golden` gates them.
 - **The `tb` gate is 3-man only.** The cursed-win / blessed-loss branches of
   `map_score_dtz` and `probe_dtz` need DTZ > 100, reachable only from 5-man
   tables, and are unexercised.

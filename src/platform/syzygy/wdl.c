@@ -334,7 +334,7 @@ TbProbeValue search_wdl(Position *pos, bool check_zeroing) {
         ++move_count;
         // The `false` is a placeholder, not a claim that M gives no check.
         // pos_do_move ignores the parameter today — set_check_info recomputes the
-        // checkers from the board (position.c:621) — so every caller in the tree
+        // checkers from the board (position.c:148, called from do_move) — so every caller
         // passes something inert here. Upstream's `search<CheckZeroingMoves>` uses
         // the two-argument do_move, which computes `pos.gives_check(m)` itself. The
         // day pos_do_move starts trusting this argument, this call and the one in

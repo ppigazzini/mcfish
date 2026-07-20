@@ -12,8 +12,9 @@
 // reaches into the search zone. The pool owns the Thread objects; the builder owns
 // whatever it hangs off each thread's `worker` slot and takes it back through `destroy`.
 //
-// Upstream: thread.cpp:11 (ThreadPool::set clears boundThreadToNumaNode), thread.cpp:37
-// (and assigns it further down), thread.cpp:170 (clear), thread.cpp:243 (start_searching).
+// Upstream: thread.cpp:152 (ThreadPool::set clears boundThreadToNumaNode at :162),
+// thread.cpp:188 (and assigns it further down), thread.cpp:254 (clear), thread.cpp:406
+// (start_searching).
 
 #ifndef MCFISH_THREAD_POOL_H
 #define MCFISH_THREAD_POOL_H
@@ -66,8 +67,9 @@ typedef struct {
 
     ThreadBuilder builder;
 
-    // Share these two with the search. Relaxed: they are polled, not used to hand memory
-    // between threads.
+    // Share these two with the search. Sequentially consistent (see thread_runtime.h):
+    // they are polled across threads, so a raised flag must be seen without waiting on an
+    // unrelated barrier.
     AtomicBool stop;
     AtomicBool increase_depth;
 } ThreadPool;
@@ -80,7 +82,7 @@ void thread_pool_init(ThreadPool *pool);
 
 // Build COUNT threads and attach a Worker to each. Clear any previous pool first, along
 // with the bound-node vector -- upstream clears it in set() and assigns it further down
-// (thread.cpp:11, thread.cpp:37), so an assignment made before set() is silently undone.
+// (thread.cpp:162, thread.cpp:188), so an assignment made before set() is silently undone.
 //
 // Pass NUMA_CTX and BIND_NODES together to bind: each thread confines itself to
 // BIND_NODES[i]'s CPUs before its Worker is built. Pass either as null to leave every

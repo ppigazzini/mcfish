@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 // Park the thread, run whatever job arrives, repeat until told to exit. Mirror upstream's
-// Thread::idle_loop (thread.cpp:82).
+// Thread::idle_loop (thread.cpp:121).
 static void *idle_loop(void *arg) {
     Thread *t = (Thread *) arg;
 
