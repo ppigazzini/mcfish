@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
 
     // Build the NNUE feature tables and arenas in the same phase: they are zero,
     // not garbage, beforehand, so a missing call is a silent all-zero feature set
-    // rather than a crash (eval/nnue/PORT_NOTES_accumulator.md §5). The net itself
+    // rather than a crash. The net itself
     // is loaded by the UCI layer, which owns the EvalFile option.
     eval_nnue_init();
 

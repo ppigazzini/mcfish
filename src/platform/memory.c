@@ -2,7 +2,7 @@
 // all sit behind glibc's __USE_MISC/__USE_GNU guards, which -D_POSIX_C_SOURCE=200809L
 // alone does not open. Without it the huge-page advisory would silently compile away
 // under the `#if defined(MADV_HUGEPAGE)` below -- a fallback that looks clean and is
-// simply wrong. See PORT_NOTES_platform.md for the build.sh change that removes this.
+// simply wrong.
 #define _GNU_SOURCE
 
 #include "memory.h"
