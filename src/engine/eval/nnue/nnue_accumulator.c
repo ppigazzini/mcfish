@@ -107,8 +107,56 @@ enum { ROW_TILE_WIDTH = 64 };
 static_assert(NNUE_HALF_DIMENSIONS % ROW_TILE_WIDTH == 0,
               "NNUE_HALF_DIMENSIONS must be a multiple of ROW_TILE_WIDTH");
 
-// Set the lane count for the transform's clipped-ReLU pass.
+// Set the lane count for the transform's clipped-ReLU pass. As with the row tile, the avx512
+// build sweeps to 128 (4 steps over the 512-wide half-output, one 32-group nnz movemask per
+// step); the narrower tiers keep 64, where the wider tile spills too many vector registers.
+// The tile's types and ops are reached through width-selected macros so both tiers share one
+// loop body.
+#if defined(__AVX512F__)
+enum { TRANSFORM_VEC_WIDTH = 128 };
+    #define TfI16 NnueV128i16
+    #define TfU16 NnueV128u16
+    #define TfU32 NnueV128u32
+    #define TfU8 NnueV128u8
+    #define TfGroups NnueV32u32
+    #define tf_i16_splat nnue_v128i16_splat
+    #define tf_i16_load nnue_v128i16_load
+    #define tf_i16_max nnue_v128i16_max
+    #define tf_i16_min nnue_v128i16_min
+    #define tf_i16_to_u16 nnue_v128_i16_to_u16
+    #define tf_u16_shl nnue_v128u16_shl
+    #define tf_u16_to_u32 nnue_v128_u16_to_u32
+    #define tf_u32_mul nnue_v128u32_mul
+    #define tf_u32_shr nnue_v128u32_shr
+    #define tf_u32_to_u16 nnue_v128_u32_to_u16
+    #define tf_u16_to_u8 nnue_v128_u16_to_u8
+    #define tf_u8_store nnue_v128u8_store
+    #define tf_u8_as_groups nnue_v128_u8_as_u32x32
+    #define tf_movemask nnue_v32u32_movemask
+#else
 enum { TRANSFORM_VEC_WIDTH = 64 };
+    #define TfI16 NnueV64i16
+    #define TfU16 NnueV64u16
+    #define TfU32 NnueV64u32
+    #define TfU8 NnueV64u8
+    #define TfGroups NnueV16u32
+    #define tf_i16_splat nnue_v64i16_splat
+    #define tf_i16_load nnue_v64i16_load
+    #define tf_i16_max nnue_v64i16_max
+    #define tf_i16_min nnue_v64i16_min
+    #define tf_i16_to_u16 nnue_v64_i16_to_u16
+    #define tf_u16_shl nnue_v64u16_shl
+    #define tf_u16_to_u32 nnue_v64_u16_to_u32
+    #define tf_u32_mul nnue_v64u32_mul
+    #define tf_u32_shr nnue_v64u32_shr
+    #define tf_u32_to_u16 nnue_v64_u32_to_u16
+    #define tf_u16_to_u8 nnue_v64_u16_to_u8
+    #define tf_u8_store nnue_v64u8_store
+    #define tf_u8_as_groups nnue_v64_u8_as_u32x16
+    #define tf_movemask nnue_v16u32_movemask
+#endif
+static_assert((NNUE_HALF_DIMENSIONS / 2) % TRANSFORM_VEC_WIDTH == 0,
+              "the transform half-output must be a multiple of TRANSFORM_VEC_WIDTH");
 
 // Widen an int8 weight row tile to the int16 accumulator's lane width, carried as
 // uint16_t so the accumulation wraps rather than overflowing (see simd.h).
@@ -708,8 +756,8 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
     // product 128*c0*c1 is exact and >>16 is floor, so this is bit-identical to the
     // int32 clamp*mul>>9 path — integer throughout, no rounding.
     const size_t half = NNUE_HALF_DIMENSIONS / 2;
-    const NnueV64i16 zero = nnue_v64i16_splat(0);
-    const NnueV64i16 c255 = nnue_v64i16_splat(255);
+    const TfI16 zero = tf_i16_splat(0);
+    const TfI16 c255 = tf_i16_splat(255);
 
     memset(nnz, 0, sizeof(NnueNnzBitset));
 
@@ -718,26 +766,23 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
         const size_t offset = half * p;
         const size_t base = pp * NNUE_HALF_DIMENSIONS;
         for (size_t j = 0; j < half; j += TRANSFORM_VEC_WIDTH) {
-            const NnueV64i16 s0 = nnue_v64i16_load(comb_acc + base + j);
-            const NnueV64i16 s1 = nnue_v64i16_load(comb_acc + base + j + half);
-            const NnueV64u16 c0 =
-              nnue_v64_i16_to_u16(nnue_v64i16_max(zero, nnue_v64i16_min(c255, s0)));
-            const NnueV64u16 c1 =
-              nnue_v64_i16_to_u16(nnue_v64i16_max(zero, nnue_v64i16_min(c255, s1)));
-            const NnueV64u32 lhs = nnue_v64_u16_to_u32(nnue_v64u16_shl(c0, 7));
-            const NnueV64u32 rhs = nnue_v64_u16_to_u32(c1);
-            const NnueV64u16 q =
-              nnue_v64_u32_to_u16(nnue_v64u32_shr(nnue_v64u32_mul(lhs, rhs), 16));
-            const NnueV64u8 bytes = nnue_v64_u16_to_u8(q);
-            nnue_v64u8_store(output + offset + j, bytes);
+            const TfI16 s0 = tf_i16_load(comb_acc + base + j);
+            const TfI16 s1 = tf_i16_load(comb_acc + base + j + half);
+            const TfU16 c0 = tf_i16_to_u16(tf_i16_max(zero, tf_i16_min(c255, s0)));
+            const TfU16 c1 = tf_i16_to_u16(tf_i16_max(zero, tf_i16_min(c255, s1)));
+            const TfU32 lhs = tf_u16_to_u32(tf_u16_shl(c0, 7));
+            const TfU32 rhs = tf_u16_to_u32(c1);
+            const TfU16 q = tf_u32_to_u16(tf_u32_shr(tf_u32_mul(lhs, rhs), 16));
+            const TfU8 bytes = tf_u16_to_u8(q);
+            tf_u8_store(output + offset + j, bytes);
 
             // Record which 4-byte chunks are non-zero while they are still in a register:
             // no reload of what was just stored.
-            const NnueV16u32 groups = nnue_v64_u8_as_u32x16(bytes);
+            const TfGroups groups = tf_u8_as_groups(bytes);
 
             // Build the non-zero-chunk mask with one horizontal movemask (compare-to-zero
-            // + reduce-OR) rather than sixteen per-lane extract+compare+shift+OR.
-            const uint64_t mask = nnue_v16u32_movemask(groups);
+            // + reduce-OR) rather than a per-lane extract+compare+shift+OR each group.
+            const uint64_t mask = tf_movemask(groups);
             const size_t bit = (offset + j) / 4;
             (*nnz)[bit / 64] |= mask << (bit % 64);
         }

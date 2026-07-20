@@ -274,6 +274,39 @@ NNUE_SIMD_CONVERT(nnue_v128_u8_to_i32, NnueV128i32, NnueV128u8)
 NNUE_SIMD_CONVERT(nnue_v128_i8_to_i16, NnueV128i16, NnueV128i8)
 NNUE_SIMD_REINTERPRET(nnue_v128_i16_as_u16, NnueV128u16, NnueV128i16)
 
+// Wide feature-transformer output tile: 128 lanes, for TRANSFORM_VEC_WIDTH 128 on avx512.
+// Reuses NnueV128i16/NnueV128u16 (row-tile block) and NnueV128u8 (affine block); adds the
+// u32 product stage and the 32-group nnz movemask.
+NNUE_SIMD_TYPE(NnueV128u32, uint32_t, 128);
+NNUE_SIMD_TYPE(NnueV32u32, uint32_t, 32);
+NNUE_SIMD_FAMILY(nnue_v128u32, NnueV128u32, uint32_t, 128);
+NNUE_SIMD_FAMILY(nnue_v32u32, NnueV32u32, uint32_t, 32);
+NNUE_SIMD_CONVERT(nnue_v128_i16_to_u16, NnueV128u16, NnueV128i16)
+NNUE_SIMD_CONVERT(nnue_v128_u16_to_u32, NnueV128u32, NnueV128u16)
+NNUE_SIMD_CONVERT(nnue_v128_u32_to_u16, NnueV128u16, NnueV128u32)
+NNUE_SIMD_CONVERT(nnue_v128_u16_to_u8, NnueV128u8, NnueV128u16)
+NNUE_SIMD_REINTERPRET(nnue_v128_u8_as_u32x32, NnueV32u32, NnueV128u8)
+
+// The 32-bit movemask over 4-byte groups (see nnue_v16u32_movemask for the DEFINED-ops
+// rationale). Port of zfish d27ab1438 at the 128-lane width.
+static inline uint32_t nnue_v32u32_movemask(NnueV32u32 v) {
+#if MCFISH_SIMD_VECTOR && defined(__has_builtin) && __has_builtin(__builtin_reduce_or)
+    const NnueV32u32 lane_bits = {
+        1u << 0,  1u << 1,  1u << 2,  1u << 3,  1u << 4,  1u << 5,  1u << 6,  1u << 7,
+        1u << 8,  1u << 9,  1u << 10, 1u << 11, 1u << 12, 1u << 13, 1u << 14, 1u << 15,
+        1u << 16, 1u << 17, 1u << 18, 1u << 19, 1u << 20, 1u << 21, 1u << 22, 1u << 23,
+        1u << 24, 1u << 25, 1u << 26, 1u << 27, 1u << 28, 1u << 29, 1u << 30, 1u << 31,
+    };
+    const NnueV32u32 nonzero = v != nnue_v32u32_splat(0);
+    return (uint32_t) __builtin_reduce_or(nonzero & lane_bits);
+#else
+    uint32_t mask = 0;
+    for (size_t g = 0; g < 32; g++)
+        mask |= (uint32_t) (nnue_v32u32_lane(v, g) != 0) << g;
+    return mask;
+#endif
+}
+
 NNUE_SIMD_TYPE(NnueV4i32, int32_t, 4);
 NNUE_SIMD_TYPE(NnueV4i8, int8_t, 4);
 NNUE_SIMD_TYPE(NnueV4u8, uint8_t, 4);
