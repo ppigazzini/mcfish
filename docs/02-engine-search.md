@@ -536,8 +536,7 @@ replaced by a later iteration that failed to re-find it.
 
 ## What is still not upstream's
 
-[`../src/engine/search/PORT_NOTES_search_zone.md`](../src/engine/search/PORT_NOTES_search_zone.md)
-is the file-by-file map. What the live zone does not yet do:
+What the live zone does not yet do:
 
 - **The option model is installed, and its fallback is still a trap.** `uci_loop`
   registers the shell's table behind the `option_source` seam with

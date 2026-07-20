@@ -169,7 +169,7 @@ static inline bool search_capture_stage(const Position *pos, Move m) {
 }
 
 // Test whether M is pseudo-legal for POS. Belongs in the board zone as
-// pos_pseudo_legal (PORT_NOTES_search.md §1); carried here until that lands,
+// pos_pseudo_legal; carried here until that lands,
 // because MovePicker returns the TT move unchecked and pos_legal is only defined
 // on pseudo-legal input.
 bool search_pseudo_legal(const Position *pos, Move m);

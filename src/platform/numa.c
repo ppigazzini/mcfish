@@ -1,6 +1,6 @@
 // Define _GNU_SOURCE before any libc header: cpu_set_t, CPU_SET/CPU_ISSET and
 // sched_getaffinity sit behind glibc's __USE_GNU guard, which -D_POSIX_C_SOURCE=200809L
-// alone does not open. See PORT_NOTES_platform.md.
+// alone does not open.
 #define _GNU_SOURCE
 
 #include "numa.h"

@@ -1,6 +1,6 @@
 // Define _GNU_SOURCE before any libc header: cpu_set_t, CPU_SET, sched_setaffinity and
 // _SC_NPROCESSORS_ONLN all sit behind glibc's __USE_GNU/__USE_MISC guards, which
-// -D_POSIX_C_SOURCE=200809L alone does not open. See PORT_NOTES_platform.md.
+// -D_POSIX_C_SOURCE=200809L alone does not open.
 #define _GNU_SOURCE
 
 #include "thread.h"

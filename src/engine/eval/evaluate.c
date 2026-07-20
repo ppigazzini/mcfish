@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 // Own the two arenas ONE worker evaluates through. Only the feature-transformer blob
-// is shared, and it is read-only (nnue/PORT_NOTES_accumulator.md §6); everything here
+// is shared, and it is read-only; everything here
 // is a running diff of one recursion's board and must never be shared between
 // workers.
 //
@@ -47,7 +47,7 @@ static bool NetLoaded = false;
 static uint64_t NetGeneration = 0;
 static char StatusMessage[512] = "";
 
-// Assert the contract PORT_NOTES_accumulator.md states: the board zone writes
+// Assert the DirtyPiece/DirtyThreats contract: the board zone writes
 // through DirtyPiece / DirtyThreats and the accumulator reads the same bytes back
 // as NnueDirtyPiece / NnueDirtyThreats, so the two pairs must be byte-identical
 // views. Pin every field the decoders address.

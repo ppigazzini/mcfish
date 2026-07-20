@@ -8,8 +8,7 @@
 // refresh when a king move invalidated the bucketed features. So the diffs are not
 // optional bookkeeping: EVERY make/unmake must push and pop, and every make must fill the
 // records `nnue_acc_stack_push` hands back, or the accumulator silently describes a
-// different position than the board does. See PORT_NOTES_accumulator.md for the exact
-// Position hooks this needs.
+// different position than the board does.
 //
 // Both arenas are raw byte buffers the CALLER owns and allocates, 64-byte aligned, sized
 // by `nnue_accumulator_stack_bytes` / `nnue_refresh_cache_bytes`. They are opaque
@@ -39,7 +38,7 @@ enum {
 };
 
 // Hold the per-move threat deltas one ply records. Layout-identical to the board zone's
-// DirtyThreats — see PORT_NOTES_accumulator.md.
+// DirtyThreats.
 typedef struct NnueDirtyThreatList {
     NnueDirtyThreatRaw values[NNUE_DIRTY_THREAT_CAPACITY];
     size_t size;
