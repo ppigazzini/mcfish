@@ -489,18 +489,24 @@ static void cmd_go(char *args) {
     SearchLimits limits = { 0 };
 
     for (char *token = strtok(args, " \t\n"); token; token = strtok(nullptr, " \t\n")) {
-        char *value = strtok(nullptr, " \t\n");
-
+        // Zero-argument keywords first, reading NO lookahead token: upstream sets
+        // these from the bare token (uci.cpp:221-224). Reading an argument here
+        // would swallow the token that follows -- `go ponder wtime 1000` and
+        // `go infinite depth 5` must still see the keyword after the flag.
         if (strcmp(token, "infinite") == 0) {
             limits.infinite = true;
-            if (value)
-                token = value;  // `infinite` takes no argument; do not swallow the next one
             continue;
         }
         if (strcmp(token, "ponder") == 0) {
             limits.ponder = true;
             continue;
         }
+
+        // Every keyword below takes exactly one argument; read it only now, with
+        // the keyword already in hand, so a flag or an unrecognised token never
+        // consumes the next one (upstream reads the argument inside the matching
+        // branch, uci.cpp:192-225).
+        char *value = strtok(nullptr, " \t\n");
         if (!value)
             break;
 
