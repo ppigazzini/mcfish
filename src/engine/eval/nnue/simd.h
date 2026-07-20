@@ -327,6 +327,10 @@ static inline int32_t nnue_dot_lane(NnueDotAcc a, size_t i) {
     return v[i];
 }
 static inline NnueDotAcc nnue_dot_add(NnueDotAcc a, NnueDotAcc b) { return _mm512_add_epi32(a, b); }
+static inline NnueDotAcc nnue_dot_load(const int32_t *p) {
+    return _mm512_loadu_si512((const void *) p);
+}
+static inline void nnue_dot_store(int32_t *p, NnueDotAcc a) { _mm512_storeu_si512((void *) p, a); }
 
 #elif MCFISH_SIMD_VECTOR && defined(__AVX2__)
 
@@ -345,6 +349,12 @@ static inline int32_t nnue_dot_lane(NnueDotAcc a, size_t i) {
     return v[i];
 }
 static inline NnueDotAcc nnue_dot_add(NnueDotAcc a, NnueDotAcc b) { return _mm256_add_epi32(a, b); }
+static inline NnueDotAcc nnue_dot_load(const int32_t *p) {
+    return _mm256_loadu_si256((const __m256i *) p);
+}
+static inline void nnue_dot_store(int32_t *p, NnueDotAcc a) {
+    _mm256_storeu_si256((__m256i *) p, a);
+}
 
 #elif MCFISH_SIMD_VECTOR && defined(__SSSE3__)
 
@@ -363,6 +373,10 @@ static inline int32_t nnue_dot_lane(NnueDotAcc a, size_t i) {
     return v[i];
 }
 static inline NnueDotAcc nnue_dot_add(NnueDotAcc a, NnueDotAcc b) { return _mm_add_epi32(a, b); }
+static inline NnueDotAcc nnue_dot_load(const int32_t *p) {
+    return _mm_loadu_si128((const __m128i *) p);
+}
+static inline void nnue_dot_store(int32_t *p, NnueDotAcc a) { _mm_storeu_si128((__m128i *) p, a); }
 
 #else
 
@@ -387,6 +401,16 @@ static inline NnueDotAcc nnue_dot_add(NnueDotAcc a, NnueDotAcc b) {
     for (size_t i = 0; i < 4; i++)
         a.l[i] += b.l[i];
     return a;
+}
+static inline NnueDotAcc nnue_dot_load(const int32_t *p) {
+    NnueDotAcc a;
+    for (size_t i = 0; i < 4; i++)
+        a.l[i] = p[i];
+    return a;
+}
+static inline void nnue_dot_store(int32_t *p, NnueDotAcc a) {
+    for (size_t i = 0; i < 4; i++)
+        p[i] = a.l[i];
 }
 
 #endif
