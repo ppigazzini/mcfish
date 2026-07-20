@@ -375,18 +375,13 @@ bool search_pseudo_legal(const Position *pos, Move m) {
 // Return the squares from which PT would check THEM's king, given the current
 // occupancy — upstream's StateInfo::checkSquares, recomputed here because mcfish's
 // StateInfo does not cache it yet.
-static Bitboard check_squares(const Position *pos, PieceType pt, Color them) {
-    const Square ksq = king_square(pos, them);
-    // KING is 0 upstream (position.cpp:479): a king can never deliver a direct
-    // check. Returning its attack ring here is observable, because castling is
-    // encoded king-captures-rook -- piece_on(from) is the KING -- so a castling
-    // move with the enemy king adjacent to our rook's origin would be reported as
-    // a direct check, flipping the move onto the capture pruning branch.
-    if (pt == KING)
-        return 0;
-    if (pt == PAWN)
-        return pawn_attacks_bb(them, square_bb(ksq));
-    return attacks_bb(pt, ksq, pieces(pos));
+// Read the check squares cached by set_check_info (position.c). check_squares[KING]
+// is 0 upstream (position.cpp:479): a king never delivers a direct check. That zero
+// is load-bearing because castling is encoded king-captures-rook, so piece_on(from)
+// is the KING; a non-zero KING entry would flip a castling move onto the capture
+// pruning branch.
+static Bitboard check_squares(const Position *pos, PieceType pt) {
+    return pos->st->check_squares[pt];
 }
 
 bool search_gives_check(const Position *pos, Move m) {
@@ -399,7 +394,7 @@ bool search_gives_check(const Position *pos, Move m) {
     const Bitboard their_king = pieces_cp(pos, them, KING);
 
     // Detect a direct check.
-    if ((check_squares(pos, type_of_piece(piece_on(pos, from)), them) & square_bb(to)) != 0)
+    if ((check_squares(pos, type_of_piece(piece_on(pos, from))) & square_bb(to)) != 0)
         return true;
 
     // Detect a discovered check: the mover was blocking, and either leaves the
@@ -424,7 +419,7 @@ bool search_gives_check(const Position *pos, Move m) {
     default : {  // CASTLING: only the rook's destination can give check
         const Square base = to > from ? SQ_F1 : SQ_D1;
         const Square rto = (Square) ((int) base ^ (us * 56));
-        return (check_squares(pos, ROOK, them) & square_bb(rto)) != 0;
+        return (check_squares(pos, ROOK) & square_bb(rto)) != 0;
     }
     }
 }

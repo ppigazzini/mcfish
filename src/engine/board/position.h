@@ -16,7 +16,11 @@
 #include "types.h"
 
 typedef struct StateInfo {
-    Key key;
+    // COPIED forward when a move is made: pos_do_move reads these from the parent
+    // and updates them incrementally. The copy length is offsetof(StateInfo, key),
+    // so only this prefix is memcpy'd; everything from `key` on is recomputed and
+    // must not be copied (upstream's StateInfo prefix/tail split, position.cpp:831).
+
     // Hash the MATERIAL only — every piece of each kind, counted, with no square
     // information: `Zobrist_psq[pc][8 + cnt]` for cnt in [0, count). Syzygy looks
     // its tables up by this, so it must be maintained incrementally by pos_do_move
@@ -34,19 +38,33 @@ typedef struct StateInfo {
     Key pawn_key;
     Key minor_piece_key;
     Key non_pawn_key[COLOR_NB];
+    // Sum of each colour's non-pawn, non-king piece values, maintained
+    // incrementally by pos_do_move (capture subtracts, promotion adds) so callers
+    // read one cached value instead of re-summing the piece counts every time.
+    // Upstream: StateInfo::nonPawnMaterial (position.cpp:895,981).
+    Value non_pawn_material[COLOR_NB];
+    int rule50;  // halfmove clock, in plies
+    int plies_from_null;
+    Square ep_square;  // SQ_NONE when no en-passant capture is available
+    uint8_t castling_rights;
+
+    // RECOMPUTED by pos_do_move / set_check_info, NOT copied. `key` is the first of
+    // these, so offsetof(StateInfo, key) is the copy boundary above.
+    Key key;
     // Distance in plies back to the previous occurrence of this position:
     // positive for the first repetition, NEGATIVE when that earlier occurrence
     // was itself a repetition (i.e. this is the threefold), 0 when never
     // repeated. The sign is the whole encoding — upstream position.cpp:1046.
     int repetition;
-    int rule50;  // halfmove clock, in plies
-    int plies_from_null;
-    Square ep_square;  // SQ_NONE when no en-passant capture is available
-    uint8_t castling_rights;
     Piece captured_piece;
     Bitboard checkers;            // pieces of the side NOT to move giving check
     Bitboard blockers[COLOR_NB];  // own pieces whose move could expose our king
     Bitboard pinners[COLOR_NB];
+    // Squares from which a piece of each type would check the enemy king, cached
+    // once per position by set_check_info (upstream StateInfo::checkSquares). Read
+    // per move by movepick scoring and search_gives_check instead of re-deriving
+    // the slider rings from magic lookups on every move.
+    Bitboard check_squares[PIECE_TYPE_NB];
     struct StateInfo *previous;
 } StateInfo;
 
