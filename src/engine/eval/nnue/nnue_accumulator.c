@@ -511,7 +511,9 @@ static void refresh_combined(uint8_t perspective,
 
     const size_t latest_index = stack_size(stack) - 1;
     NnueFullAppendResult active;
-    nnue_full_append_active(perspective, king_square, (const uint8_t *) pos->board, &active);
+    nnue_full_append_active(perspective, king_square, (const uint8_t *) pos->board,
+                            (const uint64_t *) pos->by_type, (const uint64_t *) pos->by_color,
+                            &active);
 
     accumulate_rows_i8(state_accumulation_mut(PSQ_FEATURE, latest_index, stack, perspective),
                        active.indices, active.len, nnue_ft_threat_weights(ft));
