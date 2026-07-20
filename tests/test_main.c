@@ -544,11 +544,11 @@ static void test_draw_detection(void) {
     pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - - 100 60", false, &st);
     CHECK(pos_is_draw(&pos, 0), "50-move rule detected");
 
-    pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - - 98 60", false, &st);
+    pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - - 99 60", false, &st);
     CHECK(!pos_is_draw(&pos, 0), "99 plies is not yet a draw");
 }
 
-// nnue_dot4_i32 is the ONE reducing primitive in simd.h, and the only place the
+// nnue_dot_step is the ONE reducing primitive in simd.h, and the only place the
 // NNUE kernels depend on something the C standard does not give them: on x86 it is
 // pmaddubsw + pmaddwd, and pmaddubsw SATURATES its int16 intermediate. simd.h argues
 // that saturation is unreachable because affine inputs are activation outputs capped
