@@ -215,12 +215,15 @@ jobs:
 
       # Perft smoke through the UCI front end: exercises the shell/ parser and the
       # movegen/make/unmake loop under ASan. Deliberately shallow; the deep, count-checked
-      # perft lives in mcfish_perft.yml.
+      # perft lives in mcfish_perft.yml. Run FROM resources/ so the engine loads the net --
+      # perft never evaluates, but the engine still loads the net at startup and the
+      # net-less path leaks the partial eval arena, which LeakSanitizer turns into an abort.
       - name: Instrumented perft smoke (via UCI)
         run: |
           set -euo pipefail
+          cd resources
           printf 'position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\ngo perft 4\nquit\n' \
-            | ./build/mcfish-debug | tee /tmp/perft.txt
+            | ../build/mcfish-debug | tee /tmp/perft.txt
           grep -q 'Nodes searched *: *197281' /tmp/perft.txt \
             || { echo 'FAIL: instrumented perft(startpos, 4) != 197281' >&2; exit 1; }
 
