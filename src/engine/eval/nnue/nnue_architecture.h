@@ -1,4 +1,4 @@
-// Describe the SFNNv15 network shape: the transformed feature width, the eight
+// Describe the network shape: the transformed feature width, the eight
 // layer stacks, and the three affine layers each stack holds.
 //
 // These dimensions are the architecture, not a tuning knob. The .nnue file
@@ -25,7 +25,7 @@ enum {
     NNUE_PSQT_BUCKETS = 8,
     NNUE_LAYER_STACKS = 8,
 
-    // NetworkArchitecture's static shape (nnue_architecture.h:58-60).
+    // NetworkArchitecture's static shape (nnue_architecture.h:57-59).
     NNUE_TRANSFORMED_FEATURE_DIMENSIONS = NNUE_L1,
     NNUE_FC_0_OUTPUTS = NNUE_L2,
     NNUE_FC_1_OUTPUTS = NNUE_L3,

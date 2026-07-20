@@ -7,7 +7,7 @@
 // multi-byte quantity out of the file byte by byte: the file's byte order is
 // fixed little-endian, the host's is not.
 //
-// Mirrors src/nnue/nnue_common.h:56-102 (types, Version, scaling constants,
+// Mirrors src/nnue/nnue_common.h:56-105 (types, Version, scaling constants,
 // CacheLineSize, the LEB128 magic, ceil_to_multiple).
 
 #ifndef MCFISH_NNUE_COMMON_H
@@ -22,20 +22,20 @@ typedef int16_t WeightType;
 typedef int32_t PSQTWeightType;
 typedef uint32_t IndexType;
 
-// Type of input feature after conversion (nnue_common.h:97).
+// Type of input feature after conversion (nnue_common.h:99).
 typedef uint8_t TransformedFeatureType;
 
-// Version of the evaluation file (nnue_common.h:64, the post-merge format).
+// Version of the evaluation file (nnue_common.h:65, the post-merge format).
 #define NNUE_VERSION 0x6A448AFAu
 
 enum {
-    // Constants used in evaluation value calculation (nnue_common.h:67-70).
+    // Constants used in evaluation value calculation (nnue_common.h:68-71).
     NNUE_OUTPUT_SCALE = 16,
     NNUE_WEIGHT_SCALE_BITS = 6,
     NNUE_FT_MAX_VAL = 255,
     NNUE_HIDDEN_ONE_VAL = 128,
 
-    // Size of cache line, in bytes (nnue_common.h:73).
+    // Size of cache line, in bytes (nnue_common.h:74).
     NNUE_CACHE_LINE_SIZE = 64,
 };
 

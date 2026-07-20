@@ -16,9 +16,9 @@
 // restricted affinity mask or an unparseable policy string all degrade to one node
 // holding every allowed CPU, which is a correct single-node run.
 //
-// Upstream: numa.h:410 (add_cpu_to_node), numa.h:660 (from_string), numa.h:1075
-// (from_system_numa), numa.h:722 (distribute_threads_among_numa_nodes), numa.h:756
-// (suggests_binding_threads), numa.h:1290 (NumaReplicationContext).
+// Upstream: numa.h:994 (add_cpu_to_node), numa.h:667 (from_string), numa.h:1075
+// (from_system_numa), numa.h:796 (distribute_threads_among_numa_nodes), numa.h:756
+// (suggests_binding_threads), numa.h:1643 (NumaReplicationContext).
 
 #ifndef MCFISH_NUMA_H
 #define MCFISH_NUMA_H
@@ -83,7 +83,7 @@ const size_t *numa_config_node_cpus(const NumaConfig *cfg, size_t node, size_t *
 
 // Drop every empty node, closing the gaps. /sys can report a node with no allowed CPUs
 // once the affinity mask is applied, and an empty node poisons the fill-ratio arithmetic
-// in distribute and suggests_binding. Upstream: numa.h:652.
+// in distribute and suggests_binding. Upstream: numa.h:983.
 void numa_config_remove_empty_nodes(NumaConfig *cfg);
 
 // Parse a "NumaPolicy" string: nodes separated by ':', each a comma list of CPU indices

@@ -7,7 +7,7 @@
 // invariant: |v| > VALUE_TB means mate, VALUE_TB_WIN_IN_MAX_PLY <= |v| <= VALUE_TB
 // means a tablebase result, and anything nearer zero is a normal evaluation.
 //
-// Golden: `Stockfish/src/score.cpp:99`
+// Golden: `Stockfish/src/score.cpp:29`
 // (Score::Score) and `Stockfish/src/types.h:158-178` (the thresholds and
 // is_win/is_loss/is_decisive).
 

@@ -15,7 +15,7 @@
 // A material key is computed here rather than read from Position, which carries
 // none: only self-consistency matters, because the key never leaves this module.
 //
-// Mirror upstream `syzygy/tbprobe.cpp:1397` (Tablebases::init), `:1206` (set),
+// Mirror upstream `syzygy/tbprobe.cpp:1397` (Tablebases::init), `:1193` (set),
 // `:1158` (set_dtz_map).
 
 #ifndef MCFISH_SYZYGY_REGISTRY_H

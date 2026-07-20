@@ -9,9 +9,9 @@
 //
 // The refresh cache is seeded from the network's feature-transformer biases, so a worker
 // built before a net is resident is complete except for that cache;
-// `worker_seed_refresh_cache` finishes the job after the load.
+// `worker_ensure_network` finishes the job after the load.
 //
-// Upstream: search.cpp (Worker::Worker, Worker::clear), thread.cpp:41 (Thread::Thread).
+// Upstream: search.cpp (Worker::Worker, Worker::clear), thread.cpp:48 (Thread::Thread).
 
 #ifndef MCFISH_WORKER_CONSTRUCT_H
 #define MCFISH_WORKER_CONSTRUCT_H
@@ -52,7 +52,7 @@ void worker_clear(SearchWorker *w);
 //
 // Reach this at the top of every search, not only on `ucinewgame`: a worker is built
 // before the shell loads the net, and an EvalFile change reloads it under a worker that
-// is already running. Upstream: search.h:328 (Worker::ensure_network_replicated).
+// is already running. Upstream: search.h:331 (Worker::ensure_network_replicated).
 bool worker_ensure_network(SearchWorker *w);
 
 #endif  // MCFISH_WORKER_CONSTRUCT_H
