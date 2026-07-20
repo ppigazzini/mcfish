@@ -228,6 +228,25 @@ NNUE_SIMD_CONVERT(nnue_v32_u32_to_u16, NnueV32u16, NnueV32u32)
 NNUE_SIMD_CONVERT(nnue_v32_u16_to_u8, NnueV32u8, NnueV32u16)
 NNUE_SIMD_REINTERPRET(nnue_v32_u8_as_u32x8, NnueV8u32, NnueV32u8)
 
+// Build the 8-bit movemask (bit g set iff 4-byte group g is non-zero) from DEFINED ops:
+// (v != 0) yields all-ones per non-zero lane, AND with the per-lane bit weight, then a
+// horizontal OR. A reinterpret of a bool-vector would be shorter but assumes the
+// target-defined <N x i1> layout -- a backend using one byte per lane reads a few lanes as
+// the whole mask and corrupts the nnz set into a wrong positional eval. Port of zfish
+// d27ab1438. The scalar fallback spells the same per-lane reduction, so scalar==vector.
+static inline uint32_t nnue_v8u32_movemask(NnueV8u32 v) {
+#if MCFISH_SIMD_VECTOR && defined(__has_builtin) && __has_builtin(__builtin_reduce_or)
+    const NnueV8u32 lane_bits = { 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u };
+    const NnueV8u32 nonzero = v != nnue_v8u32_splat(0);
+    return (uint32_t) __builtin_reduce_or(nonzero & lane_bits);
+#else
+    uint32_t mask = 0;
+    for (size_t g = 0; g < 8; g++)
+        mask |= (uint32_t) (nnue_v8u32_lane(v, g) != 0) << g;
+    return mask;
+#endif
+}
+
 // Affine post-activation tile: 8 int32_t lanes.
 NNUE_SIMD_TYPE(NnueV8i32, int32_t, 8);
 NNUE_SIMD_FAMILY(nnue_v8i32, NnueV8i32, int32_t, 8);
