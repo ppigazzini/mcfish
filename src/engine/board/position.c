@@ -1,5 +1,6 @@
 #include "position.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -152,6 +153,19 @@ static void set_check_info(Position *pos) {
     const Square ksq = king_square(pos, pos->side_to_move);
     pos->st->checkers =
       pos_attackers_to_occ(pos, ksq, pieces(pos)) & pieces_c(pos, flip_color(pos->side_to_move));
+
+    // Cache the check squares for the enemy king once here, so movepick scoring and
+    // search_gives_check read a bitboard per move instead of rebuilding the slider
+    // rings with magic lookups (upstream Position::set_check_info, position.cpp:479).
+    const Color them = flip_color(pos->side_to_move);
+    const Square tksq = king_square(pos, them);
+    const Bitboard occ = pieces(pos);
+    pos->st->check_squares[PAWN] = PawnAttacksBB[them][tksq];
+    pos->st->check_squares[KNIGHT] = attacks_bb(KNIGHT, tksq, occ);
+    pos->st->check_squares[BISHOP] = attacks_bb(BISHOP, tksq, occ);
+    pos->st->check_squares[ROOK] = attacks_bb(ROOK, tksq, occ);
+    pos->st->check_squares[QUEEN] = pos->st->check_squares[BISHOP] | pos->st->check_squares[ROOK];
+    pos->st->check_squares[KING] = 0;
 }
 
 // Recompute every key from the board. do_move maintains them incrementally; this
@@ -242,6 +256,8 @@ static char FenFailBuf[64];
             *reason = FenFailBuf; \
         return false; \
     } while (0)
+
+static Value compute_non_pawn_material(const Position *pos, Color c);
 
 bool pos_set(Position *pos, const char *fen, bool chess960, StateInfo *si) {
     return pos_set_reason(pos, fen, chess960, si, nullptr);
@@ -451,6 +467,8 @@ bool pos_set_reason(
     si->rule50 = rule50;
     pos->game_ply = 2 * (fullmove > 0 ? fullmove - 1 : 0) + (pos->side_to_move == BLACK);
 
+    si->non_pawn_material[WHITE] = compute_non_pawn_material(pos, WHITE);
+    si->non_pawn_material[BLACK] = compute_non_pawn_material(pos, BLACK);
     si->key = compute_key(pos);
     set_check_info(pos);
 
@@ -618,10 +636,12 @@ void pos_do_move(
     const Piece pc = piece_on(pos, from);
     const MoveType mt = move_type(m);
 
-    // Copy the whole record forward, then overwrite what this move changes. Undo
-    // pops the chain, so anything left unwritten here is restored stale.
+    // Copy only the incrementally-carried prefix forward (offsetof(key)); the tail
+    // from `key` on is recomputed below and by set_check_info, so copying it would
+    // be wasted store traffic. Undo pops the chain, so anything the tail leaves
+    // unwritten this move is never read (every tail field IS written here).
     Key key = pos->st->key ^ Zobrist_side;
-    memcpy(new_st, pos->st, sizeof(StateInfo));
+    memcpy(new_st, pos->st, offsetof(StateInfo, key));
     new_st->previous = pos->st;
     pos->st = new_st;
     new_st->rule50++;
@@ -670,6 +690,11 @@ void pos_do_move(
         new_st->material_key ^=
           Zobrist_psq[captured][8 + pos->piece_count[captured] - (mt != EN_PASSANT ? 1 : 0)];
         new_st->rule50 = 0;
+
+        // A captured non-pawn leaves its side's material sum (position.cpp:895); a
+        // pawn/en-passant victim never contributed to it.
+        if (type_of_piece(captured) != PAWN)
+            new_st->non_pawn_material[them] -= piece_value(type_of_piece(captured));
     } else {
         dp->remove_sq = (uint8_t) SQ_NONE;
     }
@@ -747,6 +772,10 @@ void pos_do_move(
             // `count - 1` (Stockfish/src/position.cpp:973).
             new_st->material_key ^= Zobrist_psq[promoted][8 + pos->piece_count[promoted]]
                                   ^ Zobrist_psq[pc][8 + pos->piece_count[pc] - 1];
+
+            // The new piece joins its side's material sum (position.cpp:981); the
+            // pawn it replaces never contributed.
+            new_st->non_pawn_material[us] += piece_value(move_promotion(m));
         }
     }
 
@@ -844,11 +873,13 @@ void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThr
     dts->us = pos->side_to_move;
     dts->prev_ksq = dts->ksq = king_square(pos, pos->side_to_move);
 
-    memcpy(new_st, pos->st, sizeof(StateInfo));
+    memcpy(new_st, pos->st, offsetof(StateInfo, key));
     new_st->previous = pos->st;
     pos->st = new_st;
 
-    new_st->key ^= Zobrist_side;
+    // key is in the not-copied tail, so seed it from the parent (previous) rather
+    // than the stale child slot.
+    new_st->key = new_st->previous->key ^ Zobrist_side;
     if (new_st->ep_square != SQ_NONE) {
         new_st->key ^= Zobrist_enpassant[file_of(new_st->ep_square)];
         new_st->ep_square = SQ_NONE;
@@ -877,7 +908,11 @@ void pos_undo_null_move(Position *pos) {
 }
 
 
-Value pos_non_pawn_material(const Position *pos, Color c) {
+// Re-sum a colour's non-pawn material from the piece counts. Used only to seed the
+// cached StateInfo::non_pawn_material at pos_set; the search reads the cache.
+static Value compute_non_pawn_material(const Position *pos, Color c) {
     return (Value) (count_p(pos, c, KNIGHT) * KNIGHT_VALUE + count_p(pos, c, BISHOP) * BISHOP_VALUE
                     + count_p(pos, c, ROOK) * ROOK_VALUE + count_p(pos, c, QUEEN) * QUEEN_VALUE);
 }
+
+Value pos_non_pawn_material(const Position *pos, Color c) { return pos->st->non_pawn_material[c]; }
