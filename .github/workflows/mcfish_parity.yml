@@ -245,7 +245,7 @@ jobs:
   # -Wsign-conversion / -Wshadow findings differ from clang's, so it surfaces sloppiness
   # clang happens not to warn about.
   gcc:
-    name: Second compiler (gcc)
+    name: Linux x86-64 parity (gcc)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
