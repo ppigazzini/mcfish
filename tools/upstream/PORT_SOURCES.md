@@ -6,7 +6,7 @@ questions — so both are pinned here, and neither is optional.
 | tree | role | commit |
 | --- | --- | --- |
 | `../Stockfish` | **golden.** Where zfish and mcfish disagree, this wins. | `ebcea3efe9c1b8748e080111c727c33c544d7e06` |
-| `../zfish` | **port source.** A Zig port that is already bit-exact; templates, classes and RAII are already gone, which is why mcfish ports from here rather than from C++. | `054299636fd1a6955b88210fc063ff65bc8cba85` |
+| `../zfish` | **port source.** A Zig port that is already bit-exact; templates, classes and RAII are already gone, which is why mcfish ports from here rather than from C++. | `6a4a8088799dc7e0717532e91781101277059e3b` |
 
 `tools/upstream/UPSTREAM_BASE` carries the Stockfish sha on its own, because
 `upstream_oracle.sh` reads it. This file is the whole picture.
