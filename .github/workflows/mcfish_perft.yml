@@ -53,6 +53,17 @@ jobs:
           sudo /tmp/llvm.sh "$CLANG_VERSION"
           "clang-$CLANG_VERSION" --version
 
+      # `./build.sh perft` launches the engine, which loads the net at startup and aborts
+      # without it -- so the perft gate needs the net just as the signature gate does, even
+      # though perft itself never evaluates. Fetch + cache it (see mcfish_parity.yml's note).
+      - name: Cache NNUE network
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
+
       # Release build (-O3), NOT the debug/sanitizer build: at these depths an
       # instrumented binary would be an order of magnitude too slow, and perft is a
       # counting check -- the sanitizer lane in mcfish_parity.yml owns memory safety.
