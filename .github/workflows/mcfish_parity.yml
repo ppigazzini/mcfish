@@ -112,6 +112,20 @@ jobs:
             exit 1
           fi
 
+      # The NNUE net is a ~90 MB runtime input, gitignored (it tracks upstream and is not a
+      # build product). Every gate that RUNS the engine -- signature and the golden UCI diffs
+      # inside `parity` -- needs it in resources/, or the engine aborts with "network ... must
+      # be available" and the bench emits no node count. `net-fetch` downloads and
+      # sha256-verifies it (the filename IS the sha256 prefix). Cache it keyed on network.h --
+      # the one file that names the net -- so a net bump busts the cache and nothing else does.
+      - name: Cache NNUE network
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
+
       # build.sh honours CC; everything else is its defaults.
       - name: parity (all gates)
         env:
@@ -168,6 +182,16 @@ jobs:
           sudo /tmp/llvm.sh "$CLANG_VERSION"
           "clang-$CLANG_VERSION" --version
 
+      # The bench/perft smokes below run the real engine, which aborts without the net (see the
+      # parity job's note). Fetch + cache it here too.
+      - name: Cache NNUE network
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
+
       # Unit + property suite under ASan+UBSan. The load-bearing half is the property
       # tests: perft to reference counts, the make/unmake round-trip that compares the
       # whole board/state back to a snapshot after every undo, and the incremental-vs-
@@ -182,9 +206,12 @@ jobs:
 
       # Bench smoke at a shallow depth. The point is not the node count (the signature gate
       # owns that, and an instrumented build is far too slow for depth 8) -- it is running
-      # the real search, eval and TT code paths with the sanitizers armed.
+      # the real search, eval and TT code paths with the sanitizers armed. Run it FROM
+      # resources/ so the engine finds the net there: it searches its cwd and its binary dir,
+      # not resources/, so a run from the repo root would abort net-less (as the signature
+      # gate avoids by launching every engine from resources/).
       - name: Instrumented bench smoke
-        run: ./build/mcfish-debug bench 4
+        run: cd resources && ../build/mcfish-debug bench 4
 
       # Perft smoke through the UCI front end: exercises the shell/ parser and the
       # movegen/make/unmake loop under ASan. Deliberately shallow; the deep, count-checked
@@ -228,6 +255,16 @@ jobs:
       # clang signature exactly.
       - name: Show the gcc version under test
         run: gcc --version
+
+      # The signature gate below runs the engine, which aborts without the net (see the parity
+      # job's note). Fetch + cache it here too.
+      - name: Cache NNUE network
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
 
       # Release build only (not `parity`): the fmt/zone-check/golden gates are
       # compiler-independent and the clang lane already owns them. What this lane uniquely

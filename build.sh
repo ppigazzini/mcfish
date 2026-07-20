@@ -339,6 +339,51 @@ do_net() {
   [[ $found -eq 1 ]] || red "net NOT found in $RESOURCES_DIR/ or any fallback: the engine will run classical."
 }
 
+# Actually download the net into RESOURCES_DIR (do_net above only PRINTS how to). Idempotent
+# and sha256-checked: the net's filename IS its sha256 prefix (nn-<12 hex>.nnue), so a mirror
+# that answers a missing file with a 200 and an HTML page is rejected here rather than much
+# later inside the parser as a corrupt-net report. Two sources, Fishtest first then the
+# official-stockfish mirror -- the same order zfish's fetcher uses. This is what CI runs so the
+# signature/bench/golden gates have a net; a developer runs it once and the net is cached in
+# RESOURCES_DIR thereafter.
+do_net_fetch() {
+  local name want f code got url
+  name=$(grep -oE 'nn-[0-9a-f]+\.nnue' src/engine/eval/nnue/network.h | head -1)
+  [[ -n $name ]] || { red "could not read the default net name from network.h"; return 1; }
+  want=${name#nn-}
+  want=${want%.nnue}
+  mkdir -p "$RESOURCES_DIR"
+  f="$RESOURCES_DIR/$name"
+
+  if [[ -s $f ]]; then
+    got=$(sha256sum "$f" | cut -c1-12)
+    [[ $got == "$want" ]] && { green "net present: $f"; return 0; }
+    red "  existing $f has wrong sha256 ($got, want $want) -- refetching"
+    rm -f "$f"
+  fi
+
+  info "fetching $name into $RESOURCES_DIR"
+  for url in \
+    "https://tests.stockfishchess.org/api/nn/$name" \
+    "https://github.com/official-stockfish/networks/raw/master/$name"; do
+    code=$(curl -sSL -o "$f" -w '%{http_code}' "$url") || code=000
+    if [[ $code != 200 ]]; then
+      red "  $url -> http $code"
+      rm -f "$f"
+      continue
+    fi
+    got=$(sha256sum "$f" | cut -c1-12)
+    if [[ $got == "$want" ]]; then
+      green "fetched $name ($(stat -c%s "$f") bytes) from $url"
+      return 0
+    fi
+    red "  REJECT $url (sha256 $got, want $want)"
+    rm -f "$f"
+  done
+  red "net-fetch: could not obtain a valid $name from any source"
+  return 1
+}
+
 do_signature() {
   need_binary
 
@@ -1037,6 +1082,7 @@ usage: ./build.sh <step> [args]
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
   arch-determinism   build every executable ISA tier and require one node count
   net                report where the NNUE net must be and how to obtain it
+  net-fetch          download + sha256-verify the net -> resources/ (what CI runs)
   signature          assert the bench node count vs tools/signature.golden
   perft              assert perft counts vs tools/perft.table
   golden             diff the UCI case outputs vs tools/*.golden
@@ -1070,6 +1116,7 @@ case "${1:-build}" in
   tsan-search)      shift; do_tsan_search "$@" ;;
   bench)            do_bench "${2:-}" ;;
   net)              do_net ;;
+  net-fetch)        do_net_fetch ;;
   signature)        do_signature ;;
   simd-scalar)      do_simd_scalar ;;
   arch-determinism) do_arch_determinism ;;
