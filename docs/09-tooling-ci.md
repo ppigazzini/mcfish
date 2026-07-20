@@ -15,8 +15,9 @@ Before the step table: **every gate below runs over the linked binary, and two
 arrays in [`../build.sh`](../build.sh) enumerate what that is.**
 
 - `SOURCES` — the release and debug binaries.
-- `ENGINE_SOURCES` — `engine/` plus `platform/clock.c`, `platform/tablebase.c`
-  and `platform/syzygy/`; what `zone-check` links standalone and what
+- `ENGINE_SOURCES` — `engine/` plus all of `platform/` (the clock, memory, the
+  thread runtime and pool, NUMA, `tablebase.c` and `syzygy/`); what `zone-check`
+  links standalone and what
   [`../tests/test_main.c`](../tests/test_main.c) is built against. The Syzygy
   files are here as well as in `SOURCES` because the engine zone must still link
   without `shell/`, and the prober is a platform service the engine reaches
@@ -27,9 +28,9 @@ compiled by nothing, so `build`, `test`, `zone-check`, `signature`, `perft` and
 `golden` all pass over it without reading a line. **A green `parity` is a statement
 about the arrays, not about `src/`.**
 
-Most of the ported tree is in that state today — see
-[00-architecture.md](00-architecture.md). Two consequences for anyone using these
-gates:
+The decomposed shell is the tree's one remaining subsystem in that state today —
+see [00-architecture.md](00-architecture.md). Two consequences for anyone using
+these gates:
 
 - **Adding a file means editing `SOURCES`**, and `ENGINE_SOURCES` too if it belongs
   to `engine/` or `platform/`, or `zone-check` and the test binary will not see it.
@@ -51,7 +52,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `zone-check` | links `ENGINE_SOURCES` plus a stub `main`, with no shell object | that no **listed** `engine/` file calls into `shell/`. It **links**, so a forbidden call is an undefined symbol rather than a clean compile. It cannot see the engine→platform edge, because `clock.c` is inside the array |
 | `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism |
 | `tsan` | rebuilds `ENGINE_SOURCES` + the test binary under ThreadSanitizer and runs it | the thread pool: that spawning, dispatching a job, waiting on the condition variable and joining carry the happens-before edges they claim. **This is the only gate that can see a threading bug at all** — the single-threaded search never reaches that code, and a race does not have to fire to be there. Kept out of `parity`: it needs its own build of the engine and roughly triples the suite. Run it whenever `src/platform/thread*.c` changes |
-| `tsan-search [depth] [threads]` | builds the **whole engine** under ThreadSanitizer and drives one `go` through the UCI front end | races in the SEARCH, which `tsan` cannot see: that step links the test binary, so the only concurrent code it reaches is the thread-pool test. Reports **0** today, and that is a measurement of a single-threaded process rather than a clean bill of health — see [04-multithreading.md](04-multithreading.md). It exists now so the first run after the pool is driven compares against a known-zero baseline |
+| `tsan-search [depth] [threads]` | builds the **whole engine** under ThreadSanitizer and drives one `go` through the UCI front end | races in the SEARCH, which `tsan` cannot see: that step links the test binary, so the only concurrent code it reaches is the thread-pool test. Now that the pool is driven it measures a genuinely multi-threaded search — see [04-multithreading.md](04-multithreading.md). It is the search-race gate the thread-pool `tsan` run cannot substitute for |
 | `signature` | runs `bench 8`, compares the node total to [`../tools/signature.golden`](../tools/signature.golden) | that no edit changed search behaviour unintentionally |
 | `perft` | drives every row of [`../tools/perft.table`](../tools/perft.table) through the UCI front end | move generation totality |
 | `golden` | diffs each `tools/cases/*.uci` transcript against its `.golden` | the observable UCI surface, byte for byte after normalization |

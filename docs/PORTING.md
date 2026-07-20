@@ -165,12 +165,12 @@ Read the counts from the map, not from this section:
 ./build.sh port-status
 ```
 
-**The binary and the tree have drifted apart, and that is the fact to hold.** A
-large majority of the ported `.c` files are on disk and absent from
+**The binary now holds most of the ported tree, and the arrays are what decide it.**
+A large majority of the ported `.c` files are in
 [`../build.sh`](../build.sh)'s `SOURCES` array, which has no wildcard and no
 dependency scanner. A file outside that array is compiled by nothing: not in the
 binary, not linked by `zone-check`, not reached by `./build.sh test`, and not
-covered by `signature`, `perft` or `golden`.
+covered by `signature`, `perft` or `golden` — where the decomposed shell still sits.
 
 **What the binary is today:** a Lazy-SMP engine with magic slider attacks,
 upstream's Zobrist tables and threat deltas, the decomposed search with its full
@@ -178,14 +178,12 @@ pruning set and aspiration window, a staged move picker, the full history block,
 the time manager, upstream's cluster transposition table, and the NNUE evaluation
 with its incremental accumulator — falling back to a classical placeholder when no
 net is resident, and upstream's full UCI option table — advertised byte for byte,
-with `Threads`, `NumaPolicy` and the four Syzygy options accepted and inert. No
-tablebases and no threads.
+with `Threads` and `NumaPolicy` driving a real Lazy-SMP worker pool and the four
+Syzygy options live. Tablebases and threads are wired.
 
-**What is written and not in the binary:** the Syzygy prober, the thread pool and
-NUMA runtime, the per-worker state zone, the board-zone module split, and the
-decomposed shell — including `engine.c`, whose own registration of the option set
-is now a dead duplicate of the live one. Each zone page names its own modules and
-what its wiring commit owes.
+**What is written and not in the binary:** the decomposed shell — including
+`engine.c`, whose own registration of the option set is now a dead duplicate of the
+live one. Each zone page names its own modules and what its wiring commit owes.
 
 Treat that as the largest open item in the port, not as a staging area. A module
 nothing compiles is a module nothing defends: it rots against the files that do

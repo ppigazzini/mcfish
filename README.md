@@ -10,11 +10,11 @@ read it carefully: it reports how many rows the port map *claims* alongside how 
 are backed by code the binary actually contains, because those two numbers have been
 far apart.
 
-What exists today is a single-threaded engine with NNUE evaluation that is
+What exists today is a Lazy-SMP engine with NNUE evaluation that is
 **bit-exact with upstream** — `./build.sh signature` benches the same node count
-Stockfish produces. Syzygy, Lazy-SMP threading and NUMA are written but are not in
-`build.sh`'s `SOURCES`, so they are unwired rather than done. See
-[docs/PORTING.md](docs/PORTING.md).
+Stockfish produces. Syzygy tablebases, Lazy-SMP threading and NUMA are wired into
+`build.sh`'s `SOURCES` and driven by the search; the main piece still on disk and
+out of the binary is the decomposed shell. See [docs/PORTING.md](docs/PORTING.md).
 
 ## How it is being ported
 

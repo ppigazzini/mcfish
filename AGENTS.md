@@ -35,8 +35,8 @@ in `build.sh`'s `SOURCES`, because a module outside it is unwired, not deferred:
   are live, and `./build.sh tb` gates discovery and the root probe against the
   oracle. `./build.sh tb-fetch` gets the 3-man set into `resources/syzygy/`;
   without it the gate checks
-  discovery only and says so. Still open: no 5-man/cursed-win coverage, and the
-  `d` command prints no `Tablebases WDL:`/`DTZ:` lines.
+  discovery only and says so. The `d` command prints `Tablebases WDL:`/`DTZ:` lines
+  once a `SyzygyPath` covers the position. Still open: no 5-man/cursed-win coverage.
 - **Lazy-SMP threading and NUMA** — **wired.** `Threads` builds a worker set,
   `NumaPolicy` chooses the topology it binds under, and a `go` runs N workers over
   one root. `search_threads.c` is the driver; every piece of per-worker state that

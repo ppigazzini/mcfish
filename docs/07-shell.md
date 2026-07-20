@@ -12,12 +12,13 @@ Audience: shell contributors. The zone rule this page depends on is in
 **Wired into the binary** ([`../build.sh`](../build.sh) `SOURCES`):
 [`main.c`](../src/shell/main.c), [`uci.c`](../src/shell/uci.c),
 [`ucioption.c`](../src/shell/ucioption.c),
-[`benchmark.c`](../src/shell/benchmark.c).
+[`benchmark.c`](../src/shell/benchmark.c), the bench script data
+[`bench_positions.c`](../src/shell/bench_positions.c), and the Syzygy option
+delegate [`syzygy_option.c`](../src/shell/syzygy_option.c).
 
 **Ported and not in `SOURCES`**, so not in the binary and not gated: the engine
 object [`engine.c`](../src/shell/engine.c), the identity and process utilities
-[`misc.c`](../src/shell/misc.c), the bench script data
-[`bench_positions.c`](../src/shell/bench_positions.c), and the decomposition of the
+[`misc.c`](../src/shell/misc.c), and the decomposition of the
 loop itself — [`uci_strings.c`](../src/shell/uci_strings.c),
 [`uci_input.c`](../src/shell/uci_input.c),
 [`uci_parse.c`](../src/shell/uci_parse.c),
@@ -52,8 +53,11 @@ int main(int argc, char **argv) {
     attacks_init();
     threats_init();  // build RayPassBB, which reads the attack tables
     position_init();
+    eval_nnue_init();
 
     uci_loop(argc, argv);
+    search_shutdown();
+    eval_nnue_shutdown();
     return 0;
 }
 ```
@@ -174,9 +178,11 @@ silently ignored rather than producing noise.
 single-threaded: while `cmd_go` is inside `search_go`, nothing is reading stdin, so
 a `stop` sent during a search is not seen until the search has already returned.
 Consequently `go infinite` has no deadline and no interruption path and does not
-return. This is a gap in the shell, and the runtime that closes it is already built
-and gated — the thread pool in `src/platform/`, whose shared stop flag is the
-cross-thread protocol. Nothing drives it yet. See [06-platform.md](06-platform.md).
+return. This is a gap in the shell: `search_go` blocks the UCI thread, so nothing
+reads stdin while a search runs. The thread pool in `src/platform/` is built, gated
+and driven by the search, and its shared stop flag is the cross-thread protocol a
+listener would use — but the shell still calls the search synchronously rather than
+handing it off. See [06-platform.md](06-platform.md).
 
 `ucinewgame` clears the TT but does **not** clear the history block; the live search
 clears that per `go` instead, which is not where upstream clears it. See
@@ -268,8 +274,8 @@ What differs is whether anything reads the value.
 | Option | Reaches | Notes |
 | --- | --- | --- |
 | `Debug Log File` | `start_logger` in `uci.c` | Tees the session to a file, input lines prefixed `>> ` and output `<< `, as upstream's `Tie` streambuf does. Exits when the path cannot be opened. |
-| `NumaPolicy` | nothing | **Inert.** No NUMA topology, no thread binding. Says so on every set. |
-| `Threads` | nothing | **Inert above 1.** See below. |
+| `NumaPolicy` | the thread pool | **Live.** Chooses the NUMA topology the worker set binds under. See below. |
+| `Threads` | the thread pool | **Live.** Rebuilds the worker set. See below. |
 | `Hash` | `tt_resize` | |
 | `Clear Hash` | `tt_clear` + `search_clear` | The same pair `ucinewgame` runs, which is what upstream's button does. |
 | `Ponder` | the time manager | Read through the option seam by `search_tm_init`. |
@@ -332,20 +338,18 @@ and `on_eval_file` are the seams through which a subsystem becomes reachable fro
 
 **A callback whose subsystem is unported must say so.** Advertising a control that
 does nothing, in silence, is the one outcome worse than not advertising it: a GUI
-cannot tell a no-op from a working feature. That is why `NumaPolicy` and `Threads`
-above 1 each answer with what they will not do.
-
-`SyzygyPath` answers for the opposite reason: it reports the tables it found, which
-is upstream's own line, because the subsystem behind it works.
+cannot tell a no-op from a working feature. The live callbacks answer for the
+opposite reason — their subsystems work, so each reports what it did. `SyzygyPath`
+reports the tables it found, `Threads` the worker set it rebuilt, and `NumaPolicy`
+the topology it bound under, each of which is upstream's own line.
 
 The live `uci.c` advertises and
 handles all four Syzygy options today by delegating to
 [`syzygy_option.c`](../src/shell/syzygy_option.c), which holds the values and binds
-the engine's `tb_source.h` and `option_source.h` seams. When `ucioption.c` lands,
-move the four declarations into the table and point `on_syzygy_path` at
-`syzygy_option_set`; do not re-implement them, and keep them emitted **before**
+the engine's `tb_source.h` and `option_source.h` seams. They are registered in the
+option table [`ucioption.c`](../src/shell/ucioption.c) owns and emitted **before**
 `EvalFile`, which is upstream's order (`Stockfish/src/engine.cpp:125-138`) and what
-`tools/handshake.golden` now pins.
+`tools/handshake.golden` pins.
 
 ## bench and the signature
 
@@ -411,10 +415,11 @@ The four decisions that are not mechanical:
   include `engine.h` without dragging `position.h` into a leaf, so collapsing them
   means moving the literal into a header both can reach.
 - **`uci_output.c` has no mutex, deliberately.** A lock is only needed once a
-  search thread and the listener can tear a line; `build.sh` links no pthread
-  into the current binary and the search is single-threaded, so this module has
-  none. The funnel is preserved, so adding the lock at M4 is a one-function change
-  — but it is a change that must actually happen at M4.
+  search thread and the listener can tear a line. `-lpthread` is on every link line
+  and the search is multi-threaded, but the live output path is still `uci.c`'s
+  `emit_stdout`; the lock lands when `uci_output.c` is wired in. The funnel is
+  preserved, so adding it is a one-function change — but it is a change that must
+  actually happen when the module is wired.
 
 One further deliberate divergence, already decided: `UciInput` bounds its line at
 64 KiB and sets `truncated` on overflow, consuming the tail so the next read starts

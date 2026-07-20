@@ -65,8 +65,9 @@ zone is not yet the standalone library the header comments claim.
 [`../build.sh`](../build.sh) enumerate every translation unit:
 
 - `SOURCES` — what the release and debug binaries are built from.
-- `ENGINE_SOURCES` — `engine/` plus `platform/clock.c`, what `zone-check` links
-  standalone and what [`../tests/test_main.c`](../tests/test_main.c) is built
+- `ENGINE_SOURCES` — `engine/` plus all of `platform/` (the clock, memory, the
+  thread runtime and pool, NUMA, `tablebase.c` and `syzygy/`), what `zone-check`
+  links standalone and what [`../tests/test_main.c`](../tests/test_main.c) is built
   against.
 
 A `.c` file that is in neither array is compiled by nothing. It is not in the
@@ -74,14 +75,14 @@ binary, not linked by `zone-check`, not reached by `./build.sh test`, and not
 covered by `signature`, `perft` or `golden`. **Read the arrays, not the
 directory listing, to know what the engine is.**
 
-Most of the ported tree is in that state today. The zone pages name the specific
-modules — see [01-engine-board.md](01-engine-board.md),
+The decomposed shell is the tree's one remaining subsystem in that state today.
+The zone pages name the specific modules — see
+[01-engine-board.md](01-engine-board.md),
 [02-engine-search.md](02-engine-search.md),
 [03-engine-eval.md](03-engine-eval.md), [06-platform.md](06-platform.md) and
-[07-shell.md](07-shell.md) — and each says what its own wiring commit has to
-decide. The general shape of the gap is the same everywhere: a module was ported
-and checked in isolation, and until it enters `SOURCES` nothing re-checks it, so
-it rots silently against the files that do move.
+[07-shell.md](07-shell.md). The shape of the gap is always the same: a module was
+ported and checked in isolation, and until it enters `SOURCES` nothing re-checks
+it, so it rots silently against the files that do move.
 
 Adding a file therefore means editing `SOURCES`, and — if it belongs to
 `engine/` or `platform/` — `ENGINE_SOURCES` as well, or `zone-check` and the test
@@ -135,6 +136,7 @@ int main(int argc, char **argv) {
     eval_nnue_init();
 
     uci_loop(argc, argv);
+    search_shutdown();
     eval_nnue_shutdown();
     return 0;
 }
@@ -163,7 +165,8 @@ int main(int argc, char **argv) {
 6. Only then may any `Position` exist. `pos_set` calls `set_check_info`, which
    reads `PseudoAttacks` and `BetweenBB`.
 
-`main` pairs the init with `eval_nnue_shutdown()` after `uci_loop` returns.
+`main` pairs the init with `search_shutdown()` and `eval_nnue_shutdown()` after
+`uci_loop` returns.
 
 A `Position` built before step 2 does not crash. It reads zeroed attack sets, so
 `slider_blockers` finds no snipers, `set_check_info` finds no checkers, and
@@ -248,7 +251,7 @@ flowchart TD
     EV --> NN
     PO -.->|"writes the delta into the accumulator arena"| NN
     SG -.->|"deadline"| CL
-    AB -.->|"every 2048 nodes"| CL
+    AB -.->|"every 512 nodes"| CL
 ```
 
 `uci_loop` parses a `go` line into a `SearchLimits` and calls `search_go`.
@@ -268,7 +271,7 @@ see [03-engine-eval.md](03-engine-eval.md) for why an empty push is not the same
 no push.
 
 The only wall-clock read inside the recursion is the one guarded by the
-node-count checkpoint in `should_stop` — see
+node-count checkpoint in `check_time` — see
 [02-engine-search.md](02-engine-search.md) for why that guard is what keeps the
 signature gate meaningful.
 
@@ -287,8 +290,6 @@ is `tools/upstream/port_map.tsv` and `./build.sh port-status`.
 
 | Subsystem | Where it sits | What its absence from the build costs today | Milestone |
 | --- | --- | --- | --- |
-| **Threads, NUMA, memory** | `src/platform/thread.c`, `thread_pool.c`, `thread_runtime.c`, `numa.c`, `memory.c` | one search thread; the TT is not on large pages; a GUI setting `Threads 8` gets one thread's worth of search | M4 |
-| **Per-worker state** | `src/engine/state/` | the history block and the `SearchCtx` are file-scope singletons rather than per-worker state; `search_types.h` carries its own `RootMove` / `PVMoves` | M4 |
 | **The decomposed shell** | `src/shell/engine.c`, `uci_parse.c` and its siblings | `uci.c` remains the monolith and holds the session state — the position, the state chain and the option table — as file-scope statics; `engine.c` registers a second, dead copy of the option set | M2 |
 
 **Not written at all:** the remaining `TODO` rows of the port map, which

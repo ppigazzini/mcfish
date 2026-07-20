@@ -328,13 +328,13 @@ oracle or not at all.
 
 ## What is still missing here
 
-- **Optimism is hardcoded to zero**, pending the ported search.
 - **The classical fallback is still in the tree**, and its deletion waits on the
   point where a netless run is no longer something mcfish needs to support.
-- **Bit-exactness with upstream is not reached**, and the evaluation is only one of
-  its preconditions: the search is still `search.c` rather than the ported node
-  bodies, so the tree diverges regardless of how good the leaf score is. The count in
-  [`../tools/signature.golden`](../tools/signature.golden) is mcfish's *current*
-  total, not the target; the finish line is upstream's own `Bench:` at the SHA in
-  [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE). See
+- **Bit-exactness with upstream is anchored, not yet proven end to end.** The
+  evaluation feeds the ported node bodies (`search.c` is only the facade), and the
+  count in [`../tools/signature.golden`](../tools/signature.golden) now equals
+  upstream's own `Bench:` at the SHA in
+  [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE) — the target,
+  not merely a current total. What the anchor cannot prove is faithfulness off the
+  fixed bench list; that is the per-position differential's job. See
   [09-tooling-ci.md](09-tooling-ci.md).

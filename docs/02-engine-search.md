@@ -540,10 +540,6 @@ replaced by a later iteration that failed to re-find it.
 [`../src/engine/search/PORT_NOTES_search_zone.md`](../src/engine/search/PORT_NOTES_search_zone.md)
 is the file-by-file map. What the live zone does not yet do:
 
-- **Threads.** `check_time` gates on `ctx->nodes`, which *is* the pool count at one
-  worker. The pool sum, `increase_depth` across workers, thread voting and
-  `best_move_changes` aggregation are single-worker shapes. See
-  [06-platform.md](06-platform.md).
 - **The option model is installed, and its fallback is still a trap.** `uci_loop`
   registers the shell's table behind the `option_source` seam with
   `search_set_option_source`, so MultiPV, Skill Level, UCI_Elo, Move Overhead,

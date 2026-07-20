@@ -20,32 +20,31 @@ Every module is in the build.
 | Module | In `SOURCES`? | Driven by the search? | Owns |
 | --- | --- | --- | --- |
 | [`clock.c`](../src/platform/clock.c) | **yes** | **yes** | `now_ms`, the one clock the engine reads |
-| [`memory.c`](../src/platform/memory.c) | **yes** | no | large-page aligned allocation and the page-allocator seam |
-| [`thread_runtime.c`](../src/platform/thread_runtime.c) | **yes** | no | the mutex / condition-variable / atomic primitives |
-| [`thread.c`](../src/platform/thread.c) | **yes** | no | one OS thread and its idle-loop handshake |
-| [`thread_pool.c`](../src/platform/thread_pool.c) | **yes** | no | the Lazy-SMP worker pool, the shared stop flag, the NUMA binding plan |
-| [`numa.c`](../src/platform/numa.c) | **yes** | no | the NUMA topology model and the replication registry |
+| [`memory.c`](../src/platform/memory.c) | **yes** | **yes** | large-page aligned allocation and the page-allocator seam |
+| [`thread_runtime.c`](../src/platform/thread_runtime.c) | **yes** | **yes** | the mutex / condition-variable / atomic primitives |
+| [`thread.c`](../src/platform/thread.c) | **yes** | **yes** | one OS thread and its idle-loop handshake |
+| [`thread_pool.c`](../src/platform/thread_pool.c) | **yes** | **yes** | the Lazy-SMP worker pool, the shared stop flag, the NUMA binding plan |
+| [`numa.c`](../src/platform/numa.c) | **yes** | **yes** | the NUMA topology model and the replication registry |
 | [`tablebase.c`](../src/platform/tablebase.c) | **yes** | **yes** | the Syzygy facade the engine and shell call |
 | [`syzygy/`](../src/platform/syzygy) | **yes** | **yes** | the prober: `tables.c`, `encode.c`, `decode.c`, `registry.c`, `wdl.c`, `probe.c` |
 
-**The two columns are different claims, and only the first one is now true of every
-row.** Being in `SOURCES` means the module compiles under the full warning set, links
-into `zone-check`, and can be reached by `./build.sh test` — the thread pool and the
+**The two columns are different claims, and both are now true of every row.** Being
+in `SOURCES` means the module compiles under the full warning set, links into
+`zone-check`, and can be reached by `./build.sh test` — the thread pool and the
 NUMA config are covered by unit tests and by `./build.sh tsan`. Being *driven by the
 search* means the engine's behaviour changes when the module does, and for the
-thread/NUMA rows it still does not: nothing constructs a pool, so `Threads` above 1
-is accepted and ignored.
+thread and NUMA rows it now does: `search_threads.c` constructs the pool, so
+`Threads` above 1 runs that many workers over one root.
 
-**Why the pool is built but not driven.** Lazy-SMP is not a matter of calling
-`thread_pool_set`. The live search keeps every piece of per-worker state in file-scope
-globals — the `SearchCtx` in `search.c`, the `Histories` block in `history.c`, and the
-accumulator stack, refresh cache and scratch dirty-piece records in `evaluate.c`.
-Running two workers over those is not parallel search, it is a data race on 28 MiB of
-history tables and one shared NNUE accumulator. The remaining work is to make that
-state per-worker and to route the node sum, the thread vote and `best_move_changes`
-through a seam that answers with thread 0's own values at `Threads 1` — which is what
-keeps the anchor bit-exact. The per-worker layout that state has to move to is already
-written, in [`src/engine/state/`](../src/engine/state).
+**How the pool is driven.** Lazy-SMP was not just a matter of calling
+`thread_pool_set`. Every piece of per-worker state that was a file-scope global —
+the `SearchCtx`, the `Histories` block, and the accumulator stack, refresh cache
+and scratch dirty-piece records — now lives in the `SearchWorker` block, one per
+thread, so running N workers is parallel search rather than a data race on the
+history tables and one shared NNUE accumulator. The node sum, the thread vote and
+`best_move_changes` route through a seam that answers with thread 0's own values at
+`Threads 1`, which is what keeps the anchor bit-exact. The per-worker layout that
+state moved to is [`src/engine/state/`](../src/engine/state).
 
 The authoritative status list is `tools/upstream/port_map.tsv`, and `./build.sh
 port-status` prints it live.
@@ -206,7 +205,8 @@ The internal split is deliberate:
   entry points. `available == 0` is the single encoding for "no result" — no path,
   no table for this material, or a file that would not parse.
 
-All seven files are in both `SOURCES` and `ENGINE_SOURCES`; the module links
+All six files, plus the `tablebase.c` facade, are in both `SOURCES` and
+`ENGINE_SOURCES`; the module links
 against no library and needs only the `-D_POSIX_C_SOURCE=200809L` that
 `CFLAGS_COMMON` already sets. The shell half is
 [`syzygy_option.c`](../src/shell/syzygy_option.c), which holds the four option
@@ -297,10 +297,11 @@ check and into the test binary. `./build.sh zone-check` therefore cannot detect 
 edge — it proves engine+platform links without shell, and clock is on the inside of
 that boundary.
 
-The fix is written and unwired: the decomposed search takes its clock through
+The read-side fix is landed: the decomposed search takes its clock through
 [`../src/engine/search/time_source.h`](../src/engine/search/time_source.h), the same
-function-pointer seam shape `search_set_output` already uses for output. Until that
-lands, `engine/` cannot be built or tested without a POSIX clock.
+function-pointer seam shape `search_set_output` already uses for output. What remains
+is that the facade `search.c` still registers `now_ms` as that seam's implementation,
+so `engine/` cannot yet be linked without a POSIX clock.
 
 ## Do not land a stub whose functions return constants
 

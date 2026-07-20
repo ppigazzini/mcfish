@@ -7,7 +7,7 @@ Audience: engine and platform contributors. The prober lives in `src/platform/`
 but the integration lives in `src/engine/search/`, which is why this page spans
 both zones rather than sitting inside [06-platform.md](06-platform.md).
 
-**Wired, and gated.** All seven files under
+**Wired, and gated.** All six files under
 [`src/platform/syzygy/`](../src/platform/syzygy) plus
 [`tablebase.c`](../src/platform/tablebase.c) are in **both** `SOURCES` and
 `ENGINE_SOURCES`, the four UCI options are live, and `./build.sh tb` compares
@@ -114,7 +114,7 @@ position whose every legal move zeroes the fifty-move counter, so the probe
 recurses over captures (and, under `check_zeroing`, pawn moves) and compares.
 It does and undoes moves on the position it is given and **restores it exactly**,
 so the caller may hand it the live search position. Its `StateInfo` is a function
-local, as upstream's stack local at `tbprobe.cpp:1333` is — not shared state.
+local, as upstream's stack local at `tbprobe.cpp:1335` is — not shared state.
 
 ### In-search: Step 6
 
@@ -178,7 +178,7 @@ A tablebase score with a one-move PV is useless to a user, so
 1. **Truncate** to what is still validated — follow the existing PV while each
    move keeps the top tablebase rank, and stop where it does not.
 2. **Extend** toward mate by repeatedly taking the top-ranked move, ranking ties
-   by opponent mobility as upstream does at `search.cpp:2172`.
+   by opponent mobility as upstream does at `search.cpp:2174`.
 
 **The PV length and the number of moves made are the same counter.** Let them
 drift and the undo walk either leaves a move on the board or unmakes one that was

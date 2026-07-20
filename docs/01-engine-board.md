@@ -37,21 +37,19 @@ keeps the decode side until its shared helpers (`set_check_info`,
 `slider_blockers`, `compute_key`, used by both `pos_set` and `pos_do_move`) get a
 header of their own.
 
-**Those are not merely unwired — several of them cannot be added to `SOURCES` as
-the tree stands.** `position.c` still carries its own copies of the symbols they
-define: `pos_fen` and `pos_pretty` are in both `position.c` and `fen.c`, `pos_set`
-is in both `position.c` and `fen_parse.c`, `pos_legal` is in both `position.c` and
-`legality.c`, and `position.c` generates its own file-scope Zobrist tables rather
-than calling `zobrist_init`. Adding either file to the array is a duplicate-symbol
-link error. **The split commit is a deletion from `position.c` in the same commit
-as the addition to `SOURCES`**, not two commits — anything else leaves the tree
-unbuildable in between.
+**Those extractions are wired, not merely on disk.** `position.c` no longer carries
+a second copy of `pos_fen`, `pos_pretty` or `pos_legal` — those live in `fen.c` and
+`legality.c` now — and it draws its Zobrist tables by calling `zobrist_init` rather
+than generating its own. `pos_set` stays in `position.c`, which keeps the decode
+helpers (`set_check_info`, `slider_blockers`, `compute_key`) it shares with
+`pos_do_move`. The split landed as one commit that deleted from `position.c` as it
+added to `SOURCES`, so the tree was buildable at every step.
 
-Two of those copies are not identical, which is why they cannot be swapped
-casually. `zobrist.c` draws keys for pieces 1..14 *including* the two encoding
-gaps, while `position.c` draws for the twelve real pieces only; the two produce
-different tables from the same seed, and the live one is `position.c`'s. See
-*Zobrist* below for why that distinction is the load-bearing one.
+The Zobrist draw is the load-bearing subtlety the split had to preserve:
+`zobrist_init` draws for the twelve real pieces only, skipping the two encoding
+gaps, because drawing all fourteen would shift every key from `B_PAWN` onward off
+upstream's table. See *Zobrist* below for why that distinction is the load-bearing
+one.
 
 `./build.sh port-status` prints the live per-module status from
 `tools/upstream/port_map.tsv`. Milestone M1 in [PORTING.md](PORTING.md) ends when
