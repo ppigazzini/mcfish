@@ -106,16 +106,16 @@ src/engine/search/time_source.zig	src/engine/search/root_move_build.c	src/search
 src/engine/search/timeman.zig	src/engine/search/timeman.c	src/timeman.cpp	PORTED	MED
 src/engine/search/tt.zig	src/engine/search/tt.c	src/tt.cpp	PARTIAL	MED
 src/engine/search/uci_wdl.zig	src/engine/search/uci_wdl.c	src/uci.cpp	PORTED	LOW
-src/engine/state/correction_bundle.zig	src/engine/state/correction_bundle.c	src/thread.h, src/search.h	PORTED	HIGH
-src/engine/state/limits_type.zig	src/engine/state/correction_bundle.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
-src/engine/state/page_alloc.zig	src/engine/state/correction_bundle.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
-src/engine/state/position_storage.zig	src/engine/state/position_storage.c	src/thread.h, src/search.h	PORTED	HIGH
-src/engine/state/root_move.zig	src/engine/state/root_move.c	src/thread.h, src/search.h	PORTED	HIGH
-src/engine/state/shared_history_types.zig	src/engine/state/correction_bundle.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
-src/engine/state/shared_state.zig	src/engine/state/shared_state.c	src/thread.h, src/search.h	PORTED	HIGH
+src/engine/state/correction_bundle.zig	src/engine/search/history.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
+src/engine/state/limits_type.zig	src/engine/search/search.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
+src/engine/state/page_alloc.zig	src/platform/memory.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
+src/engine/state/position_storage.zig	src/engine/state/worker_construct.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
+src/engine/state/root_move.zig	src/engine/search/root_move_build.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
+src/engine/state/shared_history_types.zig	src/engine/search/history.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
+src/engine/state/shared_state.zig	src/engine/state/worker_construct.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
 src/engine/state/tt_types.zig	src/engine/search/tt.c	src/tt.h	CONSOLIDATED	HIGH
 src/engine/state/worker_construct.zig	src/engine/state/worker_construct.c	src/thread.h, src/search.h	PORTED	HIGH
-src/engine/state/worker_histories.zig	src/engine/state/worker_histories.c	src/thread.h, src/search.h	PORTED	HIGH
+src/engine/state/worker_histories.zig	src/engine/search/history.c	src/thread.h, src/search.h	CONSOLIDATED	HIGH
 src/engine/state/worker_layout.zig	src/engine/state/worker_layout.c	src/thread.h, src/search.h	PORTED	HIGH
 src/platform/clock.zig	src/platform/clock.c	src/misc.cpp	PORTED	LOW
 src/platform/libc.zig		-	SKIP	LOW

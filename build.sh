@@ -609,7 +609,7 @@ do_tsan() {
 #
 # The instrumentation itself is known to work: making the pool test's counter a
 # plain int instead of an atomic_int makes `./build.sh tsan` report the race at
-# test_main.c:717 and exit 66. Re-run that experiment rather than trusting this
+# test_main.c:719 and exit 66. Re-run that experiment rather than trusting this
 # comment if a zero here ever needs to be believed.
 do_tsan_search() {
   local depth=${1:-14} threads=${2:-8}
@@ -669,7 +669,7 @@ do_port_status() {
 
 # The differential that the bench anchor CANNOT fake.
 #
-# `signature` is one number over a fixed 45-position list. A port can be nudged
+# `signature` is one number over a fixed 51-position list. A port can be nudged
 # toward it without becoming faithful -- tune a constant until the total lands,
 # special-case whatever the bench happens to exercise -- and the number then says
 # nothing. This reaches positions by playing random legal moves from the start,
