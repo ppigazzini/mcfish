@@ -154,8 +154,6 @@ alignment and every field offset the decoders address. Those assertions are the 
 thing standing between a field reordering in
 [`../src/engine/board/types.h`](../src/engine/board/types.h) and an accumulator that
 decodes garbage, so **add an assertion when you add a field.**
-[`../src/engine/eval/nnue/PORT_NOTES_accumulator.md`](../src/engine/eval/nnue/PORT_NOTES_accumulator.md)
-records the full contract.
 
 ## The properties that make the network correct
 

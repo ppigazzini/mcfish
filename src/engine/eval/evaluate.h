@@ -10,7 +10,6 @@
 // and the refresh cache, and the search MUST bracket every make/unmake with
 // `eval_acc_push` / `eval_acc_pop` and reset at each root. A missing bracket does
 // not crash: it silently evaluates a different position than the board holds.
-// See nnue/PORT_NOTES_accumulator.md.
 //
 // Golden: Stockfish/src/evaluate.cpp:41 (Eval::evaluate), :75 (Eval::trace).
 

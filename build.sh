@@ -63,8 +63,7 @@ STD_FLAG=$(detect_std_flag)
 # without this ONLY because glibc >= 2.34 folded the pthread symbols into libc --
 # on any older glibc, or a musl/BSD host, the same sources fail at link. Asking
 # for the library the code uses is not a portability nicety, it is the honest
-# dependency; PORT_NOTES_platform.md has carried it as an open request since the
-# thread modules landed.
+# dependency, open since the thread modules landed.
 LIBS=(-lm -lpthread)
 
 CFLAGS_COMMON=(

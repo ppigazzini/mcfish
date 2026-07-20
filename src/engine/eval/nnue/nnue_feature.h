@@ -42,8 +42,7 @@ enum {
 // The FIELD ORDER IS CONTRACTUAL: `pc` first, and the struct alignment-free. The
 // accumulator stores this record inside its arena at an offset that is deliberately NOT
 // rounded up, and reads `pc` as the arena's first diff byte to decide whether the ply
-// forces a refresh. This is the same layout as the board zone's DirtyPiece — see
-// PORT_NOTES_accumulator.md.
+// forces a refresh. This is the same layout as the board zone's DirtyPiece.
 typedef struct NnueDirtyPiece {
     uint8_t pc;
     uint8_t from;
