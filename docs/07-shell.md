@@ -9,24 +9,39 @@ Audience: shell contributors. The zone rule this page depends on is in
 
 ## The split
 
-The zone is two files with a seam between them, plus the pieces they drive:
+The zone is decomposed into single-responsibility modules, each owning one thing and
+reaching the others only through a header. No file holds both the state and the
+stream, which is the entanglement the split exists to remove.
 
-- [`engine.c`](../src/shell/engine.c) — **the session** ([`engine.h`](../src/shell/engine.h)).
-  It owns what upstream's `engine.cpp` owns: the position and its unbounded state
-  chain, the option table with its wired on-change callbacks, the resident net, and
-  the search wiring. It holds no stdio and knows no command grammar.
-- [`uci.c`](../src/shell/uci.c) — **the transport and the dispatch**
-  ([`uci.h`](../src/shell/uci.h)). It reads a line, routes it to an `engine_*` call,
-  and prints every byte the engine puts on the wire. It holds no engine state.
+**The dispatch and the transport:**
+
+- [`uci.c`](../src/shell/uci.c) — **the command dispatch** ([`uci.h`](../src/shell/uci.h)).
+  Reads a line, routes it to an `engine_*` call. Holds no engine state and no stream.
+- [`uci_output.c`](../src/shell/uci_output.c) — **the stdio funnel and the debug-log
+  tee** ([`uci_output.h`](../src/shell/uci_output.h)). The only module in the tree
+  that writes to a stream.
+
+**The session, behind the [`engine.h`](../src/shell/engine.h) facade:**
+
+- [`engine.c`](../src/shell/engine.c) — **the session**: the position and its
+  unbounded state chain, the search entry points, and the startup sequence that wires
+  the rest together.
+- [`engine_options.c`](../src/shell/engine_options.c) — **the option table**: the
+  wire-order registration and every on-change callback.
+- [`engine_nnue.c`](../src/shell/engine_nnue.c) — **the resident net**: the load, the
+  status line, and the refuse-to-run check.
+
+**The pieces they drive:**
+
 - [`main.c`](../src/shell/main.c) — the composition root.
-- [`ucioption.c`](../src/shell/ucioption.c) — the typed option table.
+- [`ucioption.c`](../src/shell/ucioption.c) — the typed option-table container.
 - [`benchmark.c`](../src/shell/benchmark.c) and its data
   [`bench_positions.c`](../src/shell/bench_positions.c) — the fixed bench.
 - [`syzygy_option.c`](../src/shell/syzygy_option.c) — the Syzygy option delegate.
 
-The seam is the point: `uci.c` parses text and prints text, `engine.c` holds the
-state, and neither reaches into the other's job. That is why the option table is
-registered once (in `engine.c`) and the stdio funnel lives in one place (`uci.c`).
+`engine.h` is a facade: `uci.c` drives one seam (`engine_*`), and `engine.c` forwards
+option and net calls to `engine_options.c` and `engine_nnue.c` behind it, so the
+dispatch never learns there are three modules there.
 
 ## main as the composition root
 
@@ -70,13 +85,14 @@ undefined behaviour, not a diagnosable error. See
 ### The net and the root directory
 
 The shell owns the net because it owns the `EvalFile` option; the engine zone
-allocates the arenas at startup and never touches the filesystem. `engine.c` keeps
-two strings for this: the option value, and the directory the binary was launched
-from, derived from `argv[0]`. **That root must carry its trailing separator**,
-because `network_load`'s concatenation inserts none.
+allocates the arenas at startup and never touches the filesystem.
+[`engine_nnue.c`](../src/shell/engine_nnue.c) keeps two strings for this: the file it
+last tried to load, and the directory the binary was launched from, derived from
+`argv[0]`. **That root must carry its trailing separator**, because `network_load`'s
+concatenation inserts none.
 
-`engine_report_net()` prints `eval_nnue_status()` through `info string` before every
-`go`, `perft` and `eval`, and `engine_verify_network()` **terminates** the process
+`engine_nnue_report()` prints `eval_nnue_status()` through `info string` before every
+`go`, `perft` and `eval`, and `engine_nnue_verify()` **terminates** the process
 right after when no usable net is loaded — upstream's five error lines verbatim, from
 the same three sites (nnue/network.cpp:165-187). Refusing to run is the honest
 answer: a placeholder eval that plays legal moves reads as a strength regression, not
@@ -85,13 +101,14 @@ as a missing file. See [03-engine-eval.md](03-engine-eval.md).
 ## The output sink
 
 The engine zone never calls `printf`. `search_go` and `perft` emit through a
-function pointer the shell installs:
+function pointer the shell installs — `uci_output_emit_line`, which writes the line
+and a newline through the one funnel and tees it to the log:
 
 ```c
-// src/shell/uci.c
-static void emit_stdout(const char *line) {
-    printf("%s\n", line);
-    fflush(stdout);
+// src/shell/uci_output.c
+void uci_output_emit_line(const char *line) {
+    uci_output_write(line);
+    uci_output_write("\n");
 }
 ```
 
@@ -117,10 +134,12 @@ which reads as a hang rather than as a wiring mistake.
 `fflush` after every line is not optional. stdout to a pipe is block-buffered, and a
 GUI waiting on `uciok` or `bestmove` would wait for a full buffer.
 
-`uci.c` is the only module in the tree that writes to a stream. `emit_stdout` (the
-search/status sink) and `emit_info_string` (the option-message sink) both funnel
-through `uci_write`, which is also where the `Debug Log File` tee lives — so there is
-one point at which every outgoing byte can be copied to the session log.
+[`uci_output.c`](../src/shell/uci_output.c) is the only module in the tree that
+writes to a stream. `uci_output_emit_line` (the search/status sink) and
+`uci_output_emit_info` (the option-message sink) both funnel through
+`uci_output_write`, which is also where the `Debug Log File` tee lives — so there is
+one point at which every outgoing byte can be copied to the session log. `uci.c`
+installs those two sinks on the session with `engine_set_output`.
 
 ## The command loop
 
@@ -226,9 +245,11 @@ the sink, then a `Nodes searched:` total on stdout. That total is what
 ## The option table
 
 There is one, [`ucioption.c`](../src/shell/ucioption.c): typed options with kind,
-default, bounds, current value and an on-change callback. `uci.c`'s
-`register_options` fills it with upstream's full set, `cmd_uci` renders it, and
-`cmd_setoption` hands the whole command body to `options_setoption`.
+default, bounds, current value and an on-change callback.
+[`engine_options.c`](../src/shell/engine_options.c)'s `engine_options_register` fills
+it with upstream's full set, `uci.c`'s `cmd_uci` renders it via
+`engine_render_options`, and `cmd_setoption` hands the whole command body to
+`engine_setoption`.
 
 **Registration order is the wire order.** A GUI parses the `uci` handshake in
 emission order and [`../tools/handshake.golden`](../tools/handshake.golden) diffs
@@ -245,7 +266,7 @@ What differs is whether anything reads the value.
 
 | Option | Reaches | Notes |
 | --- | --- | --- |
-| `Debug Log File` | `start_logger` in `uci.c` | Tees the session to a file, input lines prefixed `>> ` and output `<< `, as upstream's `Tie` streambuf does. Exits when the path cannot be opened. |
+| `Debug Log File` | `uci_output_start_logger` | Tees the session to a file, input lines prefixed `>> ` and output `<< `, as upstream's `Tie` streambuf does. Exits when the path cannot be opened. |
 | `NumaPolicy` | the thread pool | **Live.** Chooses the NUMA topology the worker set binds under. See below. |
 | `Threads` | the thread pool | **Live.** Rebuilds the worker set. See below. |
 | `Hash` | `tt_resize` | |
@@ -304,7 +325,7 @@ stop taking effect.
 ### On-change callbacks
 
 `on_hash`, `on_clear_hash`, `on_threads`, `on_numa_policy`, `on_syzygy`,
-`on_debug_log_file` and `on_eval_file` (all in `engine.c`) are the seams through
+`on_debug_log_file` and `on_eval_file` (all in `engine_options.c`) are the seams through
 which a subsystem becomes reachable from a `setoption`. Each returns bare text or
 `nullptr`; the transport adds the `info string ` prefix, one line per line, as
 upstream's `print_info_string` does. `on_debug_log_file` reaches back into `uci.c`'s

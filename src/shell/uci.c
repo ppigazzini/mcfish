@@ -1,6 +1,6 @@
-// Own the UCI transport and the command dispatch. The engine session lives in
-// engine.c; this file reads a line, routes it to an engine_* call, and prints
-// every byte the engine puts on the wire. See uci.h.
+// Own the UCI command dispatch: read a line, route it to an engine_* call. The
+// engine session lives in engine.c; the stdio funnel lives in uci_output.c; this
+// file holds neither engine state nor a stream. See uci.h.
 
 #include "uci.h"
 
@@ -10,9 +10,9 @@
 #include "../platform/tablebase.h"
 #include "benchmark.h"
 #include "engine.h"
+#include "uci_output.h"
 #include "ucioption.h"
 
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,101 +20,6 @@
 #define ENGINE_NAME "mcfish"
 #define ENGINE_VERSION "dev"
 #define ENGINE_AUTHORS "the Stockfish developers (see AUTHORS file)"
-
-// ---------------------------------------------------------------------------
-// Output funnel and the debug log
-//
-// Every byte the engine writes to a GUI leaves through uci_write. That single
-// point is what makes `Debug Log File` implementable: upstream ties std::cout and
-// std::cin to a tee streambuf (misc.cpp, struct Tie), so the log holds the whole
-// session with each output line prefixed "<< " and each input line ">> ".
-// ---------------------------------------------------------------------------
-
-static FILE *LogFile = nullptr;
-
-// Track the last byte written to the log so a prefix is emitted exactly at line
-// starts, across the input/output boundary. Never reset on reopen; upstream shares
-// one `last` between the cin and cout ties (misc.cpp, Tie::log).
-static int LogLast = '\n';
-
-static void log_bytes(const char *s, size_t n, const char *prefix) {
-    if (!LogFile)
-        return;
-    for (size_t i = 0; i < n; ++i) {
-        if (LogLast == '\n')
-            fwrite(prefix, 1, 3, LogFile);
-        fputc(s[i], LogFile);
-        LogLast = (unsigned char) s[i];
-    }
-    fflush(LogFile);
-}
-
-// Write S verbatim — no newline appended, so a caller composing a multi-line block
-// controls its own line breaks.
-static void uci_write(const char *s) {
-    const size_t n = strlen(s);
-    fwrite(s, 1, n, stdout);
-    fflush(stdout);
-    log_bytes(s, n, "<< ");
-}
-
-[[gnu::format(printf, 1, 2)]]
-static void uci_printf(const char *fmt, ...) {
-    char buf[4096];
-    va_list ap;
-    va_start(ap, fmt);
-    const int n = vsnprintf(buf, sizeof buf, fmt, ap);
-    va_end(ap);
-    if (n <= 0)
-        return;
-    const size_t len = (size_t) n < sizeof buf ? (size_t) n : sizeof buf - 1;
-    fwrite(buf, 1, len, stdout);
-    fflush(stdout);
-    log_bytes(buf, len, "<< ");
-}
-
-// Open FNAME as the session log, closing any previous one. Exit on a path that
-// cannot be opened, as upstream does (misc.cpp, Logger::start): an operator who
-// asked for a transcript and silently got none cannot tell the run apart from one
-// where nothing happened.
-void uci_start_logger(const char *fname) {
-    if (LogFile) {
-        fclose(LogFile);
-        LogFile = nullptr;
-    }
-    if (!fname[0])
-        return;
-
-    LogFile = fopen(fname, "w");
-    if (!LogFile) {
-        fprintf(stderr, "Unable to open debug log file %s\n", fname);
-        exit(EXIT_FAILURE);
-    }
-}
-
-// Write the search's line and its terminator without going through uci_printf: a
-// PV info line is built in a 5120-byte buffer (search_emit.c LINE_MAX) and would be
-// silently truncated by the smaller printf staging buffer.
-static void emit_stdout(const char *line) {
-    uci_write(line);
-    uci_write("\n");
-}
-
-// Route an on-change message, one "info string" line per line of text, as upstream's
-// UCIEngine::print_info_string does (uci.cpp:55). The callbacks return bare text for
-// exactly this reason: the prefix belongs to the transport.
-static void emit_info_string(const char *message) {
-    const char *line = message;
-    while (*line) {
-        const char *end = strchr(line, '\n');
-        const int len = end ? (int) (end - line) : (int) strlen(line);
-        if (len > 0)
-            uci_printf("info string %.*s\n", len, line);
-        if (!end)
-            break;
-        line = end + 1;
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Commands
@@ -135,8 +40,8 @@ static void print_tablebase_lines(void) {
     engine_current_fen(fen, sizeof fen);
     const TbProbeResult r = tablebase_probe_fen(fen, strlen(fen), board_is_chess960(pos));
 
-    uci_printf("Tablebases WDL: %4d (%d)\n", r.wdl, r.wdl_state);
-    uci_printf("Tablebases DTZ: %4d (%d)\n", r.dtz, r.dtz_state);
+    uci_output_printf("Tablebases WDL: %4d (%d)\n", r.wdl, r.wdl_state);
+    uci_output_printf("Tablebases DTZ: %4d (%d)\n", r.dtz, r.dtz_state);
 }
 
 // Report an invalid command and stop the process, as upstream does (uci.cpp:684).
@@ -146,7 +51,8 @@ static char CurrentCmd[4096];
 
 static void terminate_on_critical_error(const char *command, const char *reason) {
     // Two newlines: upstream writes '\n' and then sync_endl (uci.cpp:685-687).
-    uci_printf("info string CRITICAL ERROR: Command `%s` failed. Reason: %s\n\n", command, reason);
+    uci_output_printf("info string CRITICAL ERROR: Command `%s` failed. Reason: %s\n\n", command,
+                      reason);
     exit(1);
 }
 
@@ -231,7 +137,7 @@ static void cmd_go(char *args) {
             engine_verify_network();
             const uint64_t n = engine_perft((int) v);
             // Two newlines: upstream writes "\n" then sync_endl (uci.cpp:481).
-            uci_printf("\nNodes searched: %llu\n\n", (unsigned long long) n);
+            uci_output_printf("\nNodes searched: %llu\n\n", (unsigned long long) n);
             return;
         }
     }
@@ -249,7 +155,7 @@ static void cmd_go(char *args) {
 static void cmd_setoption(char *args) {
     char name[OPTION_NAME_MAX] = { 0 };
     if (engine_setoption(args, name) == OPTION_SET_UNKNOWN)
-        uci_printf("No such option: %s\n", name);
+        uci_output_printf("No such option: %s\n", name);
 }
 
 static void cmd_flip(void) {
@@ -262,15 +168,15 @@ static void cmd_flip(void) {
 static void cmd_uci(void) {
     char rendered[OPTIONS_RENDER_MAX];
 
-    uci_printf("id name %s %s\n", ENGINE_NAME, ENGINE_VERSION);
-    uci_printf("id author %s\n", ENGINE_AUTHORS);
+    uci_output_printf("id name %s %s\n", ENGINE_NAME, ENGINE_VERSION);
+    uci_output_printf("id author %s\n", ENGINE_AUTHORS);
 
     // The block opens with a newline of its own and closes without one, so the blank
     // line between `id author` and the first option comes out of this composition.
     // Golden: uci.cpp:120.
     engine_render_options(rendered, sizeof rendered);
-    uci_write(rendered);
-    uci_write("\nuciok\n");
+    uci_output_write(rendered);
+    uci_output_write("\nuciok\n");
 }
 
 // Execute one command line. Return false on `quit`.
@@ -303,7 +209,7 @@ static bool execute(char *line) {
     if (strcmp(cmd, "uci") == 0)
         cmd_uci();
     else if (strcmp(cmd, "isready") == 0) {
-        uci_printf("readyok\n");
+        uci_output_printf("readyok\n");
     } else if (strcmp(cmd, "ucinewgame") == 0)
         engine_new_game();
     else if (strcmp(cmd, "position") == 0)
@@ -317,14 +223,14 @@ static bool execute(char *line) {
     else if (strcmp(cmd, "d") == 0) {
         char buf[1024];
         engine_visualize(buf, sizeof buf);
-        uci_write(buf);
+        uci_output_write(buf);
         print_tablebase_lines();
     } else if (strcmp(cmd, "eval") == 0) {
         engine_report_net();
         engine_verify_network();
         char buf[2048];
         engine_trace_eval(buf, sizeof buf);
-        uci_write(buf);
+        uci_output_write(buf);
     } else if (strcmp(cmd, "bench") == 0) {
         // Hand the argument line to the bench, which owns upstream's whole grammar.
         // A bare `bench` is upstream's published run -- the only form the signature
@@ -332,16 +238,16 @@ static bool execute(char *line) {
         benchmark_run(args);
     } else if (strcmp(cmd, "compiler") == 0) {
 #if defined(__clang__)
-        uci_printf("Compiled by clang %d.%d.%d, C%ld\n", __clang_major__, __clang_minor__,
-                   __clang_patchlevel__, __STDC_VERSION__);
+        uci_output_printf("Compiled by clang %d.%d.%d, C%ld\n", __clang_major__, __clang_minor__,
+                          __clang_patchlevel__, __STDC_VERSION__);
 #elif defined(__GNUC__)
-        uci_printf("Compiled by gcc %d.%d.%d, C%ld\n", __GNUC__, __GNUC_MINOR__,
-                   __GNUC_PATCHLEVEL__, __STDC_VERSION__);
+        uci_output_printf("Compiled by gcc %d.%d.%d, C%ld\n", __GNUC__, __GNUC_MINOR__,
+                          __GNUC_PATCHLEVEL__, __STDC_VERSION__);
 #else
-        uci_printf("Compiled by an unknown compiler, C%ld\n", __STDC_VERSION__);
+        uci_output_printf("Compiled by an unknown compiler, C%ld\n", __STDC_VERSION__);
 #endif
     } else if (*cmd && strcmp(cmd, "ponderhit") != 0) {
-        uci_printf("Unknown command: '%s'. Type help for more information.\n", cmd);
+        uci_output_printf("Unknown command: '%s'. Type help for more information.\n", cmd);
     }
 
     return true;
@@ -360,10 +266,10 @@ void uci_loop(int argc, char **argv) {
     // Announce the engine before reading a command, as upstream does from main
     // (main.cpp:40): the first line a GUI and a human use to tell which binary they
     // launched, and its absence is how one build gets mistaken for another.
-    uci_printf("%s %s by %s\n", ENGINE_NAME, ENGINE_VERSION, ENGINE_AUTHORS);
+    uci_output_printf("%s %s by %s\n", ENGINE_NAME, ENGINE_VERSION, ENGINE_AUTHORS);
 
     // Install the transport sinks, then build the session against them.
-    engine_set_output(emit_stdout, emit_info_string);
+    engine_set_output(uci_output_emit_line, uci_output_emit_info);
     engine_init(argc > 0 ? argv[0] : nullptr);
 
     // Join the argv words into one command so `mcfish go depth 5` behaves as if that
@@ -387,7 +293,7 @@ void uci_loop(int argc, char **argv) {
         // Tee the command into the debug log before running it, so the log
         // interleaves commands and replies in the order they happened (misc.cpp,
         // Tie::uflow).
-        log_bytes(line, strlen(line), ">> ");
+        uci_output_log_input(line, strlen(line));
         if (!execute(line))
             break;
     }
