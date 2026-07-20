@@ -15,11 +15,6 @@
 // command first, so `mcfish bench` and `mcfish "go depth 5"` work non-interactively.
 void uci_loop(int argc, char **argv);
 
-// Open FNAME as the session log, closing any previous one, or close the log when
-// FNAME is empty. This is the transport tee behind the `Debug Log File` option, so
-// engine.c's on-change callback reaches it here. Exits on a path it cannot open.
-void uci_start_logger(const char *fname);
-
 // Run one command through the same handler the loop uses, so bench drives the
 // engine over the real UCI surface rather than a private path. A second entry
 // point into the search would be free to drift from the one users exercise --
