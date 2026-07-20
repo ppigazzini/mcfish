@@ -38,7 +38,12 @@ bool pos_legal(const Position *pos, Move m) {
             if (pos_attackers_to_occ(pos, (Square) ((int) s + step), pieces(pos))
                 & pieces_c(pos, them))
                 return false;
-        return true;
+
+        // In Chess960 the castling rook can itself be the piece screening the king
+        // from an enemy slider (queen a1 behind the castling rook on b1): reject if
+        // moving it uncovers a check. `to` is the rook square. Golden:
+        // Stockfish/src/position.cpp:686.
+        return !pos->chess960 || !(pos->st->blockers[us] & square_bb(to));
     }
 
     if (type_of_piece(piece_on(pos, from)) == KING)
