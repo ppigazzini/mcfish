@@ -104,10 +104,10 @@ void pos_pretty(const Position *pos, char *buf, int buf_len);
 // `&pos->scratch_dp` and `&pos->scratch_dts`.
 //
 // GIVES_CHECK is upstream's parameter (position.cpp:815), where it selects the new
-// checkers set. mcfish's set_check_info recomputes checkers from the board on every
-// move, so the value is accepted for signature parity and is not yet read; when
-// Position::gives_check is ported, the checkers assignment moves here and starts
-// trusting it.
+// checkers set. The search now computes and passes it (search_gives_check), but
+// mcfish's set_check_info still recomputes checkers from the board on every move, so
+// the argument is accepted and ignored -- the recompute yields the identical set. When
+// pos_do_move starts trusting the argument, the checkers assignment moves here.
 void pos_do_move(
   Position *pos, Move m, StateInfo *new_st, bool gives_check, DirtyPiece *dp, DirtyThreats *dts);
 void pos_undo_move(Position *pos, Move m);

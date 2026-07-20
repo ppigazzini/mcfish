@@ -256,7 +256,7 @@ bool pos_set_reason(
     pos->chess960 = chess960;
 
     const char *p = fen;
-    int f = 0, r = 7;
+    int f = 0, r = 7, num_pieces = 0;
 
     for (; *p && *p != ' '; ++p) {
         if (*p == '/') {
@@ -271,7 +271,7 @@ bool pos_set_reason(
                 FEN_FAIL("Invalid FEN. Invalid number of squares to skip.");
             f += *p - '0';
             if (f > 8)
-                FEN_FAIL("Invalid FEN. Invalid number of squares to skip.");
+                FEN_FAIL("Invalid FEN. Invalid file reached.");
         } else {
             static const char *tokens = " PNBRQK  pnbrqk";
             const char *hit = strchr(tokens, *p);
@@ -281,6 +281,8 @@ bool pos_set_reason(
                 FEN_FAIL("Invalid FEN. Invalid file reached.");
             if (r < 0)
                 FEN_FAIL("Invalid FEN. Invalid rank reached.");
+            if (++num_pieces > 32)
+                FEN_FAIL("Invalid FEN. More than 32 pieces on the board.");
             put_piece(pos, (Piece) (hit - tokens), make_square(f, r), nullptr);
             ++f;
         }
@@ -299,6 +301,25 @@ bool pos_set_reason(
     // Exactly one king per side, or every downstream king_square() reads garbage.
     if (count_p(pos, WHITE, KING) != 1 || count_p(pos, BLACK, KING) != 1)
         FEN_FAIL("Unsupported position. Incorrect number of kings.");
+
+    // Reject impossible material per side: more than 8 pawns, or more promoted
+    // pieces than the missing pawns could account for (position.cpp:279-289).
+    for (int ci = 0; ci < 2; ++ci) {
+        const Color c = (Color) ci;
+        if (count_p(pos, c, PAWN) > 8)
+            FEN_FAIL(c == WHITE ? "Unsupported position. WHITE has more than 8 pawns."
+                                : "Unsupported position. BLACK has more than 8 pawns.");
+        const int extra_knights = count_p(pos, c, KNIGHT) - 2;
+        const int extra_bishops = count_p(pos, c, BISHOP) - 2;
+        const int extra_rooks = count_p(pos, c, ROOK) - 2;
+        const int extra_queens = count_p(pos, c, QUEEN) - 1;
+        const int additional =
+          (extra_knights > 0 ? extra_knights : 0) + (extra_bishops > 0 ? extra_bishops : 0)
+          + (extra_rooks > 0 ? extra_rooks : 0) + (extra_queens > 0 ? extra_queens : 0);
+        if (additional > 8 - count_p(pos, c, PAWN))
+            FEN_FAIL(c == WHITE ? "Unsupported position. Too many pieces for WHITE."
+                                : "Unsupported position. Too many pieces for BLACK.");
+    }
 
     while (*p == ' ')
         ++p;
@@ -421,6 +442,12 @@ bool pos_set_reason(
     int rule50 = 0, fullmove = 1;
     if (sscanf(p, " %d %d", &rule50, &fullmove) < 1)
         rule50 = 0;
+    // rule50 is used multiplicatively with the eval during search, so upstream caps
+    // it at 2**15; the raw fullmove maps to gamePly (position.cpp:425-429).
+    if (rule50 < 0 || rule50 > 32767)
+        FEN_FAIL("Unsupported position. Rule50 counter out of range.");
+    if (fullmove < 0 || fullmove > 100000)
+        FEN_FAIL("Unsupported position. Game ply out of range.");
     si->rule50 = rule50;
     pos->game_ply = 2 * (fullmove > 0 ? fullmove - 1 : 0) + (pos->side_to_move == BLACK);
 
@@ -549,7 +576,7 @@ bool pos_flip_fen(const char *fen, char *out) {
 // Both pieces may already sit on their destination in Chess960, so lift both before
 // placing either. The Do direction records into DP and DTS; Undo passes neither,
 // because the accumulator pops its stack rather than replaying deltas backwards.
-// Golden: Stockfish/src/position.cpp:1345.
+// Golden: Stockfish/src/position.cpp:1342.
 static void do_castling(Position *pos,
                         Color us,
                         Square from,
@@ -708,9 +735,9 @@ void pos_do_move(
             dp->to = (uint8_t) SQ_NONE;  // the pawn never lands on `to`
 
             // Undo the pawn's arrival on `to` that the from-to key above assumed,
-            // and place the promoted piece there instead. Upstream folds this into
-            // one term because its Zobrist_psq[pawn][promotion rank] is zero;
-            // mcfish's table has no such hole, so cancel it explicitly.
+            // and place the promoted piece there instead. Zobrist_psq[pawn][promotion
+            // rank] is zero -- zobrist.c zeroes it, as upstream does -- so the pawn term
+            // is a no-op and this reduces to upstream's single promoted-piece XOR.
             key ^= Zobrist_psq[pc][to] ^ Zobrist_psq[promoted][to];
             toggle_aux_keys(new_st, pc, to);
             toggle_aux_keys(new_st, promoted, to);
@@ -826,9 +853,10 @@ void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThr
         new_st->key ^= Zobrist_enpassant[file_of(new_st->ep_square)];
         new_st->ep_square = SQ_NONE;
     }
-    // Do NOT touch rule50. Upstream's do_null_move (position.cpp) advances
-    // pliesFromNull only; a null move is not a real ply for the fifty-move
-    // counter. Incrementing it here inflates the counter for the whole subtree
+    // Do NOT touch rule50. Upstream's do_null_move (position.cpp) resets
+    // pliesFromNull to 0 and leaves rule50 unchanged; a null move is not a real
+    // ply for the fifty-move counter. Incrementing it here inflates the counter
+    // for the whole subtree
     // below the null and compounds with every null on the path, which feeds the
     // rule50 > 99 draw test, the eval's rule50 damping and is_shuffling -- so
     // subtrees get declared drawn early, worst in the low-material positions
