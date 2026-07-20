@@ -46,9 +46,6 @@ history tables and one shared NNUE accumulator. The node sum, the thread vote an
 `Threads 1`, which is what keeps the anchor bit-exact. The per-worker layout that
 state moved to is [`src/engine/state/`](../src/engine/state).
 
-The authoritative status list is `tools/upstream/port_map.tsv`, and `./build.sh
-port-status` prints it live.
-
 ## What each module does
 
 ### Memory
@@ -320,5 +317,4 @@ It compiles against a tree that has since moved, and the first thing the wiring
 commit discovers is how far. Wire each module in the commit that finishes it, or
 expect to re-port it.
 
-One module per commit, naming the port source in the body — see
-[PORTING.md](PORTING.md).
+One logical change per commit.

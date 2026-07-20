@@ -392,7 +392,7 @@ do_signature() {
   # like drift. Fail loudly rather than compare a number the gate cannot interpret.
   # Buffer first: `grep -q` exits on the first match and closes the pipe, so bench
   # dies with SIGPIPE and `set -o pipefail` propagates 141 -- making this test read
-  # FALSE even when the message is present. Same trap as tools/port_status.sh.
+  # FALSE even when the message is present.
   local net_probe
   net_probe=$(engine bench 1 2>&1 || true)
   if grep -q 'was not loaded' <<< "$net_probe"; then
@@ -707,10 +707,6 @@ find_clang_format() {
 }
 
 sources_to_format() { find src tests -name '*.c' -o -name '*.h'; }
-
-do_port_status() {
-  bash tools/port_status.sh
-}
 
 # The differential that the bench anchor CANNOT fake.
 #
@@ -1092,7 +1088,6 @@ usage: ./build.sh <step> [args]
   zone-check         assert engine/+platform/ link without shell/
   fmt / fmt-fix      check / apply clang-format
   docs-lint          check docs for dead links and stale paths
-  port-status        report progress toward the bit-exact 1:1 port
   sync-status        report drift between the pinned SHAs and the tracked repos
   upstream-nodes     node-for-node differential on RANDOM positions vs the oracle
   upstream-parity    THE finish line: bench vs a pristine upstream build (red until done)
@@ -1130,7 +1125,6 @@ case "${1:-build}" in
   golden-update)    do_golden_update ;;
   zone-check)       do_zone_check ;;
   docs-lint)        do_docs_lint ;;
-  port-status)      do_port_status ;;
   upstream-nodes)   shift; do_upstream_nodes "$@" ;;
   sync-status)      do_sync_status ;;
   upstream-parity)  shift; do_upstream_parity "$@" ;;

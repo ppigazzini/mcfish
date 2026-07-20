@@ -9,9 +9,7 @@ Audience: anyone editing these docs.
 ## The set
 
 `README.md` is the index — GitHub renders it for the folder, so it is what a
-reader lands on. [PORTING.md](PORTING.md) sits outside the numbering because it
-is not a subsystem page: it is the statement of the goal, and every other page
-must be consistent with it. The rest are `00-`…`09-`, numbered by **reading
+reader lands on. The rest are `00-`…`09-`, numbered by **reading
 order**, not importance: a contributor works down from the architecture into a
 zone. The prefix is the only ordinal.
 
@@ -29,8 +27,6 @@ invites a reader to look for it here.
 The convention:
 
 - A Stockfish golden, relative to Stockfish's `src/`: *upstream `nnue/network.cpp`*.
-- The mcfish owner of a golden: cite the row in `tools/upstream/port_map.tsv`, and
-  cite `./build.sh port-status` for counts.
 
 Never write a reserved mcfish path — a file the port map names but nobody has
 written — as if it existed. Name the upstream golden instead. The port map is the
@@ -80,9 +76,8 @@ against the SHA in `tools/upstream/UPSTREAM_BASE`. "mcfish does Y" is a claim
 about a tree mid-port, and the reader needs to know whether Y is the target or the
 scaffolding. Blur them and nobody can tell what they are allowed to change.
 
-**Never pin a number a gate computes.** The bench signature, node counts, nps,
-module counts, how far the port has got. Cite `./build.sh signature` and
-`./build.sh port-status`. Every figure written into prose goes stale, and nobody
+**Never pin a number a gate computes.** The bench signature, node counts, nps.
+Cite `./build.sh signature`. Every figure written into prose goes stale, and nobody
 thinks to grep the docs for a number.
 
 **State the limit.** A doc that omits its own boundary invites over-trust. Say
@@ -122,7 +117,6 @@ who broke it.
 
 | page | owns | temperature |
 | --- | --- | --- |
-| [PORTING.md](PORTING.md) | the goal, the port sources and the M1..M6 sequence | warm — the milestones outlive a commit; the status does not |
 | [00-architecture.md](00-architecture.md) | the three zones, the zone rule, the composition root, what is in the build | hot |
 | [01-engine-board.md](01-engine-board.md) | `src/engine/board/` | hot |
 | [02-engine-search.md](02-engine-search.md) | `src/engine/search/` | hot — the live search is scheduled for replacement by the decomposition beside it |

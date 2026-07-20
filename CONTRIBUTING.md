@@ -1,28 +1,20 @@
 # Contributing to mcfish
 
 mcfish is a **C23 port of [Stockfish][stockfish]** aiming at a bit-exact 1:1
-clone. Read [docs/PORTING.md](docs/PORTING.md) first — it defines the goal, the
-milestones, and where the code you are about to write comes from.
+clone. `../Stockfish` is the **golden** and the differential gate compares against
+a pristine upstream build; where anything disagrees with Stockfish, Stockfish wins.
 
 ## Building
 
 See the [README](README.md#build): install a **clang with C23 support** and run
 `./build.sh`. There are no other dependencies.
 
-## Porting
+## Faithfulness
 
-Port module for module. [docs/PORTING.md](docs/PORTING.md) names the source for
-each module. `../Stockfish` is the **golden** — it defines correct behaviour, and
-the differential gate compares against a pristine upstream build. Where anything
-disagrees with Stockfish, Stockfish wins.
+**One logical change per commit.** A commit that touches three modules cannot be
+bisected when the node count moves.
 
-`tools/upstream/port_map.tsv` is the work list. `./build.sh port-status` prints
-where the port stands.
-
-**One module per commit**, naming the port source in the body. A commit that
-ports three modules cannot be bisected when the node count moves.
-
-**Do not "improve" on upstream while porting.** A cleaner formulation that moves
+**Do not "improve" on upstream.** A cleaner formulation that moves
 a rounding boundary moves the node count. Port faithfully first.
 
 ## The gates

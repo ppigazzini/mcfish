@@ -8,12 +8,11 @@ Audience: all developers.
 ## The repository that defines the work
 
 mcfish is a C23 port of **Stockfish**, which is the reference implementation for
-everything here. See [PORTING.md](PORTING.md) for where the code comes from.
+everything here.
 
 - [Stockfish][stockfish] — the **golden**. It defines correct behaviour, and the
   differential gate compares against a pristine upstream build. Where mcfish and
-  Stockfish disagree, Stockfish wins. The module-by-module mapping is
-  `tools/upstream/port_map.tsv`.
+  Stockfish disagree, Stockfish wins.
   - [Bench and the node signature][sf-bench] — the finish line for this port.
   - [Stockfish releases][sf-releases] — the `Bench:` line for a tagged commit.
 

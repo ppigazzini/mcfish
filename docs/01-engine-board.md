@@ -51,10 +51,9 @@ gaps, because drawing all fourteen would shift every key from `B_PAWN` onward of
 upstream's table. See *Zobrist* below for why that distinction is the load-bearing
 one.
 
-`./build.sh port-status` prints the live per-module status from
-`tools/upstream/port_map.tsv`. Milestone M1 in [PORTING.md](PORTING.md) ends when
-perft matches on a randomised sweep against the upstream binary, not merely on the
-reference table.
+Board fidelity is proven when perft matches on a randomised sweep against the
+upstream binary (`./build.sh upstream-nodes`), not merely on the reference table
+(`./build.sh perft`).
 
 ## Types and the move encoding
 

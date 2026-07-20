@@ -5,7 +5,7 @@ build system, and — because it is the daily work of this repo — the recurrin
 patterns for expressing upstream's C++ constructs in C23.
 
 Audience: hot-path and build contributors. The gates that hold these rules are in
-[09-tooling-ci.md](09-tooling-ci.md); the port sequence is in [PORTING.md](PORTING.md).
+[09-tooling-ci.md](09-tooling-ci.md).
 
 **Path convention on this page.** A Stockfish golden is written relative to
 Stockfish's `src/`, as *upstream `nnue/network.cpp`*. That is not a path in this
@@ -460,9 +460,8 @@ vectorized` on a fill loop.
 The port is allowed to be slow. It is not allowed to be a guess.
 
 **Never quote a number this repo computes.** Not the bench signature, not a node
-count, not an nps figure, not how many modules are ported. `./build.sh signature`
-and `./build.sh port-status` print the current values; a number written into prose
-is wrong the next time it moves and nobody greps the docs for it.
+count, not an nps figure. `./build.sh signature` prints the current value; a number
+written into prose is wrong the next time it moves and nobody greps the docs for it.
 `./build.sh docs-lint` fails on a quoted signature, and only on that one.
 
 **A performance claim ships with the command that produced it.**

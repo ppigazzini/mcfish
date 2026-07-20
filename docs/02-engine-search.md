@@ -10,8 +10,7 @@ Audience: engine contributors. The board APIs this page calls are in
 
 ## Where this zone stands
 
-Milestone M2 in [PORTING.md](PORTING.md) is this zone. It interlocks with M3, and
-both halves have landed: the decomposed node bodies are the live search, and they
+The decomposed node bodies are the live search, and they
 evaluate through NNUE with the search's own per-colour optimism. Every make/unmake
 is bracketed with `eval_acc_push` / `eval_acc_pop` and the accumulator is reset
 once per `go`. See [03-engine-eval.md](03-engine-eval.md) for why that bracket is a
