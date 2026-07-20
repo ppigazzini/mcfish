@@ -276,8 +276,8 @@ NNUE_SIMD_REINTERPRET(nnue_v4_u32x1_as_u8, NnueV4u8, NnueV1u32)
 // SATURATION to int16 -- so it is only equal to the scalar body if that
 // intermediate cannot saturate. It cannot: affine inputs are activation outputs,
 // which both nnue_clipped_relu_32 and nnue_sqr_clipped_relu_32 cap at 127, and
-// weights are int8. The largest pair sum is 127 * 128 * 2 = 32512 < 32767, and the
-// smallest is -32512 > -32768. The bound is strict with 255 to spare, and it does
+// weights are int8. The most positive pair sum is 127 * 127 * 2 = 32258 < 32767, and
+// the most negative is 127 * -128 * 2 = -32512 > -32768. The bound holds, and it does
 // not depend on the net: it holds for every representable weight. pmaddwd then
 // adds adjacent int16 pairs into int32, which cannot overflow at that magnitude.
 // So both bodies compute the same exact integer, and the node count cannot move.
