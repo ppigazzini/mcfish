@@ -10,11 +10,9 @@ leading comment block.
 This page states structure, not numbers. Where a figure would date the page, name
 the command that computes it.
 
-**The zone layout is the port's target shape.** Each zone is decomposed into
-small single-responsibility modules, with some landed and wired, some landed and
-unwired, and some unwritten. `tools/upstream/port_map.tsv` lists every one,
-and `./build.sh port-status` prints how many have landed. Read
-[PORTING.md](PORTING.md) first.
+**The zone layout is the engine's shape.** Each zone is decomposed into small
+single-responsibility modules. The authoritative list of what is compiled is
+`build.sh`'s `SOURCES` array; a file outside it is in the tree but not the binary.
 
 ## The three zones
 
@@ -280,19 +278,15 @@ automatics and the `StateInfo` per ply is an automatic in the recursing frame; t
 engine's three heap blocks — the transposition table, the NNUE accumulator stack and
 the refresh cache — are all allocated once, outside any search.
 
-## What is not in the binary, and what is not written
+## What is on disk but not in the binary
 
-Every item below is **required for the goal**. None is a scoping decision. Each
-row names the milestone; the authoritative per-module list, with status and risk,
-is `tools/upstream/port_map.tsv` and `./build.sh port-status`.
+The `SOURCES` array is the sole authority on what is compiled. One decomposition
+sits in the tree outside it:
 
-**Ported, not in `SOURCES`, so not in the binary and not gated:**
-
-| Subsystem | Where it sits | What its absence from the build costs today | Milestone |
-| --- | --- | --- | --- |
-| **The decomposed shell** | `src/shell/engine.c`, `uci_parse.c` and its siblings | `uci.c` remains the monolith and holds the session state — the position, the state chain and the option table — as file-scope statics; `engine.c` registers a second, dead copy of the option set | M2 |
-
-**Not written at all:** the remaining `TODO` rows of the port map, which
-`./build.sh port-status` lists by risk tier.
+**The decomposed shell** — `src/shell/engine.c`, `uci_parse.c` and their siblings —
+is on disk but not in `SOURCES`, so not in the binary and not gated. `uci.c` remains
+the live monolith and holds the session state (the position, the state chain and the
+option table) as file-scope statics; `engine.c` registers a second, dead copy of the
+option set. Treat those files as unwired scratch, not as the live shell.
 
 The zone diagram above is the shape all of that lands into.

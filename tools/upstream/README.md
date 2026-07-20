@@ -43,8 +43,6 @@ divergence is a bug report for zfish.
   exactly the "improving while porting moves the node count" trap. Advance it in
   the commit that ports the last change from that range, not before: it is a record
   of what has landed here, not a bookmark of what was read.
-- **`port_map.tsv`** — the work list: every zfish module → its mcfish owner → its
-  Stockfish golden → status → risk tier.
 
 **`./build.sh sync-status` is what checks these**, comparing each pin to its
 checkout's `HEAD` and listing every commit in between. It reports; it does not
@@ -56,7 +54,6 @@ not noticing. Before this step existed nothing read the pins at all, and
 
 | script | what it does |
 |---|---|
-| `../port_status.sh` | progress report off `port_map.tsv`. Run via `./build.sh port-status`. |
 | `upstream_oracle.sh [sha]` | builds **pristine** upstream at `sha` in a detached worktree and prints the binary path |
 | `upstream_parity.sh [bin] [sha]` | the finish-line gate: mcfish bench vs the oracle bench. Run via `./build.sh upstream-parity`. |
 
@@ -69,23 +66,9 @@ outside the repo (`../.mcfish-upstream-oracle`) and is never committed.
 
 ## Why `upstream-parity` is not in `parity`
 
-It is **red until the port completes**, by construction. `./build.sh parity` must
-stay green on a correct in-progress tree, so the finish-line gate is a separate
-step you run deliberately.
+It needs a network fetch and a full pristine upstream build, which `./build.sh
+parity` deliberately does not — so the finish-line gate is a separate step you run
+deliberately.
 
-Day to day, `./build.sh signature` is the anchor: it pins mcfish's *current*
-behaviour so a refactor cannot change it silently. That number is not the target
-and never will be — see [../../docs/PORTING.md](../../docs/PORTING.md).
-
-## Workflow
-
-```sh
-./build.sh port-status                      # what is left, by risk tier
-# pick a module; read its zfish source and its Stockfish golden
-$EDITOR ../zfish/src/<module>.zig
-git -C ../Stockfish show HEAD -- src/<golden>
-# translate into the mcfish owner named in port_map.tsv, then:
-./build.sh parity                           # nothing already working may break
-# flip the row's status in port_map.tsv, commit ONE module with the zfish source named
-./build.sh upstream-parity                  # red until the last module lands
-```
+Day to day, `./build.sh signature` is the anchor: it pins mcfish's behaviour so a
+refactor cannot change it silently.

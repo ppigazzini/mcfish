@@ -57,3 +57,7 @@ perf.data*
 resources/
 *.rtbw
 *.rtbz
+
+# Dev-only scratch: milestone plans, port-progress tracking, reports. The port is
+# finished; these are history, not authoritative docs. Never in the repo surface.
+__DEV/

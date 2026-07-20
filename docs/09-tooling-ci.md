@@ -6,8 +6,7 @@ throws away, the two kinds of expected-value file, the anchor versus the finish
 line, and the two CI lanes.
 
 Audience: all developers. The workflow around these gates is in
-[`../CONTRIBUTING.md`](../CONTRIBUTING.md); the port sequence they are gating
-toward is in [PORTING.md](PORTING.md).
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ## The arrays decide what is gated
 
@@ -60,9 +59,8 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `tb` | runs the discovery report and the root probe battery in [`../tools/cases/tb.fens`](../tools/cases/tb.fens), diffed against [`../tools/tb.golden`](../tools/tb.golden) | Syzygy discovery, the root DTZ/WDL ranking and the probe path. **Without the tables it checks discovery only and says so in red** — the probe half reads as unexercised, never as a pass |
 | `fmt` / `fmt-fix` | `clang-format --dry-run --Werror` over `src/` and `tests/` | formatting. Exits **127** when no `clang-format` is found |
 | `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) | dead internal links, named paths that do not exist, a quoted bench signature. See [11-writing.md](11-writing.md) |
-| `port-status` | [`../tools/port_status.sh`](../tools/port_status.sh) over the port map | nothing — it *reports*. It is the number to quote instead of writing one down |
-| `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | the finish line: mcfish's bench against a pristine upstream build. Red until the port completes — see below |
-| `parity` | the aggregate | the nine gates listed below it — every in-repo gate, and neither `upstream-parity` nor `port-status` |
+| `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | mcfish's bench against a pristine upstream build — see below |
+| `parity` | the aggregate | the nine gates listed below it — every in-repo gate, but not `upstream-parity` |
 | `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*. It never downloads: the net is a runtime input, not a build product, and fetching it would make every clean build a network dependency |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
 | `signature-update` / `golden-update` | re-derive an anchor | read the warning below before running either |
@@ -139,27 +137,23 @@ Two node counts. They are not the same number and must never be conflated.
 | **The anchor** | mcfish's *current* bench total. Exists so a refactor cannot silently change behaviour today. | [`../tools/signature.golden`](../tools/signature.golden), asserted by `./build.sh signature` |
 | **The finish line** | upstream Stockfish's own `Bench:` for the pinned commit. The target of the whole port. | derived from the SHA in [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE) |
 
-The anchor is expected to move repeatedly as modules land. The finish line does
-not move until the pin does. `./build.sh port-status` prints the pinned base
-alongside the module counts.
+The finish line does not move until the pin does. The pinned base is in
+[`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE).
 
 **No number for either appears anywhere in this documentation set**, and
 `docs-lint` fails a page that quotes the anchor. Read it from the file, or run the
 gate.
 
-`./build.sh upstream-parity` is the M6 gate: it builds a **pristine** upstream
-Stockfish at the pinned SHA into a detached worktree outside the repo, runs both
-benches, and compares the totals.
+`./build.sh upstream-parity` builds a **pristine** upstream Stockfish at the pinned
+SHA into a detached worktree outside the repo, runs both benches, and compares the
+totals.
 
 Pristine is the point. The oracle is upstream's own source built by upstream's own
 Makefile, with no mcfish edit near it — a shared tree would let a bug present in
 both cancel out and pass.
 
-**It is red today, and that is correct**, not a regression: mcfish cannot match
-upstream's node count while the evaluation and search are unported. That is
-exactly why it is **not** part of `./build.sh parity`, which must stay green on a
-correct in-progress tree. Run it deliberately, and read the milestone it gates in
-[PORTING.md](PORTING.md).
+It is kept **out** of `./build.sh parity`: it needs a network fetch and a full
+upstream build, which `parity` deliberately does not. Run it deliberately.
 
 ## The golden-diff harness
 

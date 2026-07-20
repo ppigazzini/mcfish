@@ -25,7 +25,7 @@ fail() { red "  $*"; fails=$((fails + 1)); }
 
 mapfile -t DOCS < <(find . -name '*.md' \
   -not -path './build/*' -not -path './.git/*' -not -path './.claude/*' \
-  -not -path './resources/*' | sort)
+  -not -path './resources/*' -not -path './__DEV/*' | sort)
 
 # Strip what must not be scanned, in this order:
 #   1. fenced code blocks  -- shell transcripts and examples, not prose claims
