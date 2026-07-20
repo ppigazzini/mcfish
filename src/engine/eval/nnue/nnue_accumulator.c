@@ -430,10 +430,6 @@ static uint8_t *cache_entry_pieces(unsigned char *entry) {
     return entry + CACHE_ENTRY_PIECES_OFFSET;
 }
 
-static void set_cache_entry_piece_bb(unsigned char *entry, uint64_t piece_bb) {
-    memcpy(entry + CACHE_ENTRY_PIECE_BB_OFFSET, &piece_bb, sizeof piece_bb);
-}
-
 void nnue_clear_refresh_cache(NnueRefreshCache *cache, const int16_t *biases) {
     for (unsigned ks = 0; ks < SQUARE_NB; ks++) {
         for (unsigned p = 0; p < NNUE_COLOR_COUNT; p++) {
@@ -450,6 +446,10 @@ void nnue_clear_refresh_cache(NnueRefreshCache *cache, const int16_t *biases) {
 
 // Refresh the HalfKA half through the finny table: diff the cached board against the
 // live one, apply that delta to the cached accumulation, then copy it into the slot.
+static void set_cache_entry_piece_bb(unsigned char *entry, uint64_t piece_bb) {
+    memcpy(entry + CACHE_ENTRY_PIECE_BB_OFFSET, &piece_bb, sizeof piece_bb);
+}
+
 static void refresh_latest_psq(uint8_t perspective,
                                uint8_t king_square,
                                NnueAccumulatorStack *stack,
@@ -466,21 +466,20 @@ static void refresh_latest_psq(uint8_t perspective,
     size_t removed_len = 0;
     size_t added_len = 0;
 
+    // One pass over the 64 squares: load entry/board and test old != new once, then
+    // route the changed square to removed and/or added. Both lists are still built in
+    // ascending-square order, so the applied delta is identical to the two-scan form.
     for (unsigned square = 0; square < SQUARE_NB; square++) {
         const uint8_t old_piece = entry_pieces[square];
         const uint8_t new_piece = board[square];
-        if (old_piece != new_piece && old_piece != NO_PIECE) {
+        if (old_piece == new_piece)
+            continue;
+        if (old_piece != NO_PIECE)
             removed[removed_len++] =
               nnue_half_make_index(perspective, (uint8_t) square, old_piece, king_square);
-        }
-    }
-    for (unsigned square = 0; square < SQUARE_NB; square++) {
-        const uint8_t old_piece = entry_pieces[square];
-        const uint8_t new_piece = board[square];
-        if (old_piece != new_piece && new_piece != NO_PIECE) {
+        if (new_piece != NO_PIECE)
             added[added_len++] =
               nnue_half_make_index(perspective, (uint8_t) square, new_piece, king_square);
-        }
     }
 
     apply_delta_in_place_i16(cache_entry_accumulation(entry), removed, removed_len, added,
