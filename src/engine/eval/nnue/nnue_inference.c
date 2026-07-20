@@ -46,8 +46,10 @@ propagate_bucket(size_t bucket, const uint8_t *transformed, const NnueNnzBitset 
     int32_t fc0_out[32];
     nnue_affine_32(true, fc0_out, fc0_b, fc0_w, transformed, NNUE_TRANSFORMED_BYTES, *nnz);
 
-    // Build SFNNv15 concat[128] = [ac_sqr_0(32) | ac_0(32) | ac_sqr_1(32) | ac_1(32)].
-    uint8_t concat[128] = { 0 };
+    // Build concat[128] = [ac_sqr_0(32) | ac_0(32) | ac_sqr_1(32) | ac_1(32)]. The four
+    // activations below write all 128 bytes before fc_1 reads [0,64) and fc_2 reads
+    // [0,128), so no zero-init is needed (each activation stores its full 32-byte range).
+    uint8_t concat[128];
     nnue_sqr_clipped_relu_32(21, fc0_out, concat + 0);
     nnue_clipped_relu_32(7, fc0_out, concat + 32);
 
@@ -70,13 +72,11 @@ propagate_bucket(size_t bucket, const uint8_t *transformed, const NnueNnzBitset 
 }
 
 static size_t piece_count_of(const Position *pos) {
-    size_t count = 0;
-    for (unsigned sq = 0; sq < SQUARE_NB; sq++) {
-        if (pos->board[sq] != NO_PIECE) {
-            count += 1;
-        }
-    }
-    return count;
+    // The material bucket reads the total piece count once per eval. Upstream reads
+    // the incrementally-maintained count<ALL_PIECES>() (network.cpp:152); mcfish's
+    // by_type[ALL_PIECES] carries the same set, so one popcount replaces a 64-square
+    // board scan.
+    return (size_t) popcount_bb(pieces(pos));
 }
 
 static NnueEvalOutput evaluate_bucket_raw(const Position *pos,
