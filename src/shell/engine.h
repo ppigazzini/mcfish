@@ -1,19 +1,14 @@
-// Own the engine session: the position and its state chain, the option table,
-// and the entry points the UCI loop drives.
-//
-// This is the seam. Everything a `uci` command needs to touch lives behind one
-// of the calls below, so `uci.c` parses text and prints text and holds no engine
-// state of its own. The state chain is the invariant that forces the ownership
-// here: `pos_undo_move` and the repetition scan follow `StateInfo::previous`, so
-// every StateInfo a game reaches must outlive the command that created it —
-// which rules out a caller-owned position on a handler's stack.
+// Own the engine session: the position and its unbounded state chain, the option
+// table with its wired on-change callbacks, the resident net, and the search
+// wiring. This is the seam that lets uci.c hold no engine state of its own --
+// it parses text, prints text, and drives the calls below.
 //
 // There is exactly one session. Upstream's Engine is an object a caller can
 // instantiate; mcfish runs one engine per process, so the state is file-scope in
-// engine.c and every call below is implicitly against it.
+// engine.c and every call here is implicitly against it.
 //
-// Golden: upstream `engine.cpp:60` (the constructor and its option registration),
-// `engine.h:47` (the public surface).
+// Golden: upstream `engine.cpp` (the constructor, its option registration, and
+// search_clear), `uci.cpp` (the position/go plumbing).
 
 #ifndef MCFISH_ENGINE_H
 #define MCFISH_ENGINE_H
@@ -25,65 +20,75 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define ENGINE_START_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+// Build the session: the state chain, the option table in wire order, the search
+// output/option seams, an empty transposition table sized from the `Hash`
+// default, and the start position. ARGV0 fixes the directory the net loads from.
+// Call once, after the engine-zone init tables are built. Installs the sinks that
+// were handed to engine_set_output, so call that first.
+void engine_init(const char *argv0);
 
-// Build the session: register the option table in wire order, size the
-// transposition table from the `Hash` default, and set the start position, so a
-// `go` or `d` arriving before any `position` command operates on a legal board.
-// Call once, after bitboards_init and position_init.
-void engine_init(void);
-
-// Release what engine_init acquired. Safe to call without a prior engine_init.
+// Release what engine_init acquired. Safe without a prior engine_init.
 void engine_shutdown(void);
 
-// Install the line sink. Everything this module and the search emit goes through
-// it, including the option table's on-change messages, so the shell decides the
-// stream and the flushing. Forwarded to search_set_output. Lines arrive without
-// a trailing newline and already carry their `info string ` prefix where they
-// need one.
-void engine_set_output(void (*emit)(const char *line));
+// Install the two line sinks the session emits through: EMIT_LINE for a search or
+// status line (a trailing newline is added by the sink), EMIT_INFO for an option
+// on-change message (one `info string` line per line of text). Forwarded to
+// search_set_output and options_set_info. Call before engine_init.
+void engine_set_output(void (*emit_line)(const char *line), void (*emit_info)(const char *message));
 
-// Reach the option table — for `options_render` on the handshake and for
-// `options_setoption` on a `setoption` line.
-OptionsMap *engine_get_options(void);
+// Reach the option table and the live position for the readers that render or
+// inspect them directly.
+OptionsMap *engine_options(void);
+Position *engine_position(void);
 
-// Reach the live position, for the callers that read it directly to render a
-// move or a board.
-Position *engine_get_position(void);
+// Set the position from FEN, resetting the state chain. CHESS960 selects the
+// castling parse. Return false with *REASON set on a malformed record; the caller
+// decides whether to terminate. engine_set_startpos and engine_set_position use
+// the live `UCI_Chess960` option; the explicit form is for `flip`, which reads the
+// variant off the board being re-parsed, not off the option.
+bool engine_set_position(const char *fen, const char **reason);
+bool engine_set_startpos(const char **reason);
+bool engine_set_position_variant(const char *fen, bool chess960, const char **reason);
 
-// Set the position from FEN and reset the state chain. Return false and fall
-// back to the start position when the record is malformed, so the position is
-// never left unspecified. Reads `UCI_Chess960` to select the castling parse.
-bool engine_set_position(const char *fen);
+// Re-set the board from the colour-reversed form of its own FEN. Silent no-op on a
+// FEN that will not flip.
+void engine_flip(const char **reason);
 
-// Apply one move in UCI notation to the live position, extending the state
-// chain. Return false when the move does not parse against the current position
-// or when the chain is full.
-bool engine_play_move(const char *uci_move);
+// Apply one UCI move, extending the state chain. Return false with *REASON set on a
+// move that does not parse or an exhausted chain.
+bool engine_play_move(const char *uci_move, const char **reason);
 
-// Search the live position under LIMITS and return the outcome.
-SearchResult engine_go(const SearchLimits *limits);
+// `ucinewgame`: clear the table and per-game state and reset to the start position.
+void engine_new_game(void);
 
-// Count the leaves of the legal move tree at DEPTH, printing the per-move split
-// through the sink.
+// Search the live position under LIMITS. The `bestmove` line is emitted by the
+// search through the installed sink, not returned here.
+void engine_go(const SearchLimits *limits);
+
+// Count the leaves of the legal move tree at DEPTH, printing the per-move split.
 uint64_t engine_perft(int depth);
 
 // Request that a running search stop at its next check.
 void engine_stop(void);
 
-// Clear the transposition table and any per-game search state. This is what
-// `ucinewgame` and the `Clear Hash` button both run. Port of upstream
-// `Engine::search_clear` (engine.cpp).
-void engine_search_clear(void);
+// Announce the resident net (or the classical fallback) through the sink, as
+// upstream prints before every go/perft/eval.
+void engine_report_net(void);
 
-// Resize the transposition table to MB megabytes. Emit an `info string` through
-// the sink when the allocation fails, rather than failing silently.
-void engine_set_tt_size(size_t mb);
+// Terminate the process unless a usable net is loaded, printing upstream's five
+// error lines to stderr. Called from the same three sites upstream checks.
+void engine_verify_network(void);
 
-// Report the transposition table's fill in permille.
-int engine_get_hashfull(void);
+// Apply a `setoption` body. Return OPTION_SET_UNKNOWN with *NAME filled when the
+// option does not exist, so the caller can print upstream's `No such option` line.
+int engine_setoption(const char *args, char name[OPTION_NAME_MAX]);
 
-// Render the live position as `d` prints it, and as the evaluation trace.
+// Render the option table for the `uci` handshake, into BUF.
+void engine_render_options(char *buf, size_t buf_len);
+
+// Read the live position's FEN into BUF (needs >= 128 bytes), render the `d`
+// board, and render the evaluation trace.
+void engine_current_fen(char *buf, size_t buf_len);
 void engine_visualize(char *buf, int buf_len);
 void engine_trace_eval(char *buf, int buf_len);
 
