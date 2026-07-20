@@ -181,47 +181,47 @@ void nnue_affine_1(bool sparse,
 
 // --- activations -------------------------------------------------------------------
 
-enum { RELU_VEC_WIDTH = 8 };
+enum { RELU_VEC_WIDTH = 16 };
 
-// Narrow eight int32 lanes to bytes and store them as a unit.
+// Narrow sixteen int32 lanes to bytes and store them as a unit.
 //
-// Extracting lane by lane emits eight scalar byte stores per call, and the two
+// Extracting lane by lane emits sixteen scalar byte stores per call, and the two
 // activations run four times per evaluation. Every value is already clamped into
 // [0, 127] by the caller, so the narrowing is exact and a shuffle-based pack is
 // value-identical to reading the lanes out one at a time -- which is what lets the
 // vector and scalar bodies stay equal.
-static inline void relu_store8(uint8_t *out, NnueV8i32 q) {
+static inline void relu_store16(uint8_t *out, NnueV16i32 q) {
 #if MCFISH_SIMD_VECTOR
-    // __builtin_convertvector narrows all eight lanes in one expression; the
+    // __builtin_convertvector narrows all sixteen lanes in one expression; the
     // compiler picks the pack sequence for whatever ISA is enabled.
-    typedef uint8_t NnueV8u8Store __attribute__((vector_size(8)));
-    const NnueV8u8Store packed = __builtin_convertvector(q, NnueV8u8Store);
+    typedef uint8_t NnueV16u8Store __attribute__((vector_size(16)));
+    const NnueV16u8Store packed = __builtin_convertvector(q, NnueV16u8Store);
     __builtin_memcpy(out, &packed, sizeof packed);
 #else
     for (size_t k = 0; k < RELU_VEC_WIDTH; k++)
-        out[k] = (uint8_t) nnue_v8i32_lane(q, k);
+        out[k] = (uint8_t) nnue_v16i32_lane(q, k);
 #endif
 }
 
 void nnue_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]) {
-    const NnueV8i32 zero = nnue_v8i32_splat(0);
-    const NnueV8i32 cap = nnue_v8i32_splat(127);
+    const NnueV16i32 zero = nnue_v16i32_splat(0);
+    const NnueV16i32 cap = nnue_v16i32_splat(127);
     for (size_t i = 0; i < 32; i += RELU_VEC_WIDTH) {
-        const NnueV8i32 x = nnue_v8i32_load(in + i);
-        const NnueV8i32 q = nnue_v8i32_max(zero, nnue_v8i32_min(cap, nnue_v8i32_shr(x, shift)));
-        relu_store8(out + i, q);
+        const NnueV16i32 x = nnue_v16i32_load(in + i);
+        const NnueV16i32 q = nnue_v16i32_max(zero, nnue_v16i32_min(cap, nnue_v16i32_shr(x, shift)));
+        relu_store16(out + i, q);
     }
 }
 
 void nnue_sqr_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]) {
-    const NnueV8i32 lo = nnue_v8i32_splat(-32768);
-    const NnueV8i32 hi = nnue_v8i32_splat(32767);
-    const NnueV8i32 cap = nnue_v8i32_splat(127);
+    const NnueV16i32 lo = nnue_v16i32_splat(-32768);
+    const NnueV16i32 hi = nnue_v16i32_splat(32767);
+    const NnueV16i32 cap = nnue_v16i32_splat(127);
     for (size_t i = 0; i < 32; i += RELU_VEC_WIDTH) {
-        const NnueV8i32 x = nnue_v8i32_load(in + i);
-        const NnueV8i32 clamped = nnue_v8i32_max(lo, nnue_v8i32_min(hi, x));
-        const NnueV8i32 q =
-          nnue_v8i32_min(cap, nnue_v8i32_shr(nnue_v8i32_mul(clamped, clamped), shift));
-        relu_store8(out + i, q);
+        const NnueV16i32 x = nnue_v16i32_load(in + i);
+        const NnueV16i32 clamped = nnue_v16i32_max(lo, nnue_v16i32_min(hi, x));
+        const NnueV16i32 q =
+          nnue_v16i32_min(cap, nnue_v16i32_shr(nnue_v16i32_mul(clamped, clamped), shift));
+        relu_store16(out + i, q);
     }
 }
