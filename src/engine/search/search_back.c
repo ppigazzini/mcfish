@@ -68,9 +68,10 @@ Value search_run_back(const SearchNodeState *nd) {
         move_count += 1;
         ss->move_count = move_count;
 
-        if (nd->root_node && ctx_nodes(ctx) > ID_NODES_LIMIT_OUTPUT)
+        if (nd->root_node && ctx->is_main && ctx_nodes(ctx) > ID_NODES_LIMIT_OUTPUT)
             // Report moveCount + pvIdx, not moveCount: with MultiPV the number a GUI
-            // shows is the move's index across all PV lines (search.cpp:1126).
+            // shows is the move's index across all PV lines (search.cpp:1126). Only the
+            // main thread emits it (search.cpp:1125), else every worker double-prints.
             search_emit_root_on_iter(ctx, depth, move, move_count + (int) ctx->pv_idx);
 
         if (nd->pv_node)
