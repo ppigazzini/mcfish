@@ -25,25 +25,11 @@ enum { KIND_CAPTURES = 0, KIND_QUIETS = 1, KIND_EVASIONS = 2 };
 enum { GOOD_QUIET_THRESHOLD = -14000 };
 
 // Return the squares from which PT gives check to the side not to move.
+// Read the check squares cached by set_check_info (position.c). check_squares[KING]
+// is 0, so a KING mover (castling is encoded king-captures-rook) reports no direct
+// check, as upstream's zero KING entry does.
 static Bitboard check_squares(const Position *pos, PieceType pt) {
-    const Color them = flip_color(pos->side_to_move);
-    const Square ksq = king_square(pos, them);
-    const Bitboard occ = pieces(pos);
-
-    switch (pt) {
-    case PAWN :
-        return pawn_attacks_bb(them, square_bb(ksq));
-    case KNIGHT :
-        return attacks_bb(KNIGHT, ksq, occ);
-    case BISHOP :
-        return attacks_bb(BISHOP, ksq, occ);
-    case ROOK :
-        return attacks_bb(ROOK, ksq, occ);
-    case QUEEN :
-        return attacks_bb(BISHOP, ksq, occ) | attacks_bb(ROOK, ksq, occ);
-    default :
-        return 0;
-    }
+    return pos->st->check_squares[pt];
 }
 
 
