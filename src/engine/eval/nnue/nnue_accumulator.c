@@ -145,37 +145,35 @@ accumulate_rows_i8(int16_t *target, const uint32_t *rows, size_t row_count, cons
     acc_rows_i8(true, target, rows, row_count, weights);
 }
 
-// Apply the psqt delta. Scalar — NNUE_PSQT_BUCKETS is eight.
+// Apply the psqt delta with the 8-bucket i32 row held in ONE register across every row,
+// as the fused combined path does -- the scalar 8-step loop these replaced stayed scalar
+// (the toolchain does not auto-vectorize integer loops). Per-row order (removed then
+// added) is unchanged, so scalar==vector holds. Port of zfish ab086fd1e.
+static_assert(NNUE_PSQT_BUCKETS == 8, "the psqt register width assumes 8 buckets");
+
 static void apply_psqt_delta_in_place(int32_t *target,
                                       const uint32_t *removed,
                                       size_t removed_len,
                                       const uint32_t *added,
                                       size_t added_len,
                                       const int32_t *weights) {
-    for (size_t i = 0; i < removed_len; i++) {
-        const size_t row = (size_t) removed[i] * NNUE_PSQT_BUCKETS;
-        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++) {
-            target[b] -= weights[row + b];
-        }
-    }
-    for (size_t i = 0; i < added_len; i++) {
-        const size_t row = (size_t) added[i] * NNUE_PSQT_BUCKETS;
-        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++) {
-            target[b] += weights[row + b];
-        }
-    }
+    NnueV8i32 acc = nnue_v8i32_load(target);
+    for (size_t i = 0; i < removed_len; i++)
+        acc =
+          nnue_v8i32_sub(acc, nnue_v8i32_load(weights + (size_t) removed[i] * NNUE_PSQT_BUCKETS));
+    for (size_t i = 0; i < added_len; i++)
+        acc = nnue_v8i32_add(acc, nnue_v8i32_load(weights + (size_t) added[i] * NNUE_PSQT_BUCKETS));
+    nnue_v8i32_store(target, acc);
 }
 
 static void accumulate_psqt_rows(int32_t *target,
                                  const uint32_t *rows,
                                  size_t row_count,
                                  const int32_t *weights) {
-    for (size_t i = 0; i < row_count; i++) {
-        const size_t row = (size_t) rows[i] * NNUE_PSQT_BUCKETS;
-        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++) {
-            target[b] += weights[row + b];
-        }
-    }
+    NnueV8i32 acc = nnue_v8i32_load(target);
+    for (size_t i = 0; i < row_count; i++)
+        acc = nnue_v8i32_add(acc, nnue_v8i32_load(weights + (size_t) rows[i] * NNUE_PSQT_BUCKETS));
+    nnue_v8i32_store(target, acc);
 }
 
 // Port upstream's `apply_combined` (nnue_accumulator.cpp): ONE combined accumulator
@@ -718,13 +716,9 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
             // no reload of what was just stored.
             const NnueV8u32 groups = nnue_v32_u8_as_u32x8(bytes);
 
-            // Build the mask BRANCHLESSLY. Whether a chunk is non-zero is pure data,
-            // so a branch per lane is one the predictor cannot learn -- and there are
-            // eight per step, on every step of every evaluation. Shifting the
-            // comparison in costs one predictable ALU op instead.
-            uint64_t mask = 0;
-            for (size_t g = 0; g < TRANSFORM_VEC_WIDTH / 4; g++)
-                mask |= (uint64_t) (nnue_v8u32_lane(groups, g) != 0) << g;
+            // Build the non-zero-chunk mask with one horizontal movemask (compare-to-zero
+            // + reduce-OR) rather than eight per-lane extract+compare+shift+OR.
+            const uint64_t mask = nnue_v8u32_movemask(groups);
             const size_t bit = (offset + j) / 4;
             (*nnz)[bit / 64] |= mask << (bit % 64);
         }
