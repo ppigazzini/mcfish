@@ -54,10 +54,17 @@ typedef struct {
     NnueDotAcc c[AFFINE_CHUNKS_32][AFFINE_CHAINS];
 } AffineAcc32;
 
-static inline void affine_acc32_zero(AffineAcc32 *a) {
-    for (size_t i = 0; i < AFFINE_CHUNKS_32; i++)
-        for (size_t k = 0; k < AFFINE_CHAINS; k++)
+// Seed chain 0 of each chunk with the layer bias vector and zero the rest, so the
+// bias enters the int32 accumulator up front instead of a per-lane scalar add at the
+// tail (upstream seeds acc[k] from biasvec, affine_transform.h:277-282). The bias
+// never touches the pmaddubsw int16 intermediate, and integer add commutes, so this
+// is bit-identical to zero-then-add-bias and scalar==vector holds.
+static inline void affine_acc32_seed_bias(AffineAcc32 *a, const int32_t *biases) {
+    for (size_t i = 0; i < AFFINE_CHUNKS_32; i++) {
+        a->c[i][0] = nnue_dot_load(biases + i * NNUE_DOT_LANES);
+        for (size_t k = 1; k < AFFINE_CHAINS; k++)
             a->c[i][k] = nnue_dot_zero();
+    }
 }
 
 // Fold one input group into chain K, which is a literal at every call site.
@@ -78,7 +85,7 @@ void nnue_affine_32(bool sparse,
     enum { OUT = 32, N = OUT * 4 };
     const size_t groups = input_len / 4;
     AffineAcc32 acc;
-    affine_acc32_zero(&acc);
+    affine_acc32_seed_bias(&acc, biases);
 
     if (sparse) {
         // Walk the bitset in upstream's shape (affine_transform_sparse_input.h): load a
@@ -120,14 +127,14 @@ void nnue_affine_32(bool sparse,
             AFFINE_GROUP_INTO(&acc, 0, load_group(input + g * 4), weights + g * N);
     }
 
-    // Merge the chains, then read each output straight out of its lane: the sublane
-    // fold already happened inside nnue_dot_step, so only the bias remains.
+    // Chain 0 was bias-seeded, so each lane already holds bias + Σ dot products -- the
+    // finished output. Merge the chains and store the whole register, rather than
+    // extracting and scalar-storing 32 lanes with a per-lane bias add.
     for (size_t c = 0; c < AFFINE_CHUNKS_32; c++) {
         NnueDotAcc merged = acc.c[c][0];
         for (size_t k = 1; k < AFFINE_CHAINS; k++)
             merged = nnue_dot_add(merged, acc.c[c][k]);
-        for (size_t l = 0; l < NNUE_DOT_LANES; l++)
-            out[c * NNUE_DOT_LANES + l] = biases[c * NNUE_DOT_LANES + l] + nnue_dot_lane(merged, l);
+        nnue_dot_store(out + c * NNUE_DOT_LANES, merged);
     }
 }
 
