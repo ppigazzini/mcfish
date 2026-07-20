@@ -16,9 +16,10 @@ enum : uint8_t {
     PV_MASK = 1u << PV_SHIFT,
 };
 
-// Hold the one table the engine and all its threads share (tt.h:79). mcfish still
-// runs a single worker, so the handle is a file-scope singleton rather than an
-// object the Engine graph passes down; the fields are the ones tt_types.h types.
+// Hold the one table the engine and all its threads share (tt.h:79). mcfish keeps
+// it as a file-scope singleton -- tt_probe/tt_store take no handle -- rather than the
+// per-Engine object upstream passes down; every worker shares this one instance. The
+// fields are the ones tt_types.h types.
 static TranspositionTable TT = { .cluster_count = 0, .table = nullptr, .generation8 = 0 };
 
 // Take the high 64 bits of the 128-bit product, so a key maps onto the cluster

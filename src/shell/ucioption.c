@@ -96,7 +96,7 @@ int options_add(OptionsMap *map,
     store(o->name, sizeof o->name, name);
     store(o->default_value, sizeof o->default_value, default_value);
     // A combo's currentValue starts at its default like every other kind here;
-    // upstream's two-argument combo constructor (ucioption.cpp:139) can start it
+    // upstream's two-argument combo constructor (ucioption.cpp:122) can start it
     // elsewhere, and no standard option uses that form.
     store(o->current_value, sizeof o->current_value, default_value);
     o->kind = kind;
@@ -108,10 +108,10 @@ int options_add(OptionsMap *map,
 }
 
 // ---------------------------------------------------------------------------
-// Validation — upstream Option::operator= (ucioption.cpp:152)
+// Validation — upstream Option::operator= (ucioption.cpp:162)
 // ---------------------------------------------------------------------------
 
-// Port of upstream value_in_range (ucioption.cpp:141). Reject an empty string, a
+// Port of upstream value_in_range (ucioption.cpp:148). Reject an empty string, a
 // value with trailing non-digits, and an out-of-range magnitude, so that
 // `setoption name Hash value 12x` is refused rather than silently read as 12.
 // Parse as long long and compare against the int bounds: strtol on a 32-bit long
@@ -274,7 +274,7 @@ const char *options_get_string(const OptionsMap *map, const char *name) {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering — upstream operator<<(ostream&, const OptionsMap&) (ucioption.cpp:186)
+// Rendering — upstream operator<<(ostream&, const OptionsMap&) (ucioption.cpp:198)
 // ---------------------------------------------------------------------------
 
 // Append at most what fits, and keep *POS advancing past the end so the caller

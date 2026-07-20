@@ -35,7 +35,7 @@ void zobrist_init(void) {
 
     // Zero the ranks a pawn can only reach by promoting. A pawn never rests there,
     // so the entry is unreachable in compute_key; upstream zeroes it so the
-    // promotion XOR cancels implicitly (position.cpp:126-127).
+    // promotion XOR cancels implicitly (position.cpp:128-129).
     for (int f = 0; f < FILE_NB; ++f) {
         Zobrist_psq[W_PAWN][make_square(f, 7)] = 0;
         Zobrist_psq[B_PAWN][make_square(f, 0)] = 0;
