@@ -192,7 +192,7 @@ field added here is a field that can drift forever without a gate noticing.
 
 ## Local-only measurement tooling
 
-Four scripts in `tools/` that are **not** `./build.sh` steps and **not** gates.
+Five scripts in `tools/` that are **not** `./build.sh` steps and **not** gates.
 They measure the host they run on, and a shared, thermally-uncontrolled CI runner
 cannot carry a performance verdict — so they are deliberately kept out of
 `parity` and out of the workflows.
@@ -200,9 +200,20 @@ cannot carry a performance verdict — so they are deliberately kept out of
 | Tool | Answers |
 | --- | --- |
 | [`../tools/nps_ab.sh`](../tools/nps_ab.sh) | the headline speed ratio, interleaved and paired |
-| [`../tools/perf_callgrind.sh`](../tools/perf_callgrind.sh) | deterministic instructions, D refs and cache misses |
+| [`../tools/perf_callgrind.sh`](../tools/perf_callgrind.sh) | deterministic instructions, D refs and cache misses — **sse41 only** |
+| [`../tools/perf_counters.sh`](../tools/perf_counters.sh) | instructions AND cycles/IPC/cache-misses, on **every** arch tier |
 | [`../tools/perf_fingerprint.py`](../tools/perf_fingerprint.py) | per-function attribution, and the call-count parity test |
 | [`../tools/valgrind.sh`](../tools/valgrind.sh) | memcheck: invalid access, bad free, definite leak |
+
+`perf_counters.sh` drives both binaries interleaved over hardware counters
+(`perf_event_open`, so the absent `perf` CLI does not matter), pinned to one core,
+and reports the **median of per-round paired ratios**. It is the only tool here
+that reads instructions on avx2 and native/vnni512 — where callgrind SIGILLs on the
+AVX-512 EVEX prefix — and the only one that can *see* an IPC gap rather than infer
+one. For a change gated behind `__AVX512F__`, A/B the 128- and 64-lane native
+binaries directly: the paired ratio cancels the thermal spread that makes a lone
+cycles reading lie (a 128-lane transform that reads +3% cycles against the oracle in
+one batch reads a flat 1.000 in a direct 12-round pair).
 
 **Pick by size of the effect.** `nps` cannot resolve anything under about 5% —
 wall-clock on this class of hardware swings by more than that between batches, so
@@ -239,31 +250,48 @@ written against the wrong side reads a divergence that is not there.
 
 ### Where the three engines stand, measured
 
-Whole-process instructions, deterministic callgrind, `bench 16 1 8`, all built at
+Whole-process instructions, deterministic callgrind, `bench 16 1 8`, both built at
 `x86-64-sse41-popcnt` through the LLVM backend, over the identical 161093-node
 tree:
 
 | engine | instructions | vs Stockfish |
 | --- | --- | --- |
-| mcfish | 3.241e9 | **0.994x** |
-| Stockfish | 3.262e9 | 1.000 |
-| zfish | 3.718e9 | 1.140x |
+| mcfish | 3.016e9 | **0.890x** |
+| Stockfish | 3.388e9 | 1.000 |
 
-**mcfish executes fewer instructions than upstream** and is ~15% ahead of the Zig
-port. That is not hand-tuning; it is [08-idiomatic-c.md](08-idiomatic-c.md)'s
-finding paying off — Clang auto-vectorizes the integer loops the Zig toolchain
-left scalar, so mcfish never carried zfish's deficit — plus the `history_clear`
-de-atomicisation above.
+**Whole-process, mcfish executes fewer instructions than upstream** — and against
+the Zig port, [08-idiomatic-c.md](08-idiomatic-c.md)'s finding pays off: Clang
+auto-vectorizes the integer loops the Zig toolchain left scalar, so mcfish never
+carried zfish's deficit (REPORT-22 measured zfish ~1.14x upstream here). That is
+not hand-tuning; it is the idiom, plus the `history_clear` de-atomicisation above
+and the NNUE tile widenings below.
 
-**Instruction count and wall-clock disagree, and both are true.** At VNNI512
-(AVX-512, `vpdpbusd` active) where callgrind SIGILLs and only nps is available,
-mcfish runs at ~0.96x Stockfish's nps — *slower* by wall-clock while executing
-*fewer* instructions. The reconciliation is IPC: mcfish's instructions are
-individually a shade slower, because LLVM's scheduling and register allocation on
+That table is **whole-process and shallow** — startup is a third of it, and
+startup is cheaper in mcfish. The **per-tier search** picture, once startup is
+amortized over a deep tree, is different and is what `perf_counters.sh` now reads
+directly on every tier (`bench 16 1 13`, the full depth-13 tree `./build.sh
+signature` reports, each side built and compared at its own ARCH through LLVM):
+
+| tier | mcfish / Stockfish instructions | IPC (mcfish/SF) |
+| --- | --- | --- |
+| sse41 | 1.112 | 0.959 |
+| avx2 | 0.781 | 0.797 |
+| native / vnni512 | 1.147 | 0.933 |
+
+**The per-tier direction is not constant, and the shallow "fewer instructions"
+does not carry to deep search.** On real search work mcfish executes *more*
+instructions than upstream on sse41 and vnni512, and *fewer* on avx2 — the portable
+vector idiom lowers lighter than upstream's avx2 intrinsics there, heavier where
+upstream reaches for `vpdpbusd`. The `__AVX512F__`-gated width-128 row and transform
+tiles cut the vnni512 gap from 1.271 to 1.147.
+
+**IPC is below 1 on every tier**: LLVM's scheduling and register allocation on
 portable vector idioms extracts less instruction-level parallelism than upstream's
-per-ISA hand intrinsics. Fewer instructions, lower IPC, ~even wall-clock. Quote
-the instruction ratio (deterministic) as the headline; treat any AVX-512 nps as
-indicative only — the run-to-run spread there swallows a 4% gap whole.
+per-ISA hand intrinsics, so mcfish's instructions are individually a shade slower.
+Quote the instruction ratio (deterministic; the per-round spread is ~0.00002) as the
+headline. When a change is gated on an ISA callgrind cannot reach, `perf_counters.sh`
+is the only deterministic read — and A/B the two native binaries directly, because a
+lone cycles ratio against the oracle carries a thermal swing wider than the effect.
 
 ## CI
 
