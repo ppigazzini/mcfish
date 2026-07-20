@@ -98,6 +98,10 @@ bool numa_config_from_string(NumaConfig *out, const char *s, size_t len);
 // when /sys is absent or unreadable. Never fails other than on OOM.
 bool numa_config_from_system(NumaConfig *out, bool respect_process_affinity);
 
+// Build a bare single-node config holding every allowed CPU (the `hardware` policy, and the
+// fallback when the system exposes no NUMA topology). Return false only on OOM.
+bool numa_config_from_system_single(NumaConfig *out, bool respect_process_affinity);
+
 // Assign each of NUM_THREADS threads to a node, writing NUM_THREADS entries into
 // OUT_NODES. Place greedily on the node with the lowest (occupation+1)/size fill ratio;
 // a single node takes everything. Return false only on OOM.
