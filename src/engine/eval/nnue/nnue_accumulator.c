@@ -86,7 +86,7 @@ static_assert(NNUE_HALF_DIMENSIONS % ROW_TILE_WIDTH == 0,
               "NNUE_HALF_DIMENSIONS must be a multiple of ROW_TILE_WIDTH");
 
 // Set the lane count for the transform's clipped-ReLU pass.
-enum { TRANSFORM_VEC_WIDTH = 32 };
+enum { TRANSFORM_VEC_WIDTH = 64 };
 
 // Widen an int8 weight row tile to the int16 accumulator's lane width, carried as
 // uint16_t so the accumulation wraps rather than overflowing (see simd.h).
@@ -689,8 +689,8 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
     // product 128*c0*c1 is exact and >>16 is floor, so this is bit-identical to the
     // int32 clamp*mul>>9 path — integer throughout, no rounding.
     const size_t half = NNUE_HALF_DIMENSIONS / 2;
-    const NnueV32i16 zero = nnue_v32i16_splat(0);
-    const NnueV32i16 c255 = nnue_v32i16_splat(255);
+    const NnueV64i16 zero = nnue_v64i16_splat(0);
+    const NnueV64i16 c255 = nnue_v64i16_splat(255);
 
     memset(nnz, 0, sizeof(NnueNnzBitset));
 
@@ -699,26 +699,26 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
         const size_t offset = half * p;
         const size_t base = pp * NNUE_HALF_DIMENSIONS;
         for (size_t j = 0; j < half; j += TRANSFORM_VEC_WIDTH) {
-            const NnueV32i16 s0 = nnue_v32i16_load(comb_acc + base + j);
-            const NnueV32i16 s1 = nnue_v32i16_load(comb_acc + base + j + half);
-            const NnueV32u16 c0 =
-              nnue_v32_i16_to_u16(nnue_v32i16_max(zero, nnue_v32i16_min(c255, s0)));
-            const NnueV32u16 c1 =
-              nnue_v32_i16_to_u16(nnue_v32i16_max(zero, nnue_v32i16_min(c255, s1)));
-            const NnueV32u32 lhs = nnue_v32_u16_to_u32(nnue_v32u16_shl(c0, 7));
-            const NnueV32u32 rhs = nnue_v32_u16_to_u32(c1);
-            const NnueV32u16 q =
-              nnue_v32_u32_to_u16(nnue_v32u32_shr(nnue_v32u32_mul(lhs, rhs), 16));
-            const NnueV32u8 bytes = nnue_v32_u16_to_u8(q);
-            nnue_v32u8_store(output + offset + j, bytes);
+            const NnueV64i16 s0 = nnue_v64i16_load(comb_acc + base + j);
+            const NnueV64i16 s1 = nnue_v64i16_load(comb_acc + base + j + half);
+            const NnueV64u16 c0 =
+              nnue_v64_i16_to_u16(nnue_v64i16_max(zero, nnue_v64i16_min(c255, s0)));
+            const NnueV64u16 c1 =
+              nnue_v64_i16_to_u16(nnue_v64i16_max(zero, nnue_v64i16_min(c255, s1)));
+            const NnueV64u32 lhs = nnue_v64_u16_to_u32(nnue_v64u16_shl(c0, 7));
+            const NnueV64u32 rhs = nnue_v64_u16_to_u32(c1);
+            const NnueV64u16 q =
+              nnue_v64_u32_to_u16(nnue_v64u32_shr(nnue_v64u32_mul(lhs, rhs), 16));
+            const NnueV64u8 bytes = nnue_v64_u16_to_u8(q);
+            nnue_v64u8_store(output + offset + j, bytes);
 
             // Record which 4-byte chunks are non-zero while they are still in a register:
             // no reload of what was just stored.
-            const NnueV8u32 groups = nnue_v32_u8_as_u32x8(bytes);
+            const NnueV16u32 groups = nnue_v64_u8_as_u32x16(bytes);
 
             // Build the non-zero-chunk mask with one horizontal movemask (compare-to-zero
-            // + reduce-OR) rather than eight per-lane extract+compare+shift+OR.
-            const uint64_t mask = nnue_v8u32_movemask(groups);
+            // + reduce-OR) rather than sixteen per-lane extract+compare+shift+OR.
+            const uint64_t mask = nnue_v16u32_movemask(groups);
             const size_t bit = (offset + j) / 4;
             (*nnz)[bit / 64] |= mask << (bit % 64);
         }
