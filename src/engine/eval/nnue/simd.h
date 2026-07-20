@@ -253,6 +253,14 @@ NNUE_SIMD_FAMILY(nnue_v8i32, NnueV8i32, int32_t, 8);
 NNUE_SIMD_TYPE(NnueV16i32, int32_t, 16);
 NNUE_SIMD_FAMILY(nnue_v16i32, NnueV16i32, int32_t, 16);
 
+// Wide accumulator row tile: 128 int16_t lanes, carried as uint16_t so the add/sub wrap.
+// Only the avx512 build widens ROW_TILE_WIDTH to 128 (nnue_accumulator.c); the narrower
+// tiers stay at 64, where a 128-lane tile spills too many vector registers.
+NNUE_SIMD_TYPE(NnueV128u16, uint16_t, 128);
+NNUE_SIMD_TYPE(NnueV128i16, int16_t, 128);
+NNUE_SIMD_FAMILY(nnue_v128u16, NnueV128u16, uint16_t, 128);
+NNUE_SIMD_FAMILY(nnue_v128i16, NnueV128i16, int16_t, 128);
+
 // Affine dot-product tiles. The lane count is the layer's OUT*4, because the
 // int8 weight layout interleaves each output's four sublanes; see nnue_affine.h.
 NNUE_SIMD_TYPE(NnueV128i32, int32_t, 128);
@@ -263,6 +271,8 @@ NNUE_SIMD_FAMILY(nnue_v128i8, NnueV128i8, int8_t, 128);
 NNUE_SIMD_FAMILY(nnue_v128u8, NnueV128u8, uint8_t, 128);
 NNUE_SIMD_CONVERT(nnue_v128_i8_to_i32, NnueV128i32, NnueV128i8)
 NNUE_SIMD_CONVERT(nnue_v128_u8_to_i32, NnueV128i32, NnueV128u8)
+NNUE_SIMD_CONVERT(nnue_v128_i8_to_i16, NnueV128i16, NnueV128i8)
+NNUE_SIMD_REINTERPRET(nnue_v128_i16_as_u16, NnueV128u16, NnueV128i16)
 
 NNUE_SIMD_TYPE(NnueV4i32, int32_t, 4);
 NNUE_SIMD_TYPE(NnueV4i8, int8_t, 4);

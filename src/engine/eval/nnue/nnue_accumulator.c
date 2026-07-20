@@ -80,8 +80,30 @@ size_t nnue_refresh_cache_bytes(void) { return CACHE_BYTES; }
 
 // Set the lane count for the feature-transformer weight-row add/sub tile. Independent of
 // TRANSFORM_VEC_WIDTH below — they touch different loops, and a sweep of each finds
-// different optima. Do not fold them into one knob.
+// different optima. Do not fold them into one knob. The avx512 build sweeps to 128, where
+// vpaddw over a zmm register pair halves the loop trips; the narrower tiers keep 64, since a
+// 128-lane u16 tile spills 16 xmm / 8 ymm registers and loses more than the trip count saves.
+#if defined(__AVX512F__)
+enum { ROW_TILE_WIDTH = 128 };
+    #define RowVecU16 NnueV128u16
+    #define row_load nnue_v128u16_load
+    #define row_store nnue_v128u16_store
+    #define row_add nnue_v128u16_add
+    #define row_sub nnue_v128u16_sub
+    #define row_i8_load nnue_v128i8_load
+    #define row_i8_to_i16 nnue_v128_i8_to_i16
+    #define row_i16_as_u16 nnue_v128_i16_as_u16
+#else
 enum { ROW_TILE_WIDTH = 64 };
+    #define RowVecU16 NnueV64u16
+    #define row_load nnue_v64u16_load
+    #define row_store nnue_v64u16_store
+    #define row_add nnue_v64u16_add
+    #define row_sub nnue_v64u16_sub
+    #define row_i8_load nnue_v64i8_load
+    #define row_i8_to_i16 nnue_v64_i8_to_i16
+    #define row_i16_as_u16 nnue_v64_i16_as_u16
+#endif
 static_assert(NNUE_HALF_DIMENSIONS % ROW_TILE_WIDTH == 0,
               "NNUE_HALF_DIMENSIONS must be a multiple of ROW_TILE_WIDTH");
 
@@ -90,24 +112,22 @@ enum { TRANSFORM_VEC_WIDTH = 64 };
 
 // Widen an int8 weight row tile to the int16 accumulator's lane width, carried as
 // uint16_t so the accumulation wraps rather than overflowing (see simd.h).
-static inline NnueV64u16 load_threat_row(const int8_t *w) {
-    return nnue_v64_i16_as_u16(nnue_v64_i8_to_i16(nnue_v64i8_load(w)));
+static inline RowVecU16 load_threat_row(const int8_t *w) {
+    return row_i16_as_u16(row_i8_to_i16(row_i8_load(w)));
 }
 
-static inline NnueV64u16 load_psq_row(const int16_t *w) {
-    return nnue_v64u16_load((const uint16_t *) w);
-}
+static inline RowVecU16 load_psq_row(const int16_t *w) { return row_load((const uint16_t *) w); }
 
 static void acc_rows_i8(
   bool add, int16_t *target, const uint32_t *rows, size_t row_count, const int8_t *weights) {
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
-        NnueV64u16 acc = nnue_v64u16_load((const uint16_t *) (target + d));
+        RowVecU16 acc = row_load((const uint16_t *) (target + d));
         for (size_t r = 0; r < row_count; r++) {
-            const NnueV64u16 w =
+            const RowVecU16 w =
               load_threat_row(weights + (size_t) rows[r] * NNUE_HALF_DIMENSIONS + d);
-            acc = add ? nnue_v64u16_add(acc, w) : nnue_v64u16_sub(acc, w);
+            acc = add ? row_add(acc, w) : row_sub(acc, w);
         }
-        nnue_v64u16_store((uint16_t *) (target + d), acc);
+        row_store((uint16_t *) (target + d), acc);
     }
 }
 
@@ -129,14 +149,14 @@ static void apply_delta_in_place_i16(int16_t *target,
     // the terms are grouped, and uint16 wrap addition is associative and
     // commutative, so no per-element order changes.
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
-        NnueV64u16 acc = nnue_v64u16_load((const uint16_t *) (target + d));
+        RowVecU16 acc = row_load((const uint16_t *) (target + d));
         for (size_t r = 0; r < removed_len; r++)
-            acc = nnue_v64u16_sub(
-              acc, load_psq_row(weights + (size_t) removed[r] * NNUE_HALF_DIMENSIONS + d));
+            acc =
+              row_sub(acc, load_psq_row(weights + (size_t) removed[r] * NNUE_HALF_DIMENSIONS + d));
         for (size_t r = 0; r < added_len; r++)
-            acc = nnue_v64u16_add(
-              acc, load_psq_row(weights + (size_t) added[r] * NNUE_HALF_DIMENSIONS + d));
-        nnue_v64u16_store((uint16_t *) (target + d), acc);
+            acc =
+              row_add(acc, load_psq_row(weights + (size_t) added[r] * NNUE_HALF_DIMENSIONS + d));
+        row_store((uint16_t *) (target + d), acc);
     }
 }
 
@@ -195,25 +215,24 @@ static void apply_combined_delta(int16_t *target,
                                  const int16_t *psq_weights,
                                  const int8_t *thr_weights) {
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
-        NnueV64u16 acc = nnue_v64u16_load((const uint16_t *) (source + d));
+        RowVecU16 acc = row_load((const uint16_t *) (source + d));
         for (size_t i = 0; i < psq_removed_len; i++) {
-            acc = nnue_v64u16_sub(
+            acc = row_sub(
               acc, load_psq_row(psq_weights + (size_t) psq_removed[i] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < psq_added_len; i++) {
-            acc = nnue_v64u16_add(
+            acc = row_add(
               acc, load_psq_row(psq_weights + (size_t) psq_added[i] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < thr_removed_len; i++) {
-            acc = nnue_v64u16_sub(
-              acc,
-              load_threat_row(thr_weights + (size_t) thr_removed[i] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_sub(acc, load_threat_row(
+                                 thr_weights + (size_t) thr_removed[i] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < thr_added_len; i++) {
-            acc = nnue_v64u16_add(
+            acc = row_add(
               acc, load_threat_row(thr_weights + (size_t) thr_added[i] * NNUE_HALF_DIMENSIONS + d));
         }
-        nnue_v64u16_store((uint16_t *) (target + d), acc);
+        row_store((uint16_t *) (target + d), acc);
     }
 }
 
