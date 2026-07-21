@@ -482,6 +482,11 @@ void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, 
 // either (evaluate.h states the invariant from the accumulator's side).
 void search_do_move(
   SearchCtx *ctx, Position *pos, Move m, StateInfo *st, bool gives_check, Stack *ss) {
+    // Preload the child position's TT cluster while the make below runs, so the line
+    // is resident by the probe at the next node (search.cpp:642). The key is
+    // approximate; the hint changes no value.
+    tt_prefetch(pos_prefetch_key(pos, m));
+
     const bool capture = search_capture_stage(pos, m);
     // Read the moved piece BEFORE the move: upstream indexes the continuation
     // pages by DirtyPiece::pc, which position.cpp:848 fills from `piece_on(from)`
