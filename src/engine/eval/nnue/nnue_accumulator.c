@@ -29,7 +29,12 @@ enum : size_t {
 
     ACC_STATE_BYTES = NNUE_ROUND_UP(ACC_BYTES, NNUE_ALIGN),
     PSQ_DIFF_OFFSET = ACC_BYTES,
-    THREAT_DIFF_OFFSET = NNUE_ROUND_UP(ACC_BYTES, alignof(NnueDirtyThreats)),
+    // The threat slot carries ONLY the per-ply DirtyThreats diff -- the combined
+    // accumulation and psqt live in the psq slot, never here (see PSQ_FEATURE below). So
+    // the diff sits at the slot's front: reserving an accumulator-sized prefix here would
+    // leave ~4 KiB dead per slot and stride consecutive plies' threat diffs a whole page
+    // apart, which the incremental replay walk pays for as data-cache misses at depth.
+    THREAT_DIFF_OFFSET = 0,
     PSQ_STATE_STRIDE = ACC_STATE_BYTES,
     THREAT_STATE_STRIDE = NNUE_ROUND_UP(THREAT_DIFF_OFFSET + sizeof(NnueDirtyThreats), NNUE_ALIGN),
     PSQ_ARRAY_BYTES = PSQ_STATE_STRIDE * NNUE_MAX_STACK_SIZE,
@@ -608,7 +613,9 @@ void nnue_acc_stack_reset(NnueAccumulatorStack *stack) {
     clear_computed(bytes, PSQ_FEATURE, 0);
     zero_diff(bytes, PSQ_FEATURE, 0, sizeof(NnueDirtyPiece));
 
-    clear_computed(bytes, THREAT_FEATURE, 0);
+    // The threat slot holds only its diff -- there is no threat computed flag to clear
+    // (find_last_usable consults only the psq slot, so a threat computed byte was always a
+    // dead write and no longer fits the tightened stride).
     zero_diff(bytes, THREAT_FEATURE, 0, sizeof(NnueDirtyThreats));
 
     set_stack_size(bytes, 1);
@@ -620,7 +627,6 @@ NnueStackPushOutput nnue_acc_stack_push(NnueAccumulatorStack *stack) {
     assert(index < NNUE_MAX_STACK_SIZE);
 
     clear_computed(bytes, PSQ_FEATURE, index);
-    clear_computed(bytes, THREAT_FEATURE, index);
 
     void *threat_slot = diff_bytes_mut(THREAT_FEATURE, index, stack);
     NnueDirtyThreats *dirty_threats = (NnueDirtyThreats *) threat_slot;
