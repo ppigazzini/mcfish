@@ -11,6 +11,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__unix__) || defined(__APPLE__)
+    #include <fcntl.h>
+    #include <sys/mman.h>
+    #include <sys/stat.h>
+    #include <unistd.h>
+    #define NNUE_HAVE_MMAP 1
+#endif
+
 static const char InternalDir[] = "<internal>";
 
 // Describe the .nnue header: the version, the architecture hash the file commits
@@ -162,8 +170,19 @@ static bool load_network_bytes(const uint8_t *bytes,
     return true;
 }
 
-// Read PATH whole into a heap buffer, storing its length in *OUT_LEN. Return NULL
-// when the file is missing, empty, or unreadable.
+// Hold a net file made readable as one contiguous byte range, plus how to release
+// it. A memory map costs no 90 MB heap buffer and no read() copy: the parse faults
+// the file's page-cache pages in as it walks them, sharing them read-only. `mapped`
+// distinguishes the two release paths; the heap fallback covers a filesystem that
+// cannot be mapped.
+typedef struct {
+    uint8_t *bytes;
+    size_t len;
+    bool mapped;
+} NetFile;
+
+// Read PATH whole into a heap buffer. Return NULL when the file is missing, empty,
+// or unreadable. The parse-from-a-map path falls back to this.
 static uint8_t *read_file(const char *path, size_t *out_len) {
     FILE *file = fopen(path, "rb");
     if (file == NULL)
@@ -197,6 +216,50 @@ done:
     return bytes;
 }
 
+// Map PATH read-only, or read it whole where a map is unavailable. Leave `bytes`
+// NULL on any failure. The map is MAP_PRIVATE, so the parse reads a stable snapshot
+// even if the file changes underneath it.
+static NetFile open_net_file(const char *path) {
+    NetFile f = { NULL, 0, false };
+
+#if defined(NNUE_HAVE_MMAP)
+    const int fd = open(path, O_RDONLY);
+    if (fd >= 0) {
+        struct stat st;
+        if (fstat(fd, &st) == 0 && st.st_size > 0) {
+            const size_t len = (size_t) st.st_size;
+            void *m = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0);
+            if (m != MAP_FAILED) {
+                f.bytes = m;
+                f.len = len;
+                f.mapped = true;
+            }
+        }
+        close(fd);  // the mapping keeps its own reference; the descriptor is done
+    }
+    if (f.bytes != NULL)
+        return f;
+#endif
+
+    f.bytes = read_file(path, &f.len);
+    f.mapped = false;
+    return f;
+}
+
+static void close_net_file(NetFile *f) {
+    if (f->bytes == NULL)
+        return;
+#if defined(NNUE_HAVE_MMAP)
+    if (f->mapped) {
+        munmap(f->bytes, f->len);
+        f->bytes = NULL;
+        return;
+    }
+#endif
+    free(f->bytes);
+    f->bytes = NULL;
+}
+
 static void load_user_net(const char *dir, size_t dir_len, const char *name, size_t name_len) {
     nnue_mark_initialized();
 
@@ -211,14 +274,13 @@ static void load_user_net(const char *dir, size_t dir_len, const char *name, siz
         memcpy(path + dir_len, name, name_len);
     path[dir_len + name_len] = '\0';
 
-    size_t len = 0;
-    uint8_t *bytes = read_file(path, &len);
+    NetFile f = open_net_file(path);
     free(path);
-    if (bytes == NULL)
+    if (f.bytes == NULL)
         return;
 
-    (void) load_network_bytes(bytes, len, name, name_len);
-    free(bytes);
+    (void) load_network_bytes(f.bytes, f.len, name, name_len);
+    close_net_file(&f);
 }
 
 // Load the internal net. mcfish embeds none — the net is a runtime input — so the
