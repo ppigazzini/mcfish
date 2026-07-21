@@ -37,6 +37,13 @@
     #define MCFISH_SIMD_VECTOR 0
 #endif
 
+// Pull in the x86 intrinsic vocabulary once, so the nnz movemask can reach the native
+// mask-register path (vptestmd/kmov, vmovmskps) on the tiers that have it. The dot-product
+// block below includes it again under its own guard; the header guard makes that a no-op.
+#if MCFISH_SIMD_VECTOR && (defined(__AVX512F__) || defined(__AVX2__))
+    #include <immintrin.h>
+#endif
+
 // ---------------------------------------------------------------------------
 // The family generator. Emits, for one (element type, lane count) pair, the whole
 // element-wise op set. Unused members are `static inline` and cost nothing.
@@ -233,7 +240,18 @@ NNUE_SIMD_REINTERPRET(nnue_v64_u8_as_u32x16, NnueV16u32, NnueV64u8)
 // the whole mask and corrupts the nnz set into a wrong positional eval. Port of zfish
 // d27ab1438. The scalar fallback spells the same per-lane reduction, so scalar==vector.
 static inline uint32_t nnue_v16u32_movemask(NnueV16u32 v) {
-#if MCFISH_SIMD_VECTOR && defined(__has_builtin) && __has_builtin(__builtin_reduce_or)
+#if MCFISH_SIMD_VECTOR && defined(__AVX2__)
+    // Native path: sign-bit-per-dword movemask. vpcmpeqd against zero sets a lane to
+    // all-ones exactly when it is zero, and vmovmskps harvests the eight sign bits into
+    // eight scalar bits; invert to get the non-zero mask. Bit g == (lane g != 0), the same
+    // value the reduce-OR spelling below produces, and no dependence on the <N x i1> layout.
+    const uint32_t lo = (uint32_t) _mm256_movemask_ps((__m256) _mm256_cmpeq_epi32(
+      (__m256i) __builtin_shufflevector(v, v, 0, 1, 2, 3, 4, 5, 6, 7), _mm256_setzero_si256()));
+    const uint32_t hi = (uint32_t) _mm256_movemask_ps((__m256) _mm256_cmpeq_epi32(
+      (__m256i) __builtin_shufflevector(v, v, 8, 9, 10, 11, 12, 13, 14, 15),
+      _mm256_setzero_si256()));
+    return (~lo & 0xffu) | ((~hi & 0xffu) << 8);
+#elif MCFISH_SIMD_VECTOR && defined(__has_builtin) && __has_builtin(__builtin_reduce_or)
     const NnueV16u32 lane_bits = { 1u,   2u,   4u,    8u,    16u,   32u,   64u,    128u,
                                    256u, 512u, 1024u, 2048u, 4096u, 8192u, 16384u, 32768u };
     const NnueV16u32 nonzero = v != nnue_v16u32_splat(0);
@@ -290,7 +308,19 @@ NNUE_SIMD_REINTERPRET(nnue_v128_u8_as_u32x32, NnueV32u32, NnueV128u8)
 // The 32-bit movemask over 4-byte groups (see nnue_v16u32_movemask for the DEFINED-ops
 // rationale). Port of zfish d27ab1438 at the 128-lane width.
 static inline uint32_t nnue_v32u32_movemask(NnueV32u32 v) {
-#if MCFISH_SIMD_VECTOR && defined(__has_builtin) && __has_builtin(__builtin_reduce_or)
+#if MCFISH_SIMD_VECTOR && defined(__AVX512F__)
+    // Native path: vptestmd tests each dword non-zero straight into a mask register, and
+    // kmov drops the 16-bit mask into a scalar. Two of them cover the 32 groups. Bit g ==
+    // (lane g != 0), the same value the reduce-OR spelling below produces, without rebuilding
+    // a value vector or the <N x i1> layout assumption.
+    const NnueV16u32 lo =
+      __builtin_shufflevector(v, v, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+    const NnueV16u32 hi =
+      __builtin_shufflevector(v, v, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31);
+    const uint32_t m0 = _mm512_test_epi32_mask((__m512i) lo, (__m512i) lo);
+    const uint32_t m1 = _mm512_test_epi32_mask((__m512i) hi, (__m512i) hi);
+    return m0 | (m1 << 16);
+#elif MCFISH_SIMD_VECTOR && defined(__has_builtin) && __has_builtin(__builtin_reduce_or)
     const NnueV32u32 lane_bits = {
         1u << 0,  1u << 1,  1u << 2,  1u << 3,  1u << 4,  1u << 5,  1u << 6,  1u << 7,
         1u << 8,  1u << 9,  1u << 10, 1u << 11, 1u << 12, 1u << 13, 1u << 14, 1u << 15,
