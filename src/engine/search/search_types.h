@@ -153,8 +153,8 @@ typedef struct {
 // so the fields upstream reaches through a Worker pointer live here by value;
 // only `stop` stays a pointer, because the input thread writes it.
 //
-// `reductions` is filled once per search by search_common_fill_reductions and is
-// read-only for the duration of the tree.
+// `reductions` points at the shared, fill-once table (search_reductions_table) and
+// is read-only for the duration of the tree; every worker sees the same pointer.
 typedef struct SearchCtx {
     Histories *hist;
 
@@ -180,7 +180,7 @@ typedef struct SearchCtx {
     int32_t root_depth;
     int32_t root_delta;
 
-    int32_t reductions[MAX_MOVES];
+    const int32_t *reductions;
 
     PVMoves last_iter_pv;
 

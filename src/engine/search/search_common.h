@@ -109,6 +109,14 @@ int singular_triple_margin(
 // matching upstream's clear().
 void search_fill_reductions(int32_t *reductions, size_t count);
 
+// Return the shared, read-only reductions table of MAX_MOVES entries. The values
+// depend only on the index, so they are identical for every worker and every
+// search; upstream fills its per-Worker copy once in clear(), never per search.
+// Compute the table on first use -- reached single-threaded during the main
+// thread's per-worker setup, before any sibling starts -- and hand every ctx the
+// same pointer, so no `go` pays the 256 log() calls or carries its own copy.
+const int32_t *search_reductions_table(void);
+
 // Compute the 1024-scaled base reduction. DELTA is the node's window,
 // ROOT_DELTA the root window this iteration searched with.
 int reduction_of(

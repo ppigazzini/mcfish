@@ -50,7 +50,7 @@ void search_ctx_init(SearchCtx *ctx,
     ctx->tb_config = rml->tb_config;
 
     ctx->root_delta = 2 * VALUE_INFINITE;  // never zero: reduction_of divides by it
-    search_fill_reductions(ctx->reductions, MAX_MOVES);
+    ctx->reductions = search_reductions_table();
 }
 
 void search_tm_init(SearchCtx *ctx, TimeManagement *tm, double *original_time_adjust) {

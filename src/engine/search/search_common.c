@@ -204,6 +204,19 @@ void search_fill_reductions(int32_t *reductions, size_t count) {
         reductions[i] = (int32_t) (2872.0 / 128.0 * log((double) i));
 }
 
+const int32_t *search_reductions_table(void) {
+    // Fill on first use. The values are a pure function of the index, so a benign
+    // race would write byte-identical entries; first use is single-threaded anyway
+    // (the main thread's per-worker setup runs before siblings start).
+    static int32_t table[MAX_MOVES];
+    static bool filled = false;
+    if (!filled) {
+        search_fill_reductions(table, MAX_MOVES);
+        filled = true;
+    }
+    return table;
+}
+
 int reduction_of(const int32_t *reductions,
                  int depth,
                  int move_number,
