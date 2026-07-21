@@ -208,6 +208,42 @@ static double median(double *values, size_t n) {
 }
 
 int main(int argc, char **argv) {
+    // Single-binary absolute mode: `perf_counters --single <bin> <rounds> [bench-args...]`.
+    // Prints the median retired-instruction count and the node count for ONE binary, feeding
+    // build.sh's absolute instruction-budget gate. Retired instructions are deterministic
+    // (~0.00002% spread), so an absolute count is a stable regression anchor where the
+    // thermally-void nps is not. Exits 3 when perf_event_open is denied, so the caller can
+    // treat it as a SKIP rather than a failure.
+    if (argc >= 4 && strcmp(argv[1], "--single") == 0) {
+        const char *bin = argv[2];
+        size_t sr = strtoul(argv[3], NULL, 10);
+        if (sr == 0)
+            sr = 5;
+        size_t sextra = (size_t) argc - 4;
+        char **sargv = calloc(sextra + 2, sizeof *sargv);
+        sargv[0] = (char *) bin;
+        for (size_t i = 0; i < sextra; i++)
+            sargv[i + 1] = argv[4 + i];
+
+        double *ins = calloc(sr, sizeof *ins);
+        uint64_t nodes = 0;
+        for (size_t i = 0; i < sr; i++) {
+            Counters c = run_once(sargv, 0);
+            ins[i] = (double) c.instructions;
+            if (i == 0)
+                nodes = c.nodes;
+        }
+        if (ins[0] == 0.0 || nodes == 0) {
+            fprintf(stderr,
+                    "error: read 0 instructions/nodes. perf_event_open may be denied "
+                    "(perf_event_paranoid), or CWD is not resources/ so the net is absent.\n");
+            return 3;
+        }
+        printf("INSTRUCTIONS %.0f\n", median(ins, sr));
+        printf("NODES %lu\n", (unsigned long) nodes);
+        return 0;
+    }
+
     if (argc < 4) {
         fprintf(stderr,
                 "usage: perf_counters <binA> <binB> <rounds> [bench-args...]  (CWD = resources/)\n"
