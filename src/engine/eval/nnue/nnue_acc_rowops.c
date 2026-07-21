@@ -156,8 +156,13 @@ void nnue_acc_apply_combined_delta(int16_t *target,
 }
 
 // Mirror nnue_acc_apply_combined_delta for psqt: one combined psqt accumulation, both feature
-// sets applied. Scalar -- NNUE_PSQT_BUCKETS is tiny. The 8 buckets stay register-resident in a
-// local across all four lists; one load from source, one store to target.
+// sets applied. Hold the 8 buckets in ONE NnueV8i32 register across all four lists -- as the
+// sibling nnue_acc_apply_psqt_delta already does. Each feature's 8 buckets are contiguous, so a
+// row is a single 256-bit load; the per-feature accumulator dependency keeps the outer loop
+// sequential. Spelling the 8 buckets as a scalar array instead let clang's LTO vectorizer form
+// the outer loops into strided vpgatherqd weight-row gathers (~5-12 cycles each on Zen4), which
+// the register-resident vector form avoids. Per-row order (removed then added) is unchanged and
+// integer add/sub commute under wrap, so scalar==vector holds.
 void nnue_acc_apply_combined_psqt_delta(int32_t *target,
                                         const int32_t *source,
                                         const uint32_t *psq_removed,
@@ -170,29 +175,18 @@ void nnue_acc_apply_combined_psqt_delta(int32_t *target,
                                         size_t thr_added_len,
                                         const int32_t *psq_weights,
                                         const int32_t *thr_weights) {
-    int32_t acc[NNUE_PSQT_BUCKETS];
-    for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
-        acc[b] = source[b];
-    for (size_t i = 0; i < psq_removed_len; i++) {
-        const size_t row = (size_t) psq_removed[i] * NNUE_PSQT_BUCKETS;
-        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
-            acc[b] -= psq_weights[row + b];
-    }
-    for (size_t i = 0; i < psq_added_len; i++) {
-        const size_t row = (size_t) psq_added[i] * NNUE_PSQT_BUCKETS;
-        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
-            acc[b] += psq_weights[row + b];
-    }
-    for (size_t i = 0; i < thr_removed_len; i++) {
-        const size_t row = (size_t) thr_removed[i] * NNUE_PSQT_BUCKETS;
-        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
-            acc[b] -= thr_weights[row + b];
-    }
-    for (size_t i = 0; i < thr_added_len; i++) {
-        const size_t row = (size_t) thr_added[i] * NNUE_PSQT_BUCKETS;
-        for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
-            acc[b] += thr_weights[row + b];
-    }
-    for (size_t b = 0; b < NNUE_PSQT_BUCKETS; b++)
-        target[b] = acc[b];
+    NnueV8i32 acc = nnue_v8i32_load(source);
+    for (size_t i = 0; i < psq_removed_len; i++)
+        acc = nnue_v8i32_sub(
+          acc, nnue_v8i32_load(psq_weights + (size_t) psq_removed[i] * NNUE_PSQT_BUCKETS));
+    for (size_t i = 0; i < psq_added_len; i++)
+        acc = nnue_v8i32_add(
+          acc, nnue_v8i32_load(psq_weights + (size_t) psq_added[i] * NNUE_PSQT_BUCKETS));
+    for (size_t i = 0; i < thr_removed_len; i++)
+        acc = nnue_v8i32_sub(
+          acc, nnue_v8i32_load(thr_weights + (size_t) thr_removed[i] * NNUE_PSQT_BUCKETS));
+    for (size_t i = 0; i < thr_added_len; i++)
+        acc = nnue_v8i32_add(
+          acc, nnue_v8i32_load(thr_weights + (size_t) thr_added[i] * NNUE_PSQT_BUCKETS));
+    nnue_v8i32_store(target, acc);
 }
