@@ -128,7 +128,7 @@ TTProbeResult tt_probe(Key key) {
     TTEntry *const tte = TT.table[mul_hi64(key, TT.cluster_count)].entry;
 
     for (size_t i = 0; i < TT_CLUSTER_SIZE; ++i)
-        if (tte[i].key16 == key16)
+        if (TT_LOAD(tte[i].key16) == key16)
             // This gap is the main place for read races. Once entry_read returns,
             // the copy is final, though it may be self-inconsistent.
             return (TTProbeResult) { .found = entry_is_occupied(&tte[i]),
@@ -141,7 +141,8 @@ TTProbeResult tt_probe(Key key) {
     for (size_t i = 1; i < TT_CLUSTER_SIZE; ++i)
         if ((int32_t) TT_LOAD(replace->depth8)
               - 8 * (int32_t) entry_relative_age(replace, TT.generation8)
-            > (int32_t) tte[i].depth8 - 8 * (int32_t) entry_relative_age(&tte[i], TT.generation8))
+            > (int32_t) TT_LOAD(tte[i].depth8)
+                - 8 * (int32_t) entry_relative_age(&tte[i], TT.generation8))
             replace = &tte[i];
 
     return (TTProbeResult) { .found = false, .data = empty_data(), .writer = replace };
