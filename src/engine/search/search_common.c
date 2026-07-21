@@ -499,6 +499,25 @@ void search_do_move(
     DirtyThreats *dts;
     eval_acc_push(ctx->eval_arena, &dp, &dts);
     pos_do_move(pos, m, st, gives_check, dp, dts);
+
+    // Preload the child's shared history and correction lines while its NNUE eval
+    // runs, so search_correction_value and movepick's pawn-history scoring land on
+    // resident lines (upstream position.cpp:1006-1010, which prefetches these from
+    // inside do_move). The keys are the child's, finalized by the make above; each
+    // of the four corrections lives at a different key, so this warms four distinct
+    // lines plus the pawn-history row for the move just played.
+    {
+        Histories *const h = ctx->hist;
+        const StateInfo *const cst = pos->st;
+        const Color cus = pos->side_to_move;
+        __builtin_prefetch(
+          &pawn_history_row(h, cst->pawn_key)[(size_t) moved_pc * SQUARE_NB + (size_t) to], 0, 3);
+        __builtin_prefetch(corr_bundle(h, cst->pawn_key, cus), 0, 3);
+        __builtin_prefetch(corr_bundle(h, cst->minor_piece_key, cus), 0, 3);
+        __builtin_prefetch(corr_bundle(h, cst->non_pawn_key[WHITE], cus), 0, 3);
+        __builtin_prefetch(corr_bundle(h, cst->non_pawn_key[BLACK], cus), 0, 3);
+    }
+
     ss->current_move = m;
     search_set_cont_hist(ctx, ss, ss->in_check, capture, moved_pc, to);
 }
