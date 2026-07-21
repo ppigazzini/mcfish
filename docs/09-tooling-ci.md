@@ -267,26 +267,32 @@ amortized over a deep tree, is different and is what `perf_counters.sh` now read
 directly on every tier (`bench 16 1 13`, the full depth-13 tree `./build.sh
 signature` reports, each side built and compared at its own ARCH through LLVM):
 
-| tier | mcfish / Stockfish instructions | IPC (mcfish/SF) |
+| tier | mcfish / Stockfish instructions | IPC (mcfish/SF), startup-clean |
 | --- | --- | --- |
-| sse41 | 1.112 | 0.959 |
-| avx2 | 0.781 | 0.797 |
-| native / vnni512 | 1.147 | 0.933 |
+| sse41 | 1.115 | ~1.0 |
+| avx2 | 1.121 | ~1.0 |
+| native / vnni512 | 1.139 | ~1.0 |
 
-**The per-tier direction is not constant, and the shallow "fewer instructions"
-does not carry to deep search.** On real search work mcfish executes *more*
-instructions than upstream on sse41 and vnni512, and *fewer* on avx2 — the portable
-vector idiom lowers lighter than upstream's avx2 intrinsics there, heavier where
-upstream reaches for `vpdpbusd`. The `__AVX512F__`-gated width-128 row and transform
-tiles cut the vnni512 gap from 1.271 to 1.147.
+**On real search work mcfish executes ~12–14% more instructions than upstream at every
+tier, and the gap widens monotonically with vector width** — the portable `simd.h`
+idiom lowers to more/wider zmm ops than upstream's per-ISA hand intrinsics
+(`apply_combined`/`nnue_affine_32` emit ~2× the oracle's zmm ops). The shallow
+"fewer instructions" of the whole-process table above does not carry to deep search:
+it is startup, which is cheaper in mcfish (see below).
 
-**IPC is below 1 on every tier**: LLVM's scheduling and register allocation on
-portable vector idioms extracts less instruction-level parallelism than upstream's
-per-ISA hand intrinsics, so mcfish's instructions are individually a shade slower.
-Quote the instruction ratio (deterministic; the per-round spread is ~0.00002) as the
-headline. When a change is gated on an ISA callgrind cannot reach, `perf_counters.sh`
-is the only deterministic read — and A/B the two native binaries directly, because a
-lone cycles ratio against the oracle carries a thermal swing wider than the effect.
+**IPC is at PARITY once startup is removed** — not below 1. The earlier "IPC < 1 on
+every tier" reading was the net-load confound: mcfish loads the ~90 MB net in ~245 ms
+vs upstream's ~458 ms, and `perf_counters`/`nps_ab` arm counters before exec, so a
+whole-process shallow read credits mcfish with an IPC/cache "advantage" that is really
+cheaper startup. Startup-clean (the delta method, or a deep `bench 16 1 13/14`),
+mcfish's per-node IPC is ~1.0 at every depth and tier. **So the entire deficit is
+instruction count** — a flat ~+14% instructions/node = ~+18% cycles/node, the NNUE
+SIMD throughput residual — not an efficiency gap. Quote the instruction ratio
+(deterministic; per-round spread ~0.00002) as the headline, and **never quote a
+shallow-bench nps/IPC number for a per-node claim — it is startup-confounded.** When a
+change is gated on an ISA callgrind cannot reach, `perf_counters.sh` is the only
+deterministic read; A/B the two native binaries directly, since a lone cycles ratio
+against the oracle carries a thermal swing wider than the effect.
 
 ## CI
 
