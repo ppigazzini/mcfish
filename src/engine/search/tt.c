@@ -110,6 +110,14 @@ void tt_new_search(void) {
 
 uint8_t tt_generation(void) { return TT.generation8; }
 
+void tt_prefetch(Key key) {
+    if (!TT.table)
+        return;
+    // Read-hint (rw=0), highest temporal locality (locality=3): the cluster is about
+    // to be probed and its entries re-read on a hit.
+    __builtin_prefetch(&TT.table[mul_hi64(key, TT.cluster_count)], 0, 3);
+}
+
 TTProbeResult tt_probe(Key key) {
     if (!TT.table)
         return (TTProbeResult) { .found = false, .data = empty_data(), .writer = nullptr };

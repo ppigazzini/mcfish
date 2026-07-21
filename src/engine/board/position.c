@@ -826,6 +826,31 @@ void pos_do_move(
     dts->ksq = king_square(pos, us);
 }
 
+Key pos_prefetch_key(const Position *pos, Move m) {
+    const Square from = move_from(m);
+    const Square to = move_to(m);
+    const Piece pc = piece_on(pos, from);
+    const Piece captured = piece_on(pos, to);
+
+    Key k = pos->st->key ^ Zobrist_side;
+    k ^= Zobrist_psq[pc][to] ^ Zobrist_psq[pc][from];
+    if (captured != NO_PIECE)
+        k ^= Zobrist_psq[captured][to];
+
+    // Pawn moves and captures zero the rule50 counter, so the child key needs no
+    // adjustment. Every other move increments it: apply the same key mix
+    // adjust_key50 does, but against the post-move counter -- threshold 14 - 1 and
+    // the pre-move rule50 (upstream adjust_key50<AfterMove=true>).
+    if (captured != NO_PIECE || type_of_piece(pc) == PAWN)
+        return k;
+
+    const int rule50 = pos->st->rule50;
+    if (rule50 < 13)
+        return k;
+    const Key seed = (Key) ((rule50 - 13) / 8);
+    return k ^ (seed * 6364136223846793005ULL + 1442695040888963407ULL);
+}
+
 void pos_undo_move(Position *pos, Move m) {
     pos->side_to_move = flip_color(pos->side_to_move);
 
