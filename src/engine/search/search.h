@@ -21,6 +21,10 @@ typedef struct {
     uint64_t nodes;  // node limit, 0 for none
     bool infinite;
     bool ponder;
+    // Wall clock stamped when the `go` line was parsed, as early as possible
+    // (upstream uci.cpp:190). 0 means unset, and search_go stamps its own entry
+    // instead -- the path bench and the tests take, where elapsed time is not scored.
+    int64_t start_time;
 } SearchLimits;
 
 typedef struct {

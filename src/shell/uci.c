@@ -7,6 +7,7 @@
 #include "../engine/board/board_props.h"
 #include "../engine/board/position.h"
 #include "../engine/search/search.h"
+#include "../platform/clock.h"
 #include "../platform/tablebase.h"
 #include "benchmark.h"
 #include "engine.h"
@@ -96,7 +97,11 @@ static void cmd_position(char *args) {
 }
 
 static void cmd_go(char *args) {
-    SearchLimits limits = { 0 };
+    // Stamp the clock as early as possible, before parsing the go arguments, so the
+    // time budget is measured from when the command arrived -- not from when the search
+    // thread later enters search_go (upstream uci.cpp:190, "The search starts as early
+    // as possible").
+    SearchLimits limits = { .start_time = (int64_t) now_ms() };
 
     for (char *token = strtok(args, " \t\n"); token; token = strtok(nullptr, " \t\n")) {
         // Zero-argument keywords first, reading NO lookahead token (uci.cpp:221-224).
