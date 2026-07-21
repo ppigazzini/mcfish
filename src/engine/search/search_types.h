@@ -56,12 +56,15 @@ typedef struct {
     int32_t uci_score;
     bool score_lowerbound;
     bool score_upperbound;
+    // Group with the two bound flags, as upstream does (search.h:147-149): a
+    // trailing bool after the two PVMoves would cost 8 bytes of tail padding per
+    // RootMove for no reason. Position is a layout choice, never a behaviour one.
+    bool previous_score_exact;
     int32_t sel_depth;
     int32_t tb_rank;
     int32_t tb_score;
     PVMoves pv;
     PVMoves previous_pv;
-    bool previous_score_exact;
 } RootMove;
 
 static inline bool root_move_score_is_bound(const RootMove *rm) {
