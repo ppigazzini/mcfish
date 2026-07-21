@@ -236,7 +236,11 @@ static void sibling_search(void *ctx) {
 SearchResult search_go(Position *pos, const SearchLimits *limits) {
     install_seams();
 
-    const TimePoint start = (TimePoint) now_ms();
+    // Prefer the clock the UCI layer stamped when it parsed `go` (upstream's start_time,
+    // measured as early as possible). Fall back to stamping here when it is unset -- the
+    // bench and test callers, which do not score elapsed time.
+    const TimePoint start =
+      limits->start_time != 0 ? (TimePoint) limits->start_time : (TimePoint) now_ms();
 
     thread_pool_set_stop(search_threads_pool(), false);
     thread_pool_set_increase_depth(search_threads_pool(), true);
