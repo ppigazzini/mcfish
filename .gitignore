@@ -61,3 +61,7 @@ resources/
 # Dev-only scratch: milestone plans, port-progress tracking, reports. The port is
 # finished; these are history, not authoritative docs. Never in the repo surface.
 __DEV/
+
+# Local, per-machine/per-toolchain instruction budget (build.sh perf-budget). Not shared:
+# the retired-instruction count is toolchain-specific; each dev records their own.
+tools/instr_budget.golden

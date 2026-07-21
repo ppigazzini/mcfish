@@ -506,6 +506,101 @@ do_signature_update() {
   green "signature golden set to $actual"
 }
 
+# --- perf-budget: an ABSOLUTE instruction-count regression gate --------------------
+#
+# The bench signature proves the same NODE count; it is blind to how many x86
+# instructions those nodes cost. So a refactor can shed no nodes yet run measurably
+# slower with every correctness gate green -- exactly the time-domain divergence that
+# costs Elo. Retired instructions are deterministic (~0.00002% spread across runs), so
+# an absolute per-arch budget is a gateable anchor where thermally-void nps is not.
+#
+# LOCAL-first, and deliberately NOT in `parity`: perf_event_open is refused in some CI
+# containers (the gate SKIPS there, exit 127), and the count is toolchain-specific -- a
+# clang upgrade legitimately moves it, so re-derive with `perf-budget-update` then. The
+# golden is keyed by ARCH because the count differs per ISA tier.
+PERF_BUDGET_GOLDEN=tools/instr_budget.golden
+PERF_BUDGET_BENCH=${PERF_BUDGET_BENCH:-16 1 13}
+PERF_BUDGET_TOL=${PERF_BUDGET_TOL:-0.005}   # 0.5%: catches real inflation, tolerates clang jitter
+
+# Compile the counter (same cache perf_counters.sh uses) and read $BIN's median retired
+# instruction count on the fixed bench. Echoes "INSTRUCTIONS <n>\nNODES <n>", or returns 3
+# when perf_event_open is unavailable so the caller can SKIP.
+measure_instructions() {
+  local counter="${TMPDIR:-/tmp}/mcfish_perf_counters"
+  if [[ ! -x $counter || tools/perf_counters.c -nt $counter ]]; then
+    "$CC" -O2 "$STD_FLAG" -o "$counter" tools/perf_counters.c || return 2
+  fi
+  ( cd "$ROOT/$RESOURCES_DIR" && "$counter" --single "$ROOT/$BIN" 5 bench $PERF_BUDGET_BENCH )
+}
+
+do_perf_budget() {
+  need_binary
+  # Same net requirement as the signature gate: a fallback-eval run is a different tree
+  # and a different instruction count -- meaningless against the budget.
+  local net_probe
+  net_probe=$(engine bench 1 2>&1 || true)
+  if grep -q 'was not loaded' <<< "$net_probe"; then
+    red "no NNUE net reachable — the perf-budget gate did NOT run (SKIPPED)."
+    return 127
+  fi
+
+  local out rc
+  out=$(measure_instructions); rc=$?
+  if [[ $rc -eq 3 ]]; then
+    info "perf-budget: perf_event_open unavailable on this host — SKIPPED (this is local-only)."
+    return 127
+  fi
+  [[ $rc -eq 0 ]] || { red "perf-budget: measurement failed (exit $rc)."; return 1; }
+
+  local actual budget
+  actual=$(awk '/^INSTRUCTIONS/{print $2}' <<< "$out")
+  budget=$(grep -v '^#' "$PERF_BUDGET_GOLDEN" 2>/dev/null | awk -v a="$MCFISH_ARCH" '$1==a{print $2}')
+  if [[ -z $budget ]]; then
+    info "perf-budget: no budget recorded for arch '$MCFISH_ARCH'."
+    info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
+    return 127
+  fi
+
+  # Ceiling = budget * (1 + TOL). A regression INFLATES instructions; a drop is a win.
+  awk -v a="$actual" -v b="$budget" -v tol="$PERF_BUDGET_TOL" -v arch="$MCFISH_ARCH" 'BEGIN{
+    ceil = b * (1 + tol); floor = b * (1 - tol);
+    if (a > ceil) {
+      printf "\033[31mperf-budget REGRESSION (%s): %d instr > budget %d + %.1f%% (%.0f)\033[0m\n", arch, a, b, tol*100, ceil;
+      print  "\033[31mA refactor inflated the instruction count without moving the node signature.\033[0m";
+      print  "\033[31mIf the change is intended, re-derive: ./build.sh perf-budget-update\033[0m";
+      exit 1;
+    } else if (a < floor) {
+      printf "\033[32mperf-budget OK (%s): %d instr — IMPROVED vs budget %d (%.2f%%). Consider perf-budget-update.\033[0m\n", arch, a, b, (a/b-1)*100;
+    } else {
+      printf "\033[32mperf-budget OK (%s): %d instr (budget %d, within %.1f%%)\033[0m\n", arch, a, b, tol*100;
+    }
+  }'
+}
+
+do_perf_budget_update() {
+  need_binary
+  local out rc actual nodes
+  out=$(measure_instructions); rc=$?
+  [[ $rc -eq 0 ]] || { red "perf-budget-update: measurement failed (exit $rc). Needs perf_event_open + the net."; return 1; }
+  actual=$(awk '/^INSTRUCTIONS/{print $2}' <<< "$out")
+  nodes=$(awk '/^NODES/{print $2}' <<< "$out")
+  [[ -f $PERF_BUDGET_GOLDEN ]] || {
+    { echo "# mcfish retired-instruction budget: median count on 'bench $PERF_BUDGET_BENCH',"
+      echo "# per ARCH tier. Deterministic (~0.00002% spread), toolchain-specific: re-derive"
+      echo "# on a clang upgrade or an intended perf change. One line per arch: <arch> <count>."
+      echo "# A regression that leaves the node signature ($nodes) untouched shows up ONLY here."
+    } > "$PERF_BUDGET_GOLDEN"
+  }
+  # Replace the line for this arch (or append it), keeping the header and other arches.
+  local tmp; tmp=$(mktemp)
+  awk -v a="$MCFISH_ARCH" -v n="$actual" '
+    /^#/ { print; next }
+    $1==a { next }
+    { print }
+    END { print a, n }' "$PERF_BUDGET_GOLDEN" > "$tmp" && mv "$tmp" "$PERF_BUDGET_GOLDEN"
+  green "perf-budget golden for '$MCFISH_ARCH' set to $actual instructions (bench $PERF_BUDGET_BENCH, $nodes nodes)"
+}
+
 do_simd_scalar() {
   # Build the engine with EVERY vector type and intrinsic compiled out, and require
   # the same bench anchor.
@@ -1153,6 +1248,8 @@ usage: ./build.sh <step> [args]
   net                report where the NNUE net must be and how to obtain it
   net-fetch          download + sha256-verify the net -> resources/ (what CI runs)
   signature          assert the bench node count vs tools/signature.golden
+  perf-budget        LOCAL: assert retired instructions vs tools/instr_budget.golden
+                     (catches an nps regression the node signature is blind to)
   perft              assert perft counts vs tools/perft.table
   golden             diff the UCI case outputs vs tools/*.golden
   tb-fetch [5]       download + magic-verify the Syzygy sets -> resources/syzygy[5]
@@ -1168,6 +1265,7 @@ usage: ./build.sh <step> [args]
   clean              remove build/
 
   signature-update   re-derive the signature golden  (intended changes only)
+  perf-budget-update re-derive the instruction budget for this arch (known-good build)
   golden-update      re-derive the UCI goldens       (intended changes only)
   tb-update          re-derive tools/tb.golden FROM THE ORACLE
 
@@ -1187,6 +1285,8 @@ case "${1:-build}" in
   net)              do_net ;;
   net-fetch)        do_net_fetch ;;
   signature)        do_signature ;;
+  perf-budget)      do_perf_budget ;;
+  perf-budget-update) do_perf_budget_update ;;
   simd-scalar)      do_simd_scalar ;;
   arch-determinism) do_arch_determinism ;;
   signature-update) do_signature_update ;;
