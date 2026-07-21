@@ -453,7 +453,7 @@ static void apply_combined(NnueAccumulatorStack *stack,
 
     NnueFullAppendResult thr_append;
     nnue_full_append_changed(perspective, king_square, thr_diff->list.values, thr_diff->list.size,
-                             &thr_append);
+                             nnue_ft_threat_weights(ft), &thr_append);
 
     uint32_t thr_removed[NNUE_THREAT_INDEX_CAPACITY];
     uint32_t thr_added[NNUE_THREAT_INDEX_CAPACITY];
