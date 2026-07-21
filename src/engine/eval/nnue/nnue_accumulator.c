@@ -348,18 +348,20 @@ static void refresh_latest_psq(uint8_t perspective,
               nnue_half_make_index(perspective, (uint8_t) square, new_piece, king_square);
     }
 
-    nnue_acc_apply_delta_i16(cache_entry_accumulation(entry), removed, removed_len, added,
-                             added_len, nnue_ft_psq_weights(ft));
-    nnue_acc_apply_psqt_delta(cache_entry_psqt(entry), removed, removed_len, added, added_len,
-                              nnue_ft_psq_psqt_weights(ft));
+    // Dual-store: write the refreshed row into BOTH the cache entry (in place, for next time)
+    // and this ply's state slot in one tiled pass, so the cache→state copy is a register store
+    // rather than a trailing memcpy of the accumulation and psqt rows.
+    nnue_acc_apply_delta_i16_dual(
+      cache_entry_accumulation(entry),
+      state_accumulation_mut(PSQ_FEATURE, latest_index, stack, perspective), removed, removed_len,
+      added, added_len, nnue_ft_psq_weights(ft));
+    nnue_acc_apply_psqt_delta_dual(
+      cache_entry_psqt(entry), state_psqt_mut(PSQ_FEATURE, latest_index, stack, perspective),
+      removed, removed_len, added, added_len, nnue_ft_psq_psqt_weights(ft));
 
     memcpy(entry_pieces, board, SQUARE_NB);
     set_cache_entry_piece_bb(entry, pos->by_type[ALL_PIECES]);
 
-    memcpy(state_accumulation_mut(PSQ_FEATURE, latest_index, stack, perspective),
-           cache_entry_accumulation(entry), NNUE_HALF_DIMENSIONS * sizeof(int16_t));
-    memcpy(state_psqt_mut(PSQ_FEATURE, latest_index, stack, perspective), cache_entry_psqt(entry),
-           NNUE_PSQT_BUCKETS * sizeof(int32_t));
     state_bytes_mut(PSQ_FEATURE, latest_index, stack)[COMPUTED_OFFSET + perspective] = 1;
 }
 

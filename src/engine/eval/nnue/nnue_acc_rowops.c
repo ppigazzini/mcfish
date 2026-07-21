@@ -80,6 +80,30 @@ void nnue_acc_apply_delta_i16(int16_t *target,
     }
 }
 
+// Dual-store refresh of nnue_acc_apply_delta_i16: same per-tile arithmetic, but the refreshed
+// tile is stored to BOTH cache_dest (in place) and state_dest before moving on, so the value
+// reaches the ply's state slot as a register store rather than a trailing 2KB memcpy. The value
+// written to each destination is identical to the single-dest apply followed by a copy.
+void nnue_acc_apply_delta_i16_dual(int16_t *cache_dest,
+                                   int16_t *state_dest,
+                                   const uint32_t *removed,
+                                   size_t removed_len,
+                                   const uint32_t *added,
+                                   size_t added_len,
+                                   const int16_t *weights) {
+    for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
+        RowVecU16 acc = row_load((const uint16_t *) (cache_dest + d));
+        for (size_t r = 0; r < removed_len; r++)
+            acc =
+              row_sub(acc, load_psq_row(weights + (size_t) removed[r] * NNUE_HALF_DIMENSIONS + d));
+        for (size_t r = 0; r < added_len; r++)
+            acc =
+              row_add(acc, load_psq_row(weights + (size_t) added[r] * NNUE_HALF_DIMENSIONS + d));
+        row_store((uint16_t *) (cache_dest + d), acc);
+        row_store((uint16_t *) (state_dest + d), acc);
+    }
+}
+
 void nnue_acc_accumulate_rows_i8(int16_t *target,
                                  const uint32_t *rows,
                                  size_t row_count,
@@ -104,6 +128,26 @@ void nnue_acc_apply_psqt_delta(int32_t *target,
     for (size_t i = 0; i < added_len; i++)
         acc = nnue_v8i32_add(acc, nnue_v8i32_load(weights + (size_t) added[i] * NNUE_PSQT_BUCKETS));
     nnue_v8i32_store(target, acc);
+}
+
+// Dual-store refresh of nnue_acc_apply_psqt_delta: hold the 8 buckets in one register, then store
+// the refreshed row to BOTH cache_dest and state_dest, fusing the cache→state copy. Bit-identical
+// to the single-dest apply followed by a memcpy of the same buckets.
+void nnue_acc_apply_psqt_delta_dual(int32_t *cache_dest,
+                                    int32_t *state_dest,
+                                    const uint32_t *removed,
+                                    size_t removed_len,
+                                    const uint32_t *added,
+                                    size_t added_len,
+                                    const int32_t *weights) {
+    NnueV8i32 acc = nnue_v8i32_load(cache_dest);
+    for (size_t i = 0; i < removed_len; i++)
+        acc =
+          nnue_v8i32_sub(acc, nnue_v8i32_load(weights + (size_t) removed[i] * NNUE_PSQT_BUCKETS));
+    for (size_t i = 0; i < added_len; i++)
+        acc = nnue_v8i32_add(acc, nnue_v8i32_load(weights + (size_t) added[i] * NNUE_PSQT_BUCKETS));
+    nnue_v8i32_store(cache_dest, acc);
+    nnue_v8i32_store(state_dest, acc);
 }
 
 void nnue_acc_accumulate_psqt_rows(int32_t *target,
