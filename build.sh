@@ -275,6 +275,71 @@ do_build() {
   green "built $BIN"
 }
 
+# Profile-guided optimisation. Upstream ships `make profile-build`; the release
+# path here is LTO-only, so PGO is the one untapped codegen lever left in the
+# toolchain. Three phases: instrument, PROFILE on the canonical bench, rebuild
+# guided by the merged counts.
+#
+# The workload MUST be the fixed `bench` command and nothing else. It is the same
+# position list the signature anchor is defined over, so the profile is a
+# deterministic, reproducible artifact of the source -- not of whatever the machine
+# happened to run. A profile taken from a live game would make the shipped binary
+# depend on inputs no gate can reproduce. The profile steers block layout and
+# inlining only: it CANNOT move the node count, and do_pgo re-asserts the signature
+# to prove that.
+#
+# llvm-profdata must match clang's major version: clang writes a raw profile format
+# that an older distro-default llvm-profdata rejects. Derive the tool from
+# `clang -dumpversion` rather than pinning it.
+do_pgo() {
+  info "PGO build of $BIN ($MCFISH_ARCH): instrument -> profile bench -> rebuild"
+  mkdir -p build
+
+  local major profdata
+  major=$("$CC" -dumpversion | cut -d. -f1)
+  profdata="llvm-profdata-$major"
+  command -v "$profdata" > /dev/null 2>&1 || profdata="llvm-profdata"
+  command -v "$profdata" > /dev/null 2>&1 || {
+    red "no llvm-profdata found -- PGO needs it to merge the raw profile."
+    return 127
+  }
+
+  local profdir=build/pgo
+  rm -rf "$profdir"; mkdir -p "$profdir"
+
+  # Phase 1: instrumented binary. Same release flags so the profiled code is the
+  # code that ships; -fprofile-generate adds the counters on top.
+  info "phase 1/3: instrumented build -> build/mcfish-instr"
+  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -fprofile-generate="$profdir" \
+    -o build/mcfish-instr "${SOURCES[@]}" "${LIBS[@]}"
+
+  # Phase 2: run the canonical bench under the instrumented binary. The subshell
+  # cds into resources/ so the net loads -- without it bench searches the classical
+  # tree and the profile covers the wrong code. %p keeps one raw file per pid.
+  info "phase 2/3: profiling the bench workload"
+  ( cd "$ROOT/$RESOURCES_DIR" \
+      && LLVM_PROFILE_FILE="$ROOT/$profdir/mcfish-%p.profraw" \
+         "$ROOT/build/mcfish-instr" bench > /dev/null 2>&1 )
+  compgen -G "$profdir/*.profraw" > /dev/null || {
+    red "no raw profile written -- the instrumented run produced nothing to merge."
+    return 1
+  }
+  "$profdata" merge -output="$profdir/merged.profdata" "$profdir"/*.profraw
+
+  # Phase 3: rebuild guided by the merged profile. The -Wno-profile-instr flags
+  # silence coverage notes about counters shifted by inlining -- not correctness
+  # signals, and CFLAGS_COMMON runs -Wall.
+  info "phase 3/3: profile-guided rebuild -> $BIN"
+  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" \
+    -fprofile-use="$profdir/merged.profdata" \
+    -Wno-profile-instr-out-of-date -Wno-profile-instr-unprofiled \
+    -o "$BIN" "${SOURCES[@]}" "${LIBS[@]}"
+  green "built $BIN (PGO)"
+
+  # The profile steers layout only. Prove it did not move the anchor.
+  do_signature
+}
+
 do_debug() {
   info "building build/mcfish-debug (asan+ubsan)"
   mkdir -p build
@@ -1077,6 +1142,7 @@ do_help() {
 usage: ./build.sh <step> [args]
 
   build              compile the release binary          -> build/mcfish
+  pgo                profile-guided build (instrument, bench, rebuild) -> build/mcfish
   debug              compile with asan+ubsan             -> build/mcfish-debug
   test               build and run the unit/property suite (asan+ubsan)
   tsan               re-run the suite under ThreadSanitizer (the thread-pool gate)
@@ -1112,6 +1178,7 @@ EOF
 
 case "${1:-build}" in
   build)            do_build ;;
+  pgo)              do_pgo ;;
   debug)            do_debug ;;
   test)             do_test ;;
   tsan)             do_tsan ;;
