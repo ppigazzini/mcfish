@@ -260,6 +260,7 @@ void nnue_full_append_changed(uint8_t perspective,
                               uint8_t king_square,
                               const NnueDirtyThreatRaw *list,
                               size_t list_len,
+                              const int8_t *prefetch_base,
                               NnueFullAppendResult *out) {
     out->len = 0;
     for (size_t index = 0; index < list_len; index++) {
@@ -268,7 +269,13 @@ void nnue_full_append_changed(uint8_t perspective,
         const uint8_t attacked = (uint8_t) ((raw >> NNUE_DIRTY_THREATENED_PC_SHIFT) & 0xf);
         const uint8_t to_sq = (uint8_t) ((raw >> NNUE_DIRTY_THREATENED_SQ_SHIFT) & 0xff);
         const uint8_t from_sq = (uint8_t) ((raw >> NNUE_DIRTY_THREAT_PC_SQ_SHIFT) & 0xff);
+        const size_t out_index = out->len;
         append_full_index(out, perspective, attacker, from_sq, to_sq, attacked, king_square);
+        // Preload the scattered weight row while the remaining indices are built and
+        // classified, before apply_combined reads it (read hint, low locality).
+        if (prefetch_base != nullptr)
+            __builtin_prefetch(
+              prefetch_base + (size_t) out->indices[out_index] * NNUE_HALF_DIMENSIONS, 0, 1);
     }
 }
 

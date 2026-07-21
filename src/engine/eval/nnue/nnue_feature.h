@@ -125,10 +125,17 @@ uint32_t nnue_full_make_index(uint8_t perspective,
 // Append one index per entry of LIST, in list order and WITHOUT the range filter, so
 // index i of the result corresponds to entry i of LIST — the caller needs the pairing to
 // read each entry's add/remove bit. LIST_LEN must not exceed NNUE_THREAT_INDEX_CAPACITY.
+//
+// When PREFETCH_BASE is non-NULL it is the threat-weight blob: each generated index's
+// weight row (PREFETCH_BASE + index * NNUE_HALF_DIMENSIONS int8 bytes) is preloaded with
+// a low-locality read hint, so the scattered row is arriving by the time the accumulator
+// update reads it (upstream full_threats append_changed_indices, pfStride =
+// OutputDimensions). The hint changes no value and is fault-safe for an excluded index.
 void nnue_full_append_changed(uint8_t perspective,
                               uint8_t king_square,
                               const NnueDirtyThreatRaw *list,
                               size_t list_len,
+                              const int8_t *prefetch_base,
                               NnueFullAppendResult *out);
 
 // Append every threat feature active on BOARD (64 entries, upstream piece encoding),
