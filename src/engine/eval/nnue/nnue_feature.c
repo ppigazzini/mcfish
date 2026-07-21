@@ -263,6 +263,11 @@ void nnue_full_append_changed(uint8_t perspective,
                               const int8_t *prefetch_base,
                               NnueFullAppendResult *out) {
     out->len = 0;
+    // Keep the threat index math scalar. Under LTO clang auto-vectorizes this loop into
+    // vpgatherqd table lookups (IndexLut1/Offsets/IndexLut2), which cost far more on Zen4
+    // than the scalar loads upstream emits; the trip count is tiny so the vector form has
+    // nothing to recover.
+#pragma clang loop vectorize(disable) interleave(disable)
     for (size_t index = 0; index < list_len; index++) {
         const uint32_t raw = list[index].data;
         const uint8_t attacker = (uint8_t) ((raw >> NNUE_DIRTY_THREAT_PC_SHIFT) & 0xf);
