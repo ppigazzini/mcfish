@@ -1,8 +1,8 @@
 #include "tt.h"
 
+#include "../../platform/memory.h"
 #include "../state/tt_types.h"
 
-#include <stdlib.h>
 #include <string.h>
 
 // Pack pv, bound and generation into gen_bound8 (tt.cpp:55). The generation takes
@@ -77,10 +77,13 @@ bool tt_resize(size_t mb) {
     if (cluster_count == 0)
         return false;
 
-    // Round the request up to a whole number of cache lines: aligned_alloc wants a
-    // size that is a multiple of the alignment, and a cluster is half a line.
-    const size_t bytes = (cluster_count * sizeof(TTCluster) + 63) & ~(size_t) 63;
-    TTCluster *const table = aligned_alloc(64, bytes);
+    // Take the table from the page allocator, the route memory.h prescribes for the
+    // engine's big arenas: it hands back a 64-byte-aligned, zeroed block -- a cluster is
+    // half a cache line, so 64-byte alignment keeps every cluster line-contained -- and,
+    // being a whole-megabyte anonymous mapping, it carries the transparent-huge-page hint
+    // that a plain aligned_alloc off the heap does not. The 16 MiB default table is
+    // exactly L3-sized and probed on every node, so its TLB footprint is the point.
+    TTCluster *const table = page_alloc(cluster_count * sizeof(TTCluster));
     if (!table)
         return false;
 
@@ -91,7 +94,7 @@ bool tt_resize(size_t mb) {
 }
 
 void tt_free(void) {
-    free(TT.table);
+    page_free(TT.table);
     TT.table = nullptr;
     TT.cluster_count = 0;
     TT.generation8 = 0;
