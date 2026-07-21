@@ -554,7 +554,15 @@ do_perf_budget() {
 
   local actual budget
   actual=$(awk '/^INSTRUCTIONS/{print $2}' <<< "$out")
-  budget=$(grep -v '^#' "$PERF_BUDGET_GOLDEN" 2>/dev/null | awk -v a="$MCFISH_ARCH" '$1==a{print $2}')
+  # A missing golden (grep exits 2) or a header-only golden (grep -v '^#' finds nothing,
+  # exits 1) must READ as "no budget yet", not abort the gate under `set -euo pipefail`.
+  # Guard the file, and neutralise grep's no-match exit with `|| true` inside the sub-shell.
+  if [[ ! -f $PERF_BUDGET_GOLDEN ]]; then
+    info "perf-budget: no budget file yet (tools/instr_budget.golden)."
+    info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
+    return 127
+  fi
+  budget=$(grep -v '^#' "$PERF_BUDGET_GOLDEN" | awk -v a="$MCFISH_ARCH" '$1==a{print $2}' || true)
   if [[ -z $budget ]]; then
     info "perf-budget: no budget recorded for arch '$MCFISH_ARCH'."
     info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
