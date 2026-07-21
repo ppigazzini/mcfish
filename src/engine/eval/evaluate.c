@@ -1,3 +1,10 @@
+// Define _GNU_SOURCE before any header: madvise and MADV_HUGEPAGE sit behind glibc's
+// GNU guards, and without it the huge-page hint on the accumulator arena compiles away
+// into a fallback that looks clean and does nothing.
+#ifndef _GNU_SOURCE
+    #define _GNU_SOURCE
+#endif
+
 #include "evaluate.h"
 
 #include "../board/board_props.h"
@@ -13,6 +20,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(__linux__)
+    #include <sys/mman.h>
+#endif
 
 // ---------------------------------------------------------------------------
 // NNUE runtime state
@@ -70,13 +81,30 @@ static_assert(offsetof(DirtyThreats, ksq) == offsetof(NnueDirtyThreats, ksq), ""
 
 const char *eval_nnue_default_file_name(void) { return NETWORK_DEFAULT_EVAL_FILE_NAME; }
 
-// Allocate N bytes at NNUE_ALIGN. aligned_alloc requires a size that is a
-// multiple of the alignment, so round up rather than pass the exact figure.
+// Allocate N zeroed bytes for an accumulator arena. aligned_alloc requires a size that is
+// a multiple of the alignment, so round up rather than pass the exact figure.
+//
+// Raise the alignment to a huge page and hint MADV_HUGEPAGE once the block is large enough
+// to hold one: the accumulator stack is ~2 MiB per worker and every make/unmake walks it,
+// so at 4 KiB pages the per-worker stack alone spans hundreds of TLB entries. The hint is
+// advisory and touches only WHERE the block is paged, never a value; alignment must reach
+// the huge-page boundary for the kernel to be able to honour it at all. Smaller arenas
+// (the refresh cache) stay at cache-line alignment -- rounding them to 2 MiB would waste a
+// whole page each and they are too small to fill one.
+enum { ARENA_HUGE_PAGE = 2u << 20, ARENA_HUGE_MIN = 2u << 20 };
+
 static void *alloc_arena(size_t n) {
-    const size_t rounded = (n + NNUE_ALIGN - 1) / NNUE_ALIGN * NNUE_ALIGN;
-    void *p = aligned_alloc(NNUE_ALIGN, rounded);
-    if (p != nullptr)
+    const bool huge = n >= (size_t) ARENA_HUGE_MIN;
+    const size_t align = huge ? (size_t) ARENA_HUGE_PAGE : (size_t) NNUE_ALIGN;
+    const size_t rounded = (n + align - 1) / align * align;
+    void *p = aligned_alloc(align, rounded);
+    if (p != nullptr) {
+#if defined(__linux__) && defined(MADV_HUGEPAGE)
+        if (huge)
+            (void) madvise(p, rounded, MADV_HUGEPAGE);
+#endif
         memset(p, 0, rounded);
+    }
     return p;
 }
 
