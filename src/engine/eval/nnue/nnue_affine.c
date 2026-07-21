@@ -155,23 +155,26 @@ void nnue_affine_1(bool sparse,
                    const uint64_t *nnz) {
     enum { N = 4 };
     const size_t groups = input_len / 4;
-    NnueV4i32 acc = nnue_v4i32_splat(0);
 
-    if (sparse) {
-        for (size_t k = 0; k * 64 < groups; k++) {
-            uint64_t bits = nnz[k];
-            const uint8_t *in_base = input + k * 64 * 4;
-            const int8_t *w_base = weights + k * 64 * N;
-            while (bits != 0) {
-                const size_t i = (size_t) __builtin_ctzll(bits);
-                bits &= bits - 1;
-                acc = nnue_v4i32_add(acc,
-                                     group_products_1(load_group(in_base + i * 4), w_base + i * N));
-            }
-        }
-    } else {
-        for (size_t g = 0; g < groups; g++) {
-            acc = nnue_v4i32_add(acc, group_products_1(load_group(input + g * 4), weights + g * N));
+    // fc_2 is the sole OUT==1 layer and always runs dense. Its N=4 weight layout is
+    // the identity permutation, so the whole layer is a contiguous 128-wide u8*i8 dot
+    // (nnue_affine1_dot); the interleaved-group form below is bit-identical to it but
+    // only survives for the sparse contract other OUT==1 callers could carry.
+    if (!sparse) {
+        out[0] = biases[0] + nnue_affine1_dot(input, weights, input_len);
+        return;
+    }
+
+    NnueV4i32 acc = nnue_v4i32_splat(0);
+    for (size_t k = 0; k * 64 < groups; k++) {
+        uint64_t bits = nnz[k];
+        const uint8_t *in_base = input + k * 64 * 4;
+        const int8_t *w_base = weights + k * 64 * N;
+        while (bits != 0) {
+            const size_t i = (size_t) __builtin_ctzll(bits);
+            bits &= bits - 1;
+            acc =
+              nnue_v4i32_add(acc, group_products_1(load_group(in_base + i * 4), w_base + i * N));
         }
     }
 
