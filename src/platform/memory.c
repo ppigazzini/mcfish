@@ -82,6 +82,19 @@ static void *page_alloc_default(size_t size) {
     if (raw == MAP_FAILED)
         return nullptr;
 
+    // Hint transparent huge pages once the mapping is large enough to hold at least one.
+    // The big arenas that ride this seam -- the 16 MiB transposition table, the per-node
+    // shared-history banks -- are exactly L3-sized, so at 4 KiB pages the search walks
+    // thousands of TLB entries across them; a 2 MiB page is one entry for the same span.
+    // The hint is advisory: the kernel may ignore it (WSL2 here backs none of it), and it
+    // can only change WHERE the block is paged, never a byte of its content -- MAP_ANONYMOUS
+    // still hands the region over zeroed either way. Guard on MADV_HUGEPAGE so the call
+    // compiles away where the constant is undefined.
+#if defined(MADV_HUGEPAGE)
+    if (total >= (size_t) LargePageSize)
+        (void) madvise(raw, total, MADV_HUGEPAGE);
+#endif
+
     // MAP_ANONYMOUS pages arrive zeroed, which is the contract's zero-fill. Record the
     // block length in the header word so free() needs no size from the caller.
     *(size_t *) raw = total;
