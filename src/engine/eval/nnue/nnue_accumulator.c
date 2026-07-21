@@ -73,8 +73,12 @@ size_t nnue_accumulator_stack_bytes(void) { return STACK_BYTES; }
 enum : size_t {
     CACHE_ENTRY_PSQT_OFFSET = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
     CACHE_ENTRY_PIECES_OFFSET = CACHE_ENTRY_PSQT_OFFSET + NNUE_PSQT_BUCKETS * sizeof(int32_t),
-    CACHE_ENTRY_PIECE_BB_OFFSET = CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
-    CACHE_ENTRY_BYTES = NNUE_ROUND_UP(CACHE_ENTRY_PIECE_BB_OFFSET + sizeof(uint64_t), NNUE_ALIGN),
+    // The entry stores only the cached PIECE ARRAY, not a redundant occupancy bitboard:
+    // the per-square refresh below reads `entry_pieces[sq] != NO_PIECE` for exactly the
+    // "was a piece here" test upstream derives from `changedBB & entry.pieceBB`, so the
+    // bitboard would be written and never read (upstream nnue_accumulator.cpp:554,573).
+    CACHE_ENTRY_BYTES =
+      NNUE_ROUND_UP(CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t), NNUE_ALIGN),
     CACHE_BYTES = SQUARE_NB * NNUE_COLOR_COUNT * CACHE_ENTRY_BYTES,
 };
 
@@ -317,10 +321,6 @@ void nnue_clear_refresh_cache(NnueRefreshCache *cache, const int16_t *biases) {
 
 // Refresh the HalfKA half through the finny table: diff the cached board against the
 // live one, apply that delta to the cached accumulation, then copy it into the slot.
-static void set_cache_entry_piece_bb(unsigned char *entry, uint64_t piece_bb) {
-    memcpy(entry + CACHE_ENTRY_PIECE_BB_OFFSET, &piece_bb, sizeof piece_bb);
-}
-
 static void refresh_latest_psq(uint8_t perspective,
                                uint8_t king_square,
                                NnueAccumulatorStack *stack,
@@ -365,7 +365,6 @@ static void refresh_latest_psq(uint8_t perspective,
       removed, removed_len, added, added_len, nnue_ft_psq_psqt_weights(ft));
 
     memcpy(entry_pieces, board, SQUARE_NB);
-    set_cache_entry_piece_bb(entry, pos->by_type[ALL_PIECES]);
 
     state_bytes_mut(PSQ_FEATURE, latest_index, stack)[COMPUTED_OFFSET + perspective] = 1;
 }
