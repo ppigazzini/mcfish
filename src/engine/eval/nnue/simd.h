@@ -478,6 +478,85 @@ static inline void nnue_dot_store(int32_t *p, NnueDotAcc a) {
 
 #endif
 
+// ---------------------------------------------------------------------------
+// THE CONTIGUOUS DOT. The OUT==1 layer (fc_2, 128->1) is special: its N=4 weight
+// layout is the IDENTITY permutation -- group g's four sublanes are output 0 over
+// inputs [4g, 4g+4), so out = sum over i in 0..127 of in[i] * w[i] with input AND
+// weight laid out contiguously. That is a plain u8*i8 dot, and clang does not widen
+// it: it loads four bytes at a time, sign/zero-extends each quad to int32, repacks
+// to int16 and reduces through vpdpwssd -- 64 vpmov widen loads and a repack tax for
+// what one vpdpbusd does 64 inputs at a stride. Give the layer its own wide dot.
+//
+// Bit-identity holds by the dot4 argument verbatim: pmaddubsw's int16 pair sum over
+// activation outputs (u8 in [0,127]) times int8 weights stays in [-32512, 32258], so
+// the int16 tiers never saturate; vpdpbusd carries no intermediate at all; and the
+// portable body sums in order. Integer addition commutes, so every tier's reduction
+// order lands on the same int32. n is a multiple of the tier width here (128), and
+// the scalar tail closes any that is not.
+#if MCFISH_SIMD_VECTOR && defined(__AVX512VNNI__) && defined(__AVX512F__)
+
+static inline int32_t nnue_affine1_dot(const uint8_t *in, const int8_t *w, size_t n) {
+    __m512i acc = _mm512_setzero_si512();
+    size_t i = 0;
+    for (; i + 64 <= n; i += 64)
+        acc = _mm512_dpbusd_epi32(acc, _mm512_loadu_si512((const void *) (in + i)),
+                                  _mm512_loadu_si512((const void *) (w + i)));
+    int32_t sum = _mm512_reduce_add_epi32(acc);
+    for (; i < n; i++)
+        sum += (int32_t) in[i] * (int32_t) w[i];
+    return sum;
+}
+
+#elif MCFISH_SIMD_VECTOR && defined(__AVX2__)
+
+static inline int32_t nnue_affine1_dot(const uint8_t *in, const int8_t *w, size_t n) {
+    __m256i acc = _mm256_setzero_si256();
+    const __m256i ones = _mm256_set1_epi16(1);
+    size_t i = 0;
+    for (; i + 32 <= n; i += 32) {
+        const __m256i pairs = _mm256_maddubs_epi16(_mm256_loadu_si256((const __m256i *) (in + i)),
+                                                   _mm256_loadu_si256((const __m256i *) (w + i)));
+        acc = _mm256_add_epi32(acc, _mm256_madd_epi16(pairs, ones));
+    }
+    __m128i s = _mm_add_epi32(_mm256_castsi256_si128(acc), _mm256_extracti128_si256(acc, 1));
+    s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0x4E));
+    s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0xB1));
+    int32_t sum = _mm_cvtsi128_si32(s);
+    for (; i < n; i++)
+        sum += (int32_t) in[i] * (int32_t) w[i];
+    return sum;
+}
+
+#elif MCFISH_SIMD_VECTOR && defined(__SSSE3__)
+
+static inline int32_t nnue_affine1_dot(const uint8_t *in, const int8_t *w, size_t n) {
+    __m128i acc = _mm_setzero_si128();
+    const __m128i ones = _mm_set1_epi16(1);
+    size_t i = 0;
+    for (; i + 16 <= n; i += 16) {
+        const __m128i pairs = _mm_maddubs_epi16(_mm_loadu_si128((const __m128i *) (in + i)),
+                                                _mm_loadu_si128((const __m128i *) (w + i)));
+        acc = _mm_add_epi32(acc, _mm_madd_epi16(pairs, ones));
+    }
+    acc = _mm_add_epi32(acc, _mm_shuffle_epi32(acc, 0x4E));
+    acc = _mm_add_epi32(acc, _mm_shuffle_epi32(acc, 0xB1));
+    int32_t sum = _mm_cvtsi128_si32(acc);
+    for (; i < n; i++)
+        sum += (int32_t) in[i] * (int32_t) w[i];
+    return sum;
+}
+
+#else
+
+static inline int32_t nnue_affine1_dot(const uint8_t *in, const int8_t *w, size_t n) {
+    int32_t sum = 0;
+    for (size_t i = 0; i < n; i++)
+        sum += (int32_t) in[i] * (int32_t) w[i];
+    return sum;
+}
+
+#endif
+
 #if defined(__GNUC__) && !defined(__clang__)
     #pragma GCC diagnostic pop
 #endif
