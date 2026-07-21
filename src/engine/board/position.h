@@ -130,6 +130,14 @@ void pos_do_move(
   Position *pos, Move m, StateInfo *new_st, bool gives_check, DirtyPiece *dp, DirtyThreats *dts);
 void pos_undo_move(Position *pos, Move m);
 
+// Approximate the key the position would have AFTER M, cheaply enough to prefetch its
+// TT cluster before the make. Models the from/to/captured psq toggles and the side
+// flip only: castling, en passant and promotion keys are left wrong, so for those rare
+// moves the prefetch lands on an unused line -- harmless, it is only a hint. Applies
+// the rule50 key adjustment for the post-move counter (upstream prefetch_key /
+// adjust_key50<true>).
+Key pos_prefetch_key(const Position *pos, Move m);
+
 // Flip the side to move without touching a piece. DP and DTS are filled with the
 // empty delta, so the incremental accumulator step is a no-op rather than a read of
 // a stale ply's diff.

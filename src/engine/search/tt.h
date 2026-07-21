@@ -117,6 +117,12 @@ uint8_t tt_generation(void);
 // an entry's worth is its depth minus eight times its relative age (tt.cpp:254).
 TTProbeResult tt_probe(Key key);
 
+// Preload the cluster KEY maps onto into cache. A non-blocking hint issued a few
+// instructions ahead of the matching tt_probe, so the line is arriving by the time
+// the probe reads it (tt.cpp:150, called from the search do_move). A no-op before
+// the table exists; the hint changes no value, only when the line lands.
+void tt_prefetch(Key key);
+
 // Write through WRITER, overwriting a less valuable entry (tt.cpp:92). The write
 // is non-atomic, may be racy, and may be declined outright.
 void tt_save(TTEntry *writer, Key k, Value v, bool pv, Bound b, int32_t d, Move m, Value ev);
