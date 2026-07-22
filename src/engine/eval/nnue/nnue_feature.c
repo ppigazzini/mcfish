@@ -180,32 +180,6 @@ nnue_half_make_index(uint8_t perspective, uint8_t square, uint8_t piece, uint8_t
          + KingBuckets[king_square ^ (uint8_t) (perspective * 56)];
 }
 
-static void append_half_index(NnueHalfAppendResult *result,
-                              uint8_t perspective,
-                              uint8_t square,
-                              uint8_t piece,
-                              uint8_t king_square) {
-    result->indices[result->len] = nnue_half_make_index(perspective, square, piece, king_square);
-    result->len += 1;
-}
-
-void nnue_half_append_changed(uint8_t perspective,
-                              uint8_t king_square,
-                              NnueDirtyPiece diff,
-                              NnueHalfAppendResult *out) {
-    out->len = 0;
-    append_half_index(out, perspective, diff.from, diff.pc, king_square);
-    if (diff.to != NNUE_SQ_NONE) {
-        append_half_index(out, perspective, diff.to, diff.pc, king_square);
-    }
-    if (diff.remove_sq != NNUE_SQ_NONE) {
-        append_half_index(out, perspective, diff.remove_sq, diff.remove_pc, king_square);
-    }
-    if (diff.add_sq != NNUE_SQ_NONE) {
-        append_half_index(out, perspective, diff.add_sq, diff.add_pc, king_square);
-    }
-}
-
 // --- full_threats -----------------------------------------------------------------
 
 uint32_t nnue_full_make_index(uint8_t perspective,
@@ -227,18 +201,6 @@ uint32_t nnue_full_make_index(uint8_t perspective,
          + IndexLut2[attacker_oriented][from_oriented][to_oriented];
 }
 
-static void append_full_index(NnueFullAppendResult *result,
-                              uint8_t perspective,
-                              uint8_t attacker,
-                              uint8_t from_sq,
-                              uint8_t to_sq,
-                              uint8_t attacked,
-                              uint8_t king_square) {
-    result->indices[result->len] =
-      nnue_full_make_index(perspective, attacker, from_sq, to_sq, attacked, king_square);
-    result->len += 1;
-}
-
 // Append only when the pair is inside the feature space: an excluded pair indexes past
 // NNUE_FULL_DIMENSIONS, which is the exclusion mechanism (see the header).
 static void append_full_active_index(NnueFullAppendResult *result,
@@ -253,34 +215,6 @@ static void append_full_active_index(NnueFullAppendResult *result,
     if (index < NNUE_FULL_DIMENSIONS) {
         result->indices[result->len] = index;
         result->len += 1;
-    }
-}
-
-void nnue_full_append_changed(uint8_t perspective,
-                              uint8_t king_square,
-                              const NnueDirtyThreatRaw *list,
-                              size_t list_len,
-                              const int8_t *prefetch_base,
-                              NnueFullAppendResult *out) {
-    out->len = 0;
-    // Keep the threat index math scalar. Under LTO clang auto-vectorizes this loop into
-    // vpgatherqd table lookups (IndexLut1/Offsets/IndexLut2), which cost far more on Zen4
-    // than the scalar loads upstream emits; the trip count is tiny so the vector form has
-    // nothing to recover.
-#pragma clang loop vectorize(disable) interleave(disable)
-    for (size_t index = 0; index < list_len; index++) {
-        const uint32_t raw = list[index].data;
-        const uint8_t attacker = (uint8_t) ((raw >> NNUE_DIRTY_THREAT_PC_SHIFT) & 0xf);
-        const uint8_t attacked = (uint8_t) ((raw >> NNUE_DIRTY_THREATENED_PC_SHIFT) & 0xf);
-        const uint8_t to_sq = (uint8_t) ((raw >> NNUE_DIRTY_THREATENED_SQ_SHIFT) & 0xff);
-        const uint8_t from_sq = (uint8_t) ((raw >> NNUE_DIRTY_THREAT_PC_SQ_SHIFT) & 0xff);
-        const size_t out_index = out->len;
-        append_full_index(out, perspective, attacker, from_sq, to_sq, attacked, king_square);
-        // Preload the scattered weight row while the remaining indices are built and
-        // classified, before apply_combined reads it (read hint, low locality).
-        if (prefetch_base != nullptr)
-            __builtin_prefetch(
-              prefetch_base + (size_t) out->indices[out_index] * NNUE_HALF_DIMENSIONS, 0, 1);
     }
 }
 

@@ -427,52 +427,72 @@ static void apply_combined(NnueAccumulatorStack *stack,
     const NnueDirtyPiece psq_diff =
       psq_diff_at(state_bytes_const(PSQ_FEATURE, forward ? target_index : computed_index, stack));
 
-    NnueHalfAppendResult psq_append;
-    nnue_half_append_changed(perspective, king_square, psq_diff, &psq_append);
-
     uint32_t psq_removed[NNUE_PSQ_INDEX_CAPACITY];
     uint32_t psq_added[NNUE_PSQ_INDEX_CAPACITY];
     size_t psq_removed_len = 0;
     size_t psq_added_len = 0;
-    size_t cursor = 0;
 
+    // Route each HalfKA index at its diff site, upstream append_changed_indices' shape
+    // (half_ka_v2_hm.cpp): every diff condition is tested once and the computed index
+    // goes straight into its list -- no intermediate buffer, no second routing pass.
+    // Same conditions in the same order as the buffered form, so both lists keep their
+    // per-list order.
     append_half_change(psq_removed, &psq_removed_len, psq_added, &psq_added_len,
-                       psq_append.indices[cursor], forward);
-    cursor += 1;
+                       nnue_half_make_index(perspective, psq_diff.from, psq_diff.pc, king_square),
+                       forward);
     if (psq_diff.to != NNUE_SQ_NONE) {
         append_half_change(psq_removed, &psq_removed_len, psq_added, &psq_added_len,
-                           psq_append.indices[cursor], !forward);
-        cursor += 1;
+                           nnue_half_make_index(perspective, psq_diff.to, psq_diff.pc, king_square),
+                           !forward);
     }
     if (psq_diff.remove_sq != NNUE_SQ_NONE) {
-        append_half_change(psq_removed, &psq_removed_len, psq_added, &psq_added_len,
-                           psq_append.indices[cursor], forward);
-        cursor += 1;
+        append_half_change(
+          psq_removed, &psq_removed_len, psq_added, &psq_added_len,
+          nnue_half_make_index(perspective, psq_diff.remove_sq, psq_diff.remove_pc, king_square),
+          forward);
     }
     if (psq_diff.add_sq != NNUE_SQ_NONE) {
-        append_half_change(psq_removed, &psq_removed_len, psq_added, &psq_added_len,
-                           psq_append.indices[cursor], !forward);
+        append_half_change(
+          psq_removed, &psq_removed_len, psq_added, &psq_added_len,
+          nnue_half_make_index(perspective, psq_diff.add_sq, psq_diff.add_pc, king_square),
+          !forward);
     }
 
     const NnueDirtyThreats *thr_diff = threat_diff_at(
       state_bytes_const(THREAT_FEATURE, forward ? target_index : computed_index, stack));
-
-    NnueFullAppendResult thr_append;
-    nnue_full_append_changed(perspective, king_square, thr_diff->list.values, thr_diff->list.size,
-                             nnue_ft_threat_weights(ft), &thr_append);
 
     uint32_t thr_removed[NNUE_THREAT_INDEX_CAPACITY];
     uint32_t thr_added[NNUE_THREAT_INDEX_CAPACITY];
     size_t thr_removed_len = 0;
     size_t thr_added_len = 0;
 
-    for (size_t list_index = 0; list_index < thr_append.len; list_index++) {
-        const uint32_t index = thr_append.indices[list_index];
+    const NnueDirtyThreatRaw *thr_list = thr_diff->list.values;
+    const size_t thr_list_len = thr_diff->list.size;
+    const int8_t *thr_weights = nnue_ft_threat_weights(ft);
+
+    // One walk over the dirty threats: decode, compute the feature index, preload its
+    // scattered weight row before the apply reads it (read hint, low locality), and route
+    // the index straight into removed/added -- upstream append_changed_indices'
+    // `insert = add ? added : removed`. An excluded pair indexes past
+    // NNUE_FULL_DIMENSIONS, which is the exclusion mechanism (see nnue_feature.h).
+    // Keep the index math scalar: under LTO clang auto-vectorizes this loop into
+    // vpgatherqd table lookups (IndexLut1/Offsets/IndexLut2), which cost far more on Zen4
+    // than the scalar loads upstream emits; the trip count is tiny so the vector form has
+    // nothing to recover.
+#pragma clang loop vectorize(disable) interleave(disable)
+    for (size_t list_index = 0; list_index < thr_list_len; list_index++) {
+        const uint32_t raw = thr_list[list_index].data;
+        const uint8_t attacker = (uint8_t) ((raw >> NNUE_DIRTY_THREAT_PC_SHIFT) & 0xf);
+        const uint8_t attacked = (uint8_t) ((raw >> NNUE_DIRTY_THREATENED_PC_SHIFT) & 0xf);
+        const uint8_t to_sq = (uint8_t) ((raw >> NNUE_DIRTY_THREATENED_SQ_SHIFT) & 0xff);
+        const uint8_t from_sq = (uint8_t) ((raw >> NNUE_DIRTY_THREAT_PC_SQ_SHIFT) & 0xff);
+        const uint32_t index =
+          nnue_full_make_index(perspective, attacker, from_sq, to_sq, attacked, king_square);
+        __builtin_prefetch(thr_weights + (size_t) index * NNUE_HALF_DIMENSIONS, 0, 1);
         if (index >= NNUE_FULL_DIMENSIONS) {
             continue;
         }
-        const bool is_add =
-          (thr_diff->list.values[list_index].data >> NNUE_DIRTY_THREAT_ADD_SHIFT) != 0;
+        const bool is_add = (raw >> NNUE_DIRTY_THREAT_ADD_SHIFT) != 0;
         if (is_add == forward) {
             thr_added[thr_added_len++] = index;
         } else {
