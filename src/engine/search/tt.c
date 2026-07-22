@@ -100,10 +100,39 @@ void tt_free(void) {
     TT.generation8 = 0;
 }
 
+TTClearThreads TTClearPool = { nullptr, nullptr, nullptr, nullptr };
+
+// Carry the span count from the dispatcher to the jobs. Written before any job starts
+// and read only after the thread-start handshake, which orders the write ahead of every
+// reader.
+static size_t ClearSpanCount = 1;
+
+// Zero the INDEX-th of ClearSpanCount disjoint spans. The last span absorbs the
+// division remainder, so the spans cover the table exactly.
+static void clear_span(void *ctx) {
+    const size_t index = (size_t) (uintptr_t) ctx;
+    const size_t stride = TT.cluster_count / ClearSpanCount;
+    const size_t start = stride * index;
+    const size_t len = index + 1 != ClearSpanCount ? stride : TT.cluster_count - start;
+    memset(&TT.table[start], 0, len * sizeof(TTCluster));
+}
+
 void tt_clear(void) {
     TT.generation8 = 0;
-    if (TT.table)
+    if (!TT.table)
+        return;
+
+    const size_t threads =
+      TTClearPool.thread_count != nullptr ? TTClearPool.thread_count(TTClearPool.ctx) : 1;
+    if (threads <= 1 || TT.cluster_count < threads) {
         memset(TT.table, 0, TT.cluster_count * sizeof(TTCluster));
+        return;
+    }
+
+    ClearSpanCount = threads;
+    for (size_t i = 0; i < threads; ++i)
+        TTClearPool.run_on_thread(TTClearPool.ctx, i, clear_span, (void *) (uintptr_t) i);
+    TTClearPool.wait_all(TTClearPool.ctx);
 }
 
 void tt_new_search(void) {

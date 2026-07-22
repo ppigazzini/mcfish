@@ -102,7 +102,23 @@ typedef struct {
 bool tt_resize(size_t mb);
 void tt_free(void);
 
-// Zero every cluster and reset the generation to 0 (tt.cpp:191).
+// Dispatch the clear's span jobs onto the pool's threads. Installed by the pool owner
+// (search_threads) whenever a worker set exists; every hook null reads as a one-thread
+// pool, so tt_clear zeroes the whole table on the calling thread — the correct serial
+// clear for the headless/no-pool build, and the path the one-thread anchor takes.
+typedef struct {
+    void *ctx;
+    size_t (*thread_count)(void *ctx);
+    void (*run_on_thread)(void *ctx, size_t index, void (*job)(void *job_ctx), void *job_ctx);
+    void (*wait_all)(void *ctx);
+} TTClearThreads;
+
+extern TTClearThreads TTClearPool;
+
+// Zero every cluster and reset the generation to 0 (tt.cpp:191). With a pool installed
+// above, dispatch one disjoint span per pool thread, as upstream's clear does
+// (tt.cpp:184): the spans partition the cluster range exactly, so the parallel writes
+// together equal the single memset and need no ordering between them.
 void tt_clear(void);
 
 // Advance the generation, wrapping within its five bits so it never spills into
