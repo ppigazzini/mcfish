@@ -4,6 +4,7 @@
 #include "../board/score.h"
 #include "../state/worker_construct.h"
 #include "pool_source.h"
+#include "tt.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -168,6 +169,35 @@ static void install_counter_seam(void) {
     PoolCounters.collect_best_move_changes = pool_collect_bmc;
 }
 
+// ---- TT-clear seam -------------------------------------------------------
+//
+// Hand tt_clear the pool so it can zero one span per thread. Single-node dispatch
+// order is plain thread order; upstream's NUMA-sorted dispatch (tt.cpp:187) reduces
+// to the same order with one node.
+
+static size_t tt_clear_thread_count(void *ctx) {
+    (void) ctx;
+    return WorkerCount;
+}
+
+static void
+tt_clear_run_on_thread(void *ctx, size_t index, void (*job)(void *job_ctx), void *job_ctx) {
+    (void) ctx;
+    thread_pool_run_on_thread(search_threads_pool(), index, job, job_ctx);
+}
+
+static void tt_clear_wait_all(void *ctx) {
+    (void) ctx;
+    thread_pool_wait_from(search_threads_pool(), 0);
+}
+
+static void install_tt_clear_seam(void) {
+    TTClearPool.ctx = nullptr;
+    TTClearPool.thread_count = tt_clear_thread_count;
+    TTClearPool.run_on_thread = tt_clear_run_on_thread;
+    TTClearPool.wait_all = tt_clear_wait_all;
+}
+
 // ---- lifecycle -----------------------------------------------------------
 
 static void workers_release(void) {
@@ -181,6 +211,10 @@ static void workers_release(void) {
     PoolCounters.nodes = nullptr;
     PoolCounters.tb_hits = nullptr;
     PoolCounters.collect_best_move_changes = nullptr;
+
+    TTClearPool.thread_count = nullptr;
+    TTClearPool.run_on_thread = nullptr;
+    TTClearPool.wait_all = nullptr;
 }
 
 bool search_threads_set(size_t count) {
@@ -242,6 +276,7 @@ bool search_threads_set(size_t count) {
 
     WorkerCount = count;
     install_counter_seam();
+    install_tt_clear_seam();
     return true;
 }
 
