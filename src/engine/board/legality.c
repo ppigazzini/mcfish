@@ -11,14 +11,18 @@ static inline Bitboard least_significant_bb(Bitboard b) { return b & (~b + 1); }
 
 bool pos_legal(const Position *pos, Move m) {
     const Color us = pos->side_to_move;
-    const Color them = flip_color(us);
     const Square from = move_from(m);
     const Square to = move_to(m);
-    const Square ksq = king_square(pos, us);
+
+    // Compute the opponent colour and the king square inside the branch that consumes
+    // each, as upstream Position::legal does: the dominant not-a-blocker exit needs
+    // neither, and the hoisted loads do not sink past the early returns on their own.
 
     if (move_type(m) == EN_PASSANT) {
         // Two pieces leave the board at once, so no pin test covers this: rebuild
         // the occupancy and ask the question directly.
+        const Color them = flip_color(us);
+        const Square ksq = king_square(pos, us);
         const Square cap = sq_sub(to, us == WHITE ? NORTH : SOUTH);
         const Bitboard occ = (pieces(pos) ^ square_bb(from) ^ square_bb(cap)) | square_bb(to);
         return !(attacks_bb(ROOK, ksq, occ) & pieces_c(pos, them)
@@ -30,6 +34,7 @@ bool pos_legal(const Position *pos, Move m) {
     if (move_type(m) == CASTLING) {
         // `to` encodes the ROOK square (king-captures-rook), so derive the king's
         // real destination before walking the path.
+        const Color them = flip_color(us);
         const bool king_side = to > from;
         const Square kto = make_square(king_side ? 6 : 2, rank_of(from));
         const int step = king_side ? 1 : -1;
@@ -50,10 +55,10 @@ bool pos_legal(const Position *pos, Move m) {
         // Step the king off the board before testing, or a slider checking it
         // through the from-square looks blocked.
         return !(pos_attackers_to_occ(pos, to, pieces(pos) ^ square_bb(from))
-                 & pieces_c(pos, them));
+                 & pieces_c(pos, flip_color(us)));
 
     // A non-king mover is legal iff it is not a blocker, or it stays on the pin ray.
-    return !(pos->st->blockers[us] & square_bb(from)) || aligned(from, to, ksq);
+    return !(pos->st->blockers[us] & square_bb(from)) || aligned(from, to, king_square(pos, us));
 }
 
 bool pos_pseudo_legal(const Position *pos, Move m) {
