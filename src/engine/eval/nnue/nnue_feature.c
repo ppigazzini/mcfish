@@ -7,24 +7,11 @@
 
 #include "nnue_feature.h"
 
+#include "../../board/attacks.h"
 #include "nnue_feature_bb.h"
 
-enum {
-    W_PAWN = 1,
-    W_KNIGHT = 2,
-    W_BISHOP = 3,
-    W_ROOK = 4,
-    W_QUEEN = 5,
-    W_KING = 6,
-    B_PAWN = 9,
-    B_KNIGHT = 10,
-    B_BISHOP = 11,
-    B_ROOK = 12,
-    B_QUEEN = 13,
-    B_KING = 14,
-    SQ_A2 = 8,
-    SQ_H7 = 55,
-};
+// Piece and square names come from the board zone's types.h, whose encoding is the one
+// this indexer is written in (color << 3 | type, squares A1..H8).
 
 static const uint8_t AllPieces[12] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
                                        B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
@@ -235,7 +222,7 @@ static void process_pawn_attacks(NnueFullAppendResult *result,
 
 static void append_active_pawn_threats(NnueFullAppendResult *result,
                                        const uint8_t *pieces,
-                                       uint64_t occupied,
+                                       uint64_t pawn_targets,
                                        uint64_t pawns,
                                        uint64_t color_pawns,
                                        uint8_t perspective,
@@ -246,19 +233,19 @@ static void append_active_pawn_threats(NnueFullAppendResult *result,
 
     if (color == NNUE_BB_WHITE) {
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
-                             nnue_bb_shift(NNUE_BB_NORTH_EAST, color_pawns) & occupied,
+                             nnue_bb_shift(NNUE_BB_NORTH_EAST, color_pawns) & pawn_targets,
                              NNUE_BB_NORTH_EAST);
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
-                             nnue_bb_shift(NNUE_BB_NORTH_WEST, color_pawns) & occupied,
+                             nnue_bb_shift(NNUE_BB_NORTH_WEST, color_pawns) & pawn_targets,
                              NNUE_BB_NORTH_WEST);
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
                              nnue_bb_shift(NNUE_BB_NORTH, pushers), NNUE_BB_NORTH);
     } else {
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
-                             nnue_bb_shift(NNUE_BB_SOUTH_WEST, color_pawns) & occupied,
+                             nnue_bb_shift(NNUE_BB_SOUTH_WEST, color_pawns) & pawn_targets,
                              NNUE_BB_SOUTH_WEST);
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
-                             nnue_bb_shift(NNUE_BB_SOUTH_EAST, color_pawns) & occupied,
+                             nnue_bb_shift(NNUE_BB_SOUTH_EAST, color_pawns) & pawn_targets,
                              NNUE_BB_SOUTH_EAST);
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
                              nnue_bb_shift(NNUE_BB_SOUTH, pushers), NNUE_BB_SOUTH);
@@ -278,19 +265,37 @@ void nnue_full_append_active(uint8_t perspective,
     const uint64_t occupied = by_type[0];
     const uint64_t pawns = by_type[NNUE_BB_PAWN];
 
+    // Pre-mask each attacker's targets to the attacked types its FullMap row keeps
+    // (upstream full_threats.cpp:215) rather than iterating every occupied square and
+    // letting the out-of-range index test reject the pair after three table loads. The
+    // retained pairs are identical, so the appended list is too.
+    const uint64_t pawn_targets =
+      by_type[NNUE_BB_PAWN] | by_type[NNUE_BB_KNIGHT] | by_type[NNUE_BB_ROOK];
+    const uint64_t minor_slider_targets = pawn_targets | by_type[NNUE_BB_BISHOP];
+    const uint64_t queen_targets = minor_slider_targets | by_type[NNUE_BB_QUEEN];
+
     out->len = 0;
     for (uint8_t color_index = 0; color_index < 2; color_index++) {
         const uint8_t color = (uint8_t) (perspective ^ color_index);
         const uint64_t color_pawns = by_color[color] & by_type[NNUE_BB_PAWN];
-        append_active_pawn_threats(out, board, occupied, pawns, color_pawns, perspective, color,
+        append_active_pawn_threats(out, board, pawn_targets, pawns, color_pawns, perspective, color,
                                    king_square);
 
         for (uint8_t piece_type = NNUE_BB_KNIGHT; piece_type < NNUE_BB_KING; piece_type++) {
             const uint8_t attacker = nnue_bb_make_piece(color, piece_type);
+            const uint64_t targets = piece_type == NNUE_BB_KNIGHT || piece_type == NNUE_BB_QUEEN
+                                     ? queen_targets
+                                     : minor_slider_targets;
             uint64_t attackers = by_color[color] & by_type[piece_type];
             while (attackers != 0) {
                 const unsigned from = nnue_bb_pop_lsb(&attackers);
-                uint64_t attacks = nnue_bb_attacks(piece_type, from, occupied) & occupied;
+                // Read the attack set from the engine's magic tables rather than
+                // nnue_bb_attacks' per-call ray walk (upstream full_threats.cpp:263 calls
+                // Attacks::attacks_bb here). The nnue_bb ray-cast stays the generator for
+                // the init-time tables, where self-containment is the invariant; this call
+                // runs per piece per refresh, long after attacks_init.
+                uint64_t attacks =
+                  attacks_bb((PieceType) piece_type, (Square) from, occupied) & targets;
                 while (attacks != 0) {
                     const unsigned to = nnue_bb_pop_lsb(&attacks);
                     append_full_active_index(out, perspective, attacker, from, to, board[to],
