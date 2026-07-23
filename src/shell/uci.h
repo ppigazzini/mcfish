@@ -5,6 +5,8 @@
 // This is the only zone that touches stdio. The engine emits through the sink this
 // file installs via engine_set_output, which is what lets a gate drive a search and
 // read its output without a subprocess.
+//
+// Upstream: uci.h:40 (class UCIEngine).
 
 #ifndef MCFISH_UCI_H
 #define MCFISH_UCI_H
