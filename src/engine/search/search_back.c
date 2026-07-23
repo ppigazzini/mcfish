@@ -14,12 +14,6 @@
 // worth reading (upstream's 10M-node threshold).
 enum : uint64_t { ID_NODES_LIMIT_OUTPUT = 10000000 };
 
-// Collect the six continuation pages (ss-1)..(ss-6) the picker scores from.
-static void collect_cont_hist(const Stack *ss, const SharedStat *cont[6]) {
-    for (size_t k = 0; k < 6; ++k)
-        cont[k] = (ss - 1 - (ptrdiff_t) k)->continuation_history;
-}
-
 // Enter the picker at the TT stage only when the TT move is usable, but keep
 // `tt_move` set either way so the generated list still filters it out.
 static void mp_set_main_stage(MovePicker *mp, const Position *pos, Move tt_move, int depth) {
@@ -42,11 +36,13 @@ Value search_run_back(const SearchNodeState *nd) {
     StateInfo st;
     PVMoves pv;
 
-    const SharedStat *cont_hist[6];
-    collect_cont_hist(ss, cont_hist);
+    // The move-loop pruning and stat_score read the (ss-1) and (ss-2) pages
+    // directly (search.cpp:1186, 1323); the picker gathers its own six lazily.
+    const SharedStat *const cont_hist[2] = { (ss - 1)->continuation_history,
+                                             (ss - 2)->continuation_history };
 
     MovePicker mp;
-    movepick_init(&mp, pos, h, pos->st->pawn_key, nd->tt_move, depth, ss->ply, cont_hist);
+    movepick_init(&mp, pos, h, pos->st->pawn_key, nd->tt_move, depth, ss->ply, ss);
     mp_set_main_stage(&mp, pos, nd->tt_move, depth);
 
     Value value = best_value;
