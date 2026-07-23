@@ -51,6 +51,14 @@ static int count_positions(void) {
     return n;
 }
 
+static int count_file_positions(const char fens[][128], int count) {
+    int n = 0;
+    for (int i = 0; i < count; ++i)
+        if (!is_setoption(fens[i]))
+            ++n;
+    return n;
+}
+
 // Read the next whitespace-separated field, or leave DST holding its default.
 // Upstream fills each field from the stream and keeps its default when the stream
 // runs dry, so a short line means "defaults from here on" rather than an error
@@ -123,7 +131,9 @@ uint64_t benchmark_run(const char *args) {
         fclose(f);
     }
 
-    const int total_positions = use_current ? 1 : (use_default ? count_positions() : file_count);
+    const int total_positions = use_current ? 1
+                              : use_default ? count_positions()
+                                            : count_file_positions(file_fens, file_count);
     int position_index = 1;
     uint64_t nodes = 0;
 
@@ -143,7 +153,10 @@ uint64_t benchmark_run(const char *args) {
         const char *entry =
           use_current ? current_fen : (use_default ? BenchDefaults[i] : file_fens[i]);
 
-        if (use_default && is_setoption(entry)) {
+        // Dispatch a `setoption` entry as-is wherever the list came from: upstream
+        // applies this filter to a FEN file exactly as to the default list
+        // (benchmark.cpp:435), so a file may carry the Chess960 toggles too.
+        if (!use_current && is_setoption(entry)) {
             uci_execute(entry);
             continue;
         }
