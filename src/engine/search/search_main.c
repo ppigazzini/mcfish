@@ -314,7 +314,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             // Upstream ebcea3efe restructured this from `depth - 4 - improving`: when NOT
             // improving it is now depth - 3, not depth - 4. A number swap would miss that.
             const int probcut_depth = depth - (improving ? 5 : 3);
-            for (Move move = movepick_next(&mp); move != MOVE_NONE; move = movepick_next(&mp)) {
+            Move move;
+            while ((move = movepick_next(&mp)) != MOVE_NONE) {
                 if (move == excluded_move || !pos_legal(pos, move))
                     continue;
                 search_do_move(ctx, pos, move, &st, search_gives_check(pos, move), ss);

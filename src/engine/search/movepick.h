@@ -84,8 +84,10 @@ typedef struct {
     ExtMove moves[MAX_MOVES];
 } MovePicker;
 
-// Set up the main-search / qsearch picker. DEPTH <= 0 selects the qsearch stage
-// chain; a non-empty checkers set selects the evasion chain regardless of depth.
+// Set up the main-search / qsearch picker. The caller must then select the
+// opening stage (its mp_set_*_stage helper) before the first movepick_next:
+// the stage choice reads the TT move's pseudo-legality, which is the search
+// zone's test, so the picker does not compute a stage of its own.
 // SS is the frame whose (ss-1)..(ss-6) continuation pages quiet/evasion scoring
 // reads; the picker gathers them only when such a stage runs.
 void movepick_init(MovePicker *mp,
@@ -98,6 +100,7 @@ void movepick_init(MovePicker *mp,
                    const Stack *ss);
 
 // Set up the ProbCut picker: captures only, kept when they pass SEE >= THRESHOLD.
+// The caller selects the opening stage afterwards, as with movepick_init.
 void movepick_init_probcut(
   MovePicker *mp, const Position *pos, Histories *h, Move tt_move, int threshold);
 

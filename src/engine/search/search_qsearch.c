@@ -149,7 +149,8 @@ Value qsearch_node(
     movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, DEPTH_QS, ss->ply, ss);
     mp_set_main_stage(&mp, pos, tt_move, DEPTH_QS);
 
-    for (Move move = movepick_next(&mp); move != MOVE_NONE; move = movepick_next(&mp)) {
+    Move move;
+    while ((move = movepick_next(&mp)) != MOVE_NONE) {
         if (!pos_legal(pos, move))
             continue;
 

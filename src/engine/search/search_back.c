@@ -41,6 +41,18 @@ Value search_run_back(const SearchNodeState *nd) {
     const SharedStat *const cont_hist[2] = { (ss - 1)->continuation_history,
                                              (ss - 2)->continuation_history };
 
+    // The pawn-history row Step 14 reads is loop-invariant: the make/unmake pair
+    // restores pos->st before every iteration, so gather the row once. Upstream
+    // recomputes `sharedHistory.pawn_entry(pos)` per move; the value is the same.
+    const SharedStat *const pawn_row = pawn_history_row(h, pos->st->pawn_key);
+
+    // The reduction table, the root window width and the root depth are fixed
+    // for the whole `go` iteration; read them once instead of through ctx on
+    // every move.
+    const int32_t *const reductions = ctx->reductions;
+    const int root_delta = ctx->root_delta;
+    const int root_depth = ctx->root_depth;
+
     MovePicker mp;
     movepick_init(&mp, pos, h, pos->st->pawn_key, nd->tt_move, depth, ss->ply, ss);
     mp_set_main_stage(&mp, pos, nd->tt_move, depth);
@@ -53,7 +65,8 @@ Value search_run_back(const SearchNodeState *nd) {
     size_t n_captures = 0;
 
     // Step 13. Loop over moves.
-    for (Move move = movepick_next(&mp); move != MOVE_NONE; move = movepick_next(&mp)) {
+    Move move;
+    while ((move = movepick_next(&mp)) != MOVE_NONE) {
         if (move == nd->excluded_move)
             continue;
         if (!pos_legal(pos, move))
@@ -81,8 +94,7 @@ Value search_run_back(const SearchNodeState *nd) {
 
         int new_depth = depth - 1;
         const int delta = nd->beta - alpha;
-        int r =
-          reduction_of(ctx->reductions, depth, move_count, delta, ctx->root_delta, nd->improving);
+        int r = reduction_of(reductions, depth, move_count, delta, root_delta, nd->improving);
         if (ss->tt_pv)
             r += 929;
 
@@ -111,8 +123,7 @@ Value search_run_back(const SearchNodeState *nd) {
                 const size_t d_index = (size_t) (capped - 1);
                 int history =
                   cont_val(cont_hist[0], moved_piece, to) + cont_val(cont_hist[1], moved_piece, to)
-                  + shared_stat_load(&pawn_history_row(
-                    h, pos->st->pawn_key)[(size_t) moved_piece * SQUARE_NB + (size_t) to]);
+                  + shared_stat_load(&pawn_row[(size_t) moved_piece * SQUARE_NB + (size_t) to]);
                 if (history < history_prune_threshold(depth))
                     continue;
                 history +=
@@ -144,7 +155,7 @@ Value search_run_back(const SearchNodeState *nd) {
                                       nd->cut_node);
             ss->excluded_move = MOVE_NONE;
             if (value < sb) {
-                const bool ply_gt_root = ss->ply > ctx->root_depth;
+                const bool ply_gt_root = ss->ply > root_depth;
                 const int double_margin =
                   singular_double_margin(nd->pv_node, !nd->tt_capture, nd->correction_value,
                                          h->tt_move_history, ply_gt_root);
@@ -253,7 +264,7 @@ Value search_run_back(const SearchNodeState *nd) {
         }
 
         const Value av = value < 0 ? -value : value;
-        const int inc = (int) (value == best_value && ss->ply + 2 >= ctx->root_depth
+        const int inc = (int) (value == best_value && ss->ply + 2 >= root_depth
                                && (int) (ctx_nodes(ctx) & 14) == 0 && !value_is_win(av + 1));
         if (value + inc > best_value) {
             best_value = value;
