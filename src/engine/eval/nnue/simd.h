@@ -24,6 +24,8 @@
 //     directly.
 //
 // Golden: the upstream `nnue/simd.h`.
+//
+// Upstream: simd.h:64 (vec_t and friends) and nnz_helper.h (NNZCursor).
 
 #ifndef MCFISH_NNUE_SIMD_H
 #define MCFISH_NNUE_SIMD_H

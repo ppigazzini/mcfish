@@ -9,6 +9,8 @@
 //
 // Golden: upstream `ucioption.cpp:73` (Option::add),
 // `ucioption.cpp:152` (Option::operator=), `ucioption.cpp:186` (operator<<).
+//
+// Upstream: ucioption.h:36 (class Option).
 
 #ifndef MCFISH_UCIOPTION_H
 #define MCFISH_UCIOPTION_H

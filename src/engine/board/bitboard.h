@@ -7,6 +7,8 @@
 // UNDEFINED on an empty board — the underlying bit-scan builtins are. Every caller
 // must establish `b != 0` first, which is why the tree writes `while (b) { ...
 // pop_lsb(&b) }` and never a do/while.
+//
+// Upstream: bitboard.h:173 (Magic::index and the attack bitboards).
 
 #ifndef MCFISH_BITBOARD_H
 #define MCFISH_BITBOARD_H

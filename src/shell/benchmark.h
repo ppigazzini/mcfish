@@ -8,6 +8,8 @@
 //
 // Golden: `Stockfish/src/benchmark.cpp: setup_bench` and
 // `Stockfish/src/uci.cpp: UCIEngine::bench`.
+//
+// Upstream: benchmark.h:30 (BenchmarkSetup).
 
 #ifndef MCFISH_BENCHMARK_H
 #define MCFISH_BENCHMARK_H

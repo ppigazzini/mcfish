@@ -3,6 +3,8 @@
 // The generators are PSEUDO-legal except `generate_legal`: they may leave our own
 // king in check, and the caller must filter with pos_legal. Only `generate_legal`
 // is safe to iterate without that filter.
+//
+// Upstream: movegen.h:31 (GenType), movegen.cpp, and perft.h (the perft walk).
 
 #ifndef MCFISH_MOVEGEN_H
 #define MCFISH_MOVEGEN_H

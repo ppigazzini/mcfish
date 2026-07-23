@@ -10,6 +10,8 @@
 // net as optional and consult network_verify before evaluating.
 //
 // Golden: src/nnue/network.cpp, src/nnue/network.h.
+//
+// Upstream: network.h:51 (class Network).
 
 #ifndef MCFISH_NETWORK_H
 #define MCFISH_NETWORK_H

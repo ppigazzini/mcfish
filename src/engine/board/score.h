@@ -10,6 +10,8 @@
 // Golden: `Stockfish/src/score.cpp:29`
 // (Score::Score) and `Stockfish/src/types.h:158-178` (the thresholds and
 // is_win/is_loss/is_decisive).
+//
+// Upstream: score.h:31 (class Score).
 
 #ifndef MCFISH_SCORE_H
 #define MCFISH_SCORE_H

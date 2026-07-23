@@ -1,5 +1,7 @@
 // Implement the NNUE affine layer and its two activations. See nnue_affine.h for the
 // scrambled weight layout and the exactness invariant the reassociation rests on.
+//
+// Upstream: affine_transform.h, clipped_relu.h and sqr_clipped_relu.h.
 
 #include "nnue_affine.h"
 

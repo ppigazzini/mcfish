@@ -14,6 +14,8 @@
 //
 // Golden: the upstream `nnue/features/half_ka_v2_hm.cpp` and
 // `nnue/features/full_threats.cpp`.
+//
+// Upstream: full_threats.h and half_ka_v2_hm.h, the feature-set headers.
 
 #ifndef MCFISH_NNUE_FEATURE_H
 #define MCFISH_NNUE_FEATURE_H

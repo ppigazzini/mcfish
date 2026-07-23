@@ -15,6 +15,8 @@
 //
 // available_nodes is -1 until the first init of a `nodes as time` game and is
 // carried across moves; timeman_clear resets it at the start of a new game.
+//
+// Upstream: timeman.h:34 (TimeManagement).
 
 #ifndef MCFISH_TIMEMAN_H
 #define MCFISH_TIMEMAN_H

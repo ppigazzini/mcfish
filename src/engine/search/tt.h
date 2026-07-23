@@ -174,7 +174,7 @@ enum : uint8_t {
 };
 
 // Take the high 64 bits of the 128-bit product, so a key maps onto the cluster
-// range without a modulo (misc.h mul_hi64, used by tt.cpp:278).
+// range without a modulo (upstream misc.h mul_hi64, used by tt.cpp:278).
 static inline uint64_t tt_mul_hi64(uint64_t a, uint64_t b) {
     return (uint64_t) (((__uint128_t) a * (__uint128_t) b) >> 64);
 }
