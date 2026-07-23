@@ -53,13 +53,38 @@ everything here.
 - [clang diagnostics reference][clang-diag] — what each flag in the warning set
   actually catches.
 
+## Translation units, LTO and layout
+
+Background for the file-split rule in
+[08-idiomatic-c.md](08-idiomatic-c.md#split-files-at-the-cold-seam-keep-hot-bodies-in-headers):
+link-time optimisation inlines across translation-unit boundaries under explicit
+budgets and skips most other cross-module optimisations, which is why a hot body
+must live in a header while a cold one may split freely.
+
+- [LTO architecture, cross-TU optimisations and limitations][lto-survey] — the
+  survey of what each toolchain's LTO actually does and refuses.
+- [ThinLTO: scalable and incremental LTO][thinlto] — the import-budget model
+  (functions cross a boundary only under a size limit).
+- [LTO, PGO and unity builds compared][jb-lto] — measured head-to-head: with LTO
+  and PGO on, a unity build adds nothing significant, which is why this tree
+  keeps per-file units and puts hot bodies in headers instead.
+- [Link-time optimisation guide][lto-guide] — the practitioner's setup and
+  pitfalls reference.
+- [Structuring C projects][c-structure] — the conventional layout this tree's
+  zone structure follows.
+
 ## Licensing
 
 - [GNU GPL v3][gpl3] — mcfish is a derivative of Stockfish and inherits it. See
   [`../Copying.txt`](../Copying.txt) and [`../AUTHORS`](../AUTHORS).
 
+[c-structure]:  https://www.lucavallin.com/blog/how-to-structure-c-projects-my-experience-best-practices
 [clang-diag]:   https://clang.llvm.org/docs/DiagnosticsReference.html
 [cppref-c]:     https://en.cppreference.com/w/c
+[jb-lto]:       https://blog.jetbrains.com/clion/2022/05/testing-3-approaches-performance-cpp_apps/
+[lto-guide]:    https://convolv.es/guides/lto/
+[lto-survey]:   https://gist.github.com/MangaD/2822580b199c605009bb53c892383d93
+[thinlto]:      https://storage.googleapis.com/gweb-research2023-media/pubtools/pdf/af0a39422b19fbbe063479f5d3a71d9278677314.pdf
 [cpw]:          https://www.chessprogramming.org/Main_Page
 [cpw-960]:      https://www.chessprogramming.org/Chess960
 [cpw-ab]:       https://www.chessprogramming.org/Alpha-Beta
