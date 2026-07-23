@@ -49,6 +49,13 @@ EvalArena *eval_default_arena(void);
 Value evaluate_with_optimism(EvalArena *arena, const Position *pos, int optimism);
 Value evaluate(const Position *pos);
 
+// The no-fallback form: evaluate through ARENA, which must be non-null, with a
+// network resident. The search calls this behind its own per-go readiness flag
+// (SearchCtx.eval_nnue_ready), so the per-node path re-tests neither the global
+// load state nor the arena pointer; every other caller goes through
+// evaluate_with_optimism, which still degrades to the classical placeholder.
+Value evaluate_nnue_with_optimism(EvalArena *arena, const Position *pos, int optimism);
+
 // Render the evaluation breakdown for the UCI `eval` command into BUF.
 void evaluate_trace(const Position *pos, char *buf, int buf_len);
 
