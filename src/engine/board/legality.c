@@ -175,11 +175,11 @@ bool see_ge(const Position *pos, Move m, int threshold) {
     const Square from = move_from(m);
     const Square to = move_to(m);
 
-    int swap = piece_value(type_of_piece(piece_on(pos, to))) - threshold;
+    int swap = piece_value_of(piece_on(pos, to)) - threshold;
     if (swap < 0)
         return false;
 
-    swap = piece_value(type_of_piece(piece_on(pos, from))) - swap;
+    swap = piece_value_of(piece_on(pos, from)) - swap;
     if (swap <= 0)
         return true;
 
