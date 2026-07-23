@@ -125,7 +125,11 @@ typedef struct {
 // the node bodies, the way LTO inlines upstream's TranspositionTable::probe into
 // search<NodeType> — the probe runs once per node and the call boundary (call,
 // 32-byte sret return, re-copy) is real per-node work upstream does not pay.
+//
+// `table` is never null: before the first tt_resize (and after tt_free) it points
+// at the one-cluster fallback below, so no hot path tests for a missing table.
 extern TranspositionTable TT;
+extern TTCluster TTFallback[1];
 
 // Size the table to MB megabytes and clear it. Return false when the allocation
 // fails; the caller must then not probe.
@@ -218,11 +222,10 @@ static inline TTData tt_empty_data(void) {
 // miss return the empty data and a writer to the cluster entry worth least, where
 // an entry's worth is its depth minus eight times its relative age (tt.cpp:254).
 __attribute__((always_inline)) static inline TTProbeResult tt_probe(Key key) {
-    if (!TT.table)
-        return (TTProbeResult) { .found = false, .data = tt_empty_data(), .writer = nullptr };
-
     // Use the low 16 bits as the key inside the cluster; the high bits already
-    // chose the cluster.
+    // chose the cluster. TT.table always points at a real table — the one-cluster
+    // fallback before any resize — so the probe carries no null test, exactly as
+    // upstream's probe carries none (tt.cpp:254).
     const uint16_t key16 = (uint16_t) key;
     TTEntry *const tte = TT.table[tt_mul_hi64(key, TT.cluster_count)].entry;
 
