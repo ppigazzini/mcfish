@@ -197,15 +197,70 @@ Value search_evaluate(SearchCtx *ctx, const Position *pos);
 // Count the node, make the move, and publish the child's continuation pages on
 // SS. CAPTURE is read pre-move, the moved piece post-move — the order matters for
 // a promotion, where the piece on `to` is not the piece that left `from`.
-void search_do_move(
-  SearchCtx *ctx, Position *pos, Move m, StateInfo *st, bool gives_check, Stack *ss);
-void search_undo_move(SearchCtx *ctx, Position *pos, Move m);
-
 // Publish the continuation pages for a child on SS without making a move. The
 // null move and the iterative-deepening sentinels pass all-zero indices, which
 // resolve to the table bases.
-void search_set_cont_hist(
-  SearchCtx *ctx, Stack *ss, bool in_check, bool capture, Piece pc, Square to);
+static inline void
+search_set_cont_hist(SearchCtx *ctx, Stack *ss, bool in_check, bool capture, Piece pc, Square to) {
+    ss->continuation_history = cont_hist_page(ctx->hist, in_check, capture, pc, to);
+    ss->continuation_correction_history = cont_corr_page(ctx->hist, pc, to);
+}
+
+// Bracket every make/unmake with the NNUE accumulator, so the child evaluates
+// against its own slot and pos_do_move writes its delta straight into it. The
+// bracket belongs on the make-move choke point and nowhere else: the null move
+// and the Step 4 TT verification touch no slot, because upstream pushes none for
+// either (evaluate.h states the invariant from the accumulator's side).
+//
+// Defined inline so the move loop absorbs it, as upstream's search<NodeType>
+// absorbs Worker::do_move (search.cpp:562): the make runs once per node, and the
+// call boundary was spilling the loop's live state around every make.
+static inline void
+search_do_move(SearchCtx *ctx, Position *pos, Move m, StateInfo *st, bool gives_check, Stack *ss) {
+    // Preload the child position's TT cluster while the make below runs, so the line
+    // is resident by the probe at the next node (search.cpp:642). The key is
+    // approximate; the hint changes no value.
+    tt_prefetch(pos_prefetch_key(pos, m));
+
+    const bool capture = search_capture_stage(pos, m);
+    // Read the moved piece BEFORE the move: upstream indexes the continuation
+    // pages by DirtyPiece::pc, which position.cpp:848 fills from `piece_on(from)`
+    // ahead of the make. For a promotion that is the PAWN that left `from`, not
+    // the piece standing on `to` afterwards.
+    const Piece moved_pc = piece_on(pos, move_from(m));
+    const Square to = move_to(m);
+    ctx_add_nodes(ctx, 1);
+    DirtyPiece *dp;
+    DirtyThreats *dts;
+    eval_acc_push(ctx->eval_arena, &dp, &dts);
+    pos_do_move(pos, m, st, gives_check, dp, dts);
+
+    // Preload the child's shared history and correction lines while its NNUE eval
+    // runs, so search_correction_value and movepick's pawn-history scoring land on
+    // resident lines (upstream position.cpp:1006-1010, which prefetches these from
+    // inside do_move). The keys are the child's, finalized by the make above; each
+    // of the four corrections lives at a different key, so this warms four distinct
+    // lines plus the pawn-history row for the move just played.
+    {
+        Histories *const h = ctx->hist;
+        const StateInfo *const cst = pos->st;
+        const Color cus = pos->side_to_move;
+        __builtin_prefetch(
+          &pawn_history_row(h, cst->pawn_key)[(size_t) moved_pc * SQUARE_NB + (size_t) to], 0, 3);
+        __builtin_prefetch(corr_bundle(h, cst->pawn_key, cus), 0, 3);
+        __builtin_prefetch(corr_bundle(h, cst->minor_piece_key, cus), 0, 3);
+        __builtin_prefetch(corr_bundle(h, cst->non_pawn_key[WHITE], cus), 0, 3);
+        __builtin_prefetch(corr_bundle(h, cst->non_pawn_key[BLACK], cus), 0, 3);
+    }
+
+    ss->current_move = m;
+    search_set_cont_hist(ctx, ss, ss->in_check, capture, moved_pc, to);
+}
+
+static inline void search_undo_move(SearchCtx *ctx, Position *pos, Move m) {
+    pos_undo_move(pos, m);
+    eval_acc_pop(ctx->eval_arena);
+}
 
 // ---- history-write adapters --------------------------------------------
 //
