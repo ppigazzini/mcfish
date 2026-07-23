@@ -67,8 +67,12 @@ static const char *next_field(const char **cursor, char *dst, size_t cap, const 
     snprintf(dst, cap, "%s", fallback);
     if (!cursor || !*cursor)
         return dst;
+    // Skip newlines with the rest of the whitespace: the shell hands the args
+    // over with the line's terminator still attached, and upstream's `is >>`
+    // extraction skips it the same way. Stopping in front of it read a zero-
+    // length token here, which replaced the default with an empty field.
     const char *p = *cursor;
-    while (*p == ' ' || *p == '\t')
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
         ++p;
     if (!*p) {
         *cursor = p;
