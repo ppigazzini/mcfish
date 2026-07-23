@@ -513,3 +513,18 @@ and `./build.sh signature` will say so before you do.
 **A behaviour claim ships with a gate.** `./build.sh parity` is the aggregate. A
 gate whose tool is missing exits 127 and is a *skipped* gate — `parity` names each
 one it skipped, and a run with skips proves less than a clean one.
+
+**Measure every edit whole-binary, on the instruction axis first.**
+[`../tools/perf_counters.sh`](../tools/perf_counters.sh) with paired rounds gives a
+deterministic, load-immune instruction count; build explicitly before each
+measurement. Judge a change by the whole binary's count, never by arithmetic over
+the diff: the specialized node bodies shift under register-allocation changes, and
+an edit near the transposition table flips link-time inlining, so a local estimate
+answers a different question than the binary does.
+
+**Take cycle and cache claims to an idle box, floored by an A/A run.** Measure the
+same binary against itself first; that spread is the floor, and a claim below it
+is unresolved. A repeatable cache-miss win earns a commit only when cycles follow
+it — this tree has measured miss reductions that cost more cycles than they saved,
+in both the prefetch and the wide-store families. State which axis a commit's
+evidence rides on in its body.
