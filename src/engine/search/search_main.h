@@ -33,4 +33,14 @@ Value search_node(SearchCtx *ctx,
                   bool cut_node,
                   NodeType nt);
 
+// Name the two specializations the move loop recurses into, so a call site whose
+// NodeType is a literal lands on the matching clone directly — upstream's
+// `search<NonPV>(...)` / `search<PV>(...)` are direct calls, and routing them
+// through the tag dispatcher above pays a per-call test-and-forward the clang
+// inliner declines to fold away.
+Value search_node_nonpv(
+  SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, int depth, bool cut_node);
+Value search_node_pv(
+  SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, int depth, bool cut_node);
+
 #endif  // MCFISH_SEARCH_MAIN_H
