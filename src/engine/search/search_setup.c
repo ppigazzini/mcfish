@@ -96,7 +96,9 @@ void search_time_state_init(SearchCtx *ctx,
                             atomic_bool *ponder,
                             bool *stop_on_ponderhit) {
     ctx->time_state = (SearchTimeState) {
-        .calls_cnt = calls_cnt,
+        // Seed from the manager's counter by value; the fast path decrements the
+        // ctx field and search_go banks the residue back into the manager.
+        .calls_cnt = *calls_cnt,
         .stop_write = ctx->stop,
         .ponder = ponder,
         .stop_on_ponderhit = stop_on_ponderhit,

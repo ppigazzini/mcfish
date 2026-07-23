@@ -138,9 +138,13 @@ typedef struct {
 } SearchZoneLimits;
 
 // Carry what check_time reads. Every pointer is null on a non-main thread, where
-// check_time returns before touching any of them.
+// check_time's slow path parks the counter and returns before touching any of
+// them. `calls_cnt` lives here BY VALUE so the per-node fast path is a bare
+// decrement of a ctx field, not a load-test-deref chain; search_go seeds it from
+// the SearchManager and writes the residue back, which is what keeps the counter
+// carrying across `go` commands the way upstream's callsCnt does.
 typedef struct {
-    int *calls_cnt;
+    int calls_cnt;
     atomic_bool *stop_write;
     atomic_bool *ponder;
     bool *stop_on_ponderhit;

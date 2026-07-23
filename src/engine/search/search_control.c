@@ -4,18 +4,23 @@
 #include "search_common.h"
 #include "time_source.h"
 
+#include <limits.h>
 #include <stdatomic.h>
 
 void check_time(SearchCtx *ctx) {
     SearchTimeState *const ts = &ctx->time_state;
-    int *const cc = ts->calls_cnt;
-    if (!cc)
-        return;  // not the main thread => no-op
-
-    *cc -= 1;
-    if (*cc > 0)
+    if (--ts->calls_cnt > 0)
         return;
-    *cc =
+
+    // A sibling has no manager (its time_state pointers are all null): park the
+    // counter far away and check nothing, mirroring upstream's is_mainthread()
+    // guard while keeping the per-node fast path to the bare decrement above.
+    if (ts->stop_write == nullptr) {
+        ts->calls_cnt = INT_MAX;
+        return;
+    }
+
+    ts->calls_cnt =
       ts->lim_nodes != 0 ? (int) (ts->lim_nodes / 1024 < 512 ? ts->lim_nodes / 1024 : 512) : 512;
 
     // Read the node count the whole pool has searched. Single-threaded today, so
