@@ -155,6 +155,35 @@ both cancel out and pass.
 It is kept **out** of `./build.sh parity`: it needs a network fetch and a full
 upstream build, which `parity` deliberately does not. Run it deliberately.
 
+### Resyncing the pin
+
+Advancing [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE)
+is a port campaign, not an edit, and two tools turn it from grep-and-hope into a
+derivable plan. Both read the golden checkout (`../Stockfish`) and never touch
+this tree.
+
+- [`../tools/upstream_map.py`](../tools/upstream_map.py) derives the
+  upstream-file → mcfish-owner map from the golden-reference citations the
+  writing rules already require (mcfish renames every symbol, so the citations
+  are the one join the rename boundary preserves). `--check` prints the coverage
+  summary, the **uncovered** upstream files — unported surface, or ported code
+  missing its citation, both debt — and the **phantom** citations naming files
+  absent at the pin. Files not applicable by design carry their reason in
+  [`../tools/upstream_map.exceptions`](../tools/upstream_map.exceptions); keep
+  that list to true design decisions so the debt stays visible.
+- [`../tools/resync_worklist.py`](../tools/resync_worklist.py) diffs the golden
+  between the current pin and a candidate SHA and joins each changed upstream
+  file to its owners: **change** rows are the re-port worklist ranked by churn,
+  **absence** rows are new surface with no owner yet, **divergence** rows are
+  owners holding retired code.
+
+The process: fetch upstream in the golden checkout, run the worklist against the
+candidate SHA, port each row (every ported mechanism cites its upstream site, so
+the map stays derivable), then move the pin, re-derive the anchor and every
+golden that legitimately moved, and finish with `upstream-parity`. Cite with
+`file:line` wherever a mcfish header shares the upstream basename — a bare
+shared name is ambiguous and the map skips it rather than guess.
+
 Three fidelity probes see three different bug classes, and each has caught one
 the others cannot:
 
