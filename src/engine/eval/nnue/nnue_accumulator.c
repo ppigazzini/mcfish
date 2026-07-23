@@ -598,13 +598,16 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
     // product 128*c0*c1 is exact and >>16 is floor, so this is bit-identical to the
     // int32 clamp*mul>>9 path — integer throughout, no rounding.
     const size_t half = NNUE_HALF_DIMENSIONS / 2;
+#if !(MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__))
     const TfI16 zero = tf_i16_splat(0);
     const TfI16 c255 = tf_i16_splat(255);
+#endif
 
-#if !defined(__AVX512F__)
-    // The narrow tiers keep the zero-fill + |= form: measured at sse41, the
-    // store-once rewrite below costs MORE instructions there (callgrind, bench
-    // 16 1 11: +7.0M Ir), where the avx512 tier saves 16M (perf_counters d13).
+#if !defined(__AVX512F__) && !(MCFISH_SIMD_VECTOR && defined(__AVX2__))
+    // sse41 keeps the zero-fill + |= form: measured there, the store-once rewrite
+    // below costs MORE instructions (callgrind, bench 16 1 11: +7.0M Ir), where
+    // the avx512 tier saves 16M (perf_counters d13). The avx2 tier stores each
+    // step's mask u16 directly, which needs no zero-fill at all.
     memset(nnz, 0, sizeof(NnueNnzBitset));
 #endif
 
@@ -620,6 +623,47 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
         uint64_t nnz_word = 0;
 #endif
         for (size_t j = 0; j < half; j += TRANSFORM_VEC_WIDTH) {
+#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+            // Native avx2 product step, upstream's packus-clip shape (the
+            // feature_transformer.h block comment): clamp the second operand from
+            // above only — when it stays negative the SIGNED mulhi product is
+            // negative and the saturating packus zeroes it, exactly the value the
+            // explicit max(0, ·) path lands on — and mulhi_epi16 equals the
+            // unsigned mulhi on the remaining all-non-negative operands (both
+            // factors < 2^15). Four vpmaxsw per step drop out of the portable
+            // lowering. No vpermq follows the pack: the loader permutes every
+            // accumulator-side weight array into packus order (network.c
+            // permute_packus_order), so the pack's in-lane interleave IS the
+            // canonical output order — upstream's permute_weights shape.
+            const __m256i ftmax = _mm256_set1_epi16(255);
+            const __m256i sgnzero = _mm256_setzero_si256();
+            const int16_t *in0 = comb_acc + base + j;
+            const int16_t *in1 = comb_acc + base + j + half;
+            TfU8 bytes;
+            uint32_t nnz_mask = 0;
+            for (size_t k = 0; k < 2; k++) {
+                const __m256i a0 = _mm256_loadu_si256((const __m256i *) (in0 + 32 * k));
+                const __m256i a1 = _mm256_loadu_si256((const __m256i *) (in0 + 32 * k + 16));
+                const __m256i b0 = _mm256_loadu_si256((const __m256i *) (in1 + 32 * k));
+                const __m256i b1 = _mm256_loadu_si256((const __m256i *) (in1 + 32 * k + 16));
+                const __m256i sum0a =
+                  _mm256_slli_epi16(_mm256_max_epi16(_mm256_min_epi16(a0, ftmax), sgnzero), 7);
+                const __m256i sum0b =
+                  _mm256_slli_epi16(_mm256_max_epi16(_mm256_min_epi16(a1, ftmax), sgnzero), 7);
+                const __m256i pa = _mm256_mulhi_epi16(sum0a, _mm256_min_epi16(b0, ftmax));
+                const __m256i pb = _mm256_mulhi_epi16(sum0b, _mm256_min_epi16(b1, ftmax));
+                const __m256i packed = _mm256_packus_epi16(pa, pb);
+                __builtin_memcpy((unsigned char *) &bytes + 32 * k, &packed, sizeof packed);
+                // Harvest the non-zero-chunk bits of this half while it is still a
+                // register: the u8 lanes are at most 126, so each dword group is a
+                // non-negative i32 and greater-than-zero IS non-zero. Two vpcmpgtd
+                // + vmovmskps per step, upstream's NNZCursor::record2 shape, in
+                // place of the generic movemask's pack-and-shuffle chain.
+                nnz_mask |= (uint32_t) _mm256_movemask_ps(
+                              (__m256) _mm256_cmpgt_epi32(packed, sgnzero))
+                         << (8 * k);
+            }
+#else
             const TfI16 s0 = tf_i16_load(comb_acc + base + j);
             const TfI16 s1 = tf_i16_load(comb_acc + base + j + half);
             const TfU16 c0 = tf_i16_to_u16(tf_i16_max(zero, tf_i16_min(c255, s0)));
@@ -628,8 +672,12 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
             const TfU32 rhs = tf_u16_to_u32(c1);
             const TfU16 q = tf_u32_to_u16(tf_u32_shr(tf_u32_mul(lhs, rhs), 16));
             const TfU8 bytes = tf_u16_to_u8(q);
+#endif
             tf_u8_store(output + offset + j, bytes);
 
+#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+            const uint64_t mask = nnz_mask;
+#else
             // Record which 4-byte chunks are non-zero while they are still in a register:
             // no reload of what was just stored.
             const TfGroups groups = tf_u8_as_groups(bytes);
@@ -637,6 +685,7 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
             // Build the non-zero-chunk mask with one horizontal movemask (compare-to-zero
             // + reduce-OR) rather than a per-lane extract+compare+shift+OR each group.
             const uint64_t mask = tf_movemask(groups);
+#endif
             const size_t bit = (offset + j) / 4;
 #if defined(__AVX512F__)
             nnz_word |= mask << (bit % 64);
@@ -644,6 +693,15 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
                 (*nnz)[bit / 64] = nnz_word;
                 nnz_word = 0;
             }
+#elif MCFISH_SIMD_VECTOR && defined(__AVX2__)
+            // Store each step's 16-bit chunk mask once at its own byte offset:
+            // consecutive steps cover disjoint u16 spans and together the whole
+            // bitset, so the zero-fill above and the |='s load-shift-or word
+            // update both drop out — upstream's NNZCursor::record2 writes its
+            // movemask bytes the same way. Little-endian byte order makes the
+            // u16 at byte bit/8 exactly bits [bit, bit+16) of the u64 word.
+            const uint16_t mask16 = (uint16_t) mask;
+            __builtin_memcpy((unsigned char *) *nnz + bit / 8, &mask16, sizeof mask16);
 #else
             (*nnz)[bit / 64] |= mask << (bit % 64);
 #endif
