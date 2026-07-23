@@ -41,19 +41,24 @@ typedef struct {
     Bound tt_bound;
     bool tt_capture;
 
+    // Keep the bool fields split into runs of at most two: a run of four or
+    // more adjacent byte stores tempts clang's SLP vectorizer into assembling
+    // them through k-mask registers (~15 mask-domain ops per node where four
+    // plain byte stores do), and this struct is built once per interior node.
     int correction_value;
     bool cut_node;
     bool pv_node;
-    bool root_node;
-    bool all_node;
-    bool improving;
 
     Value unadjusted_static_eval;
-    TTEntry *writer;
-    Key pos_key;
+    bool root_node;
+    bool all_node;
 
-    int prev_sq;  // SQ_NONE when the previous ply made no move
+    TTEntry *writer;
+    bool improving;
     bool prior_capture;
+
+    Key pos_key;
+    int prev_sq;  // SQ_NONE when the previous ply made no move
 } SearchNodeState;
 
 Value search_run_back(const SearchNodeState *nd);
