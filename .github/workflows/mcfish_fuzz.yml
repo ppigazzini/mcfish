@@ -1,0 +1,72 @@
+# Nightly bounded UCI fuzzing.
+#
+# The parity workflow's golden transcripts exercise the WELL-FORMED subset of the
+# UCI grammar; this job drives the ASan+UBSan engine with seeded pseudo-random
+# command streams -- boundary values, truncated and mangled lines, binary junk --
+# weighted toward almost-valid input, which is where a parser actually dies. Every
+# stream must end with a clean exit and a silent sanitizer (tools/uci_fuzz.py owns
+# the contract, including the CRITICAL ERROR exit-1 path). The first session of
+# this harness found two real shell defects before this lane ever ran in CI: the
+# critical-error exit leaked the worker set, and `bench 1 1 2` died on an empty
+# filename where the golden searches 9009 nodes.
+name: mcfish fuzz (nightly)
+
+on:
+  schedule:
+    # 04:31 UTC daily -- off the hour to dodge the scheduler's peak.
+    - cron: "31 4 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  # Same pinned toolchain as the parity workflow; see the rationale there.
+  CLANG_VERSION: "22"
+
+jobs:
+  fuzz:
+    name: Bounded UCI fuzz (ASan+UBSan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Same forcing as the parity workflow's sanitizers job: abort on the first
+      # ASan error, halt on the first UBSan report (build.sh's debug flags do not
+      # include -fno-sanitize-recover), and print stacks so the log names the
+      # line, not just the failure. The harness also greps stderr, so a report
+      # fails the stream even where the process manages to exit 0.
+      ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
+      UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install clang ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          "clang-$CLANG_VERSION" --version
+
+      # The engine loads the net at startup, so the fuzzed binary needs it in
+      # resources/ like every other engine-running lane (same cache key as the
+      # parity workflow -- a net bump busts it, nothing else does).
+      - name: Cache NNUE network
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
+
+      - name: Build the ASan+UBSan engine
+        run: CC="clang-$CLANG_VERSION" ./build.sh debug
+
+      # ~15 min of streams. The seed defaults to the wall clock, so each night
+      # walks a fresh region of the input space, and the harness prints the seed
+      # FIRST -- a red run names its own one-flag reproducer at the top of the
+      # log. Run from resources/ so the engine finds the net.
+      - name: Fuzz (bounded, ~15 min)
+        run: |
+          set -euo pipefail
+          cd resources
+          python3 ../tools/uci_fuzz.py --seconds 900
