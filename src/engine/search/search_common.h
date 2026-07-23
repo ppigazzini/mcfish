@@ -262,19 +262,34 @@ static inline void search_undo_move(SearchCtx *ctx, Position *pos, Move m) {
     eval_acc_pop(ctx->eval_arena);
 }
 
-// ---- history-write adapters --------------------------------------------
+// ---- history-write family ----------------------------------------------
 //
-// history.c must not depend on the Stack layout, so each write gathers the
-// fields it reads into a HistoryStack first. `frames[k]` is `(ss - 1 - k)`, so
-// gathering from SS gives the walk from SS and `frames + 1` the walk from SS - 1.
-
-HistoryStack search_gather_stack(const Stack *ss);
+// These live in the search zone and read the Stack frames directly, as
+// upstream's update_all_stats / update_quiet_histories /
+// update_continuation_histories in search.cpp do; history.c keeps only the
+// table primitives.
 
 void search_update_quiet_histories(
   SearchCtx *ctx, const Position *pos, const Stack *ss, Move m, int bonus);
 
 // Apply BONUS along the continuation histories of the walk based at SS.
 void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, int bonus);
+
+// Reward BEST_MOVE and punish the searched-but-refuted moves after a fail high
+// (upstream update_all_stats). PREV_SQ is SQ_NONE when the previous ply made no
+// move.
+void search_update_all_stats(SearchCtx *ctx,
+                             const Position *pos,
+                             const Stack *ss,
+                             Move best_move,
+                             Square prev_sq,
+                             const Move *quiets,
+                             size_t n_quiets,
+                             const Move *captures,
+                             size_t n_captures,
+                             int depth,
+                             Move tt_move,
+                             bool pv_node);
 
 // ---- transposition-table adapter ---------------------------------------
 
