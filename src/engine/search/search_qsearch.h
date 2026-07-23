@@ -12,6 +12,7 @@
 #ifndef MCFISH_SEARCH_QSEARCH_H
 #define MCFISH_SEARCH_QSEARCH_H
 
+#include "search_common.h"
 #include "search_types.h"
 
 #include "../board/position.h"
@@ -41,8 +42,32 @@ static inline bool pos_capture(const Position *pos, Move m) {
     return (piece_on(pos, move_to(m)) != NO_PIECE && t != CASTLING) || t == EN_PASSANT;
 }
 
-// Blend the six correction-history reads for the current node.
-int search_correction_value(Histories *h, const Position *pos, const Stack *ss);
+// Blend the six correction-history reads for the current node. Inline so both
+// node bodies absorb it, as upstream's search/qsearch absorb correction_value
+// (search.cpp:85): it runs once per node and its six table reads then schedule
+// inside the node's own window instead of behind a call boundary.
+static inline int search_correction_value(Histories *h, const Position *pos, const Stack *ss) {
+    const Color us = pos->side_to_move;
+    const StateInfo *const st = pos->st;
+
+    const int pcv = shared_stat_load(&corr_bundle(h, st->pawn_key, us)->pawn);
+    const int micv = shared_stat_load(&corr_bundle(h, st->minor_piece_key, us)->minor);
+    const int wnpcv = shared_stat_load(&corr_bundle(h, st->non_pawn_key[WHITE], us)->nonpawn_white);
+    const int bnpcv = shared_stat_load(&corr_bundle(h, st->non_pawn_key[BLACK], us)->nonpawn_black);
+
+    const Move m = (ss - 1)->current_move;
+    int cch2 = 0;
+    int cch4 = 0;
+    const bool m_ok = m != MOVE_NONE && m != MOVE_NULL;
+    if (m_ok) {
+        const Square to = move_to(m);
+        const size_t idx = (size_t) piece_on(pos, to) * SQUARE_NB + (size_t) to;
+        cch2 = (ss - 2)->continuation_correction_history[idx];
+        cch4 = (ss - 4)->continuation_correction_history[idx];
+    }
+
+    return correction_value_blend(pcv, micv, wnpcv, bnpcv, cch2, cch4, m_ok);
+}
 
 // Hash the halfmove clock into the key past move 14, so a position reached with a
 // different rule50 count cannot reuse a TT entry whose score the rule invalidates.
