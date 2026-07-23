@@ -140,8 +140,8 @@ Value search_run_back(const SearchNodeState *nd) {
             const int sb = singular_beta(nd->tt_value, ss->tt_pv && !nd->pv_node, depth);
             const int singular_depth = new_depth / 2;
             ss->excluded_move = move;
-            value = search_node(ctx, pos, ss, (Value) (sb - 1), (Value) sb, singular_depth,
-                                nd->cut_node, NT_NON_PV);
+            value = search_node_nonpv(ctx, pos, ss, (Value) (sb - 1), (Value) sb, singular_depth,
+                                      nd->cut_node);
             ss->excluded_move = MOVE_NONE;
             if (value < sb) {
                 const bool ply_gt_root = ss->ply > ctx->root_depth;
@@ -206,24 +206,24 @@ Value search_run_back(const SearchNodeState *nd) {
             const int capped = reduced < new_depth + 2 ? reduced : new_depth + 2;
             const int d = (capped > 1 ? capped : 1) + (int) nd->pv_node;
             ss->reduction = new_depth - d;
-            value = (Value) -search_node(ctx, pos, ss + 1, (Value) - (alpha + 1), -alpha, d, true,
-                                         NT_NON_PV);
+            value =
+              (Value) -search_node_nonpv(ctx, pos, ss + 1, (Value) - (alpha + 1), -alpha, d, true);
             ss->reduction = 0;
             if (value > alpha) {
                 const bool do_deeper = d < new_depth && value > best_value + 53;
                 const bool do_shallower = value < best_value + 8;
                 new_depth += (int) do_deeper - (int) do_shallower;
                 if (new_depth > d)
-                    value = (Value) -search_node(ctx, pos, ss + 1, (Value) - (alpha + 1), -alpha,
-                                                 new_depth, !nd->cut_node, NT_NON_PV);
+                    value = (Value) -search_node_nonpv(ctx, pos, ss + 1, (Value) - (alpha + 1),
+                                                       -alpha, new_depth, !nd->cut_node);
                 search_update_continuation_histories(ss, moved_piece, to, 1334);
             }
         } else if (!nd->pv_node || move_count > 1) {
             if (nd->tt_move == MOVE_NONE)
                 r += 1127;
             const int d = new_depth - (int) (r > 5234) - (int) (r > 5487 && new_depth > 2);
-            value = (Value) -search_node(ctx, pos, ss + 1, (Value) - (alpha + 1), -alpha, d,
-                                         !nd->cut_node, NT_NON_PV);
+            value = (Value) -search_node_nonpv(ctx, pos, ss + 1, (Value) - (alpha + 1), -alpha, d,
+                                               !nd->cut_node);
         }
 
         if (nd->pv_node && (move_count == 1 || value > alpha)) {
@@ -234,8 +234,7 @@ Value search_run_back(const SearchNodeState *nd) {
                      && nd->tt_depth > 0)
                     || nd->tt_depth > 1))
                 new_depth = new_depth > 1 ? new_depth : 1;
-            value =
-              (Value) -search_node(ctx, pos, ss + 1, -nd->beta, -alpha, new_depth, false, NT_PV);
+            value = (Value) -search_node_pv(ctx, pos, ss + 1, -nd->beta, -alpha, new_depth, false);
         }
 
         // Step 19. Undo move.

@@ -282,14 +282,13 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             ss->current_move = MOVE_NULL;
             search_set_cont_hist(ctx, ss, false, false, NO_PIECE, SQ_A1);
             const Value null_value =
-              (Value) -search_node(ctx, pos, ss + 1, -beta, -beta + 1, depth - r, false, NT_NON_PV);
+              (Value) -search_node_nonpv(ctx, pos, ss + 1, -beta, -beta + 1, depth - r, false);
             pos_undo_null_move(pos);
             if (null_value >= beta && !value_is_win(null_value)) {
                 if (ctx->nmp_min_ply != 0 || depth < 16)
                     return null_value;
                 ctx->nmp_min_ply = nmp_min_ply_of(ss->ply, depth, r);
-                const Value v =
-                  search_node(ctx, pos, ss, beta - 1, beta, depth - r, false, NT_NON_PV);
+                const Value v = search_node_nonpv(ctx, pos, ss, beta - 1, beta, depth - r, false);
                 ctx->nmp_min_ply = 0;
                 if (v >= beta)
                     return null_value;
@@ -322,8 +321,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 Value value =
                   (Value) -qsearch_node(ctx, pos, ss + 1, -pc_beta, -pc_beta + 1, false);
                 if (value >= pc_beta && probcut_depth > 0)
-                    value = (Value) -search_node(ctx, pos, ss + 1, -pc_beta, -pc_beta + 1,
-                                                 probcut_depth, !cut_node, NT_NON_PV);
+                    value = (Value) -search_node_nonpv(ctx, pos, ss + 1, -pc_beta, -pc_beta + 1,
+                                                       probcut_depth, !cut_node);
                 search_undo_move(ctx, pos, move);
                 if (value >= pc_beta) {
                     search_tt_save(writer, pos_key, search_value_to_tt(value, ss->ply), ss->tt_pv,
@@ -376,15 +375,16 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
 }
 
 // Emit the three specializations upstream's template produces. Each is one
-// inlined copy of the body with its NodeType folded; the dispatcher below is
-// small enough that LTO inlines it at every literal-NT call site, so the
-// recursion lands directly on the matching clone.
-static Value search_node_nonpv(
+// inlined copy of the body with its NodeType folded. The NonPV and PV clones are
+// exported (search_main.h) so the move loop's literal-NT recursion calls them
+// directly, as upstream's `search<NonPV>` call sites do; the tag dispatcher below
+// serves only the callers whose NodeType is not a compile-time literal.
+Value search_node_nonpv(
   SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, int depth, bool cut_node) {
     return search_node_impl(ctx, pos, ss, alpha, beta, depth, cut_node, NT_NON_PV);
 }
 
-static Value search_node_pv(
+Value search_node_pv(
   SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, int depth, bool cut_node) {
     return search_node_impl(ctx, pos, ss, alpha, beta, depth, cut_node, NT_PV);
 }
