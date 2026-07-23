@@ -456,8 +456,14 @@ static inline void nnue_dot_store(int32_t *p, NnueDotAcc a) {
 typedef __m128i NnueDotAcc;
 static inline NnueDotAcc nnue_dot_zero(void) { return _mm_setzero_si128(); }
 static inline NnueDotAcc nnue_dot_step(NnueDotAcc acc, uint32_t packed, const int8_t *w) {
+    // Load the weight row ALIGNED: a legacy-SSE instruction can fold a memory operand
+    // only when it is 16-byte aligned, so _mm_loadu_si128 here forced a separate movdqu
+    // per chunk where upstream's aligned load disappears into pmaddubsw's operand
+    // (affine_transform.h m128_add_dpbusd_epi32 on an alignas(CacheLineSize) weights
+    // array). Every caller passes rows at 16-byte strides off nnue_layer_storage's
+    // 64-byte-aligned blocks, and the header states the contract.
     const __m128i pairs =
-      _mm_maddubs_epi16(_mm_set1_epi32((int) packed), _mm_loadu_si128((const __m128i *) w));
+      _mm_maddubs_epi16(_mm_set1_epi32((int) packed), _mm_load_si128((const __m128i *) w));
     return _mm_add_epi32(acc, _mm_madd_epi16(pairs, _mm_set1_epi16(1)));
 }
 static inline int32_t nnue_dot_lane(NnueDotAcc a, size_t i) {
@@ -563,9 +569,12 @@ static inline int32_t nnue_affine1_dot(const uint8_t *in, const int8_t *w, size_
     __m128i acc = _mm_setzero_si128();
     const __m128i ones = _mm_set1_epi16(1);
     size_t i = 0;
+    // Aligned loads for the same folding reason as nnue_dot_step: the sole caller
+    // feeds a 64-byte-aligned concat buffer and 64-byte-aligned layer weights, and
+    // legacy SSE folds only an aligned memory operand into pmaddubsw.
     for (; i + 16 <= n; i += 16) {
-        const __m128i pairs = _mm_maddubs_epi16(_mm_loadu_si128((const __m128i *) (in + i)),
-                                                _mm_loadu_si128((const __m128i *) (w + i)));
+        const __m128i pairs = _mm_maddubs_epi16(_mm_load_si128((const __m128i *) (in + i)),
+                                                _mm_load_si128((const __m128i *) (w + i)));
         acc = _mm_add_epi32(acc, _mm_madd_epi16(pairs, ones));
     }
     acc = _mm_add_epi32(acc, _mm_shuffle_epi32(acc, 0x4E));
