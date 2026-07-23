@@ -36,9 +36,38 @@ typedef struct {
     int elapsed_ms;
 } SearchResult;
 
-// Search POS under LIMITS and return the outcome. Emit `info` lines through the
-// sink installed by search_set_output; emit nothing when none is installed.
+// Search POS under LIMITS and return the outcome, blocking until it completes. This
+// is search_go_start followed by search_wait: the synchronous entry the bench and
+// the tests take, where the caller wants the result in hand on return. Emit `info`
+// lines through the sink installed by search_set_output; emit nothing when none is
+// installed. POS must outlive the call.
 SearchResult search_go(Position *pos, const SearchLimits *limits);
+
+// Set the search up on the calling thread and hand it to worker 0's OS thread, then
+// return WITHOUT waiting. This is what keeps the UCI loop reading stdin during a
+// search, so a `stop`/`quit`/`ponderhit` is seen while the search runs. A second call
+// while a search is in flight is ignored (upstream ignores a `go` during search).
+// POS must outlive the search: the setup copies the root into each worker, so the
+// running search never reads POS again, but the caller must not free it early.
+void search_go_start(Position *pos, const SearchLimits *limits);
+
+// Block until the search started by search_go_start has finished and published its
+// result and node count. A no-op when nothing is running. Call before reading the
+// result, and before any teardown that frees what a running search reads (the TT,
+// the net).
+void search_wait(void);
+
+// Report whether a search is in flight (dispatched to worker 0 and not yet finished).
+bool search_is_running(void);
+
+// Report whether an in-flight search is unbounded (infinite or pondering) and so will
+// not stop on its own. `quit` reads this to decide whether it must raise stop -- a
+// bounded search it instead waits out, keeping that search's output deterministic.
+bool search_running_unbounded(void);
+
+// Handle `ponderhit`: clear the ponder flag so a `go ponder` search begins enforcing
+// its time limits. Safe to call from the input thread; a no-op when no search runs.
+void search_ponderhit(void);
 
 // Install the line sink. Injected rather than hardcoded to stdout so the gates can
 // capture output without a subprocess, and so the search zone never calls printf.

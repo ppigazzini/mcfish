@@ -522,11 +522,12 @@ the recursion, run:
 ### Stopping
 
 `search_stop()` sets the `atomic_bool` the whole zone reads through
-`search_stopped`. Note the limit: the UCI loop is single-threaded and reads stdin
-only between commands, so **while a search runs there is nothing reading input to
-call it**. In practice the flag is set by `quit` or `stop` arriving before or after a
-search, and by `check_time` itself on deadline. A `go infinite` with no way to
-interrupt it does not return. See [07-shell.md](07-shell.md).
+`search_stopped`. The search runs on worker 0's thread while the UCI loop keeps
+reading stdin, so a `stop` (or `quit`) arriving mid-search is seen and calls it: the
+flag is set by `stop`/`quit`, by `check_time` on a deadline, or by the driver itself
+once a sibling votes a decisive line. A `go infinite` terminates on `stop`. How the
+shell hands the search off and which commands wait for it is in
+[07-shell.md](07-shell.md).
 
 An aborted iteration is discarded by the depth loop rather than by the node bodies,
 and the abort paths in `search_id.c` are where the care is: a proven-loss score from

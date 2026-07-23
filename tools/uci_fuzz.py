@@ -77,15 +77,13 @@ def stream(rng: random.Random) -> str:
                 )
             )
         elif kind < 0.70:
-            # Emit only go forms with an intrinsic bound. The shell runs the
-            # search synchronously (docs/07-shell.md), so an unbounded go --
-            # `infinite`, or a zero depth/nodes/movetime, which the parser reads
-            # as "no limit" -- holds the loop past any stop this stream carries.
-            # Widen to those forms when the asynchronous go lands. The verbatim
-            # trailing `stop` is inert today for the same reason; it stays so
-            # the streams already exercise the asynchronous contract. The go
-            # line itself is verbatim as well: mangling can truncate any bounded
-            # form down to a bare -- unbounded -- `go`.
+            # Emit any go form, bounded or not. The asynchronous go has landed
+            # (docs/07-shell.md): the search runs off the UCI thread, so the
+            # trailing `stop` interrupts an unbounded `go infinite` / bare `go`,
+            # and any command that follows an un-stopped unbounded search ends it
+            # (engine_end_search) rather than hanging behind it. The go line is
+            # fuzzable now for the same reason -- mangling it down to a bare,
+            # unbounded `go` is a case the contract must survive, not avoid.
             lines.append(
                 (
                     rng.choice(
@@ -94,12 +92,14 @@ def stream(rng: random.Random) -> str:
                             f"go nodes {rng.choice([1, 1000, 10**6])}",
                             f"go movetime {rng.randrange(1, 30)}",
                             f"go perft {rng.randrange(1, 4)}",
+                            "go infinite",
+                            "go",
                         ]
                     ),
-                    False,
+                    True,
                 )
             )
-            lines.append(("stop", False))
+            lines.append(("stop", True))
         elif kind < 0.85:
             lines.append(
                 (
@@ -119,8 +119,6 @@ def stream(rng: random.Random) -> str:
                 )
             )
         else:
-            # Mangle position/setoption commands only: a truncated go line can
-            # degrade to a bare `go`, which is unbounded (see above).
             lines.append(
                 (
                     mangle(rng, rng.choice(["position startpos", "setoption name Hash value 1"])),
