@@ -1213,6 +1213,23 @@ do_tb_cursed() {
   fi
 }
 
+do_upstream_map() {
+  # LOCAL ONLY: reads the pinned upstream tree from this repo's git objects or the
+  # sibling golden checkout, which a CI checkout of origin does not carry. The audit
+  # holds tools/upstream_map.tsv to the citation-derived reality (ROT and DRIFT both
+  # fail); the ratchet holds the uncovered upstream surface at
+  # tools/upstream_map.baseline -- lower it as citations land, never raise it.
+  local sha
+  sha=$(cat tools/upstream/UPSTREAM_BASE)
+  if ! git cat-file -e "${sha}^{commit}" 2>/dev/null \
+     && ! git -C ../Stockfish cat-file -e "${sha}^{commit}" 2>/dev/null; then
+    red "upstream-map: pin $sha reachable in neither this repo nor ../Stockfish -- SKIPPED"
+    return 127
+  fi
+  info "upstream-map: declared-vs-derived audit + uncovered ratchet"
+  python3 tools/upstream_map.py --audit --baseline
+}
+
 do_tb_update() {
   local f n=0
   for f in "$TB_DIR"/*.rtbw "$TB_DIR"/*.rtbz; do [[ -s $f ]] && n=$((n + 1)) || true; done
@@ -1312,6 +1329,7 @@ usage: ./build.sh <step> [args]
   fmt / fmt-fix      check / apply clang-format
   docs-lint          check docs for dead links and stale paths
   sync-status        report drift between the pinned SHAs and the tracked repos
+  upstream-map       LOCAL: audit the declared upstream map, ratchet uncovered surface
   upstream-nodes     node-for-node differential on RANDOM positions vs the oracle
   upstream-parity    THE finish line: bench vs a pristine upstream build (red until done)
   parity             the aggregate: every in-repo gate above
@@ -1346,6 +1364,7 @@ case "${1:-build}" in
   perft)            do_perft ;;
   golden)           do_golden ;;
   tb)               do_tb ;;
+  upstream-map)     do_upstream_map ;;
   tb-fetch)         shift; do_tb_fetch "$@" ;;
   tb-cursed)        do_tb_cursed ;;
   tb-update)        do_tb_update ;;

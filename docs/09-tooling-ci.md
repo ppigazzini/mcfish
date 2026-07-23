@@ -177,12 +177,30 @@ this tree.
   **absence** rows are new surface with no owner yet, **divergence** rows are
   owners holding retired code.
 
+Two standing checks keep the map honest between resyncs, both run by
+`./build.sh upstream-map` (LOCAL: it reads the pinned upstream tree from this
+repo's git objects or the sibling checkout, which a CI clone does not carry):
+
+- **The declared blast-radius audit.**
+  [`../tools/upstream_map.tsv`](../tools/upstream_map.tsv) declares each
+  upstream file's owners; the audit holds it to the derived reality. A derived
+  owner missing from a row is DRIFT — the declared radius under-estimates the
+  blast, the failure mode that let a sibling port route a whole subsystem's
+  changes to two files. Absorb drift by widening the row; never trim a row to
+  quiet the audit.
+- **The uncovered ratchet.**
+  [`../tools/upstream_map.baseline`](../tools/upstream_map.baseline) pins the
+  uncovered upstream count. Lower it as citations land; never raise it. The
+  two files above the floor today are the shm pair — the NUMA replication gap
+  the report exists to keep visible.
+
 The process: fetch upstream in the golden checkout, run the worklist against the
 candidate SHA, port each row (every ported mechanism cites its upstream site, so
-the map stays derivable), then move the pin, re-derive the anchor and every
-golden that legitimately moved, and finish with `upstream-parity`. Cite with
-`file:line` wherever a mcfish header shares the upstream basename — a bare
-shared name is ambiguous and the map skips it rather than guess.
+the map stays derivable), then move the pin, update the declared rows the
+worklist touched, re-derive the anchor and every golden that legitimately moved,
+and finish with `upstream-parity` and `upstream-map`. Cite with `file:line`
+wherever a mcfish header shares the upstream basename — a bare shared name is
+ambiguous and the map skips it rather than guess.
 
 Three fidelity probes see three different bug classes, and each has caught one
 the others cannot:

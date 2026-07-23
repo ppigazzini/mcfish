@@ -26,13 +26,14 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from upstream_map import GOLDEN, build_map, pin, run
+from upstream_map import build_map, pin, run, upstream_repo
 
 
 def changed(old: str, new: str) -> list[tuple[str, str, int]]:
     """(path, status, churn) for every upstream src/ file differing old..new."""
-    numstat = run(["git", "diff", "--numstat", f"{old}..{new}", "--", "src/"], GOLDEN)
-    status = run(["git", "diff", "--name-status", f"{old}..{new}", "--", "src/"], GOLDEN)
+    repo = upstream_repo(new)
+    numstat = run(["git", "diff", "--numstat", f"{old}..{new}", "--", "src/"], repo)
+    status = run(["git", "diff", "--name-status", f"{old}..{new}", "--", "src/"], repo)
 
     churn: dict[str, int] = {}
     for line in numstat.splitlines():
@@ -57,10 +58,8 @@ def main() -> None:
     else:
         sys.exit(__doc__)
 
-    try:
-        run(["git", "cat-file", "-e", f"{new}^{{commit}}"], GOLDEN)
-    except subprocess.CalledProcessError:
-        sys.exit(f"{new} is not a commit in {GOLDEN} -- fetch upstream there first")
+    repo = upstream_repo(new)  # exits with the fetch hint when the SHA is nowhere
+    del repo
 
     mapped, _, _ = build_map()
     rows = changed(old, new)
