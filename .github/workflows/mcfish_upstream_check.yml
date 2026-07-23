@@ -1,0 +1,74 @@
+# Scheduled upstream-sync detection and map health.
+#
+# Two halves, named as zfish names its equivalent lane. The GATING half clones the
+# golden at the pin and runs `./build.sh upstream-map` -- the declared-vs-derived
+# audit (ROT and DRIFT both fail) plus the uncovered-surface ratchet -- which the
+# parity workflow cannot run because a CI checkout of origin does not carry the
+# pinned upstream tree. The DETECTION half is judgment-free: count how many
+# commits upstream master is ahead of tools/upstream/UPSTREAM_BASE and preview
+# the per-owner worklist, so a divergence cannot silently bundle up between
+# sessions. Porting stays a deliberate, human-gated session -- this job only
+# detects, it never attempts a port.
+name: mcfish upstream check
+
+on:
+  schedule:
+    # Weekly, Monday 06:00 UTC. Upstream master moves a few commits a week, and
+    # weekly detection is cheap insurance against a bench or net change slipping
+    # through unnoticed.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+# Least privilege: the job reads this repository and upstream history.
+permissions:
+  contents: read
+
+jobs:
+  upstream-check:
+    name: Map audit + upstream drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # upstream_map.py resolves the pin from this repo's objects or a sibling
+      # ../Stockfish checkout; CI has neither, so clone the golden full-history
+      # beside the workspace (the pin may be well behind master).
+      - name: Clone the golden beside the workspace
+        run: |
+          git clone https://github.com/official-stockfish/Stockfish.git ../Stockfish
+
+      # The audit holds tools/upstream_map.tsv to the citation-derived reality;
+      # the ratchet holds the uncovered upstream surface at
+      # tools/upstream_map.baseline. Both are gates: red here means the declared
+      # map rotted or new unported surface appeared, and the fix is a map or
+      # citation edit in a normal session -- never editing the baseline upward.
+      - name: Declared-map audit + uncovered ratchet
+        run: ./build.sh upstream-map
+
+      # Informational from here down: name the gap, never fail on it.
+      - name: Report upstream drift and the re-port worklist
+        run: |
+          set -euo pipefail
+          pin="$(cat tools/upstream/UPSTREAM_BASE)"
+          master="$(git -C ../Stockfish rev-parse origin/master)"
+          behind="$(git -C ../Stockfish rev-list --count "$pin..$master")"
+          echo "pin $pin is $behind commits behind upstream master $master"
+          {
+            echo "## Upstream drift"
+            echo ""
+            echo "\`$pin\` is **$behind** commits behind \`master\` (\`${master:0:12}\`)."
+            echo ""
+            if [ "$behind" -gt 0 ]; then
+              echo '```'
+              python3 tools/resync_worklist.py "$master"
+              echo '```'
+              echo ""
+            fi
+            echo "Porting is human-gated: advance the pin in a normal session," \
+                 "with tools/resync_worklist.py as the plan."
+          } >> "$GITHUB_STEP_SUMMARY"
