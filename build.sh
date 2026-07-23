@@ -1182,10 +1182,33 @@ do_tb_cursed() {
          | grep -E '^Tablebases' | tr '\n' '|' )"
   done < "$ROOT/tools/cases/tb_cursed.fens")
 
-  if diff -u tools/tb_cursed.golden <(printf '%s\n' "$actual"); then
+  if diff -u <(grep -v '^nodes-tb-' tools/tb_cursed.golden) <(printf '%s\n' "$actual"); then
     green "tb-cursed passed (cursed-win and blessed-loss)"
   else
     red "tb-cursed: drifted from tools/tb_cursed.golden"
+    return 1
+  fi
+
+  # Node-limited TB legs: pin the search total on positions where tablebase
+  # probes fire mid-search. The time-check counter resets after every probe
+  # (upstream search.cpp:917), and only this leg can see that reset: the counter
+  # phase shifts the node-limited stop by hundreds of nodes when the reset is
+  # wrong, while every fixed-depth gate stays green. Golden values come from the
+  # oracle via tb-update's sibling derivation.
+  local nlabel nlimit nfen nactual
+  nactual=$(while read -r nlabel nlimit nfen; do
+    [[ -z $nlabel || $nlabel == \#* ]] && continue
+    printf '%s %s\n' "$nlabel" \
+      "$(printf 'setoption name SyzygyPath value %s\nposition fen %s\ngo nodes %s\nquit\n' \
+           "$ROOT/$TB5_DIR:$ROOT/$TB_DIR" "$nfen" "$nlimit" \
+         | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/$BIN" ) 2>&1 \
+         | grep -oE 'nodes [0-9]+' | tail -1)"
+  done < "$ROOT/tools/cases/tb_nodes.fens")
+
+  if diff -u <(grep '^nodes-tb-' tools/tb_cursed.golden) <(printf '%s\n' "$nactual"); then
+    green "tb-cursed nodes legs passed (TB-probe time-check reset pinned)"
+  else
+    red "tb-cursed: node-limited TB totals drifted from tools/tb_cursed.golden"
     return 1
   fi
 }

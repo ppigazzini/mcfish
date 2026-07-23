@@ -1,0 +1,6 @@
+# Node-limited TB searches: label, node limit, FEN. The totals pin the
+# time-check-counter reset after a TB probe (upstream search.cpp:917) -- a class
+# no other gate sees: the counter phase only diverges when probes fire mid-search,
+# which needs 4-man tables and a node-limited stop.
+nodes-tb-KPvKN 123457 8/2k5/8/8/3N4/8/2P5/2K5 b - - 0 1
+nodes-tb-KNPvK 234567 8/8/8/3k4/8/2n5/3PK3/8 w - - 0 1
