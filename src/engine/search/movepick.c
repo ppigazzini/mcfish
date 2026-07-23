@@ -167,11 +167,11 @@ static void init_common(MovePicker *mp, const Position *pos, Histories *h, Move 
     mp->threshold = 0;
     mp->depth = 0;
     mp->skip_quiets = false;
-    mp->cur = 0;
-    mp->end_cur = 0;
-    mp->end_bad_captures = 0;
-    mp->end_captures = 0;
-    mp->end_generated = 0;
+    // Leave the cursor/span fields (cur, end_cur, end_bad_captures, end_captures,
+    // end_generated) unset, as upstream's constructor does: every stage of
+    // movepick_next writes each one before any stage reads it, and movepick_next
+    // is an out-of-line call, so a zero-fill here is five stores per picker the
+    // optimizer cannot prove dead.
 }
 
 void movepick_init(MovePicker *mp,
