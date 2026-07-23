@@ -31,29 +31,6 @@ bool is_shuffling(const Position *pos, const Stack *ss, Move move) {
         && move_from(ss2->current_move) == move_to(ss4->current_move);
 }
 
-int search_correction_value(Histories *h, const Position *pos, const Stack *ss) {
-    const Color us = pos->side_to_move;
-    const StateInfo *const st = pos->st;
-
-    const int pcv = shared_stat_load(&corr_bundle(h, st->pawn_key, us)->pawn);
-    const int micv = shared_stat_load(&corr_bundle(h, st->minor_piece_key, us)->minor);
-    const int wnpcv = shared_stat_load(&corr_bundle(h, st->non_pawn_key[WHITE], us)->nonpawn_white);
-    const int bnpcv = shared_stat_load(&corr_bundle(h, st->non_pawn_key[BLACK], us)->nonpawn_black);
-
-    const Move m = (ss - 1)->current_move;
-    int cch2 = 0;
-    int cch4 = 0;
-    const bool m_ok = search_move_ok(m);
-    if (m_ok) {
-        const Square to = move_to(m);
-        const size_t idx = (size_t) piece_on(pos, to) * SQUARE_NB + (size_t) to;
-        cch2 = (ss - 2)->continuation_correction_history[idx];
-        cch4 = (ss - 4)->continuation_correction_history[idx];
-    }
-
-    return correction_value_blend(pcv, micv, wnpcv, bnpcv, cch2, cch4, m_ok);
-}
-
 Key adjust_key50(const Position *pos) {
     const Key k = pos->st->key;
     if (pos->st->rule50 < 14)
