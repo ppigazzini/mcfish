@@ -191,15 +191,18 @@ void nnue_affine_1(bool sparse,
 
 // --- activations -------------------------------------------------------------------
 
-#if MCFISH_SIMD_VECTOR && defined(__SSE4_1__) && !defined(__AVX2__)
+#if MCFISH_SIMD_VECTOR && defined(__SSE4_1__) && !defined(__AVX512F__)
     #include <smmintrin.h>
 
 // Native SSE bodies for the two activations, upstream's shape (clipped_relu.h,
 // sqr_clipped_relu.h): run the clamp-shift-narrow in the 16-bit pack domain, where the
 // saturating packs ARE the clamps, instead of the portable 32-bit min/max/pmulld chain
-// the vector extensions lower to on a 128-bit tier. Wider tiers keep the portable body:
-// under AVX2 the cross-lane packs would need extra permutes, and the 32-bit chain there
-// is already at parity with upstream. Bit-identity per body below; simd-scalar and the
+// the vector extensions lower to. Upstream has NO wider x86 branch here — its avx2
+// build runs exactly these 128-bit instructions — and the avx2 profile agrees: the
+// portable body costs ~100 instructions per evaluation (vpminsd/vpmaxsd/2-uop vpmulld
+// plus a pack-and-permute narrow) against ~30 for these. Only the avx512 tier keeps
+// the portable body, where vpmovdb narrows a whole zmm in one op and inference already
+// measures ahead of the oracle. Bit-identity per body below; simd-scalar and the
 // oracle's own SSE build (which runs exactly these instructions) both pin it.
 
 // min(127, (clamp(x, -32768, 32767)^2) >> SHIFT), SHIFT > 16, over 32 lanes.
