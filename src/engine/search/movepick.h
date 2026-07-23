@@ -23,6 +23,7 @@
 #define MCFISH_MOVEPICK_H
 
 #include "history.h"
+#include "search_types.h"
 
 #include "../board/movegen.h"
 #include "../board/position.h"
@@ -59,9 +60,13 @@ typedef struct {
     const Position *pos;
     Histories *hist;
     Key pawn_key;
+    // The frame the picker gathers continuation pages from, lazily, at the one
+    // stage that scores them: QUIET_INIT fills all six slots, EVASION_INIT only
+    // slot 0. Null for the ProbCut picker, whose stages read no page.
+    const Stack *ss;
     // Continuation-history pages (ss-1) .. (ss-6). Quiet scoring reads slots
     // 0, 1, 2, 3 and 5; evasion scoring reads slot 0. Every slot a stage reads
-    // must be non-null.
+    // is filled by that stage's init before the read.
     const SharedStat *cont_hist[6];
     int ply;
 
@@ -81,6 +86,8 @@ typedef struct {
 
 // Set up the main-search / qsearch picker. DEPTH <= 0 selects the qsearch stage
 // chain; a non-empty checkers set selects the evasion chain regardless of depth.
+// SS is the frame whose (ss-1)..(ss-6) continuation pages quiet/evasion scoring
+// reads; the picker gathers them only when such a stage runs.
 void movepick_init(MovePicker *mp,
                    const Position *pos,
                    Histories *h,
@@ -88,7 +95,7 @@ void movepick_init(MovePicker *mp,
                    Move tt_move,
                    int depth,
                    int ply,
-                   const SharedStat *const cont_hist[6]);
+                   const Stack *ss);
 
 // Set up the ProbCut picker: captures only, kept when they pass SEE >= THRESHOLD.
 void movepick_init_probcut(

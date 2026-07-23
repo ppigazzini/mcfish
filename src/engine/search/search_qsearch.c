@@ -66,12 +66,6 @@ void tt_move_history_update(Histories *h, int bonus) {
     stats_update(&h->tt_move_history, bonus, 8192);
 }
 
-// Collect the six continuation pages (ss-1)..(ss-6) the picker scores from.
-static void collect_cont_hist(const Stack *ss, const SharedStat *cont[6]) {
-    for (size_t k = 0; k < 6; ++k)
-        cont[k] = (ss - 1 - (ptrdiff_t) k)->continuation_history;
-}
-
 // Select the picker's opening stage the way upstream does: skip the TT stage when
 // there is no usable TT move, but keep `tt_move` set either way so the generated
 // list still filters it out.
@@ -170,14 +164,12 @@ Value qsearch_node(
         futility_base = qsearch_futility_base(ss->static_eval);
     }
 
-    const SharedStat *cont[6];
-    collect_cont_hist(ss, cont);
     const int prev_sq =
       search_move_ok(ss1->current_move) ? (int) move_to(ss1->current_move) : (int) SQ_NONE;
 
     // Step 5. Pick moves (captures, or evasions when in check).
     MovePicker mp;
-    movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, DEPTH_QS, ss->ply, cont);
+    movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, DEPTH_QS, ss->ply, ss);
     mp_set_main_stage(&mp, pos, tt_move, DEPTH_QS);
 
     for (Move move = movepick_next(&mp); move != MOVE_NONE; move = movepick_next(&mp)) {
