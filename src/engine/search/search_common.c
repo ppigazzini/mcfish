@@ -413,43 +413,169 @@ Value search_evaluate(SearchCtx *ctx, const Position *pos) {
     return evaluate_with_optimism(ctx->eval_arena, pos, ctx->optimism[pos->side_to_move]);
 }
 
-HistoryStack search_gather_stack(const Stack *ss) {
-    HistoryStack hs;
+// ---- history-update family (upstream search.cpp:1928-2030) --------------
+//
+// Read the search Stack directly, as upstream's update_all_stats /
+// update_quiet_histories / update_continuation_histories do; history.c keeps
+// only the table primitives. Walking the real stack frames here removes the
+// per-call frame gather the old history.c seam copied.
 
-    for (size_t k = 0; k < 7; ++k) {
-        const Stack *const f = ss - 1 - (ptrdiff_t) k;
-        hs.frames[k].current_move = f->current_move;
-        hs.frames[k].continuation_history = f->continuation_history;
+// Test move validity as upstream's Move::is_ok does — by the two reserved
+// encodings, not by from != to.
+static inline bool hist_move_ok(Move m) { return m != MOVE_NONE && m != MOVE_NULL; }
+
+static inline PieceType hist_piece_type_on(const Position *pos, Square s) {
+    return type_of_piece(piece_on(pos, s));
+}
+
+// Scale the quiet-history bonus (update_quiet_histories). Each is bonus * N / 1024
+// with toward-zero division; the pawn-history scale picks its weight by sign.
+static inline int quiet_low_ply_scale(int bonus) { return bonus * 712 / 1024; }
+static inline int quiet_cont_scale(int bonus) { return bonus * 750 / 1024; }
+
+static inline int quiet_pawn_scale(int bonus) {
+    const int weight = bonus > -4 ? 1104 : 459;
+    return bonus * weight / 1024;
+}
+
+// Compute the base stat bonus/malus applied at the end of search() when a
+// bestMove is found (update_all_stats).
+static inline int stat_bonus(int depth, bool is_tt_move, int prev_stat_score) {
+    const int base = 133 * depth - 81;
+    return (base < 1487 ? base : 1487) + 364 * (int) is_tt_move + prev_stat_score / 28;
+}
+
+static inline int stat_malus(int depth) {
+    const int base = 968 * depth - 235;
+    return base < 2244 ? base : 2244;
+}
+
+// Index the continuation-history positive-consistency multipliers by the running
+// positive_count in search_update_continuation_histories.
+static const int CmhcMultipliers[7] = { 94, 103, 110, 106, 119, 126, 121 };
+
+// Compute the per-entry continuation-history update delta.
+//
+// Upstream (search.cpp: `bonus * weight * multiplier / 131072`) computes this in
+// `int`, so the 3-way product overflows and WRAPS (2's complement on x86 — UB in
+// C++ but relied upon). Do the product in uint32_t so the wrap is defined, then
+// reinterpret; C23 fixes the signed representation, so the reinterpretation is
+// bit-identical to the wrap upstream gets.
+static inline int conthist_delta(int bonus, int weight, int positive_count, int i) {
+    const int multiplier = CmhcMultipliers[positive_count];
+    const uint32_t product = (uint32_t) bonus * (uint32_t) weight * (uint32_t) multiplier;
+    return (int32_t) product / 131072 + 73 * (int) (i < 2);
+}
+
+typedef struct {
+    int i;  // plies back from the walk's base
+    int w;
+} ConthistBonus;
+
+static const ConthistBonus ConthistBonuses[6] = {
+    { 1, 1040 }, { 2, 780 }, { 3, 290 }, { 4, 502 }, { 5, 132 }, { 6, 418 },
+};
+
+void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, int bonus) {
+    int positive_count = 0;
+
+    for (size_t b = 0; b < 6; ++b) {
+        if (ss->in_check && ConthistBonuses[b].i > 2)
+            break;
+
+        const Stack *const frame = ss - ConthistBonuses[b].i;
+        if (!hist_move_ok(frame->current_move))
+            continue;
+
+        SharedStat *entry = &frame->continuation_history[(size_t) pc * SQUARE_NB + (size_t) to];
+        if (shared_stat_load(entry) > 0)
+            ++positive_count;
+
+        const int delta =
+          conthist_delta(bonus, ConthistBonuses[b].w, positive_count, ConthistBonuses[b].i);
+        shared_stats_update(entry, delta, 30000);
     }
-
-    hs.cont_corr[0] = (ss - 2)->continuation_correction_history;
-    hs.cont_corr[1] = (ss - 4)->continuation_correction_history;
-    hs.ply = ss->ply;
-    hs.in_check = ss->in_check;
-    hs.prev_in_check = (ss - 1)->in_check;
-    hs.prev_stat_score = (ss - 1)->stat_score;
-    hs.prev_move_count = (ss - 1)->move_count;
-    hs.prev_tt_hit = (ss - 1)->tt_hit;
-    return hs;
 }
 
 void search_update_quiet_histories(
   SearchCtx *ctx, const Position *pos, const Stack *ss, Move m, int bonus) {
-    const HistoryStack hs = search_gather_stack(ss);
-    history_update_quiet(ctx->hist, pos, pos->st->pawn_key, &hs, m, bonus);
+    Histories *const h = ctx->hist;
+    const size_t raw = m;
+    int16_t *main_entry = &h->main_history[(size_t) pos->side_to_move * HIST_UINT16 + raw];
+    const Piece pc = piece_on(pos, move_from(m));
+    const Square to = move_to(m);
+    SharedStat *pawn_entry =
+      &pawn_history_row(h, pos->st->pawn_key)[(size_t) pc * SQUARE_NB + (size_t) to];
+
+    stats_update(main_entry, bonus, 7183);
+
+    if (ss->ply < LOW_PLY_HISTORY_SIZE) {
+        int16_t *lowply_entry = &h->low_ply_history[(size_t) ss->ply * HIST_UINT16 + raw];
+        stats_update(lowply_entry, quiet_low_ply_scale(bonus), 7183);
+    }
+
+    search_update_continuation_histories(ss, pc, to, quiet_cont_scale(bonus));
+    shared_stats_update(pawn_entry, quiet_pawn_scale(bonus), 8192);
 }
 
-void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, int bonus) {
-    // Gather only the six frames the continuation walk reads; the full
-    // HistoryStack also copies the correction pages and the previous-ply scalars,
-    // which this update never touches.
-    ContHistFrame frames[6];
-    for (size_t k = 0; k < 6; ++k) {
-        const Stack *const f = ss - 1 - (ptrdiff_t) k;
-        frames[k].current_move = f->current_move;
-        frames[k].continuation_history = f->continuation_history;
+void search_update_all_stats(SearchCtx *ctx,
+                             const Position *pos,
+                             const Stack *ss,
+                             Move best_move,
+                             Square prev_sq,
+                             const Move *quiets,
+                             size_t n_quiets,
+                             const Move *captures,
+                             size_t n_captures,
+                             int depth,
+                             Move tt_move,
+                             bool pv_node) {
+    Histories *const h = ctx->hist;
+    const bool is_tt = best_move == tt_move;
+    int bonus = stat_bonus(depth, is_tt, (ss - 1)->stat_score);
+    const int malus = stat_malus(depth);
+
+    // upstream 645b636df: at non-PV nodes, scale the best-move bonus by the number
+    // of searched moves. Match upstream's `bonus += bonus * uint64_t(N) / 256`
+    // EXACTLY: the mul/div are UNSIGNED (int promoted to uint64_t), which differs
+    // from signed when bonus < 0; the u64 sum narrows back to i32.
+    if (!pv_node) {
+        const uint64_t n = (uint64_t) (n_quiets + n_captures);
+        const uint64_t bu = (uint64_t) (int64_t) bonus;
+        bonus = (int32_t) (uint32_t) (bu + bu * n / 256);
     }
-    history_update_continuation(frames, ss->in_check, pc, to, bonus);
+
+    const bool capture_best = search_capture_stage(pos, best_move);
+
+    if (!capture_best) {
+        search_update_quiet_histories(ctx, pos, ss, best_move, bonus * 899 / 1024);
+
+        int actual_malus = malus * 1159 / 1024;
+        for (size_t i = 0; i < n_quiets; ++i) {
+            actual_malus = actual_malus * 921 / 1024;
+            search_update_quiet_histories(ctx, pos, ss, quiets[i], -actual_malus);
+        }
+    } else {
+        const Piece moved_pc = piece_on(pos, move_from(best_move));
+        const Square to = move_to(best_move);
+        stats_update(capture_entry(h, moved_pc, to, hist_piece_type_on(pos, to)),
+                     bonus * 1427 / 1024, 10692);
+    }
+
+    if (prev_sq != SQ_NONE && (ss - 1)->move_count == 1 + (int) (ss - 1)->tt_hit
+        && captured_piece(pos) == NO_PIECE) {
+        // Walk from (ss - 1), as upstream's update_continuation_histories(ss - 1, ...).
+        search_update_continuation_histories(ss - 1, piece_on(pos, prev_sq), prev_sq,
+                                             -malus * 713 / 1024);
+    }
+
+    for (size_t j = 0; j < n_captures; ++j) {
+        const Move move = captures[j];
+        const Piece moved_pc = piece_on(pos, move_from(move));
+        const Square to = move_to(move);
+        stats_update(capture_entry(h, moved_pc, to, hist_piece_type_on(pos, to)),
+                     -malus * 1489 / 1024, 10692);
+    }
 }
 
 // ---- transposition-table adapter ---------------------------------------

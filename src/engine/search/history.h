@@ -10,10 +10,10 @@
 // int16 narrowing at the end of it cannot lose a bit for any D used here
 // (max 30000). Change a D above 32767 and the narrowing silently wraps.
 //
-// The updates read the search stack. history.c must not depend on search.c's
-// `Stack` layout, so the caller gathers the fields it needs into `HistoryStack`
-// before each call: `frames[k]` is `(ss - 1 - k)`, so `frames` is the walk from
-// `ss` and `frames + 1` is the walk from `ss - 1`.
+// The stack-walking updates (update_all_stats / update_quiet_histories /
+// update_continuation_histories) live in the search zone, as upstream keeps
+// them in search.cpp; this module holds only the tables and the primitives
+// that read and write single entries.
 //
 // Golden: the upstream `history.h` and `search.cpp` (update_all_stats /
 // update_continuation_histories / update_quiet_histories /
@@ -167,43 +167,6 @@ Histories *histories(void);
 void histories_shutdown(void);
 
 // Mirror one search-stack frame. `continuation_history` points at a
-// PieceToHistory page (HIST_PIECETO entries, indexed pc * 64 + to) and is never
-// null on a frame whose `current_move` is a real move — the null-move and
-// iterative-deepening sentinels point at the table base.
-typedef struct {
-    Move current_move;
-    SharedStat *continuation_history;
-} ContHistFrame;
-
-// Carry the search-stack fields the history writes read. `frames[k]` is
-// `(ss - 1 - k)`; seven are needed because update_all_stats walks six frames back
-// from `ss` for the quiet updates and six back from `ss - 1` for the prev-square
-// update. `cont_corr[0]` is `(ss - 2)`'s and `cont_corr[1]` is `(ss - 4)`'s
-// continuation-correction page.
-typedef struct {
-    ContHistFrame frames[7];
-    int16_t *cont_corr[2];
-    int ply;              // ss->ply
-    bool in_check;        // ss->in_check
-    bool prev_in_check;   // (ss - 1)->in_check
-    int prev_stat_score;  // (ss - 1)->stat_score
-    int prev_move_count;  // (ss - 1)->move_count
-    bool prev_tt_hit;     // (ss - 1)->tt_hit
-} HistoryStack;
-
-// Carry the move lists and node facts update_all_stats scores from.
-typedef struct {
-    Move best_move;
-    Square prev_sq;  // SQ_NONE when the previous ply made no move
-    const Move *quiets;
-    size_t n_quiets;
-    const Move *captures;
-    size_t n_captures;
-    int depth;
-    Move tt_move;
-    bool pv_node;
-} HistoryStats;
-
 // Carry the four Zobrist keys the correction tables are indexed by.
 typedef struct {
     Key pawn;
@@ -272,24 +235,10 @@ void history_age_main(Histories *h);
 // Refill the low-ply history with 102, once per search.
 void history_fill_low_ply(Histories *h);
 
-// Apply BONUS to the main / low-ply / continuation / pawn histories for MOVE.
-void history_update_quiet(
-  Histories *h, const Position *pos, Key pawn_key, const HistoryStack *hs, Move move, int bonus);
-
-// Apply BONUS along the continuation histories of FRAMES, where FRAMES[k] is the
-// stack entry k + 1 plies back from the walk's base. IN_CHECK is the base frame's.
-void history_update_continuation(
-  const ContHistFrame *frames, bool in_check, Piece pc, Square to, int bonus);
-
-// Reward BEST_MOVE and punish the searched-but-refuted moves after a fail high.
-void history_update_all_stats(
-  Histories *h, const Position *pos, Key pawn_key, const HistoryStack *hs, const HistoryStats *st);
-
 // Nudge the four key-indexed correction tables and the (ss-2)/(ss-4) continuation
 // corrections toward the search / static-eval delta. Take exactly the three stack
 // facts the update reads — the previous move and the two continuation-correction
-// pages — rather than a full HistoryStack, so the caller gathers nothing it
-// discards.
+// pages — so the caller gathers nothing the update discards.
 void history_update_correction(Histories *h,
                                const Position *pos,
                                Color us,
