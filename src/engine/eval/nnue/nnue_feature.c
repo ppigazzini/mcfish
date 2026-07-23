@@ -209,6 +209,30 @@ nnue_half_make_index(uint8_t perspective, uint8_t square, uint8_t piece, uint8_t
 
 // --- full_threats -----------------------------------------------------------------
 
+uint32_t nnue_full_make_index_oriented(uint8_t attacker_oriented,
+                                       uint8_t from_oriented,
+                                       uint8_t to_oriented,
+                                       uint8_t attacked_oriented) {
+    const unsigned less = from_oriented < to_oriented ? 1u : 0u;
+    const ThreatIndexBlock *block = &ThreatIndexBlocks[attacker_oriented];
+    return block->lut1[attacked_oriented][less] + block->comb[from_oriented][to_oriented];
+}
+
+// Broadcast one walk's orientation onto a dirty-threat record's own byte lanes: xor the
+// square orientation into the from/to byte lanes, the perspective swap into the two piece
+// nibbles, and — when the walk runs backward — flip bit 31 so the xored record's sign
+// alone answers "added or removed" (upstream's `add` bit means added on a forward walk
+// and removed on a backward one). One xor per record then replaces four field-wise xors
+// plus a direction compare.
+uint32_t nnue_full_orient_mask(uint8_t perspective, uint8_t king_square, bool forward) {
+    const uint32_t orient =
+      (uint32_t) (uint8_t) ((int32_t) OrientTblFull[king_square] ^ (int32_t) (56 * perspective));
+    const uint32_t swap = 8u * perspective;
+    return orient << NNUE_DIRTY_THREAT_PC_SQ_SHIFT | orient << NNUE_DIRTY_THREATENED_SQ_SHIFT
+         | swap << NNUE_DIRTY_THREATENED_PC_SHIFT | swap << NNUE_DIRTY_THREAT_PC_SHIFT
+         | (forward ? 0u : 1u << NNUE_DIRTY_THREAT_ADD_SHIFT);
+}
+
 uint32_t nnue_full_make_index(uint8_t perspective,
                               uint8_t attacker,
                               uint8_t from_sq,
@@ -222,9 +246,8 @@ uint32_t nnue_full_make_index(uint8_t perspective,
     const uint8_t swap = (uint8_t) (8 * perspective);
     const uint8_t attacker_oriented = (uint8_t) (attacker ^ swap);
     const uint8_t attacked_oriented = (uint8_t) (attacked ^ swap);
-    const unsigned less = from_oriented < to_oriented ? 1u : 0u;
-    const ThreatIndexBlock *block = &ThreatIndexBlocks[attacker_oriented];
-    return block->lut1[attacked_oriented][less] + block->comb[from_oriented][to_oriented];
+    return nnue_full_make_index_oriented(attacker_oriented, from_oriented, to_oriented,
+                                         attacked_oriented);
 }
 
 // Append only when the pair is inside the feature space: an excluded pair indexes past
