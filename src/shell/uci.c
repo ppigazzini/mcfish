@@ -6,6 +6,7 @@
 
 #include "../engine/board/board_props.h"
 #include "../engine/board/position.h"
+#include "../engine/eval/evaluate.h"
 #include "../engine/search/search.h"
 #include "../platform/clock.h"
 #include "../platform/tablebase.h"
@@ -54,6 +55,14 @@ static void terminate_on_critical_error(const char *command, const char *reason)
     // Two newlines: upstream writes '\n' and then sync_endl (uci.cpp:685-687).
     uci_output_printf("info string CRITICAL ERROR: Command `%s` failed. Reason: %s\n\n", command,
                       reason);
+    // Tear down through the same sequence as `quit` (uci_loop return -> main.c)
+    // before exiting, so the sanitized binary leaves this path leak-clean and the
+    // fuzz gate stays able to flag a REAL leak. Upstream's std::exit(1) skips the
+    // Engine destructor -- an automatic in main -- so freeing here diverges from
+    // upstream only in memory the process was about to abandon anyway.
+    engine_stop();
+    search_shutdown();
+    eval_nnue_shutdown();
     exit(1);
 }
 
