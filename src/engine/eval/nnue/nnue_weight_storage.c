@@ -35,9 +35,17 @@ static size_t FtLen = 0;
 static uint8_t *LayerWeights[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK];
 static uint8_t *LayerBiases[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK];
 
-// Return N zeroed bytes aligned to the cache line, or NULL. Round the request up
-// to the alignment: aligned_alloc wants a size the alignment divides, and the
-// slack costs at most 63 bytes on blocks measured in megabytes.
+// Return N uninitialised bytes aligned to the cache line, or NULL. Round the
+// request up to the alignment: aligned_alloc wants a size the alignment divides.
+//
+// Do not zero the block. A successful parse writes every byte a reader can
+// reach: the five feature-transformer sections butt-join on 64-byte multiples
+// with no padding between them, the layer biases are written linearly, and the
+// layer weight scramble is a bijection on [0, n). Zeroing here would fault in
+// and dirty the whole ~106 MB arena once just for the parse to overwrite every
+// byte of it again — pure startup dead work. A FAILED parse leaves unwritten
+// garbage, exactly as it left unread zeroes before: the loaded-state name is
+// not set, so the verify gate refuses to search either way.
 // Ask for transparent huge pages on blocks large enough to be worth one. The
 // threat feature weights alone are ~62 MB and are indexed by a scattered feature
 // row on every accumulator update, so at 4 KiB pages the walk spans roughly
@@ -54,7 +62,7 @@ static uint8_t *LayerBiases[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK];
 // does NOT ask is guaranteed to get nothing.
 enum { HUGE_PAGE_SIZE = 2u << 20, HUGE_PAGE_MIN_BLOCK = 1u << 20 };
 
-static uint8_t *aligned_zeroed(size_t n) {
+static uint8_t *aligned_uninit(size_t n) {
     if (n == 0)
         return NULL;
 
@@ -70,7 +78,6 @@ static uint8_t *aligned_zeroed(size_t n) {
         (void) madvise(block, total, MADV_HUGEPAGE);
 #endif
 
-    memset(block, 0, total);
     return block;
 }
 
@@ -118,7 +125,7 @@ uint8_t *nnue_ft_storage(size_t n) {
         FtLen = 0;
     }
     if (FtStorage == NULL) {
-        FtStorage = aligned_zeroed(n);
+        FtStorage = aligned_uninit(n);
         if (FtStorage == NULL)
             return NULL;
         FtLen = n;
@@ -139,7 +146,7 @@ uint8_t *nnue_layer_storage(size_t bucket, size_t idx, NnueLayerPart part, size_
     if (slot == NULL || n == 0)
         return NULL;
     if (*slot == NULL)
-        *slot = aligned_zeroed(n);
+        *slot = aligned_uninit(n);
     return *slot;
 }
 
