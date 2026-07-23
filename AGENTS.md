@@ -102,17 +102,29 @@ outrank intuition here:
 
 ## Fleets and subagents
 
-Multi-agent perf fleets are a standing pattern. Each rule below was paid for here:
+Multi-agent perf fleets are a standing pattern. Each rule below was paid for here
+or in zfish's fleet campaigns:
 
 - **Never `git stash`** — the stash is repo-wide across worktrees; pop only a stash
   you created, by index, immediately.
+- **Check a gate's EXIT CODE, never a piped fragment** — `./build.sh fmt | tail -1`
+  reads exit 0 from tail while the gate is red; this has laundered red gates in
+  both ports. Test `$?` of the gate itself, or run it unpiped.
 - **`./build.sh build` explicitly before every measurement** — `signature` does not
   always rebuild, and a stale binary has produced false conclusions twice.
-- **Verify profile-file provenance** — concurrent agents sharing a scratchpad have
-  clobbered each other's callgrind outputs; check the `cmd:` header names your
-  binary before trusting any profile.
-- **Worktree agents deliver patches, never commits** — the integrator re-measures
-  on clean HEAD and commits with the evidence.
+- **Charter disjoint FILES, not just disjoint metrics** — two lanes converging on
+  the same function from different charters produce conflicting or subsumed
+  patches the integrator must untangle.
+- **Unique scratch filenames, and verify profile provenance** — concurrent agents
+  sharing a scratchpad have clobbered each other's callgrind outputs; check the
+  `cmd:` header names your binary and the run carries its `Nodes searched` line
+  before trusting any profile.
+- **Worktree agents deliver patches, never commits** — and they cannot usefully
+  write `__DEV/` (gitignored, absent from worktrees): ledger rows travel in the
+  final report and the integrator lands them.
+- **A subagent is not re-woken by its own background jobs** — wait on a
+  measurement with a foreground `until` loop, or the agent stalls silently until
+  someone nudges it.
 - A worktree starts where its branch last was, not at your HEAD — reset it to the
   intended base and re-verify with `git log` before building a baseline.
 
