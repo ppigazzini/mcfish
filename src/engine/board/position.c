@@ -134,8 +134,10 @@ static void slider_blockers(const Position *pos, Color c, Bitboard *blockers, Bi
 
     while (snipers) {
         const Square sniper_sq = pop_lsb(&snipers);
-        const Bitboard between = BetweenBB[ksq][sniper_sq] ^ square_bb(sniper_sq);
-        const Bitboard b = between & occupancy;
+        // BetweenBB includes the sniper's own square, but `occupancy` already has
+        // every sniper removed, so the AND strips it — no explicit XOR needed,
+        // exactly as upstream update_slider_blockers (position.cpp:628) relies on.
+        const Bitboard b = BetweenBB[ksq][sniper_sq] & occupancy;
 
         // Exactly one piece in the way makes a pin; two or more block each other.
         if (b && !bb_more_than_one(b)) {
