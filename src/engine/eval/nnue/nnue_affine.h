@@ -38,7 +38,11 @@ enum {
 };
 
 // Compute the 32-output affine layer. INPUT_LEN must be a multiple of 4. WEIGHTS holds
-// INPUT_LEN * 32 int8 entries in the scrambled layout. NNZ is read only when SPARSE.
+// INPUT_LEN * 32 int8 entries in the scrambled layout and must be 16-BYTE ALIGNED: the
+// SSSE3 tier of nnue_dot_step loads each 16-byte row chunk with an aligned load so it
+// folds into pmaddubsw's memory operand, mirroring upstream's alignas(CacheLineSize)
+// weights (affine_transform.h). Both callers pass nnue_layer_storage blocks, which are
+// at least 64-byte aligned. NNZ is read only when SPARSE.
 void nnue_affine_32(bool sparse,
                     int32_t out[32],
                     const int32_t *biases,
@@ -47,7 +51,8 @@ void nnue_affine_32(bool sparse,
                     size_t input_len,
                     const uint64_t *nnz);
 
-// Compute the single-output affine layer, where the scramble is the identity.
+// Compute the single-output affine layer, where the scramble is the identity. The dense
+// path requires INPUT and WEIGHTS 16-byte aligned (see nnue_affine1_dot in simd.h).
 void nnue_affine_1(bool sparse,
                    int32_t out[1],
                    const int32_t *biases,

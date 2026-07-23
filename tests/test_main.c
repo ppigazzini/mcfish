@@ -559,7 +559,9 @@ static void test_nnue_dot4(void) {
     // no intrinsic, and deliberately int32 throughout so a saturating intermediate
     // in the implementation shows up as a disagreement rather than being mirrored.
     uint8_t in[4];
-    int8_t w[NNUE_DOT_LANES * 4];
+    // 16-byte aligned per nnue_affine_32's weight contract: the SSSE3 tier of
+    // nnue_dot_step loads weight rows with an aligned, foldable load.
+    alignas(16) int8_t w[NNUE_DOT_LANES * 4];
     uint64_t rng = 0x9E3779B97F4A7C15ULL;
 
     for (int trial = 0; trial < 20000; ++trial) {

@@ -43,18 +43,20 @@ propagate_bucket(size_t bucket, const uint8_t *transformed, const NnueNnzBitset 
     const int8_t *fc2_w = nnue_layer_weights(bucket, 2);
 
     // fc_0: affine 1024 -> 32, sparse over the transform's NNZ bitset.
-    int32_t fc0_out[32];
+    alignas(CACHE_LINE_SIZE) int32_t fc0_out[32];
     nnue_affine_32(true, fc0_out, fc0_b, fc0_w, transformed, NNUE_TRANSFORMED_BYTES, *nnz);
 
     // Build concat[128] = [ac_sqr_0(32) | ac_0(32) | ac_sqr_1(32) | ac_1(32)]. The four
     // activations below write all 128 bytes before fc_1 reads [0,64) and fc_2 reads
     // [0,128), so no zero-init is needed (each activation stores its full 32-byte range).
-    uint8_t concat[128];
+    // Aligned like upstream's propagate Buffer (nnue_architecture.h) so the SSSE3 dot
+    // kernels may load it with aligned, foldable memory operands.
+    alignas(CACHE_LINE_SIZE) uint8_t concat[128];
     nnue_sqr_clipped_relu_32(21, fc0_out, concat + 0);
     nnue_clipped_relu_32(7, fc0_out, concat + 32);
 
     // fc_1: affine 64 -> 32 over [ac_sqr_0 | ac_0].
-    int32_t fc1_out[32];
+    alignas(CACHE_LINE_SIZE) int32_t fc1_out[32];
     nnue_affine_32(false, fc1_out, fc1_b, fc1_w, concat, 64, *nnz);
 
     nnue_sqr_clipped_relu_32(19, fc1_out, concat + 64);
