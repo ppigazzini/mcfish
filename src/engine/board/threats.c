@@ -131,9 +131,17 @@ __attribute__((always_inline)) static inline void threats_update_piece_impl(bool
     const Bitboard white_pawns = pos->by_color[WHITE] & pos->by_type[PAWN];
     const Bitboard black_pawns = pos->by_color[BLACK] & pos->by_type[PAWN];
 
-    Bitboard threatened =
-      (pt == PAWN ? PawnAttacksBB[color_of_piece(pc)][s] : attacks_bb(pt, s, occupied))
-      & occupied_no_k;
+    // Reuse the prologue's magic lookups for the slider types instead of
+    // re-deriving attacks_bb(pt, s, occupied): r_attacks/b_attacks ARE those
+    // values. Upstream's compiled update_piece_threats does the same reuse (clang
+    // CSEs the template's attacks_bb switch against the prologue); spelling it out
+    // keeps the C build from re-running a masked magic multiply per slider call.
+    Bitboard threatened = (pt == PAWN     ? PawnAttacksBB[color_of_piece(pc)][s]
+                           : pt == BISHOP ? b_attacks
+                           : pt == ROOK   ? r_attacks
+                           : pt == QUEEN  ? (r_attacks | b_attacks)
+                                          : PseudoAttacks[pt][s])
+                        & occupied_no_k;
     Bitboard incoming = PseudoAttacks[KNIGHT][s] & knights;
 
     // Compute both incoming and outgoing pawn threats. Incoming pawn pushers count
