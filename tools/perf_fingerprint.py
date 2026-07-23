@@ -62,7 +62,9 @@ def _annotate(path, show="Ir"):
     try:
         r = subprocess.run(
             ["callgrind_annotate", f"--show={show}", "--threshold=99.99", path],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
     except FileNotFoundError:
         sys.exit("error: callgrind_annotate not found (install valgrind)")
@@ -98,7 +100,7 @@ def _reconcile(per_fn, total, path):
     miss = 1.0 - (s / total) if total else 1.0
     if miss > 0.05:
         sys.exit(
-            f"error: per-function sum {s:,} accounts for only {100*s/total:.1f}% of "
+            f"error: per-function sum {s:,} accounts for only {100 * s / total:.1f}% of "
             f"PROGRAM TOTALS {total:,} in {path}.\n"
             "       Entries are being dropped -- every ratio derived from this would be "
             "fiction. Fix the parser before trusting output."
@@ -145,10 +147,17 @@ def main():
     p = sub.add_parser("compare")
     p.add_argument("a", help="callgrind output for the engine under test (e.g. mcfish)")
     p.add_argument("b", help="callgrind output for the reference (e.g. the upstream oracle)")
-    p.add_argument("--group", action="append", required=True,
-                   help="NAME=REGEX; regex may match several symbols, which are summed")
-    p.add_argument("--calls", action="store_true",
-                   help="compare CALL COUNTS (the algorithm-parity test) instead of Ir")
+    p.add_argument(
+        "--group",
+        action="append",
+        required=True,
+        help="NAME=REGEX; regex may match several symbols, which are summed",
+    )
+    p.add_argument(
+        "--calls",
+        action="store_true",
+        help="compare CALL COUNTS (the algorithm-parity test) instead of Ir",
+    )
 
     a = ap.parse_args()
 
@@ -156,9 +165,8 @@ def main():
         per_fn, total = costs(a.out)
         s = _reconcile(per_fn, total, a.out)
         for fn, ir in sorted(per_fn.items(), key=lambda kv: -kv[1])[: a.top]:
-            print(f"{ir:14,d}  ({100*ir/total:5.2f}%)  {fn[:76]}")
-        print(f"{s:14,d}  == summed;  {total:,} PROGRAM TOTALS "
-              f"({100*s/total:.1f}% accounted)")
+            print(f"{ir:14,d}  ({100 * ir / total:5.2f}%)  {fn[:76]}")
+        print(f"{s:14,d}  == summed;  {total:,} PROGRAM TOTALS ({100 * s / total:.1f}% accounted)")
         return
 
     if a.cmd == "calls":
@@ -201,12 +209,19 @@ def main():
             mark = "  EXACT" if x == y else "  <-- DIFFERS: check the regex before the code"
         print(f"{name:<22}{x:>16,}{y:>16,}{ratio:>9.3f}{mark}")
     if not a.calls:
+        # The costs branch above always produced both totals; state it for the
+        # type checker, which cannot correlate the two `a.calls` tests.
+        assert at is not None and bt is not None
         print("-" * 63)
-        print(f"{'TOTAL':<22}{at:>16,}{bt:>16,}{at/bt:>9.3f}")
-        print(f"\n({label} summed across all origin files; see this file's docstring "
-              "for why one line per side is a lie.)")
-        print("NOTE: TOTAL is whole-process and includes STARTUP, which is ~37% of a "
-              "shallow bench.\n      Subtract it before quoting a search ratio.")
+        print(f"{'TOTAL':<22}{at:>16,}{bt:>16,}{at / bt:>9.3f}")
+        print(
+            f"\n({label} summed across all origin files; see this file's docstring "
+            "for why one line per side is a lie.)"
+        )
+        print(
+            "NOTE: TOTAL is whole-process and includes STARTUP, which is ~37% of a "
+            "shallow bench.\n      Subtract it before quoting a search ratio."
+        )
 
 
 if __name__ == "__main__":

@@ -51,19 +51,30 @@ class Engine:
 
     def __init__(self, binary, cwd):
         self.p = subprocess.Popen(
-            [str(binary)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, text=True, bufsize=1, cwd=str(cwd))
+            [str(binary)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+            cwd=str(cwd),
+        )
+        # Popen types the pipes Optional; both were requested two lines up.
+        # Hold them as attributes of their own so every method sees them narrowed.
+        assert self.p.stdin is not None and self.p.stdout is not None
+        self.stdin = self.p.stdin
+        self.stdout = self.p.stdout
         self._send("uci")
         self._read_until("uciok")
 
     def _send(self, s):
-        self.p.stdin.write(s + "\n")
-        self.p.stdin.flush()
+        self.stdin.write(s + "\n")
+        self.stdin.flush()
 
     def _read_until(self, needle):
         lines = []
         while True:
-            line = self.p.stdout.readline()
+            line = self.stdout.readline()
             if not line:
                 return lines
             lines.append(line)
@@ -186,8 +197,10 @@ def main():
     if diverged:
         shallow = min((d for _, d, _, _ in diverged if d), default=None)
         if shallow is not None:
-            print(f"  shallowest divergence: depth {shallow} -- fix that one first,"
-                  f" it is the simplest reproducer")
+            print(
+                f"  shallowest divergence: depth {shallow} -- fix that one first,"
+                f" it is the simplest reproducer"
+            )
         return 1
     return 0
 
