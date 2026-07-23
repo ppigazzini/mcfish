@@ -38,9 +38,10 @@
 #endif
 
 // Pull in the x86 intrinsic vocabulary once, so the nnz movemask can reach the native
-// mask-register path (vptestmd/kmov, vmovmskps) on the tiers that have it. The dot-product
-// block below includes it again under its own guard; the header guard makes that a no-op.
-#if MCFISH_SIMD_VECTOR && (defined(__AVX512F__) || defined(__AVX2__))
+// mask-register path (vptestmd/kmov, vmovmskps, or the SSE2 pack+pmovmskb) on the tiers
+// that have it. The dot-product block below includes it again under its own guard; the
+// header guard makes that a no-op.
+#if MCFISH_SIMD_VECTOR && (defined(__AVX512F__) || defined(__AVX2__) || defined(__SSE2__))
     #include <immintrin.h>
 #endif
 
@@ -251,6 +252,26 @@ static inline uint32_t nnue_v16u32_movemask(NnueV16u32 v) {
       (__m256i) __builtin_shufflevector(v, v, 8, 9, 10, 11, 12, 13, 14, 15),
       _mm256_setzero_si256()));
     return (~lo & 0xffu) | ((~hi & 0xffu) << 8);
+#elif MCFISH_SIMD_VECTOR && defined(__SSE2__)
+    // Native SSE path: compare each dword group to zero, then narrow the four -1/0
+    // lane masks 32->16->8 bits with the SIGNED saturating packs (which carry -1 and 0
+    // through exactly) and harvest the sixteen sign bits with one pmovmskb — upstream's
+    // NNZCursor::record2 shape (nnz_helper.h). The reduce-OR spelling below lowered to
+    // a ~14-op value-domain horizontal reduce plus per-group bit arithmetic; this is
+    // four compares, three packs and one movemask for the same 16 bits. Bit g ==
+    // (lane g != 0), identical to the other bodies.
+    typedef uint32_t NnueV4u32Chunk __attribute__((vector_size(16)));
+    const NnueV4u32Chunk c0 = __builtin_shufflevector(v, v, 0, 1, 2, 3);
+    const NnueV4u32Chunk c1 = __builtin_shufflevector(v, v, 4, 5, 6, 7);
+    const NnueV4u32Chunk c2 = __builtin_shufflevector(v, v, 8, 9, 10, 11);
+    const NnueV4u32Chunk c3 = __builtin_shufflevector(v, v, 12, 13, 14, 15);
+    const __m128i zero = _mm_setzero_si128();
+    const __m128i z01 =
+      _mm_packs_epi32(_mm_cmpeq_epi32((__m128i) c0, zero), _mm_cmpeq_epi32((__m128i) c1, zero));
+    const __m128i z23 =
+      _mm_packs_epi32(_mm_cmpeq_epi32((__m128i) c2, zero), _mm_cmpeq_epi32((__m128i) c3, zero));
+    const uint32_t zeros = (uint32_t) _mm_movemask_epi8(_mm_packs_epi16(z01, z23));
+    return ~zeros & 0xffffu;
 #elif MCFISH_SIMD_VECTOR && defined(__has_builtin) && __has_builtin(__builtin_reduce_or)
     const NnueV16u32 lane_bits = { 1u,   2u,   4u,    8u,    16u,   32u,   64u,    128u,
                                    256u, 512u, 1024u, 2048u, 4096u, 8192u, 16384u, 32768u };
