@@ -4,10 +4,15 @@
 
 #include <string.h>
 
-// Define the singleton tt.h declares; the initializer is the no-table state every
-// field-zero read expects. The probe path lives in tt.h so it inlines into the
-// node bodies; the allocation, clear and store paths stay here.
-TranspositionTable TT = { .cluster_count = 0, .table = nullptr, .generation8 = 0 };
+// Define the singleton tt.h declares. The probe path lives in tt.h so it inlines
+// into the node bodies; the allocation, clear and store paths stay here.
+//
+// Start on the one-cluster fallback below rather than a null table, so the
+// per-node paths — probe, prefetch, save — carry no null test. Upstream's probe
+// has none (tt.cpp:254): its table always exists. A caller that searches without
+// tt_resize runs against this cluster instead of missing every probe.
+TTCluster TTFallback[1];
+TranspositionTable TT = { .cluster_count = 1, .table = TTFallback, .generation8 = 0 };
 
 // Subtract from a stored depth, saturating at 0 — upstream's `std::max(int(depth8)
 // - n, 0)`, commented "guard against racy underflows, default to unoccupied"
@@ -42,9 +47,11 @@ bool tt_resize(size_t mb) {
 }
 
 void tt_free(void) {
-    page_free(TT.table);
-    TT.table = nullptr;
-    TT.cluster_count = 0;
+    if (TT.table != TTFallback)
+        page_free(TT.table);
+    memset(TTFallback, 0, sizeof TTFallback);
+    TT.table = TTFallback;
+    TT.cluster_count = 1;
     TT.generation8 = 0;
 }
 
@@ -67,8 +74,6 @@ static void clear_span(void *ctx) {
 
 void tt_clear(void) {
     TT.generation8 = 0;
-    if (!TT.table)
-        return;
 
     const size_t threads =
       TTClearPool.thread_count != nullptr ? TTClearPool.thread_count(TTClearPool.ctx) : 1;
@@ -91,17 +96,12 @@ void tt_new_search(void) {
 uint8_t tt_generation(void) { return TT.generation8; }
 
 void tt_prefetch(Key key) {
-    if (!TT.table)
-        return;
     // Read-hint (rw=0), highest temporal locality (locality=3): the cluster is about
     // to be probed and its entries re-read on a hit.
     __builtin_prefetch(&TT.table[tt_mul_hi64(key, TT.cluster_count)], 0, 3);
 }
 
 void tt_save(TTEntry *writer, Key k, Value v, bool pv, Bound b, int32_t d, Move m, Value ev) {
-    if (!writer)
-        return;
-
     const uint16_t key16 = (uint16_t) k;
 
     // Preserve the old ttmove if we don't have a new one.
@@ -135,16 +135,11 @@ void tt_save(TTEntry *writer, Key k, Value v, bool pv, Bound b, int32_t d, Move 
 }
 
 void tt_penalize(TTEntry *writer, int32_t penalty) {
-    if (!writer)
-        return;
     // Guard against racy underflows, defaulting to "unoccupied" (tt.cpp:146).
     TT_STORE(writer->depth8, depth_saturating_sub(writer->depth8, penalty));
 }
 
 int32_t tt_hashfull(int32_t max_age) {
-    if (!TT.table)
-        return 0;
-
     // Sample the first thousand clusters rather than the whole table: the figure is
     // a UCI display value and a full scan is O(table) on every info line.
     int32_t cnt = 0;
