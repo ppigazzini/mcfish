@@ -76,7 +76,7 @@ def upstream_repo(sha: str) -> pathlib.Path:
         try:
             run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], repo)
             return repo
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except subprocess.CalledProcessError, FileNotFoundError:
             continue
     sys.exit(f"pin {sha} found neither in this repo's objects nor in {GOLDEN}")
 
@@ -195,8 +195,10 @@ def audit(mapped: dict[str, dict[str, int]]) -> int:
                 print(f"DRIFT: {path} blast radius grew: absorb {o}")
                 fails += 1
 
-    print(f"audit: {'FAIL' if fails else 'OK'} ({fails} finding(s), "
-          f"{len(decl)} declared rows, {len(mapped)} derived)")
+    print(
+        f"audit: {'FAIL' if fails else 'OK'} ({fails} finding(s), "
+        f"{len(decl)} declared rows, {len(mapped)} derived)"
+    )
     return 1 if fails else 0
 
 
@@ -214,8 +216,10 @@ def ratchet(uncovered: list[str], phantoms: dict[str, dict[str, int]]) -> int:
             print(f"  {p}")
         fails += 1
     else:
-        print(f"ratchet: uncovered {len(uncovered)} <= baseline {base}"
-              + (" -- lower the baseline" if len(uncovered) < base else ""))
+        print(
+            f"ratchet: uncovered {len(uncovered)} <= baseline {base}"
+            + (" -- lower the baseline" if len(uncovered) < base else "")
+        )
     return 1 if fails else 0
 
 

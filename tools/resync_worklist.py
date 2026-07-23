@@ -23,7 +23,6 @@ Usage:
 
 from __future__ import annotations
 
-import subprocess
 import sys
 
 from upstream_map import build_map, pin, run, upstream_repo
@@ -76,10 +75,10 @@ def main() -> None:
         ranked = sorted(owners, key=lambda o: -owners[o])
         return ", ".join(ranked)
 
-    for kind, title, note in (
-        ("M", "CHANGE -- re-port into the owners, hottest first", ""),
-        ("A", "ABSENCE -- new upstream surface, no owner yet", ""),
-        ("D", "DIVERGENCE -- owners hold retired code", ""),
+    for kind, title in (
+        ("M", "CHANGE -- re-port into the owners, hottest first"),
+        ("A", "ABSENCE -- new upstream surface, no owner yet"),
+        ("D", "DIVERGENCE -- owners hold retired code"),
     ):
         block = sorted((r for r in rows if r[1] == kind), key=lambda r: -r[2])
         if not block:
