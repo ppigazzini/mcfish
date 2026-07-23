@@ -34,7 +34,7 @@
 
 enum {
     // Match the transform's bitset width: one bit per 4-byte output chunk.
-    NNUE_AFFINE_NNZ_WORD_COUNT = NNUE_HALF_DIMENSIONS * 2 / 4 / 64,
+    NNUE_AFFINE_NNZ_WORD_COUNT = NNUE_HALF_DIMENSIONS / 4 / 64,
 };
 
 // Compute the 32-output affine layer. INPUT_LEN must be a multiple of 4. WEIGHTS holds

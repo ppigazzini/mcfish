@@ -138,6 +138,10 @@ enum { TRANSFORM_VEC_WIDTH = 64 };
 #endif
 static_assert((NNUE_HALF_DIMENSIONS / 2) % TRANSFORM_VEC_WIDTH == 0,
               "the transform half-output must be a multiple of TRANSFORM_VEC_WIDTH");
+// The transform stores each nnz word exactly once, flushing at the 64-bit boundary,
+// so each perspective's chunk-bit span must fill whole words.
+static_assert((NNUE_HALF_DIMENSIONS / 2 / 4) % 64 == 0,
+              "each transform half must cover whole 64-bit nnz words");
 
 // ---------------------------------------------------------------------------
 // Arena accessors
@@ -587,12 +591,24 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
     const TfI16 zero = tf_i16_splat(0);
     const TfI16 c255 = tf_i16_splat(255);
 
+#if !defined(__AVX512F__)
+    // The narrow tiers keep the zero-fill + |= form: measured at sse41, the
+    // store-once rewrite below costs MORE instructions there (callgrind, bench
+    // 16 1 11: +7.0M Ir), where the avx512 tier saves 16M (perf_counters d13).
     memset(nnz, 0, sizeof(NnueNnzBitset));
+#endif
 
     for (size_t p = 0; p < 2; p++) {
         const size_t pp = p == 0 ? p0 : p1;
         const size_t offset = half * p;
         const size_t base = pp * NNUE_HALF_DIMENSIONS;
+#if defined(__AVX512F__)
+        // Accumulate each bitset word in a register and store it once when its last
+        // chunk-mask lands, instead of a zero-fill plus a read-modify-write per step:
+        // the u8 output stores above may alias a u64 bitset word for all clang can
+        // prove, so the |= form reloads the word from memory on every iteration.
+        uint64_t nnz_word = 0;
+#endif
         for (size_t j = 0; j < half; j += TRANSFORM_VEC_WIDTH) {
             const TfI16 s0 = tf_i16_load(comb_acc + base + j);
             const TfI16 s1 = tf_i16_load(comb_acc + base + j + half);
@@ -612,7 +628,15 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
             // + reduce-OR) rather than a per-lane extract+compare+shift+OR each group.
             const uint64_t mask = tf_movemask(groups);
             const size_t bit = (offset + j) / 4;
+#if defined(__AVX512F__)
+            nnz_word |= mask << (bit % 64);
+            if (bit % 64 + TRANSFORM_VEC_WIDTH / 4 == 64) {
+                (*nnz)[bit / 64] = nnz_word;
+                nnz_word = 0;
+            }
+#else
             (*nnz)[bit / 64] |= mask << (bit % 64);
+#endif
         }
     }
     return psqt;
