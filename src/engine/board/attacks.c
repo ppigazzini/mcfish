@@ -4,6 +4,10 @@
 
 #include <stddef.h>
 
+#ifdef __BMI2__
+    #include <immintrin.h>
+#endif
+
 Bitboard PseudoAttacks[PIECE_TYPE_NB][SQUARE_NB];
 Bitboard PawnAttacksBB[COLOR_NB][SQUARE_NB];
 Bitboard BetweenBB[SQUARE_NB][SQUARE_NB];
@@ -80,8 +84,20 @@ static uint64_t prng_sparse_rand(Prng *p) {
 
 static const uint64_t MagicSeeds[8] = { 728, 10316, 55013, 32803, 12281, 15100, 16645, 255 };
 
+// Index a square's attack block. Mirror upstream's USE_PEXT split (upstream
+// `bitboard.h: Magic::index`): with BMI2 available, `pext` compresses the
+// masked occupancy into a dense index in one instruction, replacing the
+// and/multiply/shift of the magic path on every sliding-attack lookup. The two
+// paths yield different table layouts but each fills and probes with the same
+// function, so the attack sets — and the search — are identical. Under PEXT the
+// index is injective on mask subsets, so the magic search below accepts its
+// first candidate and `magic`/`shift` go unused.
 static unsigned magic_index(const Magic *m, Bitboard occupied) {
+#ifdef __BMI2__
+    return (unsigned) _pext_u64(occupied, m->mask);
+#else
     return (unsigned) (((occupied & m->mask) * m->magic) >> m->shift);
+#endif
 }
 
 // Search a collision-free magic per square and fill its attack block.
