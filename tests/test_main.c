@@ -19,6 +19,10 @@
 #include "../src/engine/board/repetition.h"
 #include "../src/engine/board/uci_move.h"
 #include "../src/engine/eval/evaluate.h"
+#include "../src/engine/eval/nnue/nnue_architecture.h"
+#include "../src/engine/eval/nnue/nnue_parse.h"
+#include "../src/engine/eval/nnue/nnue_weight_storage.h"
+#include "../src/engine/search/movepick.h"
 #include "../src/engine/search/search.h"
 #include "../src/engine/search/tt.h"
 #include "../src/engine/eval/nnue/simd.h"
@@ -606,6 +610,238 @@ static void test_nnue_dot4(void) {
     CHECK(127 * 128 * 2 < 32768, "pmaddubsw pair sum must not reach int16 saturation");
 }
 
+// --------------------------------------------- construction-path 0xAA poison
+//
+// The picker constructor and the net parse both leave memory deliberately
+// unwritten on writes-before-reads arguments: init_common leaves the five
+// cursor/span fields and the cont_hist pointers unset (movepick.c), and the
+// weight arena is handed out uninitialised because a successful parse writes
+// every byte a reader can reach (nnue_weight_storage.c). Those arguments are
+// correct today and invisible to every other gate the day they regress: a
+// fresh large allocation arrives kernel-zeroed, so a read of a byte nothing
+// wrote reads a plausible 0 instead of crashing. Both tests below run the
+// construction path over memory pre-filled with 0xAA, so a regressed implicit
+// zero-dependency fails here rather than in play. (The one allocator whose
+// zero-fill IS the contract is page_alloc -- the TT skip-clear and the
+// SearchWorker block state that dependence where they rely on it; do not
+// poison those.)
+
+// Fill the picker with PATTERN, construct it the way the search does, and
+// drain it. SKIP_AFTER >= 0 calls movepick_skip_quiets after that many moves,
+// exercising the skip-quiets stage walk. Return the move count, or CAP + 1
+// when the picker ran away (a poisoned cursor that survives construction can
+// present as an endless span, not just a wrong move).
+static size_t drain_picker(uint8_t pattern,
+                           const Position *pos,
+                           int depth,
+                           bool probcut,
+                           long skip_after,
+                           Move *out,
+                           size_t cap) {
+    Histories *const h = histories();
+    if (h == nullptr)
+        return cap + 1;
+
+    // Give (ss-1)..(ss-6) the sentinel continuation page, as the search does
+    // for a frame with no move behind it (search_set_cont_hist).
+    Stack frames[8] = { 0 };
+    SharedStat *const page = cont_hist_page(h, false, false, NO_PIECE, SQ_A1);
+    for (size_t i = 0; i < 8; ++i)
+        frames[i].continuation_history = page;
+    Stack *const ss = &frames[7];
+
+    MovePicker mp;
+    memset(&mp, pattern, sizeof mp);
+
+    if (probcut) {
+        movepick_init_probcut(&mp, pos, h, MOVE_NONE, 1);
+        mp.stage = MP_PROBCUT_TT + 1;  // no usable TT move
+    } else {
+        movepick_init(&mp, pos, h, pos->st->pawn_key, MOVE_NONE, depth, 2, ss);
+        const int base = checkers(pos) != 0 ? MP_EVASION_TT
+                       : depth > 0          ? MP_MAIN_TT
+                                            : MP_QSEARCH_TT;
+        mp.stage = base + 1;  // no usable TT move
+    }
+
+    size_t n = 0;
+    Move m;
+    while ((m = movepick_next(&mp)) != MOVE_NONE) {
+        if (n >= cap)
+            return cap + 1;
+        out[n++] = m;
+        if (skip_after >= 0 && (long) n == skip_after)
+            movepick_skip_quiets(&mp);
+    }
+    return n;
+}
+
+static void test_movepick_poison(void) {
+    banner("movepick 0xAA construction poison");
+
+    // One quiet middlegame, one in-check position (evasions), one tactical mess.
+    static const char *const fens[] = {
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
+        "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq -",
+        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - -",
+    };
+    // depth > 0 main stage, depth 0 qsearch stage, probcut, and a skip-quiets
+    // walk through the main stage.
+    static const struct {
+        int depth;
+        bool probcut;
+        long skip_after;
+    } modes[] = { { 8, false, -1 }, { 0, false, -1 }, { 0, true, -1 }, { 8, false, 3 } };
+
+    enum { CAP = MAX_MOVES + 4 };
+
+    for (size_t i = 0; i < sizeof fens / sizeof fens[0]; ++i) {
+        Position pos;
+        StateInfo st;
+        CHECK(pos_set(&pos, fens[i], false, &st), "setup %zu", i);
+
+        for (size_t mode = 0; mode < sizeof modes / sizeof modes[0]; ++mode) {
+            // Three fills: 0xAA and 0x55 are the two poisons (they differ in
+            // EVERY bit, so a field read before the constructor writes it
+            // diverges between them -- including a bool, which clang truncates
+            // to its low bit, making any single even pattern read as `false`),
+            // and 0x00 is the reference the removed zero-fill used to provide.
+            Move a[CAP], b[CAP], c[CAP];
+            const size_t na = drain_picker(0xAA, &pos, modes[mode].depth, modes[mode].probcut,
+                                           modes[mode].skip_after, a, CAP);
+            const size_t nb = drain_picker(0x55, &pos, modes[mode].depth, modes[mode].probcut,
+                                           modes[mode].skip_after, b, CAP);
+            const size_t nc = drain_picker(0x00, &pos, modes[mode].depth, modes[mode].probcut,
+                                           modes[mode].skip_after, c, CAP);
+
+            CHECK(na <= CAP && nb <= CAP, "poisoned picker ran away, fen %zu mode %zu", i, mode);
+            CHECK(na == nc && nb == nc,
+                  "poison changed the move count: %zu / %zu vs %zu, fen %zu mode %zu", na, nb, nc,
+                  i, mode);
+            if (na == nc && nb == nc && nc <= CAP)
+                for (size_t k = 0; k < nc; ++k)
+                    CHECK(a[k] == c[k] && b[k] == c[k],
+                          "poison changed move %zu: %04x / %04x vs %04x, fen %zu mode %zu", k, a[k],
+                          b[k], c[k], i, mode);
+
+            // The full main/evasion drain must return every pseudo-legal move
+            // exactly once -- the picker invariant the stages exist to keep.
+            if (!modes[mode].probcut && modes[mode].depth > 0 && modes[mode].skip_after < 0) {
+                ExtMove all[MAX_MOVES];
+                const size_t total =
+                  (size_t) (generate(&pos, all,
+                                     checkers(&pos) != 0 ? GEN_EVASIONS : GEN_NON_EVASIONS)
+                            - all);
+                CHECK(na == total, "picker drained %zu of %zu pseudo-legal moves, fen %zu", na,
+                      total, i);
+                for (size_t g = 0; g < total && na == total; ++g) {
+                    size_t seen = 0;
+                    for (size_t k = 0; k < na; ++k)
+                        seen += (size_t) (a[k] == all[g].move);
+                    CHECK(seen == 1, "move %04x returned %zu times, fen %zu", all[g].move, seen, i);
+                }
+            }
+        }
+    }
+}
+
+// FNV-1a over a weight block, so two parses into the same storage can be
+// compared byte-for-byte without keeping a 106 MB copy.
+static uint64_t fnv1a(const uint8_t *p, size_t n) {
+    uint64_t h = 0xCBF29CE484222325ULL;
+    for (size_t i = 0; i < n; ++i) {
+        h ^= p[i];
+        h *= 0x100000001B3ULL;
+    }
+    return h;
+}
+
+static void test_nnue_parse_poison(void) {
+    banner("nnue weight-arena 0xAA parse poison");
+
+    if (!eval_nnue_init()) {
+        CHECK(false, "eval_nnue_init failed");
+        return;
+    }
+    if (!eval_nnue_load("resources/", nullptr)) {
+        // The net is a runtime input; without it there is no parse to audit.
+        // Say so loudly -- a skipped check proves nothing.
+        printf("  SKIP: resources/%s not present; parse-poison audit not run\n",
+               eval_nnue_default_file_name());
+        return;
+    }
+
+    static const char *const fens[] = {
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -",
+        "4rrk1/pp1n3p/3q2pQ/2p1pb2/2PP4/2P3N1/P2B2PP/4RRK1 b - -",
+    };
+
+    Value before[sizeof fens / sizeof fens[0]];
+    for (size_t i = 0; i < sizeof fens / sizeof fens[0]; ++i) {
+        Position pos;
+        StateInfo st;
+        CHECK(pos_set(&pos, fens[i], false, &st), "setup %zu", i);
+        before[i] = evaluate(&pos);
+    }
+
+    // Checksum every block the first parse produced: the FT arena plus the 48
+    // per-(bucket, layer, part) affine blocks.
+    uint64_t sum_ft = fnv1a(nnue_ft_ptr(), NNUE_FT_TOTAL_BYTES);
+    uint64_t sum_layer[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK][2];
+    for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket)
+        for (size_t idx = 0; idx < NNUE_LAYERS_PER_STACK; ++idx) {
+            sum_layer[bucket][idx][0] =
+              fnv1a(nnue_layer_ptr(bucket, idx, NNUE_LAYER_WEIGHTS), nnue_layer_weights_bytes(idx));
+            sum_layer[bucket][idx][1] =
+              fnv1a(nnue_layer_ptr(bucket, idx, NNUE_LAYER_BIASES), nnue_layer_biases_bytes(idx));
+        }
+
+    // Poison the whole arena, then force a re-parse over it. The storage
+    // getters return the existing blocks, so the second parse writes into the
+    // poisoned memory; any byte the parse skips but a reader reaches now holds
+    // 0xAA instead of whatever the first allocation happened to contain.
+    memset(nnue_ft_storage(NNUE_FT_TOTAL_BYTES), 0xAA, NNUE_FT_TOTAL_BYTES);
+    for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket)
+        for (size_t idx = 0; idx < NNUE_LAYERS_PER_STACK; ++idx) {
+            memset(
+              nnue_layer_storage(bucket, idx, NNUE_LAYER_WEIGHTS, nnue_layer_weights_bytes(idx)),
+              0xAA, nnue_layer_weights_bytes(idx));
+            memset(nnue_layer_storage(bucket, idx, NNUE_LAYER_BIASES, nnue_layer_biases_bytes(idx)),
+                   0xAA, nnue_layer_biases_bytes(idx));
+        }
+
+    // Clear the loaded-net identity so network_load parses again instead of
+    // taking its wanted-net-is-resident early-out.
+    nnue_set_loaded_state("", 0, "", 0);
+    CHECK(eval_nnue_load("resources/", nullptr), "re-parse over the poisoned arena");
+
+    // The parse is deterministic, so every block must come back byte-identical:
+    // a byte the parse failed to write survives as 0xAA and breaks its checksum.
+    CHECK(fnv1a(nnue_ft_ptr(), NNUE_FT_TOTAL_BYTES) == sum_ft,
+          "FT arena differs after the poisoned re-parse");
+    for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket)
+        for (size_t idx = 0; idx < NNUE_LAYERS_PER_STACK; ++idx) {
+            CHECK(
+              fnv1a(nnue_layer_ptr(bucket, idx, NNUE_LAYER_WEIGHTS), nnue_layer_weights_bytes(idx))
+                == sum_layer[bucket][idx][0],
+              "fc_%zu weights bucket %zu differ after the poisoned re-parse", idx, bucket);
+            CHECK(
+              fnv1a(nnue_layer_ptr(bucket, idx, NNUE_LAYER_BIASES), nnue_layer_biases_bytes(idx))
+                == sum_layer[bucket][idx][1],
+              "fc_%zu biases bucket %zu differ after the poisoned re-parse", idx, bucket);
+        }
+
+    // And the evaluation itself must not move.
+    for (size_t i = 0; i < sizeof fens / sizeof fens[0]; ++i) {
+        Position pos;
+        StateInfo st;
+        CHECK(pos_set(&pos, fens[i], false, &st), "re-setup %zu", i);
+        CHECK(evaluate(&pos) == before[i], "eval moved after the poisoned re-parse, fen %zu", i);
+    }
+}
+
 // ------------------------------------------------------------ numa topology
 
 // Parse S and report the resulting node/CPU shape. Every case below is stated as what
@@ -788,6 +1024,8 @@ int main(void) {
     test_search();
     test_draw_detection();
     test_nnue_dot4();
+    test_movepick_poison();
+    test_nnue_parse_poison();
     test_numa_from_string();
     test_numa_config_shape();
     test_thread_pool();
