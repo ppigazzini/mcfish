@@ -40,6 +40,7 @@ static const char *on_clear_hash(const UciOption *o) {
     (void) o;
     tt_clear();
     search_clear();
+    syzygy_option_reinit();
     return nullptr;
 }
 

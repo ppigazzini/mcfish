@@ -17,6 +17,13 @@
 // limit 0, no prober), which never probe.
 void syzygy_option_install(void);
 
+// Re-scan the configured path, freeing and re-mapping the table files, and print
+// the load report -- what upstream's Engine::search_clear runs after clearing the
+// threads (engine.cpp:170, tbprobe.cpp:1558): the report fires on every init with
+// a usable path, so `ucinewgame` and `Clear Hash` print it exactly as `setoption`
+// does. Silent when no path is configured, matching upstream's early return.
+void syzygy_option_reinit(void);
+
 // Apply `setoption name NAME value VALUE`. Return true when NAME is one of the
 // four Syzygy options, so the caller stops looking. A VALUE outside a spin's
 // range leaves the option unchanged, as upstream's `Option::operator=`

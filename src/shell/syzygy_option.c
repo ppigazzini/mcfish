@@ -56,6 +56,8 @@ static void set_spin(int *slot, const char *value, long min, long max) {
     *slot = (int) v;
 }
 
+void syzygy_option_reinit(void) { load_path(); }
+
 bool syzygy_option_set(const char *name, const char *value) {
     // A `setoption` line with no ` value ` field parses as the empty value, which
     // is what upstream's token reader also yields.
