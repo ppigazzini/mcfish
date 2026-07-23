@@ -23,6 +23,16 @@ static void mp_set_probcut_stage(MovePicker *mp, const Position *pos, Move tt_mo
     mp->stage = MP_PROBCUT_TT + (int) (!usable);
 }
 
+// Force a check of time on the next occasion after a TB probe (upstream
+// search.cpp:917); calls_cnt is null on non-main threads, mirroring upstream's
+// is_mainthread() guard. Kept out of line: the TB block never runs on a default
+// build, but an inline store to the counter here perturbs the node's register
+// allocation by a measured +57M instructions per bench.
+__attribute__((noinline)) static void tb_force_time_check(SearchCtx *ctx) {
+    if (ctx->time_state.calls_cnt)
+        *ctx->time_state.calls_cnt = 0;
+}
+
 // Clone the node body per NodeType, the way upstream instantiates
 // search<NonPV>/search<PV>/search<Root>: NT is a literal in every clone, so each
 // pv_node / root_node test below folds at compile time instead of running at
@@ -211,6 +221,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             if (pieces_count <= cardinality && (pieces_count < cardinality || depth >= probe_depth)
                 && pos->st->rule50 == 0 && pos->st->castling_rights == 0) {
                 const TbProbeResult res = TbProbeWdlPos(pos);
+                tb_force_time_check(ctx);
                 if (res.available != 0) {
                     ctx_add_tb_hits(ctx, 1);
                     const int draw_score = ctx->tb_config.use_rule50 ? 1 : 0;
