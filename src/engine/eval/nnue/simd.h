@@ -78,14 +78,30 @@
     #define NNUE_SIMD_TYPE(Type, Elem, Width) \
         typedef Elem Type __attribute__((vector_size((Width) * sizeof(Elem))))
 
+    // Load/store through a typedef that CAPS the vector's natural alignment at the
+    // arena's 64-byte guarantee (a vector_size type's natural alignment is its full
+    // size — 128+ bytes here — which no arena offset provides). The _a forms exist
+    // because a legacy-SSE instruction folds a memory operand only when the compiler
+    // can prove 16-byte alignment: the memcpy load in _load lowers to movdqu, which
+    // never folds, costing a separate load per psubw/paddw in the row kernels (the
+    // same mechanism the SSSE3 nnue_dot_step fixed). Callers pass pointers at
+    // NNUE_ALIGN-multiple offsets off 64-byte-aligned storage — rows narrower than
+    // 64 bytes (the psqt's 32) claim only their own size.
+    #define NNUE_SIMD_ALIGN_CAP(Type) (sizeof(Type) < 64 ? sizeof(Type) : 64)
+
     // clang-format off
 #  define NNUE_SIMD_FAMILY(Pfx, Type, Elem, Width)                                          \
+      typedef Type Pfx##_aligned_t __attribute__((aligned(NNUE_SIMD_ALIGN_CAP(Type))));     \
       static inline Type Pfx##_load(const Elem *p) {                                        \
           Type v;                                                                           \
           __builtin_memcpy(&v, p, sizeof v);                                                \
           return v;                                                                         \
       }                                                                                     \
       static inline void Pfx##_store(Elem *p, Type v) { __builtin_memcpy(p, &v, sizeof v); } \
+      static inline Type Pfx##_load_a(const Elem *p) {                                      \
+          return *(const Pfx##_aligned_t *) p;                                              \
+      }                                                                                     \
+      static inline void Pfx##_store_a(Elem *p, Type v) { *(Pfx##_aligned_t *) p = v; }     \
       static inline Type Pfx##_splat(Elem x) {                                              \
           Type z = { 0 };                                                                   \
           return z + x;                                                                     \
@@ -126,6 +142,8 @@
           return v;                                                                      \
       }                                                                                  \
       static inline void Pfx##_store(Elem *p, Type v) { __builtin_memcpy(p, &v, sizeof v); } \
+      static inline Type Pfx##_load_a(const Elem *p) { return Pfx##_load(p); }           \
+      static inline void Pfx##_store_a(Elem *p, Type v) { Pfx##_store(p, v); }           \
       static inline Type Pfx##_splat(Elem x) {                                           \
           Type r;                                                                        \
           for (size_t i = 0; i < (Width); i++)                                           \
