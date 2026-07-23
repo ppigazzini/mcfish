@@ -84,6 +84,39 @@ There is **no Makefile and no build system**. A new `.c` file must be added to
 `parity` names any gate it skipped for a missing tool. A skipped gate proves
 nothing — never report it as a pass.
 
+## Performance work
+
+The playbook is `__DEV/PERFORMANCE.md` (local, gitignored — created by the perf
+campaigns; if absent, the campaign ledger lives in the perf commits' bodies).
+**Read its refuted lists before proposing any optimisation** — every entry carries
+the measured number that killed it, and re-deriving one costs a session. A perf
+commit that does not add its row to the playbook is incomplete. Two rules that
+outrank intuition here:
+
+- The **instruction axis** (`tools/perf_counters.sh`, 4-round paired) is
+  deterministic and load-immune; cycles/IPC need an idle box. But it is **blind to
+  `rep stosb` memsets** (one retired instruction regardless of size) and to
+  software prefetch — gate that work on callgrind Ir or idle-box cycles.
+- The specialized node bodies are **register-allocation sensitive**: small source
+  moves swing ±20–90M instructions, and tt.c micro-edits flip LTO inlining at ±27M.
+  Measure every edit whole-binary; never do instruction arithmetic.
+
+## Fleets and subagents
+
+Multi-agent perf fleets are a standing pattern. Each rule below was paid for here:
+
+- **Never `git stash`** — the stash is repo-wide across worktrees; pop only a stash
+  you created, by index, immediately.
+- **`./build.sh build` explicitly before every measurement** — `signature` does not
+  always rebuild, and a stale binary has produced false conclusions twice.
+- **Verify profile-file provenance** — concurrent agents sharing a scratchpad have
+  clobbered each other's callgrind outputs; check the `cmd:` header names your
+  binary before trusting any profile.
+- **Worktree agents deliver patches, never commits** — the integrator re-measures
+  on clean HEAD and commits with the evidence.
+- A worktree starts where its branch last was, not at your HEAD — reset it to the
+  intended base and re-verify with `git log` before building a baseline.
+
 ## Traps that cost real time
 
 | trap | where |
@@ -93,6 +126,8 @@ nothing — never report it as a pass.
 | "Improving" on upstream. A cleaner formulation that moves a rounding boundary moves the node count. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
 | Integer semantics differ across C++/C at the edges, and upstream relies on wrapping in places. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
 | Comments are **imperative mood**; never pin a number a gate computes. | [docs/README.md](docs/README.md) |
+| `perf-budget` measures the EXISTING `build/mcfish` — rebuild at the target `MCFISH_ARCH` first, or an sse41 binary reads as a fake 2x regression against the native budget. | [docs/09-tooling-ci.md](docs/09-tooling-ci.md) |
+| `tools/perf_callgrind.sh` prepends `bench` itself — pass only the bench ARGS, or it profiles a startup-only error run that looks plausible. | [docs/09-tooling-ci.md](docs/09-tooling-ci.md) |
 
 ## Commits
 

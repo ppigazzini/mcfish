@@ -171,6 +171,19 @@ uses all four. What is left after removing them is a set of recurring mechanical
 translations. Each one below has a failure mode that shows up as a wrong node
 count rather than as a compile error.
 
+### A runtime flag where upstream has a template parameter costs real work
+
+Upstream instantiates `search<NodeType>`, `generate_all<Us, Type>` and
+`update_piece_threats<ComputeRay>`; the naive C port carries the same choice as a
+runtime argument through one shared body. The tell is mechanical: if the function
+survives as a symbol in a profile, the constant never reached its branches. The
+paying translation is an `always_inline` implementation taking the flag as a
+parameter, cloned by thin per-literal entry functions that LTO folds — measured
+three times, largest wins of their campaigns. The mirror rule also held every
+time it was tested: once the body IS the specialized clone, leave it monolithic.
+Outlining any in-body block — even one that never executes — regresses, because
+the helper un-folds the constants and perturbs register allocation.
+
 ### Every width or signedness change is written out
 
 C converts integers silently, which is exactly how an unintended narrowing
