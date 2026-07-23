@@ -30,7 +30,7 @@ SearchWorker *worker_create(const WorkerCtorInputs *in) {
         search_manager_clear(w->manager);
     }
 
-    w->hist.shared = in->shared_history;
+    histories_bind_shared(&w->hist, in->shared_history);
     w->threads = in->threads;
     w->thread_idx = in->thread_idx;
     w->numa_thread_idx = in->numa_thread_idx;
