@@ -107,7 +107,12 @@ void search_time_state_init(SearchCtx *ctx,
         .tm_use_nodes_time = tm->use_nodes_time,
         .use_time_management = ctx->limits.time[WHITE] != 0 || ctx->limits.time[BLACK] != 0,
     };
-    *calls_cnt = 512;
+    // Leave *calls_cnt alone: upstream's callsCnt persists ACROSS `go` commands
+    // (search.cpp:2067 decrements it, ThreadPool::clear resets it to zero on
+    // ucinewgame -- thread.cpp:268 -- and nothing touches it per search).
+    // search_manager_clear is the ucinewgame reset; a per-go reseed here makes
+    // the first time check fire at a different node than upstream's and shifts
+    // every `go nodes N` overshoot.
 }
 
 double search_skill_level(void) {

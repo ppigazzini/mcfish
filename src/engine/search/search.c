@@ -264,7 +264,8 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
 
     atomic_bool_store(&sm->ponder, limits->ponder);
     sm->stop_on_ponderhit = false;
-    sm->calls_cnt = 0;
+    // Do not touch sm->calls_cnt: it carries across `go` commands as upstream's
+    // callsCnt does, reset only by search_manager_clear (thread.cpp:268).
 
     if (count == 0) {
         result.score = board_has_checkers(pos) ? mated_in(0) : VALUE_DRAW;
