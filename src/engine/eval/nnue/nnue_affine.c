@@ -111,6 +111,12 @@ void nnue_affine_32(bool sparse,
         // 16-lane native tier, where the wider per-word state spills — so the pragma
         // is tier-guarded, not unconditional.
 #if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+    // EXPECTED WARNING at avx2: the per-TU unroll pass reports -Wpass-failed here
+    // because the trip count (the NNZ word total, 4) only becomes constant once LTO
+    // folds it -- the LTO pass then succeeds and emits the four fixed-displacement
+    // word loops the win was measured on. unroll_count(4) silences the warning but
+    // loses +33M at avx2, and a diagnostic pragma cannot reach a backend-pass
+    // report, so the warning stays and this comment is its record.
     #pragma clang loop unroll(full)
 #endif
         for (size_t k = 0; k * 64 < groups; k++) {

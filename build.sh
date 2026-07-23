@@ -101,17 +101,24 @@ CFLAGS_COMMON=(
 # that claim instead of trusting it.
 MCFISH_ARCH=${MCFISH_ARCH:-sse41}
 case "$MCFISH_ARCH" in
-  sse41)  CFLAGS_ARCH=(-msse -msse2 -msse3 -mssse3 -msse4.1 -mpopcnt) ;;
-  avx2)   CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt) ;;
-  native) CFLAGS_ARCH=(-march=native) ;;
-  *)      red "unknown MCFISH_ARCH: $MCFISH_ARCH (want sse41, avx2 or native)"; exit 2 ;;
+  sse41)   CFLAGS_ARCH=(-msse -msse2 -msse3 -mssse3 -msse4.1 -mpopcnt) ;;
+  avx2)    CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt) ;;
+  # Mirror upstream's x86-64-vnni512 tier so the two engines can be compared at the
+  # SAME named ISA: everything avx2 has, plus the avx512 foundation and VNNI. This is
+  # one tier BELOW a full icl host (`native` adds vbmi2/bitalg/ifma and friends there).
+  vnni512) CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
+                        -mavx512vl -mavx512vnni) ;;
+  native)  CFLAGS_ARCH=(-march=native) ;;
+  *)       red "unknown MCFISH_ARCH: $MCFISH_ARCH (want sse41, avx2, vnni512 or native)"; exit 2 ;;
 esac
 
 # Resolve what `-march=native` means on THIS host, so recorded standings can name
 # the concrete tier ("vnni512") instead of the mutable label "native" -- a number
 # filed under "native" stops meaning anything the day the hardware changes.
 native_tier_label() {
-  if grep -qw avx512_vnni /proc/cpuinfo 2>/dev/null; then echo "x86-64-vnni512-class"
+  if grep -qw avx512_vbmi2 /proc/cpuinfo 2>/dev/null \
+     && grep -qw avx512_bitalg /proc/cpuinfo 2>/dev/null; then echo "x86-64-avx512icl-class"
+  elif grep -qw avx512_vnni /proc/cpuinfo 2>/dev/null; then echo "x86-64-vnni512-class"
   elif grep -qw avx512f /proc/cpuinfo 2>/dev/null;     then echo "x86-64-avx512-class"
   elif grep -qw avx2 /proc/cpuinfo 2>/dev/null;        then echo "x86-64-avx2-class"
   else echo "x86-64-sse-class"; fi
@@ -681,6 +688,7 @@ do_arch_determinism() {
   local expected tiers=(sse41)
   expected=$(grep -v '^#' tools/signature.golden | tr -d '[:space:]')
   grep -qw avx2 /proc/cpuinfo && tiers+=(avx2)
+  grep -qw avx512_vnni /proc/cpuinfo && tiers+=(vnni512)
   tiers+=(native)
 
   info "arch-determinism: ${tiers[*]} must all bench $expected"
