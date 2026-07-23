@@ -160,8 +160,9 @@ static void init_common(MovePicker *mp, const Position *pos, Histories *h, Move 
     mp->pos = pos;
     mp->hist = h;
     mp->pawn_key = 0;
-    for (size_t i = 0; i < 6; ++i)
-        mp->cont_hist[i] = nullptr;
+    mp->ss = nullptr;
+    // Leave cont_hist unset: QUIET_INIT and EVASION_INIT fill every slot their
+    // scoring reads, and no other stage reads one.
     mp->ply = 0;
     mp->tt_move = tt_move;
     mp->threshold = 0;
@@ -181,11 +182,10 @@ void movepick_init(MovePicker *mp,
                    Move tt_move,
                    int depth,
                    int ply,
-                   const SharedStat *const cont_hist[6]) {
+                   const Stack *ss) {
     init_common(mp, pos, h, tt_move);
     mp->pawn_key = pawn_key;
-    for (size_t i = 0; i < 6; ++i)
-        mp->cont_hist[i] = cont_hist[i];
+    mp->ss = ss;
     mp->ply = ply;
     mp->depth = depth;
 
@@ -298,6 +298,11 @@ Move movepick_next(MovePicker *mp) {
 
         case MP_QUIET_INIT : {
             if (!mp->skip_quiets) {
+                // Gather the six continuation pages only now that quiet scoring
+                // will read them; a picker cut off before this stage never pays.
+                for (size_t k = 0; k < 6; ++k)
+                    mp->cont_hist[k] = (mp->ss - 1 - (ptrdiff_t) k)->continuation_history;
+
                 const size_t count = score_list(mp, KIND_QUIETS, mp->moves + mp->cur);
 
                 mp->end_cur = mp->cur + count;
@@ -339,6 +344,8 @@ Move movepick_next(MovePicker *mp) {
             return MOVE_NONE;
 
         case MP_EVASION_INIT : {
+            // Evasion scoring reads slot 0 alone.
+            mp->cont_hist[0] = (mp->ss - 1)->continuation_history;
             mp->cur = 0;
 
             const size_t count = score_list(mp, KIND_EVASIONS, mp->moves + mp->cur);
