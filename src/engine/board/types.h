@@ -215,6 +215,18 @@ static inline Value piece_value(PieceType pt) {
     return v[pt];
 }
 
+// Value of a raw Piece, indexed without the type mask — upstream's
+// PieceValue[PIECE_NB] table (types.h), which see_ge indexes straight off
+// piece_on(). The colour bit selects a mirrored half, so the `& 7` a
+// PieceType lookup would need never happens on that hot path.
+static inline Value piece_value_of(Piece pc) {
+    static const Value v[PIECE_NB] = {
+        0, PAWN_VALUE, KNIGHT_VALUE, BISHOP_VALUE, ROOK_VALUE, QUEEN_VALUE, 0, 0,
+        0, PAWN_VALUE, KNIGHT_VALUE, BISHOP_VALUE, ROOK_VALUE, QUEEN_VALUE, 0, 0
+    };
+    return v[pc];
+}
+
 static inline Value mate_in(int ply) { return (Value) (VALUE_MATE - ply); }
 static inline Value mated_in(int ply) { return (Value) (ply - VALUE_MATE); }
 
