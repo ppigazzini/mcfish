@@ -85,20 +85,20 @@ nothing — never report it as a pass.
 
 ## Performance work
 
-The playbook is `__DEV/PERFORMANCE.md` (local, gitignored — created by the perf
-campaigns; if absent, the campaign ledger lives in the perf commits' bodies).
-**Read its refuted lists before proposing any optimisation** — every entry carries
-the measured number that killed it, and re-deriving one costs a session. A perf
-commit that does not add its row to the playbook is incomplete. Two rules that
-outrank intuition here:
+Read [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) (porting patterns,
+measurement discipline) and [docs/09-tooling-ci.md](docs/09-tooling-ci.md)
+(measurement tooling and its blind spots) before proposing any optimisation —
+they carry every rule this tree has paid to learn, and each perf commit carries
+its measured evidence in its body: **the commit log is the ledger; search it
+before re-deriving an idea.** Two rules that outrank intuition here:
 
-- The **instruction axis** (`tools/perf_counters.sh`, 4-round paired) is
-  deterministic and load-immune; cycles/IPC need an idle box. But it is **blind to
-  `rep stosb` memsets** (one retired instruction regardless of size) and to
-  software prefetch — gate that work on callgrind Ir or idle-box cycles.
-- The specialized node bodies are **register-allocation sensitive**: small source
-  moves swing ±20–90M instructions, and tt.c micro-edits flip LTO inlining at ±27M.
-  Measure every edit whole-binary; never do instruction arithmetic.
+- Measure on the **instruction axis** (`tools/perf_counters.sh`, paired rounds):
+  deterministic and load-immune. It is **blind to `rep stosb` memsets** (one
+  retired instruction regardless of size) and to software prefetch — take those
+  to callgrind Ir and idle-box cycles.
+- Measure every edit **whole-binary**. The specialized node bodies swing under
+  register-allocation changes and tt.c micro-edits flip LTO inlining; instruction
+  arithmetic over a diff is a guess, never a measurement.
 
 ## Fleets and subagents
 
@@ -119,9 +119,9 @@ or in zfish's fleet campaigns:
   sharing a scratchpad have clobbered each other's callgrind outputs; check the
   `cmd:` header names your binary and the run carries its `Nodes searched` line
   before trusting any profile.
-- **Worktree agents deliver patches, never commits** — and they cannot usefully
-  write `__DEV/` (gitignored, absent from worktrees): ledger rows travel in the
-  final report and the integrator lands them.
+- **Worktree agents deliver patches, never commits** — and gitignored local note
+  directories do not exist inside a worktree: findings travel in the final
+  report, and the integrator lands them.
 - **A subagent is not re-woken by its own background jobs** — wait on a
   measurement with a foreground `until` loop, or the agent stalls silently until
   someone nudges it.

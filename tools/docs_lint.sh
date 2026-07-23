@@ -23,9 +23,9 @@ green() { printf '\033[32m%s\033[0m\n' "$*"; }
 fails=0
 fail() { red "  $*"; fails=$((fails + 1)); }
 
-mapfile -t DOCS < <(find . -name '*.md' \
-  -not -path './build/*' -not -path './.git/*' -not -path './.claude/*' \
-  -not -path './resources/*' -not -path './__DEV/*' | sort)
+# Lint exactly the tracked pages: untracked scratch, build output and agent
+# worktrees are not documentation and carry no claims this gate owns.
+mapfile -t DOCS < <(git ls-files '*.md' | sort)
 
 # Strip what must not be scanned, in this order:
 #   1. fenced code blocks  -- shell transcripts and examples, not prose claims
