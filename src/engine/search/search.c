@@ -268,6 +268,17 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     // callsCnt does, reset only by search_manager_clear (thread.cpp:268).
 
     if (count == 0) {
+        // Run the time-manager init and the TT generation bump before bailing out:
+        // upstream orders tm.init and tt.new_search() BEFORE the rootMoves.empty()
+        // check (search.cpp:204-210), so a mate/stalemate root still ages the TT.
+        // Skipping the bump leaves every entry saved by later searches one
+        // generation younger than upstream's, and relative_age then disagrees on
+        // warm cross-position probes. The ctx fields search_tm_init reads are
+        // stale from the previous go until worker_root_setup runs, so point them
+        // at this go's data first; the next setup memsets ctx and rebuilds both.
+        ctx->limits = to_zone_limits(limits, start);
+        ctx->root_pos = pos;
+        search_tm_init(ctx, &sm->tm, &sm->original_time_adjust);
         result.score = board_has_checkers(pos) ? mated_in(0) : VALUE_DRAW;
         search_emit_no_moves(pos);
         return result;
