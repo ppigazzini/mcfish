@@ -216,6 +216,20 @@ it has both falsely confirmed and falsely refuted real changes. callgrind is
 deterministic and resolves 0.01%. Use `nps_ab.sh` for the headline, callgrind for
 anything smaller.
 
+Tool-shape traps, each paid for:
+
+- `perf_callgrind.sh` **prepends `bench` itself** — pass only the bench arguments.
+  With `bench` passed twice the engine errors out after startup and the profile
+  reads as a plausible startup-only run.
+- `perf-budget` measures the **existing** `build/mcfish`. Rebuild at the target
+  `MCFISH_ARCH` first, or the comparison crosses tiers and reads as a fake
+  regression.
+- `./build.sh signature` does not always rebuild — run `./build.sh build`
+  explicitly before any measurement, or a stale binary answers.
+- The hardware instruction counter is **blind to `rep stosb`** (an erms memset
+  retires as one instruction) and callgrind is blind to software prefetch —
+  memset and prefetch work need callgrind Ir and idle-box cycles respectively.
+
 Four rules that each cost a wrong number before they were written down:
 
 - **Same tree or nothing.** Both engines must report the identical node count;
