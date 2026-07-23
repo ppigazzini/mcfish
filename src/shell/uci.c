@@ -106,6 +106,10 @@ static void cmd_position(char *args) {
 }
 
 static void cmd_go(char *args) {
+    // execute() has already drained any prior search before dispatching here, so the
+    // clock stamped now measures from this `go`, and the prior search's output has
+    // already flushed ahead of this command's net banner.
+
     // Stamp the clock as early as possible, before parsing the go arguments, so the
     // time budget is measured from when the command arrived -- not from when the search
     // thread later enters search_go (upstream uci.cpp:190, "The search starts as early
@@ -216,15 +220,45 @@ static bool execute(char *line) {
         ++args;
     }
 
-    if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "stop") == 0) {
+    // The four commands a GUI sends DURING a search -- stop, quit, isready, ponderhit --
+    // answer without draining it: that is the whole point of running the search off this
+    // thread. Everything else waits for the search below.
+    if (strcmp(cmd, "stop") == 0) {
+        // Raise the stop flag and return to the loop at once. The search thread sees
+        // it, ends, and emits its `bestmove` on its own thread -- the UCI thread does
+        // not block waiting for that.
         engine_stop();
-        return strcmp(cmd, "quit") != 0;
+        return true;
     }
+    if (strcmp(cmd, "quit") == 0) {
+        // End a running search before leaving the loop, so teardown does not free the
+        // TT or net under a search thread still reading them. A bounded search finishes
+        // (its output stays deterministic); an unbounded one is stopped so quit -- and
+        // the EOF that substitutes it when a GUI vanishes -- cannot hang.
+        engine_end_search();
+        return false;
+    }
+    if (strcmp(cmd, "isready") == 0) {
+        // A ping: upstream answers it even mid-search (uci.cpp), so do not drain.
+        uci_output_printf("readyok\n");
+        return true;
+    }
+    if (strcmp(cmd, "ponderhit") == 0) {
+        engine_ponderhit();
+        return true;
+    }
+
+    // Every remaining command either mutates state the running search reads (position,
+    // setoption, ucinewgame) or prints output that must land after the search's lines
+    // (d, eval, uci, bench). End the search first so none of them races it or jumps
+    // ahead of its output: a bounded search is waited out (its output stays complete),
+    // an unbounded one is stopped so the command cannot hang behind an endless search.
+    // The during-search commands above have already returned.
+    engine_end_search();
+
     if (strcmp(cmd, "uci") == 0)
         cmd_uci();
-    else if (strcmp(cmd, "isready") == 0) {
-        uci_output_printf("readyok\n");
-    } else if (strcmp(cmd, "ucinewgame") == 0)
+    else if (strcmp(cmd, "ucinewgame") == 0)
         engine_new_game();
     else if (strcmp(cmd, "position") == 0)
         cmd_position(args);
@@ -260,7 +294,7 @@ static bool execute(char *line) {
 #else
         uci_output_printf("Compiled by an unknown compiler, C%ld\n", __STDC_VERSION__);
 #endif
-    } else if (*cmd && strcmp(cmd, "ponderhit") != 0) {
+    } else if (*cmd) {
         uci_output_printf("Unknown command: '%s'. Type help for more information.\n", cmd);
     }
 

@@ -223,8 +223,10 @@ a wider accumulator would move the ties and hand a different node to a thread.
 ThreadSanitizer and runs it. It is the gate this zone actually needs: the pool
 spawns real OS threads, hands them jobs, waits on a condition variable and joins
 them, and a missing broadcast or a `worker` slot written after the join is
-invisible to every other gate — the single-threaded search never reaches that
-code, and a race does not have to fire to be real. TSan instruments the
+invisible to every other gate — a data race does not have to fire to be real. Since
+`go` runs even a one-thread search on worker 0's OS thread (see
+[07-shell.md](07-shell.md)), every search crosses this dispatch/join, so
+`tsan-search` exercises it at `Threads 1` as well. TSan instruments the
 happens-before edges instead of hoping the schedule lands badly.
 
 It is kept **out of `parity`**: it needs its own build of the whole engine and

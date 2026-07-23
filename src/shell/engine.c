@@ -121,14 +121,32 @@ void engine_new_game(void) {
 // ---------------------------------------------------------------------------
 
 void engine_go(const SearchLimits *limits) {
-    // The search zone emits `bestmove` itself, through the installed sink, so the
-    // line is built once and in one place. Do not print a second one.
-    (void) search_go(&Pos, limits);
+    // Hand the search to worker 0's thread and return, so the UCI loop keeps reading
+    // stdin and a `stop`/`quit`/`ponderhit` during the search is seen. The search zone
+    // emits its own `bestmove` through the installed sink, off this thread.
+    search_go_start(&Pos, limits);
+}
+
+// Block until the running search, if any, has finished. The UCI `quit` path and every
+// teardown wait here first, so nothing frees the TT or net out from under a search
+// thread still reading them.
+void engine_wait(void) { search_wait(); }
+
+// End a running search for `quit`/EOF/teardown. Stop it only if it is unbounded
+// (infinite/ponder) -- otherwise wait it out, so a bounded `go depth N` typed right
+// before `quit` still completes and prints its full line. Always drain before
+// returning, so the caller may then free the TT and net.
+void engine_end_search(void) {
+    if (search_running_unbounded())
+        search_stop();
+    search_wait();
 }
 
 uint64_t engine_perft(int depth) { return perft(&Pos, depth, true); }
 
 void engine_stop(void) { search_stop(); }
+
+void engine_ponderhit(void) { search_ponderhit(); }
 
 void engine_current_fen(char *buf, size_t buf_len) {
     char fen[128];
@@ -179,4 +197,12 @@ void engine_init(const char *argv0) {
     engine_nnue_reload(engine_options_get_string("EvalFile"));
 }
 
-void engine_shutdown(void) { tt_free(); }
+void engine_shutdown(void) {
+    // End any in-flight search before freeing the TT it probes. The interactive `quit`
+    // path already ran engine_end_search on its way out (this is then a no-op); the
+    // one-shot argv path (`mcfish go depth 5`) reaches here with the search still
+    // running, and engine_end_search waits out a bounded one so it completes -- or
+    // stops an unbounded one so a `mcfish go infinite` still exits.
+    engine_end_search();
+    tt_free();
+}

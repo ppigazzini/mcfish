@@ -63,15 +63,29 @@ bool engine_play_move(const char *uci_move, const char **reason);
 // `ucinewgame`: clear the table and per-game state and reset to the start position.
 void engine_new_game(void);
 
-// Search the live position under LIMITS. The `bestmove` line is emitted by the
-// search through the installed sink, not returned here.
+// Search the live position under LIMITS and RETURN immediately; the search runs on
+// worker 0's thread and emits its own `bestmove` through the installed sink. The UCI
+// loop stays free to read stdin, which is what lets `stop`/`quit`/`ponderhit` be seen
+// during a search.
 void engine_go(const SearchLimits *limits);
+
+// Block until the running search, if any, has finished. Call before teardown so the
+// TT and net are not freed under a search thread still reading them.
+void engine_wait(void);
+
+// End a running search for `quit`/EOF/teardown: stop it only if it is unbounded
+// (infinite/ponder), otherwise wait it out, then drain. A bounded `go depth N` before
+// `quit` still completes; an infinite one cannot hang the exit.
+void engine_end_search(void);
 
 // Count the leaves of the legal move tree at DEPTH, printing the per-move split.
 uint64_t engine_perft(int depth);
 
 // Request that a running search stop at its next check.
 void engine_stop(void);
+
+// Handle `ponderhit`: let a `go ponder` search begin enforcing its time limits.
+void engine_ponderhit(void);
 
 // Announce the resident net (or the classical fallback) through the sink, as
 // upstream prints before every go/perft/eval.
