@@ -484,30 +484,31 @@ static void apply_combined(NnueAccumulatorStack *stack,
     const size_t thr_list_len = thr_diff->list.size;
     const int8_t *thr_weights = nnue_ft_threat_weights(ft);
 
-    // One walk over the dirty threats: decode, compute the feature index, preload its
-    // scattered weight row before the apply reads it (read hint, low locality), and route
-    // the index straight into removed/added -- upstream append_changed_indices'
-    // `insert = add ? added : removed`. An excluded pair indexes past
-    // NNUE_FULL_DIMENSIONS, which is the exclusion mechanism (see nnue_feature.h).
-    // Keep the index math scalar: under LTO clang auto-vectorizes this loop into
-    // vpgatherqd table lookups (IndexLut1/Offsets/IndexLut2), which cost far more on Zen4
-    // than the scalar loads upstream emits; the trip count is tiny so the vector form has
-    // nothing to recover.
+    // One walk over the dirty threats: orient the whole record with ONE xor against the
+    // per-walk mask (nnue_full_orient_mask broadcasts the orientation and swap onto the
+    // record's own lanes and folds the walk direction into bit 31), compute the feature
+    // index from the already-oriented fields, preload its scattered weight row before the
+    // apply reads it (read hint, low locality), and route by the xored record's sign
+    // alone -- upstream append_changed_indices' `insert = add ? added : removed`. An
+    // excluded pair indexes past NNUE_FULL_DIMENSIONS, which is the exclusion mechanism
+    // (see nnue_feature.h). Keep the index math scalar: under LTO clang auto-vectorizes
+    // this loop into vpgatherqd table lookups (IndexLut1/Offsets/IndexLut2), which cost
+    // far more on Zen4 than the scalar loads upstream emits; the trip count is tiny so
+    // the vector form has nothing to recover.
+    const uint32_t walk_mask = nnue_full_orient_mask(perspective, king_square, forward);
 #pragma clang loop vectorize(disable) interleave(disable)
     for (size_t list_index = 0; list_index < thr_list_len; list_index++) {
-        const uint32_t raw = thr_list[list_index].data;
-        const uint8_t attacker = (uint8_t) ((raw >> NNUE_DIRTY_THREAT_PC_SHIFT) & 0xf);
-        const uint8_t attacked = (uint8_t) ((raw >> NNUE_DIRTY_THREATENED_PC_SHIFT) & 0xf);
-        const uint8_t to_sq = (uint8_t) ((raw >> NNUE_DIRTY_THREATENED_SQ_SHIFT) & 0xff);
-        const uint8_t from_sq = (uint8_t) ((raw >> NNUE_DIRTY_THREAT_PC_SQ_SHIFT) & 0xff);
-        const uint32_t index =
-          nnue_full_make_index(perspective, attacker, from_sq, to_sq, attacked, king_square);
+        const uint32_t rec = thr_list[list_index].data ^ walk_mask;
+        const uint8_t attacker_o = (uint8_t) ((rec >> NNUE_DIRTY_THREAT_PC_SHIFT) & 0xf);
+        const uint8_t attacked_o = (uint8_t) ((rec >> NNUE_DIRTY_THREATENED_PC_SHIFT) & 0xf);
+        const uint8_t to_o = (uint8_t) ((rec >> NNUE_DIRTY_THREATENED_SQ_SHIFT) & 0xff);
+        const uint8_t from_o = (uint8_t) ((rec >> NNUE_DIRTY_THREAT_PC_SQ_SHIFT) & 0xff);
+        const uint32_t index = nnue_full_make_index_oriented(attacker_o, from_o, to_o, attacked_o);
         __builtin_prefetch(thr_weights + (size_t) index * NNUE_HALF_DIMENSIONS, 0, 1);
         if (index >= NNUE_FULL_DIMENSIONS) {
             continue;
         }
-        const bool is_add = (raw >> NNUE_DIRTY_THREAT_ADD_SHIFT) != 0;
-        if (is_add == forward) {
+        if ((int32_t) rec < 0) {
             thr_added[thr_added_len++] = index;
         } else {
             thr_removed[thr_removed_len++] = index;
