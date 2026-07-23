@@ -304,7 +304,9 @@ void history_update_correction(Histories *h,
                                const Position *pos,
                                Color us,
                                const CorrectionKeys *keys,
-                               const HistoryStack *hs,
+                               Move prev_move,
+                               int16_t *cont_corr2,
+                               int16_t *cont_corr4,
                                int bonus) {
     shared_stats_update(&corr_bundle(h, keys->pawn, us)->pawn, bonus, CORRECTION_HISTORY_LIMIT);
     shared_stats_update(&corr_bundle(h, keys->minor, us)->minor, bonus * 150 / 128,
@@ -314,11 +316,10 @@ void history_update_correction(Histories *h,
     shared_stats_update(&corr_bundle(h, keys->non_pawn[BLACK], us)->nonpawn_black,
                         bonus * 186 / 128, CORRECTION_HISTORY_LIMIT);
 
-    const Move m = hs->frames[0].current_move;
-    if (is_ok(m)) {
-        const Square to = move_to(m);
+    if (is_ok(prev_move)) {
+        const Square to = move_to(prev_move);
         const size_t idx = (size_t) piece_on(pos, to) * SQUARE_NB + (size_t) to;
-        stats_update(&hs->cont_corr[0][idx], bonus * 130 / 128, CORRECTION_HISTORY_LIMIT);
-        stats_update(&hs->cont_corr[1][idx], bonus * 70 / 128, CORRECTION_HISTORY_LIMIT);
+        stats_update(&cont_corr2[idx], bonus * 130 / 128, CORRECTION_HISTORY_LIMIT);
+        stats_update(&cont_corr4[idx], bonus * 70 / 128, CORRECTION_HISTORY_LIMIT);
     }
 }

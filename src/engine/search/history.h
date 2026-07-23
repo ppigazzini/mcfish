@@ -286,12 +286,17 @@ void history_update_all_stats(
   Histories *h, const Position *pos, Key pawn_key, const HistoryStack *hs, const HistoryStats *st);
 
 // Nudge the four key-indexed correction tables and the (ss-2)/(ss-4) continuation
-// corrections toward the search / static-eval delta.
+// corrections toward the search / static-eval delta. Take exactly the three stack
+// facts the update reads — the previous move and the two continuation-correction
+// pages — rather than a full HistoryStack, so the caller gathers nothing it
+// discards.
 void history_update_correction(Histories *h,
                                const Position *pos,
                                Color us,
                                const CorrectionKeys *keys,
-                               const HistoryStack *hs,
+                               Move prev_move,
+                               int16_t *cont_corr2,
+                               int16_t *cont_corr4,
                                int bonus);
 
 #endif  // MCFISH_HISTORY_H
