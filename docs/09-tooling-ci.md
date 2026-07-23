@@ -155,6 +155,19 @@ both cancel out and pass.
 It is kept **out** of `./build.sh parity`: it needs a network fetch and a full
 upstream build, which `parity` deliberately does not. Run it deliberately.
 
+Three fidelity probes see three different bug classes, and each has caught one
+the others cannot:
+
+- the **anchor** catches a divergence that fires on the bench positions;
+- **`upstream-nodes`** drives random-legal positions and catches one that never
+  fires on any fixed list;
+- a **node-limited suite run** (`bench <tt> 1 <N> default nodes` against the
+  oracle's total) catches *cross-position warm-state* bugs — both engines
+  bit-exact on every position in isolation while shared state (a TT generation
+  counter, a persisting time-check counter) drifts across the suite. The
+  bisection tool for this class is per-`go` checksums of each shared structure,
+  compared side by side until one drifts.
+
 ## The golden-diff harness
 
 `do_golden` runs each script in `tools/cases/` through the binary, merges stdout
