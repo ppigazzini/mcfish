@@ -17,19 +17,13 @@ bool pos_legal(const Position *pos, Move m) {
     // Compute the opponent colour and the king square inside the branch that consumes
     // each, as upstream Position::legal does: the dominant not-a-blocker exit needs
     // neither, and the hoisted loads do not sink past the early returns on their own.
-
-    if (move_type(m) == EN_PASSANT) {
-        // Two pieces leave the board at once, so no pin test covers this: rebuild
-        // the occupancy and ask the question directly.
-        const Color them = flip_color(us);
-        const Square ksq = king_square(pos, us);
-        const Square cap = sq_sub(to, us == WHITE ? NORTH : SOUTH);
-        const Bitboard occ = (pieces(pos) ^ square_bb(from) ^ square_bb(cap)) | square_bb(to);
-        return !(attacks_bb(ROOK, ksq, occ) & pieces_c(pos, them)
-                 & (pos->by_type[ROOK] | pos->by_type[QUEEN]))
-            && !(attacks_bb(BISHOP, ksq, occ) & pieces_c(pos, them)
-                 & (pos->by_type[BISHOP] | pos->by_type[QUEEN]));
-    }
+    //
+    // No EN_PASSANT case, as upstream Position::legal (position.cpp:660) has none:
+    // `ep_square` is only ever set when a legal capture exists (the no-discovery +
+    // not-a-blocker gating in `pos_do_move` and the per-capturer probe in the FEN
+    // parser), so the pin-ray test below already rejects exactly the illegal
+    // capturers. Testing the move type once also keeps the hot path to upstream's
+    // single castling dispatch.
 
     if (move_type(m) == CASTLING) {
         // `to` encodes the ROOK square (king-captures-rook), so derive the king's
