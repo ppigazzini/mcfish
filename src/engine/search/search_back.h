@@ -61,6 +61,10 @@ typedef struct {
     int prev_sq;  // SQ_NONE when the previous ply made no move
 } SearchNodeState;
 
-Value search_run_back(const SearchNodeState *nd);
+// Force the single call site (search_node's tail) to inline the body, so the
+// node-type constants search_node_impl folds — pv_node, root_node — reach the
+// move loop's branches the way upstream's search<NodeType> template parameters
+// do. The recursion into search_node stays a real call.
+__attribute__((always_inline)) Value search_run_back(const SearchNodeState *nd);
 
 #endif  // MCFISH_SEARCH_BACK_H
