@@ -32,8 +32,10 @@ enum {
     NNUE_MAX_STACK_SIZE = 247,
     NNUE_DIRTY_THREAT_CAPACITY = 96,
     NNUE_COLOR_COUNT = 2,
-    // Set one bit per 4-byte chunk of the transformed output.
-    NNUE_NNZ_WORD_COUNT = NNUE_HALF_DIMENSIONS * 2 / 4 / 64,
+    // Set one bit per 4-byte chunk of the transformed output. The output is
+    // NNUE_TRANSFORMED_BYTES long, so that is the whole bitset -- the affine
+    // consumer walks k * 64 < input_len / 4 and reads exactly these words.
+    NNUE_NNZ_WORD_COUNT = NNUE_HALF_DIMENSIONS / 4 / 64,
     NNUE_TRANSFORMED_BYTES = NNUE_HALF_DIMENSIONS,
 };
 
