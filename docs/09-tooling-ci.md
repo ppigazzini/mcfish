@@ -255,8 +255,12 @@ Four rules that each cost a wrong number before they were written down:
 - **Same compiler backend, for any cost ratio.** The bench-parity oracle is
   built with gcc, and node counts are compiler-independent so that is fine for
   `upstream-parity`. It is *not* fine for an instruction ratio: measuring against
-  it compares gcc with LLVM. Build a separate reference with `zig c++` (or clang)
-  for perf work.
+  it compares gcc with LLVM. Build a separate reference with clang for perf work,
+  and VERIFY the version stamp matches on both sides before quoting any ratio —
+  `readelf -p .comment <binary> | grep clang` must print the same version for
+  mcfish and the oracle. An oracle binary of unknown provenance is not a
+  baseline: one mislabeled build put a fake +9% tier regression into a standing
+  table before the named-per-ARCH fresh-build rule existed.
 - **Subtract startup.** On a shallow bench the net load, magic init and zero-fill
   are ~37% of the profile, and they are *cheaper* in mcfish than upstream — so
   the whole-process ratio reads 0.987x where the search-only ratio is 1.19x.
