@@ -43,4 +43,11 @@ bool pos_legal(const Position *pos, Move m);
 // Static: it resolves the exchange on `to` and nothing else.
 bool see_ge(const Position *pos, Move m, int threshold);
 
+// Test whether M — which MUST be pseudo-legal for POS — gives check. Reads the
+// check squares and blockers cached by set_check_info, so it carries the same
+// freshness requirement as `see_ge`. `pos_do_move` TRUSTS its gives_check
+// argument to equal this predicate; passing anything else corrupts the child's
+// checkers set. Golden: upstream `Position::gives_check` (position.cpp).
+bool pos_gives_check(const Position *pos, Move m);
+
 #endif  // MCFISH_LEGALITY_H

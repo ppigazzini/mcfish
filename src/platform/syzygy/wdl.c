@@ -6,6 +6,7 @@
 #include "tables.h"
 
 #include "../../engine/board/bitboard.h"
+#include "../../engine/board/legality.h"
 #include "../../engine/board/movegen.h"
 
 #include <string.h>
@@ -332,15 +333,10 @@ TbProbeValue search_wdl(Position *pos, bool check_zeroing) {
             continue;
         }
         ++move_count;
-        // The `false` is a placeholder, not a claim that M gives no check.
-        // pos_do_move ignores the parameter today — set_check_info recomputes the
-        // checkers from the board (position.c:148, called from do_move) — so every caller
-        // passes something inert here. Upstream's `search<CheckZeroingMoves>` uses
-        // the two-argument do_move, which computes `pos.gives_check(m)` itself. The
-        // day pos_do_move starts trusting this argument, this call and the one in
-        // probe.c must pass `search_gives_check(pos, m)` or the prober will read a
-        // wrong checkers set and mis-probe.
-        pos_do_move(pos, m, &st, false, &pos->scratch_dp, &pos->scratch_dts);
+        // pos_do_move trusts this argument for the child's checkers set, so pass
+        // the real predicate — upstream's `search<CheckZeroingMoves>` uses the
+        // two-argument do_move, which computes `pos.gives_check(m)` itself.
+        pos_do_move(pos, m, &st, pos_gives_check(pos, m), &pos->scratch_dp, &pos->scratch_dts);
         const TbProbeValue child = search_wdl(pos, false);
         pos_undo_move(pos, m);
         if (child.state == PROBE_FAIL) {

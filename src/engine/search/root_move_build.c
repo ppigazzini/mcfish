@@ -4,6 +4,7 @@
 #include "tb_source.h"
 
 #include "../board/board_props.h"
+#include "../board/legality.h"
 #include "../board/movegen.h"
 #include "../board/repetition.h"
 #include "../board/score.h"
@@ -128,7 +129,8 @@ static DtzRankResult rank_root_moves_dtz(Position *pos,
 
     for (size_t i = 0; i < count; ++i) {
         RankedRootMove *const rm = &ranked[i];
-        pos_do_move(pos, rm->raw_move, st, false, &pos->scratch_dp, &pos->scratch_dts);
+        pos_do_move(pos, rm->raw_move, st, pos_gives_check(pos, rm->raw_move), &pos->scratch_dp,
+                    &pos->scratch_dts);
 
         int32_t dtz = 0;
         bool probe_failed = false;
@@ -193,7 +195,8 @@ static bool rank_root_moves_wdl(
   Position *pos, StateInfo *st, bool rule50, RankedRootMove *ranked, size_t count) {
     for (size_t i = 0; i < count; ++i) {
         RankedRootMove *const rm = &ranked[i];
-        pos_do_move(pos, rm->raw_move, st, false, &pos->scratch_dp, &pos->scratch_dts);
+        pos_do_move(pos, rm->raw_move, st, pos_gives_check(pos, rm->raw_move), &pos->scratch_dp,
+                    &pos->scratch_dts);
 
         int32_t wdl = WDL_DRAW;
         bool probe_failed = false;

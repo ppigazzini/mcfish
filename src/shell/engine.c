@@ -6,6 +6,7 @@
 #include "engine.h"
 
 #include "../engine/board/board_props.h"
+#include "../engine/board/legality.h"
 #include "../engine/board/state_list.h"
 #include "../engine/board/uci_move.h"
 #include "../engine/eval/evaluate.h"
@@ -99,7 +100,7 @@ bool engine_play_move(const char *uci_move, const char **reason) {
             *reason = "Out of memory extending the state chain.";
         return false;
     }
-    pos_do_move(&Pos, m, st, false, &Pos.scratch_dp, &Pos.scratch_dts);
+    pos_do_move(&Pos, m, st, pos_gives_check(&Pos, m), &Pos.scratch_dp, &Pos.scratch_dts);
     return true;
 }
 

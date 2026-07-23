@@ -121,11 +121,11 @@ void pos_pretty(const Position *pos, char *buf, int buf_len);
 // accumulator's arena and nothing is copied. Callers with no accumulator pass
 // `&pos->scratch_dp` and `&pos->scratch_dts`.
 //
-// GIVES_CHECK is upstream's parameter (position.cpp:815), where it selects the new
-// checkers set. The search now computes and passes it (search_gives_check), but
-// mcfish's set_check_info still recomputes checkers from the board on every move, so
-// the argument is accepted and ignored -- the recompute yields the identical set. When
-// pos_do_move starts trusting the argument, the checkers assignment moves here.
+// GIVES_CHECK selects the new checkers set, exactly as upstream's parameter does
+// (position.cpp:815,1038): zero when false, one attackers scan when true. It is
+// TRUSTED, never re-derived — it must equal pos_gives_check(pos, m) on the
+// pre-move position, and a wrong value corrupts the child's checkers and every
+// evasion/movegen decision below it.
 void pos_do_move(
   Position *pos, Move m, StateInfo *new_st, bool gives_check, DirtyPiece *dp, DirtyThreats *dts);
 void pos_undo_move(Position *pos, Move m);

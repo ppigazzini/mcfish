@@ -150,9 +150,10 @@ static void set_check_info(Position *pos) {
     slider_blockers(pos, WHITE, &pos->st->blockers[WHITE], &pos->st->pinners[BLACK]);
     slider_blockers(pos, BLACK, &pos->st->blockers[BLACK], &pos->st->pinners[WHITE]);
 
-    const Square ksq = king_square(pos, pos->side_to_move);
-    pos->st->checkers =
-      pos_attackers_to_occ(pos, ksq, pieces(pos)) & pieces_c(pos, flip_color(pos->side_to_move));
+    // `st->checkers` is NOT set here. pos_do_move derives it from its gives_check
+    // argument — zero on the no-check majority path, one attackers scan otherwise —
+    // and pos_set computes it from the board once, exactly as upstream splits the
+    // work between Position::do_move (position.cpp:1038) and set_state (:493).
 
     // Cache the check squares for the enemy king once here, so movepick scoring and
     // search_gives_check read a bitboard per move instead of rebuilding the slider
@@ -470,6 +471,12 @@ bool pos_set_reason(
     si->non_pawn_material[WHITE] = compute_non_pawn_material(pos, WHITE);
     si->non_pawn_material[BLACK] = compute_non_pawn_material(pos, BLACK);
     si->key = compute_key(pos);
+
+    // Compute the checkers from the board here, the one place with no move to
+    // derive them from — upstream set_state (position.cpp:493). set_check_info no
+    // longer writes them.
+    si->checkers = pos_attackers_to_occ(pos, king_square(pos, pos->side_to_move), pieces(pos))
+                 & pieces_c(pos, flip_color(pos->side_to_move));
     set_check_info(pos);
 
     // Refuse a position where the side NOT to move is in check. It could only be
@@ -627,8 +634,6 @@ static void do_castling(Position *pos,
 
 void pos_do_move(
   Position *pos, Move m, StateInfo *new_st, bool gives_check, DirtyPiece *dp, DirtyThreats *dts) {
-    (void) gives_check;  // set_check_info recomputes checkers; see position.h
-
     const Color us = pos->side_to_move;
     const Color them = flip_color(us);
     const Square from = move_from(m);
@@ -801,6 +806,15 @@ void pos_do_move(
 
     new_st->captured_piece = captured;
     new_st->key = key;
+
+    // Derive the child's checkers from GIVES_CHECK rather than re-scanning the
+    // board: zero on the no-check majority path, one attackers scan otherwise
+    // (upstream position.cpp:1038). The argument is trusted — it must equal
+    // pos_gives_check(m) on the pre-move position, and every caller passes that.
+    new_st->checkers = gives_check ? pos_attackers_to_occ(pos, king_square(pos, them), pieces(pos))
+                                       & pieces_c(pos, us)
+                                   : 0;
+
     pos->side_to_move = them;
     set_check_info(pos);
 
@@ -919,6 +933,13 @@ void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThr
     // where null-move pruning fires most.
     new_st->plies_from_null = 0;
     new_st->captured_piece = NO_PIECE;
+
+    // Carry the parent's checkers, as upstream's whole-StateInfo memcpy does
+    // (position.cpp:1380): `checkers` sits in the recomputed tail, which the
+    // prefix copy above skips. A null move is only available out of check, and
+    // no legal position has the side NOT to move in check, so the carried zero
+    // is the new mover's checkers too.
+    new_st->checkers = new_st->previous->checkers;
 
     pos->side_to_move = flip_color(pos->side_to_move);
     set_check_info(pos);

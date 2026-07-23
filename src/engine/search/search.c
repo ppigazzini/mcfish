@@ -2,6 +2,7 @@
 
 #include "../../platform/clock.h"
 #include "../board/board_props.h"
+#include "../board/legality.h"
 #include "../board/movegen.h"
 #include "../board/uci_move.h"
 #include "../eval/evaluate.h"
@@ -388,7 +389,8 @@ uint64_t perft(Position *pos, int depth, bool root) {
 
         if (depth > 1) {
             StateInfo st;
-            pos_do_move(pos, list[i].move, &st, false, &pos->scratch_dp, &pos->scratch_dts);
+            pos_do_move(pos, list[i].move, &st, pos_gives_check(pos, list[i].move),
+                        &pos->scratch_dp, &pos->scratch_dts);
             n = perft(pos, depth - 1, false);
             pos_undo_move(pos, list[i].move);
         }

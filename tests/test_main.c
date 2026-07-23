@@ -201,7 +201,8 @@ static void walk_roundtrip(Position *pos, int depth) {
         const Square ep = pos->st->ep_square;
 
         StateInfo st;
-        pos_do_move(pos, it->move, &st, false, &pos->scratch_dp, &pos->scratch_dts);
+        pos_do_move(pos, it->move, &st, pos_gives_check(pos, it->move), &pos->scratch_dp,
+                    &pos->scratch_dts);
 
         // The incrementally-updated key must equal the key of the resulting
         // position computed from scratch — this is the real Zobrist test.
@@ -520,23 +521,14 @@ static void test_draw_detection(void) {
     };
     CHECK(moves[0] != MOVE_NONE, "e1e2 legal");
 
+    // A bare-kings shuffle gives no check on any move, so the gives_check
+    // argument pos_do_move now trusts is a constant false here.
+    static const char *const shuffle[] = { "e1e2", "e8e7", "e2e1", "e7e8",
+                                           "e1e2", "e8e7", "e2e1", "e7e8" };
     int n = 0;
-    pos_do_move(&pos, move_from_uci(&pos, "e1e2"), &chain[n++], false, &pos.scratch_dp,
-                &pos.scratch_dts);
-    pos_do_move(&pos, move_from_uci(&pos, "e8e7"), &chain[n++], false, &pos.scratch_dp,
-                &pos.scratch_dts);
-    pos_do_move(&pos, move_from_uci(&pos, "e2e1"), &chain[n++], false, &pos.scratch_dp,
-                &pos.scratch_dts);
-    pos_do_move(&pos, move_from_uci(&pos, "e7e8"), &chain[n++], false, &pos.scratch_dp,
-                &pos.scratch_dts);
-    pos_do_move(&pos, move_from_uci(&pos, "e1e2"), &chain[n++], false, &pos.scratch_dp,
-                &pos.scratch_dts);
-    pos_do_move(&pos, move_from_uci(&pos, "e8e7"), &chain[n++], false, &pos.scratch_dp,
-                &pos.scratch_dts);
-    pos_do_move(&pos, move_from_uci(&pos, "e2e1"), &chain[n++], false, &pos.scratch_dp,
-                &pos.scratch_dts);
-    pos_do_move(&pos, move_from_uci(&pos, "e7e8"), &chain[n++], false, &pos.scratch_dp,
-                &pos.scratch_dts);
+    for (size_t i = 0; i < sizeof shuffle / sizeof shuffle[0]; ++i)
+        pos_do_move(&pos, move_from_uci(&pos, shuffle[i]), &chain[n++], false, &pos.scratch_dp,
+                    &pos.scratch_dts);
 
     CHECK(pos_is_draw(&pos, 8), "threefold repetition detected");
 
