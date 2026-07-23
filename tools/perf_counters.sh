@@ -4,6 +4,10 @@
 # native/vnni512 included -- where perf_callgrind.sh (valgrind) SIGILLs on the avx512 EVEX
 # prefix. Uses perf_event_open directly, so the absent `perf` CLI does not matter.
 #
+# Record results under the CONCRETE tier name, never "native": on this class of host
+# `-march=native` is x86-64-vnni512 (`./build.sh perf-budget` prints the resolved
+# label). A standing filed under "native" stops meaning anything when the host changes.
+#
 # Usage (CWD must hold the net: mcfish -> resources/):
 #   ../tools/perf_counters.sh <binA> <binB> <rounds> [bench-args...]
 #   ../tools/perf_counters.sh ../build/mcfish "$ORACLE"/src/stockfish 8 bench 16 1 13
