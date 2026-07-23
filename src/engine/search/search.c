@@ -234,7 +234,130 @@ static void sibling_search(void *ctx) {
     (void) iterative_deepening(&w->ctx, &id);
 }
 
-SearchResult search_go(Position *pos, const SearchLimits *limits) {
+// ---- the async search session -------------------------------------------
+//
+// One search runs at a time -- a single UCI session drives one board -- so the
+// state a dispatched worker-0 job needs once search_go_start has returned lives
+// on one static block, not a heap handoff. The dispatch/join handshake in
+// thread.c orders every write here (done in _start, before the dispatch) ahead
+// of every read in the job, and the job's writes ahead of search_wait's read, so
+// no field but `running` is ever touched by two threads at once. `running` IS,
+// so it is the one atomic: the guard a second `go` reads to refuse re-entry while
+// a search is still in flight.
+typedef struct {
+    SearchWorker *w;    // worker 0
+    SearchManager *sm;  // worker 0's manager
+    SearchIdState id;   // thread 0's driver state, outliving _start's frame
+    TimePoint start;    // clock stamped when `go` was parsed
+    size_t threads;
+    int limit_depth;      // limits->depth, read by the vote gate in the job
+    bool unbounded;       // infinite/ponder: has no self-termination, so `quit` must stop it
+    SearchResult result;  // published by the job, read after search_wait
+    AtomicBool running;
+} SearchSession;
+
+static SearchSession Session;
+static bool SessionReady = false;
+
+static void session_ensure(void) {
+    if (!SessionReady) {
+        atomic_bool_init(&Session.running, false);
+        SessionReady = true;
+    }
+}
+
+bool search_is_running(void) { return SessionReady && atomic_bool_load(&Session.running); }
+
+// Report whether a search is in flight that will not end on its own -- an infinite or
+// pondering search. `unbounded` is written in search_go_start before the dispatch and
+// never by the job, so reading it here off the UCI thread races nothing.
+bool search_running_unbounded(void) { return search_is_running() && Session.unbounded; }
+
+// Run thread 0's whole search: start the siblings, drive iterative deepening, join,
+// vote, and emit. Dispatched onto worker 0's own OS thread so the UCI thread returns
+// to read stdin -- which is what lets a `stop`/`quit`/`ponderhit` arriving mid-search
+// be seen. Reads only the session and the worker set, never the caller's live board:
+// the vote and the emit path go through the best worker's own root_pos copy, so a
+// `position` the UCI thread might race in cannot perturb them.
+static void run_main_search(void *unused) {
+    (void) unused;
+
+    SearchWorker *const w = Session.w;
+    SearchManager *const sm = Session.sm;
+    SearchCtx *const ctx = &w->ctx;
+
+    // Start the siblings, then search thread 0 here. Upstream hands thread 0 a job
+    // for the same reason: its `go` returns immediately, so the driver runs off the
+    // input thread.
+    search_threads_start_siblings(sibling_search);
+    const bool uci_pv_sent = iterative_deepening(ctx, &Session.id);
+
+    // Raise stop and collect every sibling before reading any of their root move lists.
+    // The join is the happens-before edge the vote below depends on.
+    thread_pool_set_stop(search_threads_pool(), true);
+    search_threads_wait_siblings();
+
+    // In `nodes as time` mode, subtract what this search spent from the budget
+    // before returning (Stockfish/src/search.cpp:235-237). Read the limit here,
+    // not from the snapshot taken before `search_tm_init`: that call is what
+    // writes `npmsec` from the `nodestime` option, and it also scales `inc` by
+    // it, so both fields only hold the values upstream subtracts once it has run.
+    // Side to move comes from worker 0's own root copy, not the caller's board.
+    if (ctx->limits.npmsec != 0) {
+        const uint64_t total =
+          PoolCounters.nodes != nullptr ? PoolCounters.nodes(PoolCounters.ctx) : ctx_nodes(ctx);
+        timeman_advance_nodes_time(&sm->tm, (int64_t) total
+                                              - ctx->limits.inc[board_side_to_move(&w->root_pos)]);
+    }
+
+    // Vote for the move to play. Upstream skips the vote entirely for a depth-limited or
+    // skill-limited search (search.cpp), which is why `go depth N` -- and therefore the
+    // bench -- always plays thread 0's move whatever the thread count.
+    SearchWorker *best = w;
+    if (Session.limit_depth == 0 && !Session.id.skill_enabled)
+        best = search_threads_best();
+
+    // Record what this search concluded, so the next `go` in this game seeds its
+    // aspiration window and its falling-eval term from it. Upstream assigns these
+    // in the driver, after the depth loop returns (search.cpp:245-246) -- which is
+    // why iterative_deepening only ever reads them.
+    sm->best_previous_score = best->ctx.root_moves[0].score;
+    sm->best_previous_average_score = best->ctx.root_moves[0].average_score;
+    sm->previous_time_reduction = Session.id.previous_time_reduction;
+    // Bank the check_time counter residue so the next `go` in this game resumes
+    // it, as upstream's persistent callsCnt does (thread.cpp:268 is the only
+    // reset). The counter runs by value in ctx for the fast path's sake.
+    sm->calls_cnt = ctx->time_state.calls_cnt;
+
+    // Report the finished line once. The depth loop already emitted it when the last
+    // MultiPV line of the final iteration completed -- but a vote that picked another
+    // worker means the line on the wire is not the line being played, so re-emit.
+    if (!uci_pv_sent || best != w)
+        search_emit_pv(&best->ctx, best->ctx.root_depth);
+    search_emit_bestmove(best->ctx.root_pos, &best->ctx.root_moves[0]);
+
+    Session.result = result_of(&best->ctx, (TimePoint) now_ms() - Session.start);
+
+    // Clear the guard LAST, after every session field is written: a second `go`
+    // waiting on this flag must not start setup until this job is done reading and
+    // writing the session.
+    atomic_bool_store(&Session.running, false);
+}
+
+// Set a search up on the UCI thread and hand it off to worker 0's OS thread, then
+// return. The synchronous callers (bench, the tests) reach this through search_go,
+// which waits; the UCI `go` command reaches it directly and returns to the read loop.
+void search_go_start(Position *pos, const SearchLimits *limits) {
+    session_ensure();
+
+    // A `go` arriving while a search is still running waits for it to finish first, as
+    // upstream's ThreadPool::start_thinking does (thread.cpp). This is what lets a batch
+    // of sequential `go` lines each run to completion in order, and it guards the worker
+    // state the running job reads -- setting a new root over a live search would be a
+    // data race. A GUI must send `stop` before a second `go` on an unbounded search, or
+    // this wait does not return; that is upstream's contract too.
+    search_wait();
+
     install_seams();
 
     // Prefer the clock the UCI layer stamped when it parsed `go` (upstream's start_time,
@@ -246,7 +369,7 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     thread_pool_set_stop(search_threads_pool(), false);
     thread_pool_set_increase_depth(search_threads_pool(), true);
 
-    SearchResult result = { .score = VALUE_ZERO, .best_move = MOVE_NONE };
+    Session.result = (SearchResult) { .score = VALUE_ZERO, .best_move = MOVE_NONE };
 
     ExtMove legal[MAX_MOVES];
     const size_t count = (size_t) (generate_legal(pos, legal) - legal);
@@ -255,8 +378,8 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     if (w == nullptr) {
         // No worker could be built, so there is nothing to search against. Return a legal
         // move rather than MOVE_NONE, as the root-move allocation failure below does.
-        result.best_move = count != 0 ? legal[0].move : MOVE_NONE;
-        return result;
+        Session.result.best_move = count != 0 ? legal[0].move : MOVE_NONE;
+        return;
     }
 
     SearchManager *const sm = w->manager;
@@ -279,9 +402,9 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
         ctx->limits = to_zone_limits(limits, start);
         ctx->root_pos = pos;
         search_tm_init(ctx, &sm->tm, &sm->original_time_adjust);
-        result.score = board_has_checkers(pos) ? mated_in(0) : VALUE_DRAW;
+        Session.result.score = board_has_checkers(pos) ? mated_in(0) : VALUE_DRAW;
         search_emit_no_moves(pos);
-        return result;
+        return;
     }
 
     Move moves[MAX_MOVES];
@@ -300,8 +423,8 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     if (!root_moves_build(pos, root_fen, board_is_chess960(pos), moves, count, &ranked)) {
         // An allocation failure leaves nothing to search. Return a legal move
         // rather than MOVE_NONE, so the caller still has something playable.
-        result.best_move = legal[0].move;
-        return result;
+        Session.result.best_move = legal[0].move;
+        return;
     }
 
     const SearchZoneLimits zone_limits = to_zone_limits(limits, start);
@@ -320,74 +443,60 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     root_moves_free(&ranked);
 
     if (ctx->root_moves == nullptr) {
-        result.best_move = legal[0].move;
-        return result;
+        Session.result.best_move = legal[0].move;
+        return;
     }
 
     search_tm_init(ctx, &sm->tm, &sm->original_time_adjust);
     search_time_state_init(ctx, &sm->tm, &sm->calls_cnt, &sm->ponder.value, &sm->stop_on_ponderhit);
 
-    SearchIdState id;
-    search_id_state_init(&id, ctx, &sm->tm, &sm->ponder.value, &sm->stop_on_ponderhit,
+    search_id_state_init(&Session.id, ctx, &sm->tm, &sm->ponder.value, &sm->stop_on_ponderhit,
                          pool_increase_depth());
-    id.threads_size = threads;
+    Session.id.threads_size = threads;
 
     // Seed the per-game manager scalars search_id_state_init leaves at zero.
-    id.best_previous_score = sm->best_previous_score;
-    id.best_previous_average_score = sm->best_previous_average_score;
-    id.previous_time_reduction = sm->previous_time_reduction;
+    Session.id.best_previous_score = sm->best_previous_score;
+    Session.id.best_previous_average_score = sm->best_previous_average_score;
+    Session.id.previous_time_reduction = sm->previous_time_reduction;
 
-    // Start the siblings, then search thread 0 on this thread. `search_go` blocks, so
-    // thread 0's own OS thread stays parked -- upstream hands it a job only because its
-    // `go` returns immediately.
-    search_threads_start_siblings(sibling_search);
-    bool uci_pv_sent = iterative_deepening(ctx, &id);
+    Session.w = w;
+    Session.sm = sm;
+    Session.start = start;
+    Session.threads = threads;
+    Session.limit_depth = limits->depth;
+    // An infinite or pondering search runs until stop/ponderhit -- it has no deadline
+    // of its own, so `quit` must raise stop to end it. Every other search terminates by
+    // depth, nodes, or the clock, and `quit` waits it out instead (a bounded search's
+    // output stays deterministic, which the golden gate relies on).
+    Session.unbounded = limits->infinite || limits->ponder;
 
-    // Raise stop and collect every sibling before reading any of their root move lists.
-    // The join is the happens-before edge the vote below depends on.
-    thread_pool_set_stop(search_threads_pool(), true);
-    search_threads_wait_siblings();
+    // Arm the guard, then dispatch onto thread 0. Everything above ran on the UCI
+    // thread; from here the search runs on worker 0's OS thread and this call returns.
+    atomic_bool_store(&Session.running, true);
+    thread_pool_run_on_thread(search_threads_pool(), 0, run_main_search, nullptr);
+}
 
-    // In `nodes as time` mode, subtract what this search spent from the budget
-    // before returning (Stockfish/src/search.cpp:235-237). Read the limit here,
-    // not from the snapshot taken before `search_tm_init`: that call is what
-    // writes `npmsec` from the `nodestime` option, and it also scales `inc` by
-    // it, so both fields only hold the values upstream subtracts once it has run.
-    if (ctx->limits.npmsec != 0) {
-        const uint64_t total =
-          PoolCounters.nodes != nullptr ? PoolCounters.nodes(PoolCounters.ctx) : ctx_nodes(ctx);
-        timeman_advance_nodes_time(&sm->tm,
-                                   (int64_t) total - ctx->limits.inc[board_side_to_move(pos)]);
-    }
+// Block until the in-flight search, if any, has finished and published its result.
+// A no-op when nothing is running (no dispatched job, or the synchronous early-outs
+// in search_go_start that never reach thread 0).
+void search_wait(void) { thread_pool_wait_on_thread(search_threads_pool(), 0); }
 
-    // Vote for the move to play. Upstream skips the vote entirely for a depth-limited or
-    // skill-limited search (search.cpp), which is why `go depth N` -- and therefore the
-    // bench -- always plays thread 0's move whatever the thread count.
-    SearchWorker *best = w;
-    if (limits->depth == 0 && !id.skill_enabled)
-        best = search_threads_best();
+// Clear the ponder flag worker 0's check_time polls, so a `go ponder` search that was
+// exempt from every time limit begins enforcing them (upstream: SearchManager::ponder
+// = false on `ponderhit`). The clock still counts from the `go` parse, so the search
+// stops no later than a non-pondered one would -- never past its budget.
+void search_ponderhit(void) {
+    if (!search_is_running())
+        return;
+    SearchWorker *const w = search_threads_main();
+    if (w != nullptr && w->manager != nullptr)
+        atomic_bool_store(&w->manager->ponder, false);
+}
 
-    // Record what this search concluded, so the next `go` in this game seeds its
-    // aspiration window and its falling-eval term from it. Upstream assigns these
-    // in the driver, after the depth loop returns (search.cpp:245-246) -- which is
-    // why iterative_deepening only ever reads them.
-    sm->best_previous_score = best->ctx.root_moves[0].score;
-    sm->best_previous_average_score = best->ctx.root_moves[0].average_score;
-    sm->previous_time_reduction = id.previous_time_reduction;
-    // Bank the check_time counter residue so the next `go` in this game resumes
-    // it, as upstream's persistent callsCnt does (thread.cpp:268 is the only
-    // reset). The counter runs by value in ctx for the fast path's sake.
-    sm->calls_cnt = ctx->time_state.calls_cnt;
-
-    // Report the finished line once. The depth loop already emitted it when the last
-    // MultiPV line of the final iteration completed -- but a vote that picked another
-    // worker means the line on the wire is not the line being played, so re-emit.
-    if (!uci_pv_sent || best != w)
-        search_emit_pv(&best->ctx, best->ctx.root_depth);
-    search_emit_bestmove(pos, &best->ctx.root_moves[0]);
-
-    result = result_of(&best->ctx, (TimePoint) now_ms() - start);
-    return result;
+SearchResult search_go(Position *pos, const SearchLimits *limits) {
+    search_go_start(pos, limits);
+    search_wait();
+    return Session.result;
 }
 
 uint64_t perft(Position *pos, int depth, bool root) {

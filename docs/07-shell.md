@@ -165,15 +165,15 @@ is why `strtok` is usable at all.
 | `isready` | Print `readyok`. |
 | `ucinewgame` | Clear the transposition table and reset to the start position. |
 | `position` | `startpos` or `fen <6 fields>`, optionally followed by `moves ...`. |
-| `go` | Parse limits and run the search, which emits its own `info` and `bestmove` lines through the sink. `go perft N` short-circuits to a perft divide. |
+| `go` | Parse limits, hand the search to worker 0's thread, and return; the search emits its own `info` and `bestmove` lines through the sink. `go perft N` short-circuits to a perft divide. |
 | `setoption` | `setoption name <NAME> [value <VALUE>]`; see the table below. |
-| `stop` | Set the stop flag. |
-| `quit` | Set the stop flag and leave the loop; `uci_loop` frees the table. |
+| `stop` | Raise the stop flag and return; the search thread ends and emits its `bestmove`. |
+| `quit` | End the search (stop it if unbounded, else wait it out), leave the loop; `uci_loop` frees the table. |
 | `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`. |
 | `bench` | Run the benchmark at the given depth, default 8. |
 | `eval` | Print the evaluation trace via `evaluate_trace`. |
 | `compiler` | Print the clang or gcc version and `__STDC_VERSION__` the binary was built with. |
-| `ponderhit` | Accepted and ignored — pondering is not implemented. |
+| `ponderhit` | Clear the ponder flag, so a `go ponder` search begins enforcing its time limits. |
 | anything else | Print `Unknown command: '<cmd>'. Type help for more information.` |
 
 Two honest notes on that last row: the message names a `help` command, and **there
@@ -181,15 +181,28 @@ is no `help` handler** — typing `help` prints the unknown-command message abou
 itself. And an empty line is not treated as unknown, so a blank line from a GUI is
 silently ignored rather than producing noise.
 
-`stop` and `ponderhit` are accepted but cannot do their job. The loop is
-single-threaded: while `cmd_go` is inside `search_go`, nothing is reading stdin, so
-a `stop` sent during a search is not seen until the search has already returned.
-Consequently `go infinite` has no deadline and no interruption path and does not
-return. This is a gap in the shell: `search_go` blocks the UCI thread, so nothing
-reads stdin while a search runs. The thread pool in `src/platform/` is built, gated
-and driven by the search, and its shared stop flag is the cross-thread protocol a
-listener would use — but the shell still calls the search synchronously rather than
-handing it off. See [06-platform.md](06-platform.md).
+`go` runs the search **off the UCI thread**. `cmd_go` hands the search to worker 0's
+OS thread through `search_go_start` and returns, so the loop keeps reading stdin
+while the search runs. That is what lets the four during-search commands — `stop`,
+`quit`, `isready`, `ponderhit` — be seen and answered mid-search; `stop` raises the
+pool's shared stop flag (the cross-thread protocol described in
+[06-platform.md](06-platform.md)) and the search thread ends and emits its
+`bestmove`. So `go infinite` now has an interruption path and terminates on `stop`.
+
+Every **other** command drains the running search first (`engine_wait` at the top of
+`execute`, before the dispatch). A command either mutates state the search reads
+(`position`, `setoption`, `ucinewgame`) or prints output that must land after the
+search's lines (`d`, `eval`, the net banner `go` itself prints), so it waits the
+search out rather than racing it — which also keeps a batch of back-to-back `go`
+lines each running to completion, in order. Only the four during-search commands skip
+that drain.
+
+`quit` (and the EOF that substitutes it when a GUI vanishes) must not hang, so it does
+not blindly wait: an **unbounded** search — `go infinite`, or a `go ponder` still
+pondering — is *stopped*, while a bounded one (`go depth N`, `go movetime T`, …) is
+*waited out* so its output stays complete and deterministic. `search_running_unbounded`
+draws that line. The bench and the tests reach the search through the synchronous
+`search_go`, which is `search_go_start` immediately followed by `search_wait`.
 
 `ucinewgame` clears the TT but does **not** clear the history block; the live search
 clears that per `go` instead, which is not where upstream clears it. See
@@ -229,8 +242,8 @@ Limits parsed: `depth`, `movetime`, `wtime`, `btime`, `winc`, `binc`, `movestogo
 `nodes`, `infinite`, `ponder`, and `perft`. How they become a deadline is in
 [02-engine-search.md](02-engine-search.md).
 
-When no limit at all is given, `cmd_go` sets `depth 8`. An unqualified `go` from a
-script would otherwise start an unbounded search that nothing can stop.
+When no limit at all is given, `cmd_go` sets `depth 8`, so an unqualified `go` from a
+script terminates on its own rather than running until a `stop` arrives.
 
 The valueless keywords (`infinite`, `ponder`) are matched **first** and `continue`
 without reading a lookahead token, so they do not swallow the keyword that follows

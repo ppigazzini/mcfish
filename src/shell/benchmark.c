@@ -179,6 +179,9 @@ uint64_t benchmark_run(const char *args) {
         // twice (Stockfish/src/uci.cpp:270).
         search_reset_last_nodes_searched();
         uci_execute(go);
+        // `go` now dispatches the search and returns; wait for it before reading the
+        // count it publishes, or bench would sum a search that has not run yet.
+        search_wait();
         nodes += search_last_nodes_searched();
     }
 
