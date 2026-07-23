@@ -2,6 +2,12 @@
 
 #include "legality.h"
 
+// Every helper below is always_inline into the four type-literal entry points,
+// mirroring upstream's generate_all<Us, Type> template instantiation: US and
+// TYPE are compile-time constants at each expansion, so the per-stage tests,
+// the shift_bb direction switches and the attacks_bb piece dispatch all fold
+// away instead of running per call.
+
 // Emit the promotion pieces for a pawn arriving on the back rank.
 //
 // ENEMY says whether this promotion is a capture. It decides which stage the
@@ -15,7 +21,8 @@
 // The search can: MovePicker maps the two stages separately, so a misfiled
 // capture-underpromotion is scored, SEE-tested and pruned as a quiet, and is
 // generated after the whole capture stage instead of inside it.
-static ExtMove *make_promotions(ExtMove *list, Square to, Square from, GenType type, bool enemy) {
+__attribute__((always_inline)) static inline ExtMove *
+make_promotions(ExtMove *list, Square to, Square from, GenType type, bool enemy) {
     const bool all = type == GEN_EVASIONS || type == GEN_NON_EVASIONS;
 
     if (type == GEN_CAPTURES || all)
@@ -29,7 +36,7 @@ static ExtMove *make_promotions(ExtMove *list, Square to, Square from, GenType t
     return list;
 }
 
-static ExtMove *
+__attribute__((always_inline)) static inline ExtMove *
 generate_pawn_moves(const Position *pos, ExtMove *list, Color us, Bitboard target, GenType type) {
     const Color them = flip_color(us);
     const Direction up = (us == WHITE) ? NORTH : SOUTH;
@@ -123,7 +130,7 @@ generate_pawn_moves(const Position *pos, ExtMove *list, Color us, Bitboard targe
     return list;
 }
 
-static ExtMove *
+__attribute__((always_inline)) static inline ExtMove *
 generate_piece_moves(const Position *pos, ExtMove *list, Color us, PieceType pt, Bitboard target) {
     Bitboard from_bb = pieces_cp(pos, us, pt);
 
@@ -165,8 +172,8 @@ static ExtMove *generate_castling(const Position *pos, ExtMove *list, Color us) 
     return list;
 }
 
-ExtMove *generate(const Position *pos, ExtMove *list, GenType type) {
-    const Color us = pos->side_to_move;
+__attribute__((always_inline)) static inline ExtMove *
+generate_all(const Position *pos, ExtMove *list, Color us, GenType type) {
     const Square ksq = king_square(pos, us);
     Bitboard target;
 
@@ -180,8 +187,10 @@ ExtMove *generate(const Position *pos, ExtMove *list, GenType type) {
             target = BetweenBB[ksq][checksq];
 
             list = generate_pawn_moves(pos, list, us, target, GEN_EVASIONS);
-            for (PieceType pt = KNIGHT; pt <= QUEEN; ++pt)
-                list = generate_piece_moves(pos, list, us, pt, target);
+            list = generate_piece_moves(pos, list, us, KNIGHT, target);
+            list = generate_piece_moves(pos, list, us, BISHOP, target);
+            list = generate_piece_moves(pos, list, us, ROOK, target);
+            list = generate_piece_moves(pos, list, us, QUEEN, target);
         }
 
         // Step the king anywhere off-check; pos_legal removes the squares still attacked.
@@ -196,8 +205,10 @@ ExtMove *generate(const Position *pos, ExtMove *list, GenType type) {
                                     : ~pieces_c(pos, us);
 
     list = generate_pawn_moves(pos, list, us, target, type);
-    for (PieceType pt = KNIGHT; pt <= QUEEN; ++pt)
-        list = generate_piece_moves(pos, list, us, pt, target);
+    list = generate_piece_moves(pos, list, us, KNIGHT, target);
+    list = generate_piece_moves(pos, list, us, BISHOP, target);
+    list = generate_piece_moves(pos, list, us, ROOK, target);
+    list = generate_piece_moves(pos, list, us, QUEEN, target);
 
     Bitboard b = PseudoAttacks[KING][ksq] & target;
     while (b)
@@ -209,13 +220,47 @@ ExtMove *generate(const Position *pos, ExtMove *list, GenType type) {
     return list;
 }
 
+ExtMove *generate_captures(const Position *pos, ExtMove *list) {
+    return pos->side_to_move == WHITE ? generate_all(pos, list, WHITE, GEN_CAPTURES)
+                                      : generate_all(pos, list, BLACK, GEN_CAPTURES);
+}
+
+ExtMove *generate_quiets(const Position *pos, ExtMove *list) {
+    return pos->side_to_move == WHITE ? generate_all(pos, list, WHITE, GEN_QUIETS)
+                                      : generate_all(pos, list, BLACK, GEN_QUIETS);
+}
+
+ExtMove *generate_evasions(const Position *pos, ExtMove *list) {
+    return pos->side_to_move == WHITE ? generate_all(pos, list, WHITE, GEN_EVASIONS)
+                                      : generate_all(pos, list, BLACK, GEN_EVASIONS);
+}
+
+ExtMove *generate_non_evasions(const Position *pos, ExtMove *list) {
+    return pos->side_to_move == WHITE ? generate_all(pos, list, WHITE, GEN_NON_EVASIONS)
+                                      : generate_all(pos, list, BLACK, GEN_NON_EVASIONS);
+}
+
+ExtMove *generate(const Position *pos, ExtMove *list, GenType type) {
+    switch (type) {
+    case GEN_CAPTURES :
+        return generate_captures(pos, list);
+    case GEN_QUIETS :
+        return generate_quiets(pos, list);
+    case GEN_EVASIONS :
+        return generate_evasions(pos, list);
+    default :
+        return generate_non_evasions(pos, list);
+    }
+}
+
 ExtMove *generate_legal(const Position *pos, ExtMove *list) {
     const Color us = pos->side_to_move;
     const Bitboard pinned = pos->st->blockers[us] & pieces_c(pos, us);
     const Square ksq = king_square(pos, us);
 
     ExtMove *cur = list;
-    ExtMove *end = generate(pos, list, pos->st->checkers ? GEN_EVASIONS : GEN_NON_EVASIONS);
+    ExtMove *end =
+      pos->st->checkers ? generate_evasions(pos, list) : generate_non_evasions(pos, list);
 
     // Filter IN PLACE by swap-remove, exactly as upstream does (movegen.cpp:280).
     // An illegal move is overwritten by the LAST element rather than the list

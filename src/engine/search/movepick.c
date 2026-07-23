@@ -61,10 +61,10 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
     const Position *pos = mp->pos;
     Histories *h = mp->hist;
 
-    const GenType gen = kind == KIND_CAPTURES ? GEN_CAPTURES
-                      : kind == KIND_QUIETS   ? GEN_QUIETS
-                                              : GEN_EVASIONS;
-    const size_t count = (size_t) (generate(pos, out, gen) - out);
+    ExtMove *const end = kind == KIND_CAPTURES ? generate_captures(pos, out)
+                       : kind == KIND_QUIETS   ? generate_quiets(pos, out)
+                                               : generate_evasions(pos, out);
+    const size_t count = (size_t) (end - out);
 
     const Color us = pos->side_to_move;
 
