@@ -188,16 +188,12 @@ void movepick_init(MovePicker *mp,
     mp->ss = ss;
     mp->ply = ply;
     mp->depth = depth;
-
-    const int base = checkers(pos) != 0 ? MP_EVASION_TT : depth > 0 ? MP_MAIN_TT : MP_QSEARCH_TT;
-    mp->stage = base + (tt_move == MOVE_NONE);
 }
 
 void movepick_init_probcut(
   MovePicker *mp, const Position *pos, Histories *h, Move tt_move, int threshold) {
     init_common(mp, pos, h, tt_move);
     mp->threshold = threshold;
-    mp->stage = MP_PROBCUT_TT + (tt_move == MOVE_NONE);
 }
 
 // Return the next entry that is not the TT move, or MOVE_NONE when the current
