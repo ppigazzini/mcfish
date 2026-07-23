@@ -99,6 +99,20 @@ void nnue_affine_32(bool sparse,
         // Walk the bitset in upstream's shape (affine_transform_sparse_input.h): load a
         // whole 64-group word, hoist the input and weight bases ONCE per word, then pop
         // set bits with a LOCAL index rather than re-scaling an absolute group index.
+        //
+        // On the avx2 tier only, unroll the word walk fully where the trip count folds
+        // to a constant: the one sparse caller (fc_0) passes a literal input_len, so
+        // after LTO inlining this is four copies whose in_base/w_base are fixed
+        // displacements — upstream's shape, whose four word loops carry no per-word
+        // base recompute. In the standalone (runtime-count) compile of this function
+        // the pragma is ignored. Measured (perf_counters, bench 16 1 13): the
+        // recompute skeleton was 56 of fc_0's ~1812 instructions per evaluation and
+        // the unroll removes most of it at avx2, but the SAME unroll REGRESSES the
+        // 16-lane native tier, where the wider per-word state spills — so the pragma
+        // is tier-guarded, not unconditional.
+#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+    #pragma clang loop unroll(full)
+#endif
         for (size_t k = 0; k * 64 < groups; k++) {
             uint64_t bits = nnz[k];
             const uint8_t *in_base = input + k * 64 * 4;
