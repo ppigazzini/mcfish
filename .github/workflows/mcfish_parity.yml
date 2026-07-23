@@ -276,3 +276,77 @@ jobs:
         env:
           CC: gcc
         run: ./build.sh perft
+
+  # Race gate, named as zfish names its equivalent lane. `parity` cannot see a data
+  # race: bench is single-threaded, so every golden agrees while a race is present.
+  # This lane runs the suite under ThreadSanitizer and then a REAL multi-threaded
+  # search -- the workload that exercises the Lazy-SMP pool, the shared TT (including
+  # the parallel clear dispatch) and the shared histories. Zero races or red.
+  tsan-race:
+    name: Linux TSan race gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install clang ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          "clang-$CLANG_VERSION" --version
+
+      - name: Cache NNUE network
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
+
+      - name: Suite under ThreadSanitizer
+        run: CC="clang-$CLANG_VERSION" ./build.sh tsan
+
+      # Threads=8 over a real search plus the ucinewgame path that drives the
+      # parallel TT clear -- the workload that owns the pool's race surface.
+      - name: Multi-threaded search under ThreadSanitizer
+        run: CC="clang-$CLANG_VERSION" ./build.sh tsan-search 12 8
+
+  # Memcheck lane, named as zfish names its. ASan overlaps memcheck on bounds and
+  # lifetime but not on UNINITIALISED reads -- the class the tree's poison tests
+  # police at the source level and valgrind polices at the instruction level. The
+  # engine runs a shallow bench under memcheck; definite leaks and uninitialised
+  # branches fail.
+  valgrind:
+    name: Linux valgrind memcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install clang ${{ env.CLANG_VERSION }} and valgrind
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          sudo apt-get install -y valgrind
+          valgrind --version
+
+      - name: Cache NNUE network
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
+
+      # Release build (memcheck needs no instrumentation), shallow bench: valgrind
+      # is ~30x, so depth is what the budget buys. Error-exitcode turns any finding
+      # into a red job.
+      - name: Bench under memcheck
+        run: |
+          set -euo pipefail
+          CC="clang-$CLANG_VERSION" ./build.sh build
+          cd resources
+          valgrind --error-exitcode=99 --leak-check=full --errors-for-leak-kinds=definite \
+            ../build/mcfish bench 16 1 6
