@@ -40,14 +40,22 @@ static inline uint32_t load_group(const uint8_t *input) {
 enum {
     AFFINE_CHUNKS_32 = 32 / NNUE_DOT_LANES,
 
-    // Chains cost registers: the accumulator is CHUNKS * CHAINS vectors, and it must
-    // stay resident or the spilling this whole shape exists to avoid comes back.
-    // A 16-lane tier needs 2 chunks, so 3 chains is 6 registers; an 8-lane tier needs
-    // 4, so 3 chains is 12. A 4-lane tier already needs 8 chunks, and 3 chains would
-    // be 24 against a 16-register file -- measured at +4.2% instructions per node on
-    // SSE4.1, which is the spill. Narrow tiers take one chain and rely on the shorter
-    // multiply latency there instead.
-    AFFINE_CHAINS = NNUE_DOT_LANES >= 8 ? 3 : 1,
+// Chains cost registers: the accumulator is CHUNKS * CHAINS vectors, and it must
+// stay resident or the spilling this whole shape exists to avoid comes back.
+// Gate the chain count on the register file the tier leaves free, in the spirit
+// of upstream's per-ISA NumRegs (affine_transform_sparse_input.h). Under
+// AVX512-VNNI 3 chains is 6 of 32 zmm — upstream's exact choice. At plain AVX2
+// 3 chains is 12 of 16 ymm held live across the sparse walk, which spills
+// (callgrind attributes the reload traffic to no source line); 2 chains keeps
+// the block resident and still overlaps the maddubs->madd->add dependency.
+// A 4-lane tier already needs 8 chunks and takes one chain for the same reason.
+#if defined(__AVX512VNNI__)
+    AFFINE_CHAINS = 3,
+#elif defined(__AVXVNNI__) || defined(__AVX2__)
+    AFFINE_CHAINS = 2,
+#else
+    AFFINE_CHAINS = 1,
+#endif
 };
 
 typedef struct {
