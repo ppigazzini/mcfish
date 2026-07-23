@@ -94,13 +94,19 @@ static void process_sliders(const Position *pos,
     }
 }
 
-void threats_update_piece(bool compute_ray,
-                          const Position *pos,
-                          Piece pc,
-                          bool put_piece,
-                          Square s,
-                          DirtyThreats *dts,
-                          Bitboard no_rays) {
+// Compile the body once per compute_ray value, as upstream's template
+// instantiation does (position.cpp:1183 update_piece_threats<ComputeRay>). A
+// merged runtime-bool body keeps both variants' state live across the whole
+// function — the no-ray-only direct_sliders value survives the ray path and the
+// register allocator spills for the union of both paths — where a specialized
+// copy lets the ray variant drop it entirely.
+__attribute__((always_inline)) static inline void threats_update_piece_impl(bool compute_ray,
+                                                                            const Position *pos,
+                                                                            Piece pc,
+                                                                            bool put_piece,
+                                                                            Square s,
+                                                                            DirtyThreats *dts,
+                                                                            Bitboard no_rays) {
     const PieceType pt = type_of_piece(pc);
     const Bitboard occupied = pos->by_type[ALL_PIECES];
     const Bitboard rook_queens = pos->by_type[ROOK] | pos->by_type[QUEEN];
@@ -181,4 +187,29 @@ void threats_update_piece(bool compute_ray,
         const Square src_sq = pop_lsb(&incoming);
         add_dirty_threat(dts, put_piece, pos->board[src_sq], pc, src_sq, s);
     }
+}
+
+// Keep the two specializations out-of-line so each gets its own register
+// allocation, mirroring upstream's two emitted instantiations.
+__attribute__((noinline)) static void threats_update_piece_ray(
+  const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays) {
+    threats_update_piece_impl(true, pos, pc, put_piece, s, dts, no_rays);
+}
+
+__attribute__((noinline)) static void threats_update_piece_no_ray(
+  const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays) {
+    threats_update_piece_impl(false, pos, pc, put_piece, s, dts, no_rays);
+}
+
+void threats_update_piece(bool compute_ray,
+                          const Position *pos,
+                          Piece pc,
+                          bool put_piece,
+                          Square s,
+                          DirtyThreats *dts,
+                          Bitboard no_rays) {
+    if (compute_ray)
+        threats_update_piece_ray(pos, pc, put_piece, s, dts, no_rays);
+    else
+        threats_update_piece_no_ray(pos, pc, put_piece, s, dts, no_rays);
 }
