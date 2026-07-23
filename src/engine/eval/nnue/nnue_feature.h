@@ -108,6 +108,18 @@ uint32_t nnue_full_make_index(uint8_t perspective,
                               uint8_t attacked,
                               uint8_t king_square);
 
+// Return the same index from fields already oriented — the caller has xored the square
+// orientation and perspective swap in, e.g. via nnue_full_orient_mask below.
+uint32_t nnue_full_make_index_oriented(uint8_t attacker_oriented,
+                                       uint8_t from_oriented,
+                                       uint8_t to_oriented,
+                                       uint8_t attacked_oriented);
+
+// Build the per-walk record mask: one xor of a NnueDirtyThreatRaw against it orients
+// every field in place, and leaves the record's sign meaning "added" regardless of the
+// walk direction. See the definition for the lane layout.
+uint32_t nnue_full_orient_mask(uint8_t perspective, uint8_t king_square, bool forward);
+
 // Append every threat feature active on BOARD (64 entries, upstream piece encoding),
 // dropping the excluded pairs.
 void nnue_full_append_active(uint8_t perspective,
