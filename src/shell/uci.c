@@ -303,13 +303,21 @@ void uci_loop(int argc, char **argv) {
     // across reads and ran each fragment as its own command.
     char *line = nullptr;
     size_t cap = 0;
-    while (getline(&line, &cap, stdin) != -1) {
-        // Tee the command into the debug log before running it, so the log
-        // interleaves commands and replies in the order they happened (misc.cpp,
-        // Tie::uflow).
-        uci_output_log_input(line, strlen(line));
-        if (!execute(line))
-            break;
+    for (bool running = true; running;) {
+        if (getline(&line, &cap, stdin) != -1) {
+            // Tee the command into the debug log before running it, so the log
+            // interleaves commands and replies in the order they happened
+            // (misc.cpp, Tie::uflow).
+            uci_output_log_input(line, strlen(line));
+            running = execute(line);
+        } else {
+            // Substitute `quit` for a failed read, as upstream does
+            // (uci.cpp:99-100): EOF walks the same stop-and-return path as a
+            // typed quit, so a search left running by a vanished GUI is stopped
+            // before teardown instead of holding the shutdown join forever.
+            char eof_quit[] = "quit";
+            running = execute(eof_quit);
+        }
     }
     free(line);
 
