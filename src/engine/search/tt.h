@@ -97,6 +97,36 @@ typedef struct {
     TTEntry *writer;
 } TTProbeResult;
 
+enum { TT_CLUSTER_SIZE = 3 };
+
+// Group the entries a key maps onto. A cluster is exactly 32 bytes: the entries
+// plus two bytes of explicit padding, so a cluster never straddles a cache line
+// in a 64-byte-aligned table (tt.cpp:156).
+typedef struct {
+    TTEntry entry[TT_CLUSTER_SIZE];
+    uint8_t padding[2];
+} TTCluster;
+
+static_assert(sizeof(TTEntry) == 10, "TTEntry must stay a packed 10-byte record");
+static_assert(sizeof(TTCluster) == 32, "TTCluster must fill exactly half a cache line");
+
+// Hold the table handle: the cluster count, the cluster base, and the running
+// generation the store path ages entries by (tt.h:79).
+typedef struct {
+    size_t cluster_count;
+    TTCluster *table;
+    uint8_t generation8;
+} TranspositionTable;
+
+// Hold the one table the engine and all its threads share (tt.h:79). mcfish keeps
+// it as a file-scope singleton — the tt functions take no handle — rather than the
+// per-Engine object upstream passes down; every worker shares this one instance.
+// The instance lives in tt.c; it is visible here so tt_probe below can inline into
+// the node bodies, the way LTO inlines upstream's TranspositionTable::probe into
+// search<NodeType> — the probe runs once per node and the call boundary (call,
+// 32-byte sret return, re-copy) is real per-node work upstream does not pay.
+extern TranspositionTable TT;
+
 // Size the table to MB megabytes and clear it. Return false when the allocation
 // fails; the caller must then not probe.
 bool tt_resize(size_t mb);
@@ -128,10 +158,90 @@ void tt_new_search(void);
 // Report the age entries are written with (tt.cpp:247).
 uint8_t tt_generation(void);
 
+// Pack pv, bound and generation into gen_bound8 (tt.cpp:55). The generation takes
+// the low bits so a wrapping increment never disturbs the two above it.
+enum : uint8_t {
+    TT_GENERATION_BITS = 5,
+    TT_GENERATION_MASK = (1u << TT_GENERATION_BITS) - 1u,
+    TT_BOUND_SHIFT = TT_GENERATION_BITS,
+    TT_BOUND_MASK = 3u << TT_BOUND_SHIFT,
+    TT_PV_SHIFT = TT_BOUND_SHIFT + 2,
+    TT_PV_MASK = 1u << TT_PV_SHIFT,
+};
+
+// Take the high 64 bits of the 128-bit product, so a key maps onto the cluster
+// range without a modulo (misc.h mul_hi64, used by tt.cpp:278).
+static inline uint64_t tt_mul_hi64(uint64_t a, uint64_t b) {
+    return (uint64_t) (((__uint128_t) a * (__uint128_t) b) >> 64);
+}
+
+// Report this entry's age. Count generations the way clocks count hours: require
+// 0 - 1 == 31. The subtraction is unsigned so it borrows regardless of the pv and
+// bound bits sitting above the generation (tt.cpp:127).
+static inline uint8_t tt_entry_relative_age(const TTEntry *entry, uint8_t curr_generation) {
+    return (uint8_t) (((uint32_t) curr_generation - (uint32_t) TT_LOAD(entry->gen_bound8))
+                      & TT_GENERATION_MASK);
+}
+
+static inline bool tt_entry_is_occupied(const TTEntry *entry) {
+    return TT_LOAD(entry->depth8) != 0;
+}
+
+// Convert the internal bitfields to external types (tt.cpp:65).
+static inline TTData tt_entry_read(const TTEntry *entry) {
+    return (TTData) {
+        .move = TT_LOAD(entry->move16),
+        .value = (Value) TT_LOAD(entry->value16),
+        .eval = (Value) TT_LOAD(entry->eval16),
+        .depth = DEPTH_ENTRY_OFFSET + (int32_t) TT_LOAD(entry->depth8),
+        .bound = (Bound) ((TT_LOAD(entry->gen_bound8) & TT_BOUND_MASK) >> TT_BOUND_SHIFT),
+        .is_pv = (TT_LOAD(entry->gen_bound8) & TT_PV_MASK) != 0,
+    };
+}
+
+static inline TTData tt_empty_data(void) {
+    return (TTData) {
+        .move = MOVE_NONE,
+        .value = VALUE_NONE,
+        .eval = VALUE_NONE,
+        .depth = DEPTH_ENTRY_OFFSET,
+        .bound = BOUND_NONE,
+        .is_pv = false,
+    };
+}
+
 // Look the position up. On a hit return the entry's data and a writer to it; on a
 // miss return the empty data and a writer to the cluster entry worth least, where
 // an entry's worth is its depth minus eight times its relative age (tt.cpp:254).
-TTProbeResult tt_probe(Key key);
+static inline TTProbeResult tt_probe(Key key) {
+    if (!TT.table)
+        return (TTProbeResult) { .found = false, .data = tt_empty_data(), .writer = nullptr };
+
+    // Use the low 16 bits as the key inside the cluster; the high bits already
+    // chose the cluster.
+    const uint16_t key16 = (uint16_t) key;
+    TTEntry *const tte = TT.table[tt_mul_hi64(key, TT.cluster_count)].entry;
+
+    for (size_t i = 0; i < TT_CLUSTER_SIZE; ++i)
+        if (TT_LOAD(tte[i].key16) == key16)
+            // This gap is the main place for read races. Once tt_entry_read
+            // returns, the copy is final, though it may be self-inconsistent.
+            return (TTProbeResult) { .found = tt_entry_is_occupied(&tte[i]),
+                                     .data = tt_entry_read(&tte[i]),
+                                     .writer = &tte[i] };
+
+    // Pick the entry to replace: the least valuable one, where value is depth
+    // minus eight times relative age (tt.cpp:266).
+    TTEntry *replace = tte;
+    for (size_t i = 1; i < TT_CLUSTER_SIZE; ++i)
+        if ((int32_t) TT_LOAD(replace->depth8)
+              - 8 * (int32_t) tt_entry_relative_age(replace, TT.generation8)
+            > (int32_t) TT_LOAD(tte[i].depth8)
+                - 8 * (int32_t) tt_entry_relative_age(&tte[i], TT.generation8))
+            replace = &tte[i];
+
+    return (TTProbeResult) { .found = false, .data = tt_empty_data(), .writer = replace };
+}
 
 // Preload the cluster KEY maps onto into cache. A non-blocking hint issued a few
 // instructions ahead of the matching tt_probe, so the line is arriving by the time

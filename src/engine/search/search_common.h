@@ -236,7 +236,22 @@ typedef struct {
     bool is_pv;
 } TTProbe;
 
-TTProbe search_tt_probe(Key key);
+// Inline the probe into each node body, as LTO inlines upstream's
+// TranspositionTable::probe into search<NodeType>: the adapter and tt_probe both
+// fold into the caller, so the two struct returns above become dead copies the
+// optimizer removes instead of a per-node call boundary.
+static inline TTProbe search_tt_probe(Key key) {
+    const TTProbeResult r = tt_probe(key);
+
+    return (TTProbe) { .writer = r.writer,
+                       .found = r.found,
+                       .move = r.data.move,
+                       .value = r.data.value,
+                       .eval = r.data.eval,
+                       .depth = r.data.depth,
+                       .bound = r.data.bound,
+                       .is_pv = r.data.is_pv };
+}
 void search_tt_save(
   TTEntry *writer, Key key, Value v, bool is_pv, Bound b, int depth, Move m, Value ev);
 

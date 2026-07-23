@@ -498,19 +498,6 @@ void search_undo_move(SearchCtx *ctx, Position *pos, Move m) {
 
 // ---- transposition-table adapter ---------------------------------------
 
-TTProbe search_tt_probe(Key key) {
-    const TTProbeResult r = tt_probe(key);
-
-    return (TTProbe) { .writer = r.writer,
-                       .found = r.found,
-                       .move = r.data.move,
-                       .value = r.data.value,
-                       .eval = r.data.eval,
-                       .depth = r.data.depth,
-                       .bound = r.data.bound,
-                       .is_pv = r.data.is_pv };
-}
-
 void search_tt_save(
   TTEntry *writer, Key key, Value v, bool is_pv, Bound b, int depth, Move m, Value ev) {
     tt_save(writer, key, v, is_pv, b, depth, m, ev);

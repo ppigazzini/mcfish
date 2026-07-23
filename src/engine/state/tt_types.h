@@ -1,11 +1,9 @@
-// Split the transposition table's storage types out of its implementation: the cluster
-// the table is an array of, and the table handle a Worker holds a reference to.
-//
-// This header OWNS no memory and no probe logic -- `tt.c` keeps both. It exists so the
-// state zone can type a worker's `tt` reference without pulling in the probe path, and so
-// the cluster footprint is asserted in one place. The invariant is that a cluster is
-// exactly 32 bytes: the entries plus two bytes of explicit padding, so a cluster never
-// straddles a cache line in a 64-byte-aligned table.
+// Forward the transposition table's storage types. The cluster, the table handle and
+// their footprint asserts moved into `../search/tt.h` alongside the inline probe --
+// the probe needs the handle's fields visible to inline into the node bodies, and
+// splitting the types from the probe would cycle the two headers. This header stays
+// so a state-zone file can keep naming its tt reference without reaching across
+// zones itself.
 //
 // Upstream: tt.cpp:62 (TTEntry), tt.cpp:154 (ClusterSize), tt.cpp:156 (Cluster),
 // tt.h:79 (TranspositionTable).
@@ -14,27 +12,5 @@
 #define MCFISH_TT_TYPES_H
 
 #include "../search/tt.h"
-
-#include <stddef.h>
-#include <stdint.h>
-
-enum { TT_CLUSTER_SIZE = 3 };
-
-typedef struct {
-    TTEntry entry[TT_CLUSTER_SIZE];
-    uint8_t padding[2];
-} TTCluster;
-
-static_assert(sizeof(TTEntry) == 10, "TTEntry must stay a packed 10-byte record");
-static_assert(sizeof(TTCluster) == 32, "TTCluster must fill exactly half a cache line");
-
-// Hold the table handle a Worker binds a reference to: the cluster count, the cluster
-// base, and the running generation the store path ages entries by. The allocation and
-// every probe stay in tt.c; this is the shape the reference has.
-typedef struct {
-    size_t cluster_count;
-    TTCluster *table;
-    uint8_t generation8;
-} TranspositionTable;
 
 #endif  // MCFISH_TT_TYPES_H
