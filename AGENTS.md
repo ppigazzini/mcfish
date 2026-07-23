@@ -39,13 +39,12 @@ outside it is unwired, not deferred:
 - **The option model** — the live UCI layer advertises a hand-written subset of
   upstream's option table, and the search answers its own option seam with
   upstream's defaults because nothing else can.
-- **`go nodes N` matches upstream since the time-check counter persists across
-  `go`** (upstream resets it only in `ThreadPool::clear`; mcfish used to reseed
-  512 per go). `bench 16 1 10000 default nodes` now equals the golden's total
-  exactly. One residual: at very large in-suite N (`bench 16 1 100000`) a +51
-  node divergence remains, bisected to bench position 53 under warm
-  cross-position TT state only -- isolated runs of that position are bit-exact.
-  Open hunt; nothing in the signature depends on it.
+- **`go nodes N` matches upstream exactly** since two fixes: the time-check
+  counter persists across `go` (upstream resets it only in `ThreadPool::clear`),
+  and a no-legal-move root still bumps the TT generation (upstream runs
+  `tt.new_search()` before its `rootMoves.empty()` check). `bench <tt> 1 <N>
+  default nodes` equals the golden's total at every N tested, including the
+  full 51-position suite at N=100000.
 
 The bench signature in `tools/signature.golden` is **upstream's number**, and
 mcfish currently produces it — matching Stockfish at
