@@ -55,7 +55,7 @@ Histories *histories(void) {
         TablesShared = shared_histories_create(1);
         if (TablesShared == nullptr)
             return nullptr;
-        Tables.shared = TablesShared;
+        histories_bind_shared(&Tables, TablesShared);
     }
     return &Tables;
 }
@@ -63,7 +63,7 @@ Histories *histories(void) {
 void histories_shutdown(void) {
     shared_histories_destroy(TablesShared);
     TablesShared = nullptr;
-    Tables.shared = nullptr;
+    histories_bind_shared(&Tables, nullptr);
 }
 
 // Test move validity as upstream's Move::is_ok does — by the two reserved

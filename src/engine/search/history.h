@@ -124,6 +124,13 @@ void shared_histories_destroy(SharedHistories *sh);
 
 // Hold one worker's own tables plus the reference to its node's bank. `shared` is never
 // null once the worker is constructed; every accessor below dereferences it.
+//
+// The five fields after `shared` are copies of the bank's hot fields, taken by
+// histories_bind_shared when the reference is bound. The hot accessors read the
+// copies, so a per-node table access costs one load from this block instead of
+// the dependent `h->shared` chain -- upstream's Worker reads its DynStats
+// base+mask through one indirection (search.h:341, history.h:95), and the chain
+// was a second one the port had added on top.
 typedef struct {
     int16_t main_history[COLOR_NB * HIST_UINT16];
     int16_t low_ply_history[LOW_PLY_HISTORY_SIZE * HIST_UINT16];
@@ -131,7 +138,24 @@ typedef struct {
     int16_t continuation_correction_history[HIST_PIECETO * HIST_PIECETO];
     int16_t tt_move_history;
     SharedHistories *shared;
+    CorrectionBundle (*corr_base)[COLOR_NB];  // shared->correction_history
+    size_t corr_mask;                         // shared->corr_size_minus1
+    SharedStat *pawn_base;                    // shared->pawn_history
+    size_t pawn_mask;                         // shared->pawn_size_minus1
+    SharedStat *cont_base;                    // shared->continuation_history
 } Histories;
+
+// Bind SH as H's bank and refresh the cached base/mask copies. The two writers of
+// `shared` (worker construction, the headless block) must go through this, or the
+// hot accessors read a stale bank.
+static inline void histories_bind_shared(Histories *h, SharedHistories *sh) {
+    h->shared = sh;
+    h->corr_base = sh != nullptr ? sh->correction_history : nullptr;
+    h->corr_mask = sh != nullptr ? sh->corr_size_minus1 : 0;
+    h->pawn_base = sh != nullptr ? sh->pawn_history : nullptr;
+    h->pawn_mask = sh != nullptr ? sh->pawn_size_minus1 : 0;
+    h->cont_base = sh != nullptr ? sh->continuation_history : nullptr;
+}
 
 // Return the engine's single history block, bound to a single-thread shared bank. It is
 // the block the netless / headless callers -- the unit tests and any `search_go` driven
@@ -202,7 +226,7 @@ static inline SharedStat *
 cont_hist_page(Histories *h, bool in_check, bool capture, Piece pc, Square to) {
     const size_t block = ((size_t) in_check * 2 + (size_t) capture) * HIST_PIECETO
                        + (size_t) pc * SQUARE_NB + (size_t) to;
-    return &h->shared->continuation_history[block * HIST_PIECETO];
+    return &h->cont_base[block * HIST_PIECETO];
 }
 
 // Return the continuation-correction page for (pc, to).
@@ -213,14 +237,14 @@ static inline int16_t *cont_corr_page(Histories *h, Piece pc, Square to) {
 
 // Return the pawn-history page for PAWN_KEY: HIST_PIECETO entries, pc * 64 + to.
 static inline SharedStat *pawn_history_row(Histories *h, Key pawn_key) {
-    const size_t idx = (size_t) pawn_key & h->shared->pawn_size_minus1;
-    return &h->shared->pawn_history[idx * HIST_PIECETO];
+    const size_t idx = (size_t) pawn_key & h->pawn_mask;
+    return &h->pawn_base[idx * HIST_PIECETO];
 }
 
 // Return correctionHistory[key & mask][us].
 static inline CorrectionBundle *corr_bundle(Histories *h, Key key, Color us) {
-    const size_t idx = (size_t) key & h->shared->corr_size_minus1;
-    return &h->shared->correction_history[idx][us];
+    const size_t idx = (size_t) key & h->corr_mask;
+    return &h->corr_base[idx][us];
 }
 
 // Return &captureHistory[pc][to][captured_pt].
