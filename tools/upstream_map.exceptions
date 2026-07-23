@@ -1,0 +1,12 @@
+# Upstream files not applicable to this port BY DESIGN, with the reason.
+# Format: <upstream path> <TAB> <reason>. Anything else uncovered is either
+# unported surface or ported code missing its golden citation -- both are debt
+# the map report exists to show, so keep this list to true design decisions.
+src/tune.cpp	SPSA tuning framework: not ported by design; tuned values are transcribed constants
+src/tune.h	companion of tune.cpp
+src/incbin/incbin.h	net embedding machinery: mcfish maps the net at runtime by design
+src/universal/nnue_embed.cpp	net embedding machinery: mcfish maps the net at runtime by design
+src/universal/entry_x86.cpp	fat-binary entry shim: mcfish builds one binary per arch
+src/universal/entry_arm64.cpp	fat-binary entry shim: mcfish builds one binary per arch
+src/universal/entry_riscv64.cpp	fat-binary entry shim: mcfish builds one binary per arch
+src/thread_win32_osx.h	win/osx threading shim: the port is POSIX-only
