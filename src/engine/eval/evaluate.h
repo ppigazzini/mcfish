@@ -12,6 +12,8 @@
 // not crash: it silently evaluates a different position than the board holds.
 //
 // Golden: Stockfish/src/evaluate.cpp:41 (Eval::evaluate), :75 (Eval::trace).
+//
+// Upstream: evaluate.h:46 (Eval::evaluate) and nnue_misc.h (the eval trace).
 
 #ifndef MCFISH_EVALUATE_H
 #define MCFISH_EVALUATE_H

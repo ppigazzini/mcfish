@@ -1,3 +1,4 @@
+// Upstream: bitboard.cpp (Bitboards::pretty) for the board rendering.
 #include "fen.h"
 
 #include <stdio.h>

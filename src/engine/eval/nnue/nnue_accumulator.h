@@ -15,6 +15,8 @@
 // incomplete types rather than `void *` so the three NNUE arenas cannot be confused.
 //
 // Golden: the upstream `nnue/nnue_accumulator.cpp`.
+//
+// Upstream: nnue_accumulator.h:98 (AccumulatorStack).
 
 #ifndef MCFISH_NNUE_ACCUMULATOR_H
 #define MCFISH_NNUE_ACCUMULATOR_H

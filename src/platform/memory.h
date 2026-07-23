@@ -10,7 +10,7 @@
 // The page_alloc seam below is the exception, and states its zero-fill explicitly: it is
 // backed by an anonymous mapping, which the kernel is required to hand over zeroed.
 //
-// Upstream: memory.cpp:71 (std_aligned_alloc), memory.cpp:151
+// Upstream: memory.h:72 (the allocator surface), memory.cpp:71 (std_aligned_alloc), memory.cpp:151
 // (aligned_large_pages_alloc_with_hint), memory.cpp:182 (has_large_pages).
 
 #ifndef MCFISH_MEMORY_H
