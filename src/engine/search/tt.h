@@ -187,15 +187,19 @@ static inline bool tt_entry_is_occupied(const TTEntry *entry) {
     return TT_LOAD(entry->depth8) != 0;
 }
 
-// Convert the internal bitfields to external types (tt.cpp:65).
-static inline TTData tt_entry_read(const TTEntry *entry) {
+// Convert the internal bitfields to external types (tt.cpp:65). Load depth8 and
+// gen_bound8 once each and derive both of their fields from the one copy: the
+// members are relaxed atomics, so the compiler may not merge repeated loads
+// itself, and the second load of each would be a real extra read per probe hit.
+static inline TTData tt_entry_read(const TTEntry *entry, uint8_t depth8) {
+    const uint8_t gen_bound8 = TT_LOAD(entry->gen_bound8);
     return (TTData) {
         .move = TT_LOAD(entry->move16),
         .value = (Value) TT_LOAD(entry->value16),
         .eval = (Value) TT_LOAD(entry->eval16),
-        .depth = DEPTH_ENTRY_OFFSET + (int32_t) TT_LOAD(entry->depth8),
-        .bound = (Bound) ((TT_LOAD(entry->gen_bound8) & TT_BOUND_MASK) >> TT_BOUND_SHIFT),
-        .is_pv = (TT_LOAD(entry->gen_bound8) & TT_PV_MASK) != 0,
+        .depth = DEPTH_ENTRY_OFFSET + (int32_t) depth8,
+        .bound = (Bound) ((gen_bound8 & TT_BOUND_MASK) >> TT_BOUND_SHIFT),
+        .is_pv = (gen_bound8 & TT_PV_MASK) != 0,
     };
 }
 
@@ -213,7 +217,7 @@ static inline TTData tt_empty_data(void) {
 // Look the position up. On a hit return the entry's data and a writer to it; on a
 // miss return the empty data and a writer to the cluster entry worth least, where
 // an entry's worth is its depth minus eight times its relative age (tt.cpp:254).
-static inline TTProbeResult tt_probe(Key key) {
+__attribute__((always_inline)) static inline TTProbeResult tt_probe(Key key) {
     if (!TT.table)
         return (TTProbeResult) { .found = false, .data = tt_empty_data(), .writer = nullptr };
 
@@ -223,12 +227,16 @@ static inline TTProbeResult tt_probe(Key key) {
     TTEntry *const tte = TT.table[tt_mul_hi64(key, TT.cluster_count)].entry;
 
     for (size_t i = 0; i < TT_CLUSTER_SIZE; ++i)
-        if (TT_LOAD(tte[i].key16) == key16)
+        if (TT_LOAD(tte[i].key16) == key16) {
             // This gap is the main place for read races. Once tt_entry_read
             // returns, the copy is final, though it may be self-inconsistent.
-            return (TTProbeResult) { .found = tt_entry_is_occupied(&tte[i]),
-                                     .data = tt_entry_read(&tte[i]),
+            // Read depth8 once; it answers both the occupancy test and the
+            // entry's stored depth.
+            const uint8_t depth8 = TT_LOAD(tte[i].depth8);
+            return (TTProbeResult) { .found = depth8 != 0,
+                                     .data = tt_entry_read(&tte[i], depth8),
                                      .writer = &tte[i] };
+        }
 
     // Pick the entry to replace: the least valuable one, where value is depth
     // minus eight times relative age (tt.cpp:266).
