@@ -318,6 +318,18 @@ NNUE_SIMD_TYPE(NnueV128i16, int16_t, 128);
 NNUE_SIMD_FAMILY(nnue_v128u16, NnueV128u16, uint16_t, 128);
 NNUE_SIMD_FAMILY(nnue_v128i16, NnueV128i16, int16_t, 128);
 
+// Extra-wide accumulator row tile: 256 int16_t lanes, carried as uint16_t so the add/sub
+// wrap. The avx512 build's ROW_TILE_WIDTH (nnue_acc_rowops.c) reaches it: 8 zmm hold the
+// tile live across all four changed-row lists, upstream SIMDTiling's register budget.
+NNUE_SIMD_TYPE(NnueV256u16, uint16_t, 256);
+NNUE_SIMD_TYPE(NnueV256i16, int16_t, 256);
+NNUE_SIMD_TYPE(NnueV256i8, int8_t, 256);
+NNUE_SIMD_FAMILY(nnue_v256u16, NnueV256u16, uint16_t, 256);
+NNUE_SIMD_FAMILY(nnue_v256i16, NnueV256i16, int16_t, 256);
+NNUE_SIMD_FAMILY(nnue_v256i8, NnueV256i8, int8_t, 256);
+NNUE_SIMD_CONVERT(nnue_v256_i8_to_i16, NnueV256i16, NnueV256i8)
+NNUE_SIMD_REINTERPRET(nnue_v256_i16_as_u16, NnueV256u16, NnueV256i16)
+
 // Affine dot-product tiles. The lane count is the layer's OUT*4, because the
 // int8 weight layout interleaves each output's four sublanes; see nnue_affine.h.
 NNUE_SIMD_TYPE(NnueV128i32, int32_t, 128);

@@ -5,12 +5,23 @@
 #include "nnue_accumulator.h"  // NNUE_HALF_DIMENSIONS, NNUE_PSQT_BUCKETS
 #include "simd.h"
 
-// Set the lane count for the feature-transformer weight-row add/sub tile. The avx512
-// build sweeps to 128, where vpaddw over a zmm register pair halves the loop trips; the
-// narrower tiers keep 64, since a 128-lane u16 tile spills 16 xmm / 8 ymm registers and
-// loses more than the trip count saves. The tile's type and ops are reached through
-// width-selected macros so both tiers share one loop body.
+// Set the lane count for the feature-transformer weight-row add/sub tile, matching
+// upstream SIMDTiling's budget of 8 native registers per tile at every x86 tier:
+// 8 zmm = 256 u16 lanes on avx512, 8 ymm = 128 on avx2, 8 xmm = 64 on sse. A narrower
+// tile re-walks each changed-row list once per extra tile pass, paying the loop
+// control and per-row address setup again for the same math. The tile's type and ops
+// are reached through width-selected macros so every tier shares one loop body.
 #if defined(__AVX512F__)
+enum { ROW_TILE_WIDTH = 256 };
+    #define RowVecU16 NnueV256u16
+    #define row_load nnue_v256u16_load_a
+    #define row_store nnue_v256u16_store_a
+    #define row_add nnue_v256u16_add
+    #define row_sub nnue_v256u16_sub
+    #define row_i8_load nnue_v256i8_load_a
+    #define row_i8_to_i16 nnue_v256_i8_to_i16
+    #define row_i16_as_u16 nnue_v256_i16_as_u16
+#elif defined(__AVX2__)
 enum { ROW_TILE_WIDTH = 128 };
     #define RowVecU16 NnueV128u16
     #define row_load nnue_v128u16_load_a
