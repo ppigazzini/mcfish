@@ -303,19 +303,9 @@ Value search_run_back(const SearchNodeState *nd) {
                    : ss->in_check                   ? mated_in(ss->ply)
                                                     : VALUE_DRAW;
     } else if (best_move != MOVE_NONE) {
-        const HistoryStack hs = search_gather_stack(ss);
-        const HistoryStats stats = {
-            .best_move = best_move,
-            .prev_sq = (Square) nd->prev_sq,
-            .quiets = quiets_searched,
-            .n_quiets = n_quiets,
-            .captures = captures_searched,
-            .n_captures = n_captures,
-            .depth = depth,
-            .tt_move = nd->tt_move,
-            .pv_node = nd->pv_node,
-        };
-        history_update_all_stats(h, pos, pos->st->pawn_key, &hs, &stats);
+        search_update_all_stats(ctx, pos, ss, best_move, (Square) nd->prev_sq, quiets_searched,
+                                n_quiets, captures_searched, n_captures, depth, nd->tt_move,
+                                nd->pv_node);
         if (!nd->pv_node)
             tt_move_history_update(h, tt_move_history_match_bonus(best_move == nd->tt_move));
     } else if (!nd->prior_capture && nd->prev_sq != (int) SQ_NONE) {
@@ -359,8 +349,7 @@ Value search_run_back(const SearchNodeState *nd) {
     }
 
     // Adjust the correction history. Pass the three stack facts the update reads
-    // directly — a full HistoryStack gather here would copy seven frames the
-    // update never touches.
+    // directly.
     if (!ss->in_check && !(best_move != MOVE_NONE && pos_capture(pos, best_move))
         && (best_value > ss->static_eval) == (best_move != MOVE_NONE)) {
         const CorrectionKeys keys = {
