@@ -124,6 +124,50 @@ bool pos_pseudo_legal(const Position *pos, Move m) {
     return true;
 }
 
+bool pos_gives_check(const Position *pos, Move m) {
+    const Color us = pos->side_to_move;
+    const Color them = flip_color(us);
+    const Square from = move_from(m);
+    const Square to = move_to(m);
+
+    // Compute the occupancy, the enemy-king bitboard and the move type inside the
+    // branch that consumes each, as upstream Position::gives_check does: the dominant
+    // paths -- the direct-check hit and the NORMAL fall-through -- need none of them,
+    // and the hoisted loads do not sink past the early returns on their own.
+
+    // Detect a direct check.
+    if ((pos->st->check_squares[type_of_piece(piece_on(pos, from))] & square_bb(to)) != 0)
+        return true;
+
+    // Detect a discovered check: the mover was blocking, and either leaves the
+    // line or is a castling king whose rook lands on it.
+    if ((pos->st->blockers[them] & square_bb(from)) != 0)
+        return (LineBB[from][to] & pieces_cp(pos, them, KING)) == 0 || move_type(m) == CASTLING;
+
+    switch (move_type(m)) {
+    case NORMAL :
+        return false;
+    case PROMOTION :
+        return (attacks_bb(move_promotion(m), to, pieces(pos) ^ square_bb(from))
+                & pieces_cp(pos, them, KING))
+            != 0;
+    case EN_PASSANT : {
+        const Square capsq = make_square(file_of(to), rank_of(from));
+        const Bitboard b = (pieces(pos) ^ square_bb(from) ^ square_bb(capsq)) | square_bb(to);
+        const Square ksq = king_square(pos, them);
+        const Bitboard our = pieces_c(pos, us);
+        const Bitboard our_qr = our & (pos->by_type[QUEEN] | pos->by_type[ROOK]);
+        const Bitboard our_qb = our & (pos->by_type[QUEEN] | pos->by_type[BISHOP]);
+        return ((attacks_bb(ROOK, ksq, b) & our_qr) | (attacks_bb(BISHOP, ksq, b) & our_qb)) != 0;
+    }
+    default : {  // CASTLING: only the rook's destination can give check
+        const Square base = to > from ? SQ_F1 : SQ_D1;
+        const Square rto = (Square) ((int) base ^ (us * 56));
+        return (pos->st->check_squares[ROOK] & square_bb(rto)) != 0;
+    }
+    }
+}
+
 bool see_ge(const Position *pos, Move m, int threshold) {
     if (move_type(m) != NORMAL)
         return 0 >= threshold;

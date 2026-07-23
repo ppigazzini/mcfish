@@ -3,6 +3,7 @@
 #include "registry.h"
 #include "wdl.h"
 
+#include "../../engine/board/legality.h"
 #include "../../engine/board/movegen.h"
 #include "../../engine/board/types.h"
 
@@ -70,8 +71,9 @@ int32_t probe_dtz(Position *pos, int32_t *state) {
         const bool zeroing =
           is_capture(pos, m) || type_of_piece(piece_on(pos, move_from(m))) == PAWN;
 
-        // `false` is inert, not a claim: see the note at the matching call in wdl.c.
-        pos_do_move(pos, m, &st, false, &pos->scratch_dp, &pos->scratch_dts);
+        // pos_do_move trusts this argument for the child's checkers set: see the
+        // note at the matching call in wdl.c.
+        pos_do_move(pos, m, &st, pos_gives_check(pos, m), &pos->scratch_dp, &pos->scratch_dts);
 
         int32_t child_state = PROBE_OK;
         int32_t dtz;
