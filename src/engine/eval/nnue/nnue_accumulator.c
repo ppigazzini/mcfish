@@ -74,7 +74,7 @@ enum : size_t {
     CACHE_ENTRY_PSQT_OFFSET = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
     CACHE_ENTRY_PIECES_OFFSET = CACHE_ENTRY_PSQT_OFFSET + NNUE_PSQT_BUCKETS * sizeof(int32_t),
     // The entry stores only the cached PIECE ARRAY, not a redundant occupancy bitboard:
-    // the per-square refresh below reads `entry_pieces[sq] != NO_PIECE` for exactly the
+    // the chunked refresh diff below reads the piece bytes themselves for exactly the
     // "was a piece here" test upstream derives from `changedBB & entry.pieceBB`, so the
     // bitboard would be written and never read (upstream nnue_accumulator.cpp:554,573).
     CACHE_ENTRY_BYTES =
@@ -341,20 +341,30 @@ static void refresh_latest_psq(uint8_t perspective,
     size_t removed_len = 0;
     size_t added_len = 0;
 
-    // One pass over the 64 squares: load entry/board and test old != new once, then
-    // route the changed square to removed and/or added. Both lists are still built in
-    // ascending-square order, so the applied delta is identical to the two-scan form.
-    for (unsigned square = 0; square < SQUARE_NB; square++) {
-        const uint8_t old_piece = entry_pieces[square];
-        const uint8_t new_piece = board[square];
-        if (old_piece == new_piece)
-            continue;
-        if (old_piece != NO_PIECE)
-            removed[removed_len++] =
-              nnue_half_make_index(perspective, (uint8_t) square, old_piece, king_square);
-        if (new_piece != NO_PIECE)
-            added[added_len++] =
-              nnue_half_make_index(perspective, (uint8_t) square, new_piece, king_square);
+    // Diff the cached board against the live one eight squares at a time: XOR an 8-byte
+    // chunk of each and skip the equal chunks, walking only the differing bytes. The
+    // per-square scan-and-append loop runs all 64 squares scalar (the appends block the
+    // vectorizer), where most chunks compare equal in one branch here. Bytes are walked
+    // low to high, so both lists keep the per-square ascending order of the fused form.
+    for (unsigned chunk = 0; chunk < SQUARE_NB / 8; chunk++) {
+        uint64_t old_eight;
+        uint64_t new_eight;
+        memcpy(&old_eight, entry_pieces + chunk * 8, sizeof old_eight);
+        memcpy(&new_eight, board + chunk * 8, sizeof new_eight);
+        uint64_t diff = old_eight ^ new_eight;
+        while (diff != 0) {
+            const unsigned byte = (unsigned) __builtin_ctzll(diff) >> 3;
+            diff &= ~(0xffULL << (byte * 8));
+            const unsigned square = chunk * 8 + byte;
+            const uint8_t old_piece = (uint8_t) (old_eight >> (byte * 8));
+            const uint8_t new_piece = (uint8_t) (new_eight >> (byte * 8));
+            if (old_piece != NO_PIECE)
+                removed[removed_len++] =
+                  nnue_half_make_index(perspective, (uint8_t) square, old_piece, king_square);
+            if (new_piece != NO_PIECE)
+                added[added_len++] =
+                  nnue_half_make_index(perspective, (uint8_t) square, new_piece, king_square);
+        }
     }
 
     // Dual-store: write the refreshed row into BOTH the cache entry (in place, for next time)
