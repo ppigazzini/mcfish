@@ -663,7 +663,7 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
     // product 128*c0*c1 is exact and >>16 is floor, so this is bit-identical to the
     // int32 clamp*mul>>9 path — integer throughout, no rounding.
     const size_t half = NNUE_HALF_DIMENSIONS / 2;
-#if !(MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__))
+#if !(MCFISH_SIMD_VECTOR && defined(__SSE2__) && !defined(__AVX512F__))
     const TfI16 zero = tf_i16_splat(0);
     const TfI16 c255 = tf_i16_splat(255);
 #endif
@@ -741,6 +741,35 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
                 const uint32_t mask8 =
                   (uint32_t) _mm256_movemask_ps((__m256) _mm256_cmpgt_epi32(packed, sgnzero));
                 nnz_bytes[j / 32 + k] = (uint8_t) mask8;
+            }
+#elif MCFISH_SIMD_VECTOR && defined(__SSE2__) && !defined(__AVX512F__)
+            // Native sse41 product step, the same packus-clip shape as the avx2 branch
+            // above: clamp only the FIRST operand from below — when the second stays
+            // negative the SIGNED pmulhw product is negative and packuswb's low-side
+            // saturation zeroes it, exactly the value the explicit max(0, ·) path lands
+            // on — and pmulhw equals the unsigned mulhi on the remaining all-non-negative
+            // operands (both factors < 2^15). Eight pmaxsw per step drop out of the
+            // portable lowering, which clamps both operands. Unlike avx2, no weight
+            // permute is needed: at 128 bits packuswb concatenates its operands in
+            // order, so the packed bytes are already the canonical output order.
+            const __m128i ftmax = _mm_set1_epi16(255);
+            const __m128i sgnzero = _mm_setzero_si128();
+            const int16_t *in0 = comb_acc + base + j;
+            const int16_t *in1 = comb_acc + base + j + half;
+            TfU8 bytes;
+            for (size_t k = 0; k < 4; k++) {
+                const __m128i a0 = _mm_loadu_si128((const __m128i *) (in0 + 16 * k));
+                const __m128i a1 = _mm_loadu_si128((const __m128i *) (in0 + 16 * k + 8));
+                const __m128i b0 = _mm_loadu_si128((const __m128i *) (in1 + 16 * k));
+                const __m128i b1 = _mm_loadu_si128((const __m128i *) (in1 + 16 * k + 8));
+                const __m128i sum0a =
+                  _mm_slli_epi16(_mm_max_epi16(_mm_min_epi16(a0, ftmax), sgnzero), 7);
+                const __m128i sum0b =
+                  _mm_slli_epi16(_mm_max_epi16(_mm_min_epi16(a1, ftmax), sgnzero), 7);
+                const __m128i pa = _mm_mulhi_epi16(sum0a, _mm_min_epi16(b0, ftmax));
+                const __m128i pb = _mm_mulhi_epi16(sum0b, _mm_min_epi16(b1, ftmax));
+                const __m128i packed = _mm_packus_epi16(pa, pb);
+                __builtin_memcpy((unsigned char *) &bytes + 16 * k, &packed, sizeof packed);
             }
 #else
             const TfI16 s0 = tf_i16_load(comb_acc + base + j);
