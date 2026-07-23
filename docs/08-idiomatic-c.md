@@ -171,6 +171,29 @@ uses all four. What is left after removing them is a set of recurring mechanical
 translations. Each one below has a failure mode that shows up as a wrong node
 count rather than as a compile error.
 
+### Split files at the cold seam; keep hot bodies in headers
+
+Split a long file where its cold code is: parsers, table builders and init
+paths move to their own translation unit whenever that clarifies ownership.
+[`nnue_acc_rowops.c`](../src/engine/eval/nnue/nnue_acc_rowops.c) is the model —
+kernels split out of the accumulator, and every one of them folds back into its
+caller at link time.
+
+Keep a hot-path body in a header, as `static inline` over its extern state. The
+invariant that forces this: a function that survives as a symbol in the release
+binary is entered by a real call on every use — link-time optimisation here
+folds constants across translation units but keeps out-of-line calls out of
+line. `tt_probe` in [`tt.h`](../src/engine/search/tt.h) and the per-node seams
+in [`search_common.h`](../src/engine/search/search_common.h) own the pattern:
+each moved from a `.c` file into its header, and each move carried a measured
+instruction win recorded in its commit.
+
+Prove every split on the instruction axis before committing it, in either
+direction: `nm build/mcfish` answers whether a body inlined, and
+`tools/perf_counters.sh` answers what the move cost. Judge a file's length by
+its cold lines — setup code that has outgrown its neighbours wants a new file;
+one long specialized hot body is the shape the measurements chose.
+
 ### A runtime flag where upstream has a template parameter costs real work
 
 Upstream instantiates `search<NodeType>`, `generate_all<Us, Type>` and
