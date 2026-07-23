@@ -73,14 +73,21 @@ size_t nnue_accumulator_stack_bytes(void) { return STACK_BYTES; }
 enum : size_t {
     CACHE_ENTRY_PSQT_OFFSET = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
     CACHE_ENTRY_PIECES_OFFSET = CACHE_ENTRY_PSQT_OFFSET + NNUE_PSQT_BUCKETS * sizeof(int32_t),
-    // The entry stores only the cached PIECE ARRAY, not a redundant occupancy bitboard:
-    // the chunked refresh diff below reads the piece bytes themselves for exactly the
-    // "was a piece here" test upstream derives from `changedBB & entry.pieceBB`, so the
-    // bitboard would be written and never read (upstream nnue_accumulator.cpp:554,573).
-    CACHE_ENTRY_BYTES =
-      NNUE_ROUND_UP(CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t), NNUE_ALIGN),
+    // Cache the entry's occupancy bitboard beside the piece array — upstream's
+    // entry.pieceBB (nnue_accumulator.cpp:554,573). The refresh diff derives its
+    // removed list as `changedBB & entry.pieceBB` and its added list from the live
+    // occupancy, so the byte-per-square "was a piece here" tests drop out of the
+    // changed-square walk. The 8 bytes sit inside the 64-byte round-up, so the
+    // entry size does not move.
+    CACHE_ENTRY_PIECE_BB_OFFSET = CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
+    CACHE_ENTRY_BYTES = NNUE_ROUND_UP(CACHE_ENTRY_PIECE_BB_OFFSET + sizeof(uint64_t), NNUE_ALIGN),
     CACHE_BYTES = SQUARE_NB * NNUE_COLOR_COUNT * CACHE_ENTRY_BYTES,
 };
+// Pin the size claim above: adding the bitboard must not grow the rounded entry.
+static_assert(CACHE_ENTRY_BYTES
+                == NNUE_ROUND_UP(CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
+                                 NNUE_ALIGN),
+              "the piece bitboard must fit the entry's existing round-up slack");
 
 size_t nnue_refresh_cache_bytes(void) { return CACHE_BYTES; }
 
@@ -341,6 +348,58 @@ static void refresh_latest_psq(uint8_t perspective,
     size_t removed_len = 0;
     size_t added_len = 0;
 
+#if MCFISH_SIMD_VECTOR && defined(__SSE2__)
+    // Diff the cached board against the live one as a bitboard: explicit byte compares
+    // collapse the 64 piece bytes into one changed-square mask, and the entry's cached
+    // occupancy splits it into upstream's removedBB = changed & entry.pieceBB and
+    // addedBB = changed & occupancy (nnue_accumulator.cpp:554,573) — so each list's
+    // walk appends unconditionally, with no per-square piece test. Both walks pop
+    // ascending, keeping the per-square ascending order of the chunked form. The
+    // compares are spelled as intrinsics (pcmpeqb+pmovmskb / vpcmpeqb+vpmovmskb /
+    // vpcmpb) because clang lowers the portable vector-compare form of this scan
+    // through a generic reduce that LOSES to the chunked scalar diff at sse41.
+    uint64_t changed;
+    #if defined(__AVX512BW__)
+    changed = _cvtmask64_u64(_mm512_cmpneq_epi8_mask(
+      _mm512_loadu_si512((const void *) entry_pieces), _mm512_loadu_si512((const void *) board)));
+    #elif defined(__AVX2__)
+    const __m256i eq_lo = _mm256_cmpeq_epi8(_mm256_loadu_si256((const __m256i *) entry_pieces),
+                                            _mm256_loadu_si256((const __m256i *) board));
+    const __m256i eq_hi =
+      _mm256_cmpeq_epi8(_mm256_loadu_si256((const __m256i *) (entry_pieces + 32)),
+                        _mm256_loadu_si256((const __m256i *) (board + 32)));
+    changed = ~((uint64_t) (uint32_t) _mm256_movemask_epi8(eq_lo)
+                | ((uint64_t) (uint32_t) _mm256_movemask_epi8(eq_hi) << 32));
+    #else
+    uint64_t equal = 0;
+    for (unsigned quarter = 0; quarter < 4; quarter++) {
+        const __m128i eq =
+          _mm_cmpeq_epi8(_mm_loadu_si128((const __m128i *) (entry_pieces + quarter * 16)),
+                         _mm_loadu_si128((const __m128i *) (board + quarter * 16)));
+        equal |= (uint64_t) (uint32_t) _mm_movemask_epi8(eq) << (quarter * 16);
+    }
+    changed = ~equal;
+    #endif
+
+    uint64_t entry_piece_bb;
+    memcpy(&entry_piece_bb, entry + CACHE_ENTRY_PIECE_BB_OFFSET, sizeof entry_piece_bb);
+    const uint64_t occupancy = pos->by_type[ALL_PIECES];
+
+    uint64_t removed_bb = changed & entry_piece_bb;
+    uint64_t added_bb = changed & occupancy;
+    while (removed_bb != 0) {
+        const unsigned square = (unsigned) __builtin_ctzll(removed_bb);
+        removed_bb &= removed_bb - 1;
+        removed[removed_len++] =
+          nnue_half_make_index(perspective, (uint8_t) square, entry_pieces[square], king_square);
+    }
+    while (added_bb != 0) {
+        const unsigned square = (unsigned) __builtin_ctzll(added_bb);
+        added_bb &= added_bb - 1;
+        added[added_len++] =
+          nnue_half_make_index(perspective, (uint8_t) square, board[square], king_square);
+    }
+#else
     // Diff the cached board against the live one eight squares at a time: XOR an 8-byte
     // chunk of each and skip the equal chunks, walking only the differing bytes. The
     // per-square scan-and-append loop runs all 64 squares scalar (the appends block the
@@ -366,6 +425,7 @@ static void refresh_latest_psq(uint8_t perspective,
                   nnue_half_make_index(perspective, (uint8_t) square, new_piece, king_square);
         }
     }
+#endif
 
     // Dual-store: write the refreshed row into BOTH the cache entry (in place, for next time)
     // and this ply's state slot in one tiled pass, so the cache→state copy is a register store
@@ -379,6 +439,10 @@ static void refresh_latest_psq(uint8_t perspective,
       removed, removed_len, added, added_len, nnue_ft_psq_psqt_weights(ft));
 
     memcpy(entry_pieces, board, SQUARE_NB);
+    // Keep the cached occupancy in step with the piece array: the next refresh's
+    // removed split reads it. The scalar build's chunked diff never reads it, but the
+    // store keeps every build's cache state identical.
+    memcpy(entry + CACHE_ENTRY_PIECE_BB_OFFSET, &pos->by_type[ALL_PIECES], sizeof(uint64_t));
 
     state_bytes_mut(PSQ_FEATURE, latest_index, stack)[COMPUTED_OFFSET + perspective] = 1;
 }
