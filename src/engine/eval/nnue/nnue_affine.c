@@ -114,7 +114,7 @@ void nnue_affine_32(bool sparse,
                                   w_base + i2 * N);
             }
         }
-    } else {
+    } else if (AFFINE_CHAINS > 1) {
         size_t g = 0;
         for (; g + 3 <= groups; g += 3) {
             AFFINE_GROUP_INTO(&acc, 0, load_group(input + g * 4), weights + g * N);
@@ -124,6 +124,13 @@ void nnue_affine_32(bool sparse,
                               weights + (g + 2) * N);
         }
         for (; g < groups; g++)
+            AFFINE_GROUP_INTO(&acc, 0, load_group(input + g * 4), weights + g * N);
+    } else {
+        // One chain: the 3-group unroll above re-feeds the SAME accumulator, so it buys
+        // no latency overlap and only widens the live range past the 16-register SSE
+        // file -- clang spills accumulator chunks mid-loop for it. Upstream's non-VNNI
+        // dense walk is one group per iteration (affine_transform.h propagate); match it.
+        for (size_t g = 0; g < groups; g++)
             AFFINE_GROUP_INTO(&acc, 0, load_group(input + g * 4), weights + g * N);
     }
 
