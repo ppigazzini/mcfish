@@ -13,21 +13,21 @@
 #if defined(__AVX512F__)
 enum { ROW_TILE_WIDTH = 128 };
     #define RowVecU16 NnueV128u16
-    #define row_load nnue_v128u16_load
-    #define row_store nnue_v128u16_store
+    #define row_load nnue_v128u16_load_a
+    #define row_store nnue_v128u16_store_a
     #define row_add nnue_v128u16_add
     #define row_sub nnue_v128u16_sub
-    #define row_i8_load nnue_v128i8_load
+    #define row_i8_load nnue_v128i8_load_a
     #define row_i8_to_i16 nnue_v128_i8_to_i16
     #define row_i16_as_u16 nnue_v128_i16_as_u16
 #else
 enum { ROW_TILE_WIDTH = 64 };
     #define RowVecU16 NnueV64u16
-    #define row_load nnue_v64u16_load
-    #define row_store nnue_v64u16_store
+    #define row_load nnue_v64u16_load_a
+    #define row_store nnue_v64u16_store_a
     #define row_add nnue_v64u16_add
     #define row_sub nnue_v64u16_sub
-    #define row_i8_load nnue_v64i8_load
+    #define row_i8_load nnue_v64i8_load_a
     #define row_i8_to_i16 nnue_v64_i8_to_i16
     #define row_i16_as_u16 nnue_v64_i16_as_u16
 #endif
@@ -121,13 +121,14 @@ void nnue_acc_apply_psqt_delta(int32_t *target,
                                const uint32_t *added,
                                size_t added_len,
                                const int32_t *weights) {
-    NnueV8i32 acc = nnue_v8i32_load(target);
+    NnueV8i32 acc = nnue_v8i32_load_a(target);
     for (size_t i = 0; i < removed_len; i++)
         acc =
-          nnue_v8i32_sub(acc, nnue_v8i32_load(weights + (size_t) removed[i] * NNUE_PSQT_BUCKETS));
+          nnue_v8i32_sub(acc, nnue_v8i32_load_a(weights + (size_t) removed[i] * NNUE_PSQT_BUCKETS));
     for (size_t i = 0; i < added_len; i++)
-        acc = nnue_v8i32_add(acc, nnue_v8i32_load(weights + (size_t) added[i] * NNUE_PSQT_BUCKETS));
-    nnue_v8i32_store(target, acc);
+        acc =
+          nnue_v8i32_add(acc, nnue_v8i32_load_a(weights + (size_t) added[i] * NNUE_PSQT_BUCKETS));
+    nnue_v8i32_store_a(target, acc);
 }
 
 // Dual-store refresh of nnue_acc_apply_psqt_delta: hold the 8 buckets in one register, then store
@@ -140,24 +141,26 @@ void nnue_acc_apply_psqt_delta_dual(int32_t *cache_dest,
                                     const uint32_t *added,
                                     size_t added_len,
                                     const int32_t *weights) {
-    NnueV8i32 acc = nnue_v8i32_load(cache_dest);
+    NnueV8i32 acc = nnue_v8i32_load_a(cache_dest);
     for (size_t i = 0; i < removed_len; i++)
         acc =
-          nnue_v8i32_sub(acc, nnue_v8i32_load(weights + (size_t) removed[i] * NNUE_PSQT_BUCKETS));
+          nnue_v8i32_sub(acc, nnue_v8i32_load_a(weights + (size_t) removed[i] * NNUE_PSQT_BUCKETS));
     for (size_t i = 0; i < added_len; i++)
-        acc = nnue_v8i32_add(acc, nnue_v8i32_load(weights + (size_t) added[i] * NNUE_PSQT_BUCKETS));
-    nnue_v8i32_store(cache_dest, acc);
-    nnue_v8i32_store(state_dest, acc);
+        acc =
+          nnue_v8i32_add(acc, nnue_v8i32_load_a(weights + (size_t) added[i] * NNUE_PSQT_BUCKETS));
+    nnue_v8i32_store_a(cache_dest, acc);
+    nnue_v8i32_store_a(state_dest, acc);
 }
 
 void nnue_acc_accumulate_psqt_rows(int32_t *target,
                                    const uint32_t *rows,
                                    size_t row_count,
                                    const int32_t *weights) {
-    NnueV8i32 acc = nnue_v8i32_load(target);
+    NnueV8i32 acc = nnue_v8i32_load_a(target);
     for (size_t i = 0; i < row_count; i++)
-        acc = nnue_v8i32_add(acc, nnue_v8i32_load(weights + (size_t) rows[i] * NNUE_PSQT_BUCKETS));
-    nnue_v8i32_store(target, acc);
+        acc =
+          nnue_v8i32_add(acc, nnue_v8i32_load_a(weights + (size_t) rows[i] * NNUE_PSQT_BUCKETS));
+    nnue_v8i32_store_a(target, acc);
 }
 
 // Port upstream's `apply_combined` (nnue_accumulator.cpp): ONE combined accumulator (HalfKA +
@@ -219,18 +222,18 @@ void nnue_acc_apply_combined_psqt_delta(int32_t *target,
                                         size_t thr_added_len,
                                         const int32_t *psq_weights,
                                         const int32_t *thr_weights) {
-    NnueV8i32 acc = nnue_v8i32_load(source);
+    NnueV8i32 acc = nnue_v8i32_load_a(source);
     for (size_t i = 0; i < psq_removed_len; i++)
         acc = nnue_v8i32_sub(
-          acc, nnue_v8i32_load(psq_weights + (size_t) psq_removed[i] * NNUE_PSQT_BUCKETS));
+          acc, nnue_v8i32_load_a(psq_weights + (size_t) psq_removed[i] * NNUE_PSQT_BUCKETS));
     for (size_t i = 0; i < psq_added_len; i++)
         acc = nnue_v8i32_add(
-          acc, nnue_v8i32_load(psq_weights + (size_t) psq_added[i] * NNUE_PSQT_BUCKETS));
+          acc, nnue_v8i32_load_a(psq_weights + (size_t) psq_added[i] * NNUE_PSQT_BUCKETS));
     for (size_t i = 0; i < thr_removed_len; i++)
         acc = nnue_v8i32_sub(
-          acc, nnue_v8i32_load(thr_weights + (size_t) thr_removed[i] * NNUE_PSQT_BUCKETS));
+          acc, nnue_v8i32_load_a(thr_weights + (size_t) thr_removed[i] * NNUE_PSQT_BUCKETS));
     for (size_t i = 0; i < thr_added_len; i++)
         acc = nnue_v8i32_add(
-          acc, nnue_v8i32_load(thr_weights + (size_t) thr_added[i] * NNUE_PSQT_BUCKETS));
-    nnue_v8i32_store(target, acc);
+          acc, nnue_v8i32_load_a(thr_weights + (size_t) thr_added[i] * NNUE_PSQT_BUCKETS));
+    nnue_v8i32_store_a(target, acc);
 }
