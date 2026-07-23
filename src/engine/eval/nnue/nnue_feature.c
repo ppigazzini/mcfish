@@ -72,6 +72,23 @@ static uint32_t Offsets[16][64];
 static uint32_t IndexLut1[16][16][2];
 static uint8_t IndexLut2[16][64][64];
 
+// Colocate everything one threat index reads behind a single per-attacker base: the
+// attacker's IndexLut1 row plus a merged u16 plane comb[from][to] = Offsets[from] +
+// IndexLut2[from][to]. nnue_full_make_index then costs one block base and two loads
+// instead of three loads behind three separately-based tables; the sums are unchanged,
+// so every index is too. The three generator tables above stay as init-time scratch.
+// The block is a whole number of cache lines, so the alignas keeps every attacker's
+// lut1 row and comb plane line-aligned.
+typedef struct ThreatIndexBlock {
+    uint32_t lut1[16][2];
+    uint16_t comb[64][64];
+} ThreatIndexBlock;
+
+static_assert(sizeof(ThreatIndexBlock) % 64 == 0,
+              "the block stride must carry the arena alignment forward");
+
+static alignas(64) ThreatIndexBlock ThreatIndexBlocks[16];
+
 static void init_threat_offsets(void) {
     uint32_t cumulative_offset = 0;
     for (unsigned piece_index = 0; piece_index < 12; piece_index++) {
@@ -151,10 +168,33 @@ static void init_index_lut2(void) {
     __builtin_memcpy(IndexLut2[B_KING], king, sizeof king);
 }
 
+// Merge the three generator tables into the per-attacker blocks. Every merged sum must
+// fit u16 (the largest is the queen's last Offsets entry plus an IndexLut2 byte, far
+// below 65536); trap at init if a table change ever breaks that, since NDEBUG builds
+// strip assert and a silent truncation here would corrupt every threat index.
+static void init_threat_blocks(void) {
+    for (unsigned attacker = 0; attacker < 16; attacker++) {
+        for (unsigned attacked = 0; attacked < 16; attacked++) {
+            ThreatIndexBlocks[attacker].lut1[attacked][0] = IndexLut1[attacker][attacked][0];
+            ThreatIndexBlocks[attacker].lut1[attacked][1] = IndexLut1[attacker][attacked][1];
+        }
+        for (unsigned from = 0; from < 64; from++) {
+            for (unsigned to = 0; to < 64; to++) {
+                const uint32_t sum = Offsets[attacker][from] + IndexLut2[attacker][from][to];
+                if (sum > UINT16_MAX) {
+                    __builtin_trap();
+                }
+                ThreatIndexBlocks[attacker].comb[from][to] = (uint16_t) sum;
+            }
+        }
+    }
+}
+
 void nnue_feature_init(void) {
     init_threat_offsets();
     init_index_luts();
     init_index_lut2();
+    init_threat_blocks();
 }
 
 // --- HalfKAv2_hm ------------------------------------------------------------------
@@ -183,9 +223,8 @@ uint32_t nnue_full_make_index(uint8_t perspective,
     const uint8_t attacker_oriented = (uint8_t) (attacker ^ swap);
     const uint8_t attacked_oriented = (uint8_t) (attacked ^ swap);
     const unsigned less = from_oriented < to_oriented ? 1u : 0u;
-    return IndexLut1[attacker_oriented][attacked_oriented][less]
-         + Offsets[attacker_oriented][from_oriented]
-         + IndexLut2[attacker_oriented][from_oriented][to_oriented];
+    const ThreatIndexBlock *block = &ThreatIndexBlocks[attacker_oriented];
+    return block->lut1[attacked_oriented][less] + block->comb[from_oriented][to_oriented];
 }
 
 // Append only when the pair is inside the feature space: an excluded pair indexes past
