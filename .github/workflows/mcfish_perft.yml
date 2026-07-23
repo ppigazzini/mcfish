@@ -44,7 +44,7 @@ jobs:
     # fails here instead of burning an hour of Actions time.
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install clang ${{ env.CLANG_VERSION }}
         run: |
@@ -57,7 +57,7 @@ jobs:
       # without it -- so the perft gate needs the net just as the signature gate does, even
       # though perft itself never evaluates. Fetch + cache it (see mcfish_parity.yml's note).
       - name: Cache NNUE network
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: resources/nn-*.nnue
           key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}

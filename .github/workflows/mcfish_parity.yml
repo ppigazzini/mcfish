@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # clang-format output is version-dependent: a different major version reflows code
       # that was clean under another one, which would make this gate flap for reasons
@@ -86,7 +86,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # clang + clang-format from apt.llvm.org: `parity` runs the fmt gate internally, so
       # this job needs both even though the fmt job above also covers formatting.
@@ -119,7 +119,7 @@ jobs:
       # sha256-verifies it (the filename IS the sha256 prefix). Cache it keyed on network.h --
       # the one file that names the net -- so a net bump busts the cache and nothing else does.
       - name: Cache NNUE network
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: resources/nn-*.nnue
           key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
@@ -157,7 +157,7 @@ jobs:
       ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
       UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install clang ${{ env.CLANG_VERSION }}
         run: |
@@ -169,7 +169,7 @@ jobs:
       # The bench/perft smokes below run the real engine, which aborts without the net (see the
       # parity job's note). Fetch + cache it here too.
       - name: Cache NNUE network
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: resources/nn-*.nnue
           key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
@@ -233,7 +233,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Use the runner's default gcc. build.sh probes for the C23 flag this compiler
       # spells (`-std=c23`, falling back to gcc-13's `-std=c2x` -- the same language,
@@ -246,7 +246,7 @@ jobs:
       # The signature gate below runs the engine, which aborts without the net (see the parity
       # job's note). Fetch + cache it here too.
       - name: Cache NNUE network
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: resources/nn-*.nnue
           key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
