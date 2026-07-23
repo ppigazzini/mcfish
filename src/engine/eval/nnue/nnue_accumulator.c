@@ -659,9 +659,9 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
                 // non-negative i32 and greater-than-zero IS non-zero. Two vpcmpgtd
                 // + vmovmskps per step, upstream's NNZCursor::record2 shape, in
                 // place of the generic movemask's pack-and-shuffle chain.
-                nnz_mask |= (uint32_t) _mm256_movemask_ps(
-                              (__m256) _mm256_cmpgt_epi32(packed, sgnzero))
-                         << (8 * k);
+                nnz_mask |=
+                  (uint32_t) _mm256_movemask_ps((__m256) _mm256_cmpgt_epi32(packed, sgnzero))
+                  << (8 * k);
             }
 #else
             const TfI16 s0 = tf_i16_load(comb_acc + base + j);
