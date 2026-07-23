@@ -615,6 +615,13 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
         const size_t pp = p == 0 ? p0 : p1;
         const size_t offset = half * p;
         const size_t base = pp * NNUE_HALF_DIMENSIONS;
+#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+        // Rebase the bitset cursor per perspective so the store below indexes it
+        // with the loop counter alone; folding the perspective offset into the
+        // index expression instead makes clang carry a second, or-adjusted cursor
+        // register through the loop.
+        unsigned char *const nnz_bytes = (unsigned char *) *nnz + offset / 32;
+#endif
 #if defined(__AVX512F__)
         // Accumulate each bitset word in a register and store it once when its last
         // chunk-mask lands, instead of a zero-fill plus a read-modify-write per step:
@@ -640,7 +647,6 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
             const int16_t *in0 = comb_acc + base + j;
             const int16_t *in1 = comb_acc + base + j + half;
             TfU8 bytes;
-            uint32_t nnz_mask = 0;
             for (size_t k = 0; k < 2; k++) {
                 const __m256i a0 = _mm256_loadu_si256((const __m256i *) (in0 + 32 * k));
                 const __m256i a1 = _mm256_loadu_si256((const __m256i *) (in0 + 32 * k + 16));
@@ -656,12 +662,20 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
                 __builtin_memcpy((unsigned char *) &bytes + 32 * k, &packed, sizeof packed);
                 // Harvest the non-zero-chunk bits of this half while it is still a
                 // register: the u8 lanes are at most 126, so each dword group is a
-                // non-negative i32 and greater-than-zero IS non-zero. Two vpcmpgtd
-                // + vmovmskps per step, upstream's NNZCursor::record2 shape, in
-                // place of the generic movemask's pack-and-shuffle chain.
-                nnz_mask |=
-                  (uint32_t) _mm256_movemask_ps((__m256) _mm256_cmpgt_epi32(packed, sgnzero))
-                  << (8 * k);
+                // non-negative i32 and greater-than-zero IS non-zero. Store each
+                // step's 8-bit vmovmskps result as its own byte — upstream's
+                // NNZCursor::record2 shape. Combining the two masks into one u16
+                // first hands clang a movemask-merge pattern it re-fuses into a
+                // pack-and-shuffle chain (vpackssdw + vpacksswb + vpshufd +
+                // vpmovmskb), two ops longer per step; the immediate byte store
+                // keeps the two vpcmpgtd + vmovmskps pairs it stands for.
+                // Consecutive steps cover disjoint byte spans and together the
+                // whole bitset, so no zero-fill is needed, and little-endian byte
+                // order makes byte (offset + j) / 32 + k exactly bits
+                // [(offset + j) / 4, +16) of the u64 words.
+                const uint32_t mask8 =
+                  (uint32_t) _mm256_movemask_ps((__m256) _mm256_cmpgt_epi32(packed, sgnzero));
+                nnz_bytes[j / 32 + k] = (uint8_t) mask8;
             }
 #else
             const TfI16 s0 = tf_i16_load(comb_acc + base + j);
@@ -675,35 +689,25 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
 #endif
             tf_u8_store(output + offset + j, bytes);
 
-#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
-            const uint64_t mask = nnz_mask;
-#else
+#if !(MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__))
             // Record which 4-byte chunks are non-zero while they are still in a register:
-            // no reload of what was just stored.
+            // no reload of what was just stored. (The avx2 branch above already stored
+            // its per-step movemask bytes.)
             const TfGroups groups = tf_u8_as_groups(bytes);
 
             // Build the non-zero-chunk mask with one horizontal movemask (compare-to-zero
             // + reduce-OR) rather than a per-lane extract+compare+shift+OR each group.
             const uint64_t mask = tf_movemask(groups);
-#endif
             const size_t bit = (offset + j) / 4;
-#if defined(__AVX512F__)
+    #if defined(__AVX512F__)
             nnz_word |= mask << (bit % 64);
             if (bit % 64 + TRANSFORM_VEC_WIDTH / 4 == 64) {
                 (*nnz)[bit / 64] = nnz_word;
                 nnz_word = 0;
             }
-#elif MCFISH_SIMD_VECTOR && defined(__AVX2__)
-            // Store each step's 16-bit chunk mask once at its own byte offset:
-            // consecutive steps cover disjoint u16 spans and together the whole
-            // bitset, so the zero-fill above and the |='s load-shift-or word
-            // update both drop out — upstream's NNZCursor::record2 writes its
-            // movemask bytes the same way. Little-endian byte order makes the
-            // u16 at byte bit/8 exactly bits [bit, bit+16) of the u64 word.
-            const uint16_t mask16 = (uint16_t) mask;
-            __builtin_memcpy((unsigned char *) *nnz + bit / 8, &mask16, sizeof mask16);
-#else
+    #else
             (*nnz)[bit / 64] |= mask << (bit % 64);
+    #endif
 #endif
         }
     }
