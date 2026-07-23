@@ -23,14 +23,20 @@ static void mp_set_probcut_stage(MovePicker *mp, const Position *pos, Move tt_mo
     mp->stage = MP_PROBCUT_TT + (int) (!usable);
 }
 
-Value search_node(SearchCtx *ctx,
-                  Position *pos,
-                  Stack *ss,
-                  Value alpha_in,
-                  Value beta_in,
-                  int depth_in,
-                  bool cut_node,
-                  NodeType nt) {
+// Clone the node body per NodeType, the way upstream instantiates
+// search<NonPV>/search<PV>/search<Root>: NT is a literal in every clone, so each
+// pv_node / root_node test below folds at compile time instead of running at
+// every node. always_inline forces the clone -- the cost model refuses a body
+// this size -- and search_run_back's own always_inline carries the folded
+// constants through the move loop as well.
+__attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *ctx,
+                                                                    Position *pos,
+                                                                    Stack *ss,
+                                                                    Value alpha_in,
+                                                                    Value beta_in,
+                                                                    int depth_in,
+                                                                    bool cut_node,
+                                                                    const NodeType nt) {
     const bool pv_node = nt_is_pv(nt);
     const bool root_node = nt_is_root(nt);
     const bool all_node = !(pv_node || cut_node);
@@ -367,4 +373,38 @@ Value search_node(SearchCtx *ctx,
         .prior_capture = prior_capture,
     };
     return search_run_back(&nd);
+}
+
+// Emit the three specializations upstream's template produces. Each is one
+// inlined copy of the body with its NodeType folded; the dispatcher below is
+// small enough that LTO inlines it at every literal-NT call site, so the
+// recursion lands directly on the matching clone.
+static Value search_node_nonpv(
+  SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, int depth, bool cut_node) {
+    return search_node_impl(ctx, pos, ss, alpha, beta, depth, cut_node, NT_NON_PV);
+}
+
+static Value search_node_pv(
+  SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, int depth, bool cut_node) {
+    return search_node_impl(ctx, pos, ss, alpha, beta, depth, cut_node, NT_PV);
+}
+
+static Value search_node_root(
+  SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, int depth, bool cut_node) {
+    return search_node_impl(ctx, pos, ss, alpha, beta, depth, cut_node, NT_ROOT);
+}
+
+Value search_node(SearchCtx *ctx,
+                  Position *pos,
+                  Stack *ss,
+                  Value alpha_in,
+                  Value beta_in,
+                  int depth_in,
+                  bool cut_node,
+                  NodeType nt) {
+    if (nt == NT_NON_PV)
+        return search_node_nonpv(ctx, pos, ss, alpha_in, beta_in, depth_in, cut_node);
+    if (nt == NT_PV)
+        return search_node_pv(ctx, pos, ss, alpha_in, beta_in, depth_in, cut_node);
+    return search_node_root(ctx, pos, ss, alpha_in, beta_in, depth_in, cut_node);
 }
