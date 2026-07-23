@@ -26,6 +26,15 @@ typedef enum {
 // have room for MAX_MOVES entries.
 ExtMove *generate(const Position *pos, ExtMove *list, GenType type);
 
+// Type-literal entries, upstream's explicit generate<Type> instantiations: each
+// body is specialized per stage and per side to move, so the per-stage tests and
+// the direction/piece dispatches are folded at compile time. `generate` above is
+// the runtime-typed dispatcher over these.
+ExtMove *generate_captures(const Position *pos, ExtMove *list);
+ExtMove *generate_quiets(const Position *pos, ExtMove *list);
+ExtMove *generate_evasions(const Position *pos, ExtMove *list);
+ExtMove *generate_non_evasions(const Position *pos, ExtMove *list);
+
 // Append only the moves that pass pos_legal. This is the perft and root generator.
 ExtMove *generate_legal(const Position *pos, ExtMove *list);
 
