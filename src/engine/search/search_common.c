@@ -404,6 +404,12 @@ Value search_evaluate(SearchCtx *ctx, const Position *pos) {
     // Index optimism by the side to move at THIS node, not at the root: the
     // aspiration loop writes both colours and the sign has to follow the mover
     // down the tree (upstream search.cpp:1867).
+    //
+    // Branch on the per-go readiness byte, not on the eval zone's global load
+    // state plus the arena pointer: the answer cannot change inside a go, and
+    // upstream's Worker::evaluate carries no per-node re-test at all.
+    if (ctx->eval_nnue_ready)
+        return evaluate_nnue_with_optimism(ctx->eval_arena, pos, ctx->optimism[pos->side_to_move]);
     return evaluate_with_optimism(ctx->eval_arena, pos, ctx->optimism[pos->side_to_move]);
 }
 

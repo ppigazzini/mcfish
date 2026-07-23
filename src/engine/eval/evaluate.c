@@ -404,6 +404,11 @@ static Value evaluate_classical(const Position *pos) {
 // Entry points
 // ---------------------------------------------------------------------------
 
+Value evaluate_nnue_with_optimism(EvalArena *arena, const Position *pos, int optimism) {
+    const NnueEvalOutput out = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
+    return nnue_scaled_value(pos, out.psqt, out.positional, optimism);
+}
+
 Value evaluate_with_optimism(EvalArena *arena, const Position *pos, int optimism) {
     // The classical placeholder produces neither network half, so there is nothing
     // for optimism to scale against; it is scaffolding to be deleted and never
@@ -411,8 +416,7 @@ Value evaluate_with_optimism(EvalArena *arena, const Position *pos, int optimism
     if (!NetLoaded || arena == nullptr)
         return evaluate_classical(pos);
 
-    const NnueEvalOutput out = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
-    return nnue_scaled_value(pos, out.psqt, out.positional, optimism);
+    return evaluate_nnue_with_optimism(arena, pos, optimism);
 }
 
 // Evaluate with no search bias, through the default arena. Upstream's own value at
