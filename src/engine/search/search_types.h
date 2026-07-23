@@ -193,6 +193,13 @@ typedef struct SearchCtx {
     // is_mainthread() (e.g. the root currmove line). Set by iterative_deepening.
     bool is_main;
 
+    // True when this search may take the no-fallback NNUE evaluate path: the arena
+    // exists and a network was resident when the search started. Snapshotted by
+    // search_ctx_init — a net cannot load mid-go — so the per-node evaluate tests
+    // one context byte instead of re-deriving the same answer from a global and a
+    // pointer on every call.
+    bool eval_nnue_ready;
+
     size_t pv_idx;
     size_t pv_last;
     RootMove *root_moves;

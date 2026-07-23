@@ -5,6 +5,7 @@
 #include "tt.h"
 
 #include "../board/board_props.h"
+#include "../eval/evaluate.h"
 
 #include <string.h>
 
@@ -41,6 +42,7 @@ void search_ctx_init(SearchCtx *ctx,
 
     ctx->hist = h;
     ctx->eval_arena = eval_arena;
+    ctx->eval_nnue_ready = eval_arena != nullptr && eval_nnue_available();
     ctx->root_pos = root_pos;
     ctx->stop = stop;
     ctx->limits = *limits;
