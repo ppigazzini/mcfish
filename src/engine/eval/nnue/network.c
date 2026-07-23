@@ -5,6 +5,7 @@
 #include "nnue_hash.h"
 #include "nnue_parse.h"
 #include "nnue_weight_storage.h"
+#include "simd.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -88,6 +89,28 @@ static bool read_header(const uint8_t *bytes, size_t len, size_t *offset, Header
 
 // ---- section parses ----------------------------------------------------------
 
+#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+// Reorder every 64-lane span of an accumulator-side array so the avx2 transform's
+// vpackuswb lands the u8 outputs in canonical order with no cross-lane vpermq
+// (upstream permute_weights / PackusEpi16Order): swap the middle two 8-lane blocks
+// of each 32-lane half. Apply it to every array the 16-bit accumulator is built
+// from — biases, psq weight rows, threat weight rows — and to nothing else; all
+// other consumers add these arrays lane-wise, where one fixed permutation applied
+// to every writer is invisible, and the transform's packus undoes it exactly.
+static void permute_packus_order(void *data, size_t elem_bytes, size_t count) {
+    static const size_t order[8] = { 0, 2, 1, 3, 4, 6, 5, 7 };
+    const size_t block = 8 * elem_bytes;
+    const size_t chunk = 8 * block;
+    unsigned char *cursor = data;
+    unsigned char buffer[8 * 8 * sizeof(int16_t)];
+    for (size_t i = 0; i < count * elem_bytes; i += chunk) {
+        for (size_t j = 0; j < 8; j++)
+            memcpy(buffer + j * block, cursor + i + order[j] * block, block);
+        memcpy(cursor + i, buffer, chunk);
+    }
+}
+#endif
+
 // Parse the feature transformer into the shared weight storage and advance
 // *OFFSET. Report a malformed net or a failed allocation as a rejection rather
 // than aborting: the file is user input and the storage is megabytes.
@@ -102,6 +125,12 @@ static bool read_feature_transformer(const uint8_t *bytes, size_t len, size_t *o
         return false;
     if (consumed == 0 || consumed > remaining)
         return false;
+#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+    permute_packus_order(dst + NNUE_FT_BIASES_OFF, sizeof(int16_t), NNUE_FT_BIASES_COUNT);
+    permute_packus_order(dst + NNUE_FT_WEIGHTS_OFF, sizeof(int16_t), NNUE_FT_PSQ_WEIGHTS_COUNT);
+    permute_packus_order(dst + NNUE_FT_THREAT_WEIGHTS_OFF, sizeof(int8_t),
+                         NNUE_FT_THREAT_WEIGHTS_COUNT);
+#endif
     *offset += consumed;
     return true;
 }
