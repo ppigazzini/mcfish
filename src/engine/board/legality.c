@@ -74,7 +74,7 @@ bool pos_pseudo_legal(const Position *pos, Move m) {
     if (move_type(m) != NORMAL) {
         ExtMove list[MAX_MOVES];
         const ExtMove *const end =
-          generate(pos, list, checkers(pos) != 0 ? GEN_EVASIONS : GEN_NON_EVASIONS);
+          checkers(pos) != 0 ? generate_evasions(pos, list) : generate_non_evasions(pos, list);
         for (const ExtMove *it = list; it != end; ++it)
             if (it->move == m)
                 return true;
