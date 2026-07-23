@@ -12,6 +12,7 @@
 #include "../engine/eval/evaluate.h"
 #include "../engine/search/tt.h"
 #include "engine_nnue.h"
+#include "syzygy_option.h"
 #include "engine_options.h"
 #include "syzygy_option.h"
 
@@ -107,6 +108,10 @@ bool engine_play_move(const char *uci_move, const char **reason) {
 void engine_new_game(void) {
     tt_clear();
     search_clear();
+    // Re-map the tablebase files after the clear, in upstream's order
+    // (Engine::search_clear, engine.cpp:170) -- the load report prints again on a
+    // usable path, exactly as it does for setoption.
+    syzygy_option_reinit();
     const char *r = nullptr;
     (void) engine_set_startpos(&r);
 }
