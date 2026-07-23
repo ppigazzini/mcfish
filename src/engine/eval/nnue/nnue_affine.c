@@ -184,6 +184,58 @@ void nnue_affine_1(bool sparse,
 
 // --- activations -------------------------------------------------------------------
 
+#if MCFISH_SIMD_VECTOR && defined(__SSE4_1__) && !defined(__AVX2__)
+    #include <smmintrin.h>
+
+// Native SSE bodies for the two activations, upstream's shape (clipped_relu.h,
+// sqr_clipped_relu.h): run the clamp-shift-narrow in the 16-bit pack domain, where the
+// saturating packs ARE the clamps, instead of the portable 32-bit min/max/pmulld chain
+// the vector extensions lower to on a 128-bit tier. Wider tiers keep the portable body:
+// under AVX2 the cross-lane packs would need extra permutes, and the 32-bit chain there
+// is already at parity with upstream. Bit-identity per body below; simd-scalar and the
+// oracle's own SSE build (which runs exactly these instructions) both pin it.
+
+// min(127, (clamp(x, -32768, 32767)^2) >> SHIFT), SHIFT > 16, over 32 lanes.
+//   - packs_epi32 saturates int32 -> int16: exactly the explicit [-32768, 32767] clamp.
+//   - pmulhi(w, w) = (w*w) >> 16, exact: w*w <= 2^30 < 2^31 never overflows int32.
+//   - srli by SHIFT-16 on a value <= 2^14: (w*w >> 16) >> (SHIFT-16) == w*w >> SHIFT,
+//     floor-of-floor composes.
+//   - packs_epi16 saturates to [-128, 127]: every lane is in [0, 2^30 >> SHIFT], so
+//     this is exactly min(127, .).
+void nnue_sqr_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]) {
+    for (size_t i = 0; i < 32; i += 16) {
+        const __m128i a = _mm_loadu_si128((const __m128i *) (const void *) (in + i));
+        const __m128i b = _mm_loadu_si128((const __m128i *) (const void *) (in + i + 4));
+        const __m128i c = _mm_loadu_si128((const __m128i *) (const void *) (in + i + 8));
+        const __m128i d = _mm_loadu_si128((const __m128i *) (const void *) (in + i + 12));
+        const __m128i w0 = _mm_packs_epi32(a, b);
+        const __m128i w1 = _mm_packs_epi32(c, d);
+        const __m128i h0 = _mm_srli_epi16(_mm_mulhi_epi16(w0, w0), shift - 16);
+        const __m128i h1 = _mm_srli_epi16(_mm_mulhi_epi16(w1, w1), shift - 16);
+        _mm_storeu_si128((__m128i *) (void *) (out + i), _mm_packs_epi16(h0, h1));
+    }
+}
+
+// clamp(x >> SHIFT, 0, 127) with an arithmetic shift, over 32 lanes.
+//   - packus_epi32 saturates int32 -> uint16 = clamp(x, 0, 65535): for x < 0 both give
+//     0 (arithmetic shift keeps the sign, then the max-with-0 floors it); for
+//     x > 65535 both saturate past the 127 cap regardless of SHIFT <= 9.
+//   - srli by SHIFT on the unsigned clamp equals the arithmetic shift on [0, 65535].
+//   - packs_epi16 saturates to 127: lanes are in [0, 65535 >> SHIFT].
+void nnue_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]) {
+    for (size_t i = 0; i < 32; i += 16) {
+        const __m128i a = _mm_loadu_si128((const __m128i *) (const void *) (in + i));
+        const __m128i b = _mm_loadu_si128((const __m128i *) (const void *) (in + i + 4));
+        const __m128i c = _mm_loadu_si128((const __m128i *) (const void *) (in + i + 8));
+        const __m128i d = _mm_loadu_si128((const __m128i *) (const void *) (in + i + 12));
+        const __m128i h0 = _mm_srli_epi16(_mm_packus_epi32(a, b), shift);
+        const __m128i h1 = _mm_srli_epi16(_mm_packus_epi32(c, d), shift);
+        _mm_storeu_si128((__m128i *) (void *) (out + i), _mm_packs_epi16(h0, h1));
+    }
+}
+
+#else  // portable activation bodies
+
 enum { RELU_VEC_WIDTH = 16 };
 
 // Narrow sixteen int32 lanes to bytes and store them as a unit.
@@ -194,16 +246,16 @@ enum { RELU_VEC_WIDTH = 16 };
 // value-identical to reading the lanes out one at a time -- which is what lets the
 // vector and scalar bodies stay equal.
 static inline void relu_store16(uint8_t *out, NnueV16i32 q) {
-#if MCFISH_SIMD_VECTOR
+    #if MCFISH_SIMD_VECTOR
     // __builtin_convertvector narrows all sixteen lanes in one expression; the
     // compiler picks the pack sequence for whatever ISA is enabled.
     typedef uint8_t NnueV16u8Store __attribute__((vector_size(16)));
     const NnueV16u8Store packed = __builtin_convertvector(q, NnueV16u8Store);
     __builtin_memcpy(out, &packed, sizeof packed);
-#else
+    #else
     for (size_t k = 0; k < RELU_VEC_WIDTH; k++)
         out[k] = (uint8_t) nnue_v16i32_lane(q, k);
-#endif
+    #endif
 }
 
 void nnue_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]) {
@@ -228,3 +280,5 @@ void nnue_sqr_clipped_relu_32(int shift, const int32_t in[32], uint8_t out[32]) 
         relu_store16(out + i, q);
     }
 }
+
+#endif  // activation bodies
