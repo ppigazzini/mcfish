@@ -434,8 +434,16 @@ void search_update_quiet_histories(
 }
 
 void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, int bonus) {
-    const HistoryStack hs = search_gather_stack(ss);
-    history_update_continuation(hs.frames, ss->in_check, pc, to, bonus);
+    // Gather only the six frames the continuation walk reads; the full
+    // HistoryStack also copies the correction pages and the previous-ply scalars,
+    // which this update never touches.
+    ContHistFrame frames[6];
+    for (size_t k = 0; k < 6; ++k) {
+        const Stack *const f = ss - 1 - (ptrdiff_t) k;
+        frames[k].current_move = f->current_move;
+        frames[k].continuation_history = f->continuation_history;
+    }
+    history_update_continuation(frames, ss->in_check, pc, to, bonus);
 }
 
 // ---- transposition-table adapter ---------------------------------------

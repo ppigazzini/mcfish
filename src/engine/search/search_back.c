@@ -348,17 +348,19 @@ Value search_run_back(const SearchNodeState *nd) {
                        bound, wdepth, best_move, nd->unadjusted_static_eval);
     }
 
-    // Adjust the correction history.
+    // Adjust the correction history. Pass the three stack facts the update reads
+    // directly — a full HistoryStack gather here would copy seven frames the
+    // update never touches.
     if (!ss->in_check && !(best_move != MOVE_NONE && pos_capture(pos, best_move))
         && (best_value > ss->static_eval) == (best_move != MOVE_NONE)) {
-        const HistoryStack hs = search_gather_stack(ss);
         const CorrectionKeys keys = {
             .pawn = pos->st->pawn_key,
             .minor = pos->st->minor_piece_key,
             .non_pawn = { pos->st->non_pawn_key[WHITE], pos->st->non_pawn_key[BLACK] },
         };
         history_update_correction(
-          h, pos, pos->side_to_move, &keys, &hs,
+          h, pos, pos->side_to_move, &keys, ss1->current_move,
+          (ss - 2)->continuation_correction_history, (ss - 4)->continuation_correction_history,
           correction_history_bonus(best_value - ss->static_eval, depth, best_move != MOVE_NONE));
     }
 
