@@ -363,6 +363,10 @@ SearchResult search_go(Position *pos, const SearchLimits *limits) {
     sm->best_previous_score = best->ctx.root_moves[0].score;
     sm->best_previous_average_score = best->ctx.root_moves[0].average_score;
     sm->previous_time_reduction = id.previous_time_reduction;
+    // Bank the check_time counter residue so the next `go` in this game resumes
+    // it, as upstream's persistent callsCnt does (thread.cpp:268 is the only
+    // reset). The counter runs by value in ctx for the fast path's sake.
+    sm->calls_cnt = ctx->time_state.calls_cnt;
 
     // Report the finished line once. The depth loop already emitted it when the last
     // MultiPV line of the final iteration completed -- but a vote that picked another
