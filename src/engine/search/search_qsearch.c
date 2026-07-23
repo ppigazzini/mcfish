@@ -144,62 +144,67 @@ Value qsearch_node(
     const int prev_sq =
       search_move_ok(ss1->current_move) ? (int) move_to(ss1->current_move) : (int) SQ_NONE;
 
-    // Step 5. Pick moves (captures, or evasions when in check).
-    MovePicker mp;
-    movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, DEPTH_QS, ss->ply, ss);
-    mp_set_main_stage(&mp, pos, tt_move, DEPTH_QS);
+    // Step 5. Pick moves (captures, or evasions when in check). Scope the picker
+    // to the loop: its 2 KiB move buffer then dies before the stalemate check
+    // below declares its own, and stack coloring overlays the two instead of
+    // stacking them -- the frame upstream's qsearch gets from the same shape.
+    {
+        MovePicker mp;
+        movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, DEPTH_QS, ss->ply, ss);
+        mp_set_main_stage(&mp, pos, tt_move, DEPTH_QS);
 
-    Move move;
-    while ((move = movepick_next(&mp)) != MOVE_NONE) {
-        if (!pos_legal(pos, move))
-            continue;
+        Move move;
+        while ((move = movepick_next(&mp)) != MOVE_NONE) {
+            if (!pos_legal(pos, move))
+                continue;
 
-        const bool gc = search_gives_check(pos, move);
-        const bool capture = search_capture_stage(pos, move);
-        move_count += 1;
+            const bool gc = search_gives_check(pos, move);
+            const bool capture = search_capture_stage(pos, move);
+            move_count += 1;
 
-        // Step 6. Prune.
-        if (!value_is_loss(best_value)) {
-            if (!gc && (int) move_to(move) != prev_sq && !value_is_loss(futility_base)
-                && move_type(move) != PROMOTION) {
-                if (move_count > 2)
-                    continue;
-                const int futility_value =
-                  futility_base + PieceValueByPiece[piece_on(pos, move_to(move))];
-                if (futility_value <= alpha) {
-                    if (futility_value > best_value)
-                        best_value = futility_value;
-                    continue;
+            // Step 6. Prune.
+            if (!value_is_loss(best_value)) {
+                if (!gc && (int) move_to(move) != prev_sq && !value_is_loss(futility_base)
+                    && move_type(move) != PROMOTION) {
+                    if (move_count > 2)
+                        continue;
+                    const int futility_value =
+                      futility_base + PieceValueByPiece[piece_on(pos, move_to(move))];
+                    if (futility_value <= alpha) {
+                        if (futility_value > best_value)
+                            best_value = futility_value;
+                        continue;
+                    }
+                    if (!see_ge(pos, move, alpha - futility_base)) {
+                        const int cap = alpha < futility_base ? alpha : futility_base;
+                        if (cap > best_value)
+                            best_value = cap;
+                        continue;
+                    }
                 }
-                if (!see_ge(pos, move, alpha - futility_base)) {
-                    const int cap = alpha < futility_base ? alpha : futility_base;
-                    if (cap > best_value)
-                        best_value = cap;
+                if (!capture)
                     continue;
-                }
+                if (!see_ge(pos, move, -74))
+                    continue;
             }
-            if (!capture)
-                continue;
-            if (!see_ge(pos, move, -74))
-                continue;
-        }
 
-        // Step 7. Make and search the move.
-        search_do_move(ctx, pos, move, &st, gc, ss);
-        const Value value = (Value) -qsearch_node(ctx, pos, ss_next, -beta, -alpha, pv_node);
-        search_undo_move(ctx, pos, move);
+            // Step 7. Make and search the move.
+            search_do_move(ctx, pos, move, &st, gc, ss);
+            const Value value = (Value) -qsearch_node(ctx, pos, ss_next, -beta, -alpha, pv_node);
+            search_undo_move(ctx, pos, move);
 
-        // Step 8. Record a new best move.
-        if (value > best_value) {
-            best_value = value;
-            if (value > alpha) {
-                best_move = move;
-                if (pv_node)
-                    pv_update(ss->pv, move, ss_next->pv);
-                if (value < beta)
-                    alpha = value;
-                else
-                    break;
+            // Step 8. Record a new best move.
+            if (value > best_value) {
+                best_value = value;
+                if (value > alpha) {
+                    best_move = move;
+                    if (pv_node)
+                        pv_update(ss->pv, move, ss_next->pv);
+                    if (value < beta)
+                        alpha = value;
+                    else
+                        break;
+                }
             }
         }
     }
