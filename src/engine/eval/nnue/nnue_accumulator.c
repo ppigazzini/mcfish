@@ -145,8 +145,9 @@ enum { TRANSFORM_VEC_WIDTH = 64 };
 #endif
 static_assert((NNUE_HALF_DIMENSIONS / 2) % TRANSFORM_VEC_WIDTH == 0,
               "the transform half-output must be a multiple of TRANSFORM_VEC_WIDTH");
-// The transform stores each nnz word exactly once, flushing at the 64-bit boundary,
-// so each perspective's chunk-bit span must fill whole words.
+// The transform stores each step's nnz mask bytes exactly once at their own offset,
+// so each perspective's chunk-bit span must fill whole words — no step may straddle
+// a word another perspective seeds.
 static_assert((NNUE_HALF_DIMENSIONS / 2 / 4) % 64 == 0,
               "each transform half must cover whole 64-bit nnz words");
 
@@ -668,11 +669,13 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
     const TfI16 c255 = tf_i16_splat(255);
 #endif
 
-#if !defined(__AVX512F__) && !(MCFISH_SIMD_VECTOR && defined(__AVX2__))
-    // sse41 keeps the zero-fill + |= form: measured there, the store-once rewrite
-    // below costs MORE instructions (callgrind, bench 16 1 11: +7.0M Ir), where
-    // the avx512 tier saves 16M (perf_counters d13). The avx2 tier stores each
-    // step's mask u16 directly, which needs no zero-fill at all.
+#if !(MCFISH_SIMD_VECTOR && defined(__SSE2__)) && !defined(__AVX512F__)
+    // Only the scalar fallback still seeds the bitset and ORs each mask into its
+    // word: every x86 tier stores each step's mask bytes directly at their own
+    // offset — upstream's `*out++` NNZCursor shape — so every bitset byte is
+    // written exactly once and the zero-fill drops. (The earlier sse41 refutation
+    // was the store-once u64 accumulator, a different shape: it carried the word
+    // in a register across steps; the direct byte store carries nothing.)
     memset(nnz, 0, sizeof(NnueNnzBitset));
 #endif
 
@@ -686,13 +689,6 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
         // index expression instead makes clang carry a second, or-adjusted cursor
         // register through the loop.
         unsigned char *const nnz_bytes = (unsigned char *) *nnz + offset / 32;
-#endif
-#if defined(__AVX512F__)
-        // Accumulate each bitset word in a register and store it once when its last
-        // chunk-mask lands, instead of a zero-fill plus a read-modify-write per step:
-        // the u8 output stores above may alias a u64 bitset word for all clang can
-        // prove, so the |= form reloads the word from memory on every iteration.
-        uint64_t nnz_word = 0;
 #endif
         for (size_t j = 0; j < half; j += TRANSFORM_VEC_WIDTH) {
 #if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
@@ -793,12 +789,24 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
             // + reduce-OR) rather than a per-lane extract+compare+shift+OR each group.
             const uint64_t mask = tf_movemask(groups);
             const size_t bit = (offset + j) / 4;
-    #if defined(__AVX512F__)
-            nnz_word |= mask << (bit % 64);
-            if (bit % 64 + TRANSFORM_VEC_WIDTH / 4 == 64) {
-                (*nnz)[bit / 64] = nnz_word;
-                nnz_word = 0;
-            }
+    #if defined(__AVX512F__) || (MCFISH_SIMD_VECTOR && defined(__SSE2__))
+                // Store the step's mask directly at its own byte offset — upstream's
+                // `*out++` NNZCursor shape. Consecutive steps cover disjoint byte spans
+                // and together the whole bitset, so no zero-fill precedes and no other
+                // step's word is read back: the little-endian byte store IS the
+                // `word |= mask << (bit % 64)` the scalar fallback keeps, which is why
+                // this stays behind the x86 guards.
+        #if defined(__AVX512F__)
+            const uint32_t mask_bits = (uint32_t) mask;
+        #else
+            const uint16_t mask_bits = (uint16_t) mask;
+        #endif
+            // Select the store's width by the SAME macro that selects the tile width
+            // above (the width enum is invisible to the preprocessor), and pin the
+            // pairing: a store narrower than the step's mask silently drops bits.
+            static_assert(TRANSFORM_VEC_WIDTH / 4 == 8 * sizeof mask_bits,
+                          "each step's mask must fill its stored span exactly");
+            __builtin_memcpy((unsigned char *) *nnz + bit / 8, &mask_bits, sizeof mask_bits);
     #else
             (*nnz)[bit / 64] |= mask << (bit % 64);
     #endif
