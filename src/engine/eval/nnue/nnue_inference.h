@@ -1,5 +1,5 @@
 // Own the NNUE forward pass: the accumulator transform followed by the per-bucket affine
-// stack, for SFNNv15.
+// stack, for SFNNv16.
 //
 // The INVARIANT is that this module is pure compute. It reads the loaded weights and the
 // position, writes nothing but the caller's accumulator stack and refresh cache, and has

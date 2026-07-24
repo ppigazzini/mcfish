@@ -29,11 +29,15 @@ enum : size_t {
     NNUE_FT_BIASES_BYTES = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
     NNUE_FT_PSQ_WEIGHTS_BYTES =
       NNUE_HALF_DIMENSIONS * NNUE_PSQ_FEATURE_DIMENSIONS * sizeof(int16_t),
+    // The threat regions span BOTH feature sets that index them: the full_threats rows
+    // followed by the pp_3wide rows, one contiguous array each (upstream's
+    // threatAndPpWeights / threatAndPpPsqtWeights). A pair index is >= the threat count,
+    // so it addresses the tail of the same region with no second base pointer.
     NNUE_FT_THREAT_WEIGHTS_BYTES =
-      NNUE_HALF_DIMENSIONS * (size_t) NNUE_FULL_DIMENSIONS * sizeof(int8_t),
+      NNUE_HALF_DIMENSIONS * (size_t) NNUE_THREAT_AND_PAIR_DIMENSIONS * sizeof(int8_t),
     NNUE_FT_PSQT_WEIGHTS_BYTES = NNUE_PSQ_FEATURE_DIMENSIONS * NNUE_PSQT_BUCKETS * sizeof(int32_t),
     NNUE_FT_THREAT_PSQT_WEIGHTS_BYTES =
-      (size_t) NNUE_FULL_DIMENSIONS * NNUE_PSQT_BUCKETS * sizeof(int32_t),
+      (size_t) NNUE_THREAT_AND_PAIR_DIMENSIONS * NNUE_PSQT_BUCKETS * sizeof(int32_t),
 
     NNUE_FT_BIASES_OFFSET = 0,
     NNUE_FT_PSQ_WEIGHTS_OFFSET = NNUE_ROUND_UP(NNUE_FT_BIASES_BYTES, NNUE_ALIGN),
