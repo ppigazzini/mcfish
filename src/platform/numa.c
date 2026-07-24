@@ -168,19 +168,43 @@ void numa_config_remove_empty_nodes(NumaConfig *cfg) {
 
 // ---- index-list parsing ("0-3,8") -------------------------------------------
 
-static bool parse_uint(const char *s, size_t len, size_t *out) {
-    if (len == 0)
-        return false;
+// Match isspace for the C locale, which is the one upstream's std::isspace sees.
+static bool is_space(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r';
+}
 
+// Read one unsigned index the way upstream's str_to_size_t does (misc.cpp:554).
+//
+// The rule is strtoull's, not "the element is all digits": leading whitespace is
+// skipped, digits are consumed, and the value is ACCEPTED when the first unconsumed
+// character is the end or whitespace. That trailing-whitespace acceptance is what lets
+// the /sys reads work at all -- `online` and `shared_cpu_list` are not whitespace-
+// stripped before parsing and carry a trailing newline.
+//
+// The no-conversion case is strtoull's too, and is the one that is easy to get wrong:
+// when no digit converts, strtoull stores the ORIGINAL start in endptr, so the accept
+// test looks at the element's first character rather than at where the whitespace skip
+// ended. " x" is therefore accepted as 0 and "x" is rejected.
+static bool parse_uint(const char *s, size_t len, size_t *out) {
+    size_t i = 0;
+    while (i < len && is_space(s[i]))
+        ++i;
+
+    const size_t first_digit = i;
     size_t value = 0;
-    for (size_t i = 0; i < len; ++i) {
-        if (s[i] < '0' || s[i] > '9')
-            return false;
+    while (i < len && s[i] >= '0' && s[i] <= '9') {
         const size_t digit = (size_t) (s[i] - '0');
+        // Reject the overflow upstream reports as ERANGE.
         if (value > ((size_t) -1 - digit) / 10)
             return false;
         value = value * 10 + digit;
+        ++i;
     }
+
+    if (i == first_digit)
+        i = 0;
+    if (i < len && !is_space(s[i]))
+        return false;
 
     *out = value;
     return true;
@@ -222,10 +246,14 @@ static bool parse_element(const char *s, size_t len, size_t *lo, size_t *hi) {
     return *hi - *lo < (size_t) NumaMaxRangeIndices;
 }
 
-// Walk a comma-separated index list, calling SINK for each index. Skip empty elements, any
-// whitespace (which /sys files carry as a trailing newline) and any element that parses to
-// nothing. Return false only when SINK refuses -- that is an OOM or a topology conflict,
-// which the caller must propagate.
+// Walk a comma-separated index list, calling SINK for each index. Skip empty elements and
+// any element that parses to nothing. Return false only when SINK refuses -- that is an
+// OOM or a topology conflict, which the caller must propagate.
+//
+// Hand each element to the parser UNTRIMMED. Upstream skips only the empty element and
+// leaves every other byte to str_to_size_t, whose own whitespace rule then decides;
+// trimming here instead would agree with it on the /sys reads and disagree on an element
+// like "0 1", which upstream reads as 0 and a trimming parser rejects outright.
 static bool for_each_index(
   const char *s, size_t len, bool (*sink)(void *ctx, size_t index), void *ctx, bool *out_any) {
     size_t start = 0;
@@ -234,13 +262,7 @@ static bool for_each_index(
             continue;
 
         const char *element = s + start;
-        size_t element_len = i - start;
-        while (element_len != 0 && (unsigned char) *element <= ' ') {
-            ++element;
-            --element_len;
-        }
-        while (element_len != 0 && (unsigned char) element[element_len - 1] <= ' ')
-            --element_len;
+        const size_t element_len = i - start;
         start = i + 1;
 
         if (element_len == 0)
