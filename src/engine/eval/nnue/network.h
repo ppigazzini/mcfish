@@ -26,7 +26,7 @@
 
 // Name the default net (EvalFileDefaultName, evaluate.h), a build constant. A net
 // bump edits this one line.
-#define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-0ee0657fb25e.nnue"
+#define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-89cb98a217f7.nnue"
 
 // Report the two halves of an NNUE score before the output scaling the caller
 // applies: the PSQT (material) term and the layer-stack (positional) term.

@@ -278,9 +278,12 @@ enum {
 // on neither. That is upstream's split (Stockfish/src/types.h:309-345 owns the
 // records; position.h owns update_piece_threats).
 //
-// `us`, `prev_ksq` and `ksq` must stay contiguous and in this order immediately
-// after `list_size`: nnue_accumulator.c static-asserts their offsets against the
-// arena slot it hands out.
+// This struct is a byte-identical alias of nnue_feature.h's NnueDirtyThreats:
+// pos_do_move writes the delta straight into the accumulator's arena slot and the
+// NNUE side reads it back through that view. `us`, `prev_ksq` and `ksq` must stay
+// contiguous and in this order, and `pp_before`/`pp_after` must keep their place
+// between the list and them — nnue_accumulator.c static-asserts both layouts against
+// each other and against the arena slot it hands out.
 //
 // The list is bounded at 96 and never checked. A non-castling move changes at most
 // (8 + 16) * 3 + 8 = 80 features and a castling move at most (5 + 1 + 3 + 9) * 2 =
@@ -289,6 +292,8 @@ enum {
 typedef struct DirtyThreats {
     uint32_t list_values[DIRTY_THREAT_MAX];  // the packed DirtyThreat words
     size_t list_size;                        // the live prefix of list_values
+    Bitboard pp_before[COLOR_NB];            // the pawn bitboards before the move
+    Bitboard pp_after[COLOR_NB];             // the pawn bitboards after the move
     Color us;                                // the side that moved
     Square prev_ksq;                         // us's king square before the move
     Square ksq;                              // us's king square after the move

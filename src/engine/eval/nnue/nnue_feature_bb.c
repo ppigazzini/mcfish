@@ -48,6 +48,20 @@ uint64_t nnue_bb_pawn_push_or_attacks(uint8_t color, unsigned square) {
                | nnue_bb_shift(NNUE_BB_SOUTH_EAST, one);
 }
 
+uint64_t nnue_bb_pawn_attacks_only(uint8_t color, unsigned square) {
+    const uint64_t one = nnue_bb_square(square);
+    return color == NNUE_BB_WHITE
+           ? nnue_bb_shift(NNUE_BB_NORTH_WEST, one) | nnue_bb_shift(NNUE_BB_NORTH_EAST, one)
+           : nnue_bb_shift(NNUE_BB_SOUTH_WEST, one) | nnue_bb_shift(NNUE_BB_SOUTH_EAST, one);
+}
+
+uint64_t nnue_bb_pawn_pair(unsigned square) {
+    const uint64_t file = (uint64_t) NNUE_BB_FILE_A << (square % 8);
+    const uint64_t files =
+      file | nnue_bb_shift(NNUE_BB_EAST, file) | nnue_bb_shift(NNUE_BB_WEST, file);
+    return files & ~(NNUE_BB_RANK_1 | NNUE_BB_RANK_8) & ~nnue_bb_square(square);
+}
+
 uint64_t nnue_bb_safe_destination(unsigned square, int8_t step) {
     const int32_t target = (int32_t) square + step;
     if (target < 0 || target >= 64) {
@@ -160,7 +174,7 @@ void nnue_bb_make_piece_indices_type(uint8_t piece_type, uint8_t out[64][64]) {
 void nnue_bb_make_piece_indices_pawn(uint8_t piece, uint8_t out[64][64]) {
     const uint8_t color = nnue_bb_color_of(piece);
     for (unsigned from = 0; from < 64; from++) {
-        const uint64_t attacks = nnue_bb_pawn_push_or_attacks(color, from);
+        const uint64_t attacks = nnue_bb_pawn_attacks_only(color, from);
         for (unsigned to = 0; to < 64; to++) {
             out[from][to] = nnue_bb_popcount((nnue_bb_square(to) - 1) & attacks);
         }

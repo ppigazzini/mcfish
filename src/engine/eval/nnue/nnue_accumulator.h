@@ -50,6 +50,9 @@ typedef struct NnueDirtyThreatList {
 
 typedef struct NnueDirtyThreats {
     NnueDirtyThreatList list;
+    // Carry the pawn-pair diff in the same slot: full_threats and pp_3wide index one
+    // shared weight region and are applied together, so one diff record serves both.
+    NnueDirtyPawnPairs pawn_pairs;
     uint8_t us;
     uint8_t prev_ksq;
     uint8_t ksq;

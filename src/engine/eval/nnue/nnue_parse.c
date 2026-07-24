@@ -216,10 +216,11 @@ bool nnue_parse_feature_transformer(const uint8_t *blob,
     size_t pos = 4;
     size_t used = 0;
 
-    // Follow the read order (upstream 7c7fe322e merge): biases, threatWeights,
-    // threatPsqtWeights, weights, psqtWeights -- each int32 PSQT array is its OWN
-    // leb section (the base packed both into one, after weights). Storage offsets
-    // are unchanged; only the stream order and framing moved.
+    // Follow the SFNNv16 read order: biases, threatWeights, threatPsqtWeights,
+    // ppWeights, ppPsqtWeights, weights, psqtWeights -- each int32 PSQT array is its
+    // OWN leb section. The threat and pp weight/psqt sections are framed separately in
+    // the stream but land in the two CONTIGUOUS threat regions, pp right after threat,
+    // so one index addresses either feature set's row at runtime.
 
     // 1. Read biases (LEB int16).
     if (!read_leb_section(blob + pos, blob_len - pos, (void *) (dst + NNUE_FT_BIASES_OFF),
@@ -228,25 +229,39 @@ bool nnue_parse_feature_transformer(const uint8_t *blob,
     pos += used;
 
     // 2. Copy threatWeights (raw int8; a byte array, so no byte order to apply).
-    if (blob_len < pos + NNUE_FT_THREAT_WEIGHTS_COUNT)
+    if (blob_len < pos + NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT)
         return false;
-    memcpy(dst + NNUE_FT_THREAT_WEIGHTS_OFF, blob + pos, NNUE_FT_THREAT_WEIGHTS_COUNT);
-    pos += NNUE_FT_THREAT_WEIGHTS_COUNT;
+    memcpy(dst + NNUE_FT_THREAT_WEIGHTS_OFF, blob + pos, NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT);
+    pos += NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT;
 
     // 3. Read threatPsqtWeights (LEB int32, own section).
     if (!read_leb_section(blob + pos, blob_len - pos,
                           (void *) (dst + NNUE_FT_THREAT_PSQT_WEIGHTS_OFF), sizeof(int32_t),
-                          NNUE_FT_THREAT_PSQT_WEIGHTS_COUNT, &used))
+                          NNUE_FT_THREAT_ONLY_PSQT_COUNT, &used))
         return false;
     pos += used;
 
-    // 4. Read weights / psq weights (LEB int16).
+    // 4. Copy ppWeights (raw int8) onto the tail of the threat weight region.
+    if (blob_len < pos + NNUE_FT_PAIR_ONLY_WEIGHTS_COUNT)
+        return false;
+    memcpy(dst + NNUE_FT_PAIR_WEIGHTS_OFF, blob + pos, NNUE_FT_PAIR_ONLY_WEIGHTS_COUNT);
+    pos += NNUE_FT_PAIR_ONLY_WEIGHTS_COUNT;
+
+    // 5. Read ppPsqtWeights (LEB int32, own section) onto the tail of the threat psqt
+    //    region.
+    if (!read_leb_section(blob + pos, blob_len - pos,
+                          (void *) (dst + NNUE_FT_PAIR_PSQT_WEIGHTS_OFF), sizeof(int32_t),
+                          NNUE_FT_PAIR_ONLY_PSQT_COUNT, &used))
+        return false;
+    pos += used;
+
+    // 6. Read weights / psq weights (LEB int16).
     if (!read_leb_section(blob + pos, blob_len - pos, (void *) (dst + NNUE_FT_WEIGHTS_OFF),
                           sizeof(int16_t), NNUE_FT_PSQ_WEIGHTS_COUNT, &used))
         return false;
     pos += used;
 
-    // 5. Read psqtWeights (LEB int32, own section).
+    // 7. Read psqtWeights (LEB int32, own section).
     if (!read_leb_section(blob + pos, blob_len - pos, (void *) (dst + NNUE_FT_PSQT_WEIGHTS_OFF),
                           sizeof(int32_t), NNUE_FT_PSQT_WEIGHTS_COUNT, &used))
         return false;

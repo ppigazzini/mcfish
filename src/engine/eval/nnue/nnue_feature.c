@@ -52,13 +52,20 @@ static const int8_t OrientTblFull[64] = {
     0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7,
 };
 
-static const int32_t NumValidTargets[16] = { 0, 6, 10, 8, 8, 10, 0, 0, 0, 6, 10, 8, 8, 10, 0, 0 };
+// A pawn's diagonal threats target only knights and rooks — pawn-pawn relationships
+// live in the PP_3Wide feature set — so a pawn has 4 valid targets (two types, two
+// colours), not 6.
+static const int32_t NumValidTargets[16] = { 0, 4, 10, 8, 8, 10, 0, 0, 0, 4, 10, 8, 8, 10, 0, 0 };
 
 // Map (attacker type, attacked type) to its slot, -1 for a pair the feature set excludes.
+// The pawn row keeps only KNIGHT (slot 0) and ROOK (slot 1).
 static const int32_t FullMap[6][6] = {
-    { 0, 1, -1, 2, -1, -1 }, { 0, 1, 2, 3, 4, -1 }, { 0, 1, 2, 3, -1, -1 },
-    { 0, 1, 2, 3, -1, -1 },  { 0, 1, 2, 3, 4, -1 }, { -1, -1, -1, -1, -1, -1 },
+    { -1, 0, -1, 1, -1, -1 }, { 0, 1, 2, 3, 4, -1 }, { 0, 1, 2, 3, -1, -1 },
+    { 0, 1, 2, 3, -1, -1 },   { 0, 1, 2, 3, 4, -1 }, { -1, -1, -1, -1, -1, -1 },
 };
+
+// Hold the PP_3Wide pair band per square, built by nnue_feature_init.
+static uint64_t PawnPairBB[64];
 
 // --- the tables nnue_feature_init builds ------------------------------------------
 
@@ -100,9 +107,8 @@ static void init_threat_offsets(void) {
                 cumulative_piece_offset +=
                   nnue_bb_popcount(nnue_bb_pseudo_attacks(nnue_bb_type_of(piece), from));
             } else if (from >= SQ_A2 && from <= SQ_H7) {
-                const uint64_t attacks = piece < 8
-                                         ? nnue_bb_pawn_push_or_attacks(NNUE_BB_WHITE, from)
-                                         : nnue_bb_pawn_push_or_attacks(NNUE_BB_BLACK, from);
+                const uint64_t attacks = piece < 8 ? nnue_bb_pawn_attacks_only(NNUE_BB_WHITE, from)
+                                                   : nnue_bb_pawn_attacks_only(NNUE_BB_BLACK, from);
                 cumulative_piece_offset += nnue_bb_popcount(attacks);
             }
         }
@@ -190,11 +196,18 @@ static void init_threat_blocks(void) {
     }
 }
 
+static void init_pawn_pair_bb(void) {
+    for (unsigned square = 0; square < 64; square++) {
+        PawnPairBB[square] = nnue_bb_pawn_pair(square);
+    }
+}
+
 void nnue_feature_init(void) {
     init_threat_offsets();
     init_index_luts();
     init_index_lut2();
     init_threat_blocks();
+    init_pawn_pair_bb();
 }
 
 // --- HalfKAv2_hm ------------------------------------------------------------------
@@ -282,16 +295,16 @@ static void process_pawn_attacks(NnueFullAppendResult *result,
     }
 }
 
+// Walk only the two diagonal attacks: the pusher (pawn-in-front) input went away with
+// SFNNv16, when pawn-pawn relationships moved to the PP_3Wide feature set.
 static void append_active_pawn_threats(NnueFullAppendResult *result,
                                        const uint8_t *pieces,
                                        uint64_t pawn_targets,
-                                       uint64_t pawns,
                                        uint64_t color_pawns,
                                        uint8_t perspective,
                                        uint8_t color,
                                        uint8_t king_square) {
     const uint8_t attacker = nnue_bb_make_piece(color, NNUE_BB_PAWN);
-    const uint64_t pushers = nnue_bb_pawn_single_push((uint8_t) (color ^ 1), pawns) & color_pawns;
 
     if (color == NNUE_BB_WHITE) {
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
@@ -300,8 +313,6 @@ static void append_active_pawn_threats(NnueFullAppendResult *result,
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
                              nnue_bb_shift(NNUE_BB_NORTH_WEST, color_pawns) & pawn_targets,
                              NNUE_BB_NORTH_WEST);
-        process_pawn_attacks(result, perspective, attacker, king_square, pieces,
-                             nnue_bb_shift(NNUE_BB_NORTH, pushers), NNUE_BB_NORTH);
     } else {
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
                              nnue_bb_shift(NNUE_BB_SOUTH_WEST, color_pawns) & pawn_targets,
@@ -309,8 +320,6 @@ static void append_active_pawn_threats(NnueFullAppendResult *result,
         process_pawn_attacks(result, perspective, attacker, king_square, pieces,
                              nnue_bb_shift(NNUE_BB_SOUTH_EAST, color_pawns) & pawn_targets,
                              NNUE_BB_SOUTH_EAST);
-        process_pawn_attacks(result, perspective, attacker, king_square, pieces,
-                             nnue_bb_shift(NNUE_BB_SOUTH, pushers), NNUE_BB_SOUTH);
     }
 }
 
@@ -331,16 +340,20 @@ void nnue_full_append_active(uint8_t perspective,
     // (upstream full_threats.cpp:215) rather than iterating every occupied square and
     // letting the out-of-range index test reject the pair after three table loads. The
     // retained pairs are identical, so the appended list is too.
-    const uint64_t pawn_targets =
-      by_type[NNUE_BB_PAWN] | by_type[NNUE_BB_KNIGHT] | by_type[NNUE_BB_ROOK];
-    const uint64_t minor_slider_targets = pawn_targets | by_type[NNUE_BB_BISHOP];
+    //
+    // A pawn now targets only knights and rooks, so pawn_targets is no longer a subset
+    // of the minor/slider set and the two must be spelled out separately: upstream's
+    // minorSliderTargets is still pieces(PAWN, KNIGHT, BISHOP, ROOK).
+    const uint64_t pawn_targets = by_type[NNUE_BB_KNIGHT] | by_type[NNUE_BB_ROOK];
+    const uint64_t minor_slider_targets =
+      pawns | by_type[NNUE_BB_KNIGHT] | by_type[NNUE_BB_BISHOP] | by_type[NNUE_BB_ROOK];
     const uint64_t queen_targets = minor_slider_targets | by_type[NNUE_BB_QUEEN];
 
     out->len = 0;
     for (uint8_t color_index = 0; color_index < 2; color_index++) {
         const uint8_t color = (uint8_t) (perspective ^ color_index);
         const uint64_t color_pawns = by_color[color] & by_type[NNUE_BB_PAWN];
-        append_active_pawn_threats(out, board, pawn_targets, pawns, color_pawns, perspective, color,
+        append_active_pawn_threats(out, board, pawn_targets, color_pawns, perspective, color,
                                    king_square);
 
         for (uint8_t piece_type = NNUE_BB_KNIGHT; piece_type < NNUE_BB_KING; piece_type++) {
@@ -366,4 +379,133 @@ void nnue_full_append_active(uint8_t perspective,
             }
         }
     }
+}
+
+// --- PP_3Wide ---------------------------------------------------------------------
+
+// Number a pawn by colour and square over the 48 squares of ranks 2-7, upstream's
+// make_pawn_id. Every caller has already oriented the square, so it is in range.
+static inline uint32_t make_pawn_id(uint32_t color, uint32_t square) {
+    return 48 * color + square - (uint32_t) SQ_A2;
+}
+
+// Index the unordered pair of pawn ids triangularly, then shift past the threats. The
+// pair is unordered, so hi/lo must be taken AFTER orienting both ends: the perspective
+// swap can reorder the two ids.
+static uint32_t pair_make_index(uint8_t perspective,
+                                uint8_t color,
+                                uint8_t from_sq,
+                                uint8_t to_sq,
+                                uint8_t paired_color,
+                                uint8_t king_square) {
+    const int32_t orientation = (int32_t) OrientTblFull[king_square] ^ (int32_t) (56 * perspective);
+    const uint8_t orient = (uint8_t) orientation;
+    const uint32_t from_oriented = (uint32_t) (uint8_t) (from_sq ^ orient);
+    const uint32_t to_oriented = (uint32_t) (uint8_t) (to_sq ^ orient);
+    const uint32_t color_oriented = (uint32_t) (color ^ perspective);
+    const uint32_t paired_oriented = (uint32_t) (paired_color ^ perspective);
+
+    const uint32_t id_a = make_pawn_id(color_oriented, from_oriented);
+    const uint32_t id_b = make_pawn_id(paired_oriented, to_oriented);
+    const uint32_t hi = id_a > id_b ? id_a : id_b;
+    const uint32_t lo = id_a > id_b ? id_b : id_a;
+
+    return hi * (hi - 1) / 2 + lo + NNUE_PAIR_INDEX_BASE;
+}
+
+void nnue_pair_append_active(NnueFullAppendResult *out,
+                             uint8_t perspective,
+                             uint8_t king_square,
+                             uint64_t white_pawns,
+                             uint64_t black_pawns) {
+    // Draw each white pawn's white partners from the pawns NOT YET popped, so a
+    // white-white pair is emitted exactly once; the black partners come from the whole
+    // black set, which the black loop below then never revisits.
+    uint64_t bb = white_pawns;
+    while (bb != 0) {
+        const unsigned from = nnue_bb_pop_lsb(&bb);
+        const uint64_t band = PawnPairBB[from];
+
+        uint64_t ww = band & bb;
+        while (ww != 0) {
+            const unsigned to = nnue_bb_pop_lsb(&ww);
+            out->indices[out->len++] = pair_make_index(perspective, NNUE_BB_WHITE, (uint8_t) from,
+                                                       (uint8_t) to, NNUE_BB_WHITE, king_square);
+        }
+        uint64_t wb = band & black_pawns;
+        while (wb != 0) {
+            const unsigned to = nnue_bb_pop_lsb(&wb);
+            out->indices[out->len++] = pair_make_index(perspective, NNUE_BB_WHITE, (uint8_t) from,
+                                                       (uint8_t) to, NNUE_BB_BLACK, king_square);
+        }
+    }
+
+    bb = black_pawns;
+    while (bb != 0) {
+        const unsigned from = nnue_bb_pop_lsb(&bb);
+        uint64_t bk = PawnPairBB[from] & bb;
+        while (bk != 0) {
+            const unsigned to = nnue_bb_pop_lsb(&bk);
+            out->indices[out->len++] = pair_make_index(perspective, NNUE_BB_BLACK, (uint8_t) from,
+                                                       (uint8_t) to, NNUE_BB_BLACK, king_square);
+        }
+    }
+}
+
+// Emit every pair that touches a pawn whose presence changed. Partners come from the
+// UNCHANGED pawns plus the changed pawns not yet popped, so a changed-changed pair is
+// emitted exactly once. Upstream's `generate` lambda (pp_3wide.cpp, scalar path).
+static void pair_generate(uint8_t perspective,
+                          uint8_t king_square,
+                          uint64_t updated_white,
+                          uint64_t updated_black,
+                          uint64_t pawns_white,
+                          uint64_t pawns_black,
+                          uint32_t *out,
+                          size_t *out_len) {
+    const uint64_t unchanged = (pawns_white | pawns_black) & ~(updated_white | updated_black);
+    uint64_t pending = updated_white | updated_black;
+    while (pending != 0) {
+        const unsigned a = nnue_bb_pop_lsb(&pending);
+        const uint64_t mask = PawnPairBB[a] & (unchanged | pending);
+        const uint8_t a_color =
+          (pawns_black & nnue_bb_square(a)) != 0 ? NNUE_BB_BLACK : NNUE_BB_WHITE;
+
+        uint64_t pb = pawns_black & mask;
+        while (pb != 0) {
+            const unsigned to = nnue_bb_pop_lsb(&pb);
+            out[(*out_len)++] = pair_make_index(perspective, a_color, (uint8_t) a, (uint8_t) to,
+                                                NNUE_BB_BLACK, king_square);
+        }
+        uint64_t pw = pawns_white & mask;
+        while (pw != 0) {
+            const unsigned to = nnue_bb_pop_lsb(&pw);
+            out[(*out_len)++] = pair_make_index(perspective, a_color, (uint8_t) a, (uint8_t) to,
+                                                NNUE_BB_WHITE, king_square);
+        }
+    }
+}
+
+void nnue_pair_append_changed(uint8_t perspective,
+                              uint8_t king_square,
+                              const NnueDirtyPawnPairs *diff,
+                              uint32_t *removed,
+                              size_t *removed_len,
+                              uint32_t *added,
+                              size_t *added_len) {
+    const uint64_t white_before = diff->before[NNUE_BB_WHITE];
+    const uint64_t black_before = diff->before[NNUE_BB_BLACK];
+    const uint64_t white_after = diff->after[NNUE_BB_WHITE];
+    const uint64_t black_after = diff->after[NNUE_BB_BLACK];
+
+    // A move that leaves both pawn sets alone changes no pair at all, which is most
+    // moves; skipping here is upstream's own early return, not an optimisation.
+    if (white_before == white_after && black_before == black_after) {
+        return;
+    }
+
+    pair_generate(perspective, king_square, white_after & ~white_before,
+                  black_after & ~black_before, white_after, black_after, added, added_len);
+    pair_generate(perspective, king_square, white_before & ~white_after,
+                  black_before & ~black_after, white_before, black_before, removed, removed_len);
 }

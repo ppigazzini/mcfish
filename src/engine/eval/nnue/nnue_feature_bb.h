@@ -35,6 +35,8 @@ enum : uint8_t {
 enum : uint64_t {
     NNUE_BB_FILE_A = 0x0101010101010101ULL,
     NNUE_BB_FILE_H = 0x0101010101010101ULL << 7,
+    NNUE_BB_RANK_1 = 0xffULL,
+    NNUE_BB_RANK_8 = 0xffULL << (8 * 7),
 };
 
 // Name the eight step vectors as upstream does. Signed, because half of them are.
@@ -78,6 +80,17 @@ uint64_t nnue_bb_shift(int8_t dir, uint64_t bitboard);
 
 // Return COLOR's single push together with its two attacks from SQUARE.
 uint64_t nnue_bb_pawn_push_or_attacks(uint8_t color, unsigned square);
+
+// Return COLOR's two diagonal attacks from SQUARE, without the push square. This is
+// what the SFNNv16 threat feature set enumerates a pawn's targets over: the
+// pawn-in-front (pusher) input went away when pawn-pawn relationships moved to the
+// PP_3Wide feature set.
+uint64_t nnue_bb_pawn_attacks_only(uint8_t color, unsigned square);
+
+// Return the squares that can host a pawn forming a PP_3Wide pair with a pawn on
+// SQUARE: its own file plus the two adjacent files, restricted to ranks 2-7 and
+// excluding SQUARE itself. The geometry is colour-independent.
+uint64_t nnue_bb_pawn_pair(unsigned square);
 
 // Return the destination of STEP from SQUARE, or 0 when the step leaves the board.
 // Guards on file distance, not on index range: a wrapped index is in range and
