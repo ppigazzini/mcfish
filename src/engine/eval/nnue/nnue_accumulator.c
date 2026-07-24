@@ -42,7 +42,9 @@ enum : size_t {
     THREAT_ARRAY_BYTES = THREAT_STATE_STRIDE * NNUE_MAX_STACK_SIZE,
     STACK_SIZE_OFFSET = THREAT_ARRAY_OFFSET + THREAT_ARRAY_BYTES,
     STACK_BYTES = STACK_SIZE_OFFSET + sizeof(size_t),
-    THREAT_REFRESH_DIFF_OFFSET = THREAT_DIFF_OFFSET + sizeof(NnueDirtyThreatList),
+    // Derive the us/prev_ksq/ksq offset from the field itself. The pawn-pair diff sits
+    // between the list and those scalars, so they no longer follow the list directly.
+    THREAT_REFRESH_DIFF_OFFSET = THREAT_DIFF_OFFSET + offsetof(NnueDirtyThreats, us),
 };
 
 // Assert what the accessors' pointer casts assume. Every state base is reached as
@@ -65,6 +67,19 @@ static_assert(THREAT_REFRESH_DIFF_OFFSET - THREAT_DIFF_OFFSET == offsetof(NnueDi
               "the threat refresh offset must address NnueDirtyThreats.us");
 static_assert(offsetof(NnueDirtyThreats, prev_ksq) == offsetof(NnueDirtyThreats, us) + 1, "");
 static_assert(offsetof(NnueDirtyThreats, ksq) == offsetof(NnueDirtyThreats, us) + 2, "");
+// The board zone's DirtyThreats and this view alias the SAME arena bytes: pos_do_move
+// writes through one, apply_combined reads through the other. Pin every field offset, not
+// just the size — a reordering that keeps the size would corrupt only the incremental
+// path, which the refresh path then hides from a shallow test.
+static_assert(sizeof(NnueDirtyThreats) == sizeof(DirtyThreats),
+              "the two DirtyThreats views must be the same size");
+static_assert(offsetof(NnueDirtyThreats, list) == offsetof(DirtyThreats, list_values),
+              "the threat list must lead both views");
+static_assert(offsetof(NnueDirtyThreats, list.size) == offsetof(DirtyThreats, list_size), "");
+static_assert(offsetof(NnueDirtyThreats, pawn_pairs.before) == offsetof(DirtyThreats, pp_before),
+              "");
+static_assert(offsetof(NnueDirtyThreats, pawn_pairs.after) == offsetof(DirtyThreats, pp_after), "");
+static_assert(offsetof(NnueDirtyThreats, us) == offsetof(DirtyThreats, us), "");
 
 size_t nnue_accumulator_stack_bytes(void) { return STACK_BYTES; }
 
@@ -464,6 +479,11 @@ static void refresh_combined(uint8_t perspective,
     nnue_full_append_active(perspective, king_square, (const uint8_t *) pos->board,
                             (const uint64_t *) pos->by_type, (const uint64_t *) pos->by_color,
                             &active);
+    // Append the pawn-pair rows onto the SAME list: they index the shared threat/pair
+    // weight region, so one accumulate pass below covers both feature sets.
+    nnue_pair_append_active(&active, perspective, king_square,
+                            pos->by_color[WHITE] & pos->by_type[PAWN],
+                            pos->by_color[BLACK] & pos->by_type[PAWN]);
 
     nnue_acc_accumulate_rows_i8(
       state_accumulation_mut(PSQ_FEATURE, latest_index, stack, perspective), active.indices,
@@ -578,6 +598,18 @@ static void apply_combined(NnueAccumulatorStack *stack,
         } else {
             thr_removed[thr_removed_len++] = index;
         }
+    }
+
+    // Append the pawn-pair delta onto the SAME lists -- pair indices address the tail of
+    // the shared threat/pair weight region. The producer puts appearing pairs in its
+    // `added` argument and disappearing ones in `removed`; a backward walk inverts every
+    // role, so the two lists are passed swapped, exactly as upstream swaps its arguments.
+    if (forward) {
+        nnue_pair_append_changed(perspective, king_square, &thr_diff->pawn_pairs, thr_removed,
+                                 &thr_removed_len, thr_added, &thr_added_len);
+    } else {
+        nnue_pair_append_changed(perspective, king_square, &thr_diff->pawn_pairs, thr_added,
+                                 &thr_added_len, thr_removed, &thr_removed_len);
     }
 
     nnue_acc_apply_combined_delta(

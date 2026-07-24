@@ -1,5 +1,6 @@
-// Own the two NNUE feature sets: HalfKAv2_hm (the king-bucketed piece-square features)
-// and full_threats (the attacker/attacked-pair features), as index producers only.
+// Own the three NNUE feature sets: HalfKAv2_hm (the king-bucketed piece-square
+// features), full_threats (the attacker/attacked-pair features) and pp_3wide (the
+// pawn-pair features), as index producers only.
 //
 // The INVARIANT is that a feature index is a pure function of its arguments and of the
 // tables `nnue_feature_init` builds. `nnue_feature_init` MUST run before any index is
@@ -12,10 +13,10 @@
 // and the caller drops it. That out-of-range return is the exclusion mechanism, not an
 // error, and it is what upstream does.
 //
-// Golden: the upstream `nnue/features/half_ka_v2_hm.cpp` and
-// `nnue/features/full_threats.cpp`.
+// Golden: the upstream `nnue/features/half_ka_v2_hm.cpp`,
+// `nnue/features/full_threats.cpp` and `nnue/features/pp_3wide.cpp`.
 //
-// Upstream: full_threats.h and half_ka_v2_hm.h, the feature-set headers.
+// Upstream: full_threats.h, pp_3wide.h and half_ka_v2_hm.h, the feature-set headers.
 
 #ifndef MCFISH_NNUE_FEATURE_H
 #define MCFISH_NNUE_FEATURE_H
@@ -28,13 +29,21 @@
 enum : uint32_t {
     // 11 * 64: the per-king-bucket stride of the HalfKAv2_hm feature space.
     NNUE_PS_NB = 11 * 64,
-    NNUE_FULL_DIMENSIONS = 60720,
+    NNUE_FULL_DIMENSIONS = NNUE_THREAT_DIMENSIONS,
+    // The first PP_3Wide index. Pair features are concatenated onto the threats, so
+    // this must equal NNUE_FULL_DIMENSIONS: one index then addresses either feature
+    // set's row in the single shared weight region (upstream nnue_feature_transformer.h
+    // static-asserts PairFeatureSet::IndexBase == ThreatFeatureSet::Dimensions).
+    NNUE_PAIR_INDEX_BASE = NNUE_THREAT_DIMENSIONS,
 };
 
 enum {
     // Bound the changed-feature lists a single ply can produce.
     NNUE_PSQ_INDEX_CAPACITY = 32,
-    NNUE_THREAT_INDEX_CAPACITY = 128,
+    // Hold the threat AND pawn-pair indices: both feature sets append to one list,
+    // because both index the shared threat/pair weight rows. Upstream's IndexList is
+    // ValueList<u16, 256> for exactly this reason.
+    NNUE_THREAT_INDEX_CAPACITY = 256,
     // Encode "no square" as 64, matching upstream's SQ_NONE in the dirty-piece record.
     NNUE_SQ_NONE = 64,
 };
@@ -130,6 +139,35 @@ void nnue_full_append_active(uint8_t perspective,
                              const uint64_t *by_type,
                              const uint64_t *by_color,
                              NnueFullAppendResult *out);
+
+// --- PP_3Wide ---------------------------------------------------------------------
+
+// Hold the pawn-pair delta of one move: the two colours' pawn bitboards before and
+// after it. The pair feature set is a pure function of the pawn placement, so the two
+// snapshots are the whole diff — upstream's DirtyPawnPairs (types.h).
+typedef struct NnueDirtyPawnPairs {
+    uint64_t before[2];
+    uint64_t after[2];
+} NnueDirtyPawnPairs;
+
+// Append every pawn-pair feature active on the two pawn sets. Appends onto the SAME
+// list the threat features filled, so OUT->len must already hold that prefix.
+void nnue_pair_append_active(NnueFullAppendResult *out,
+                             uint8_t perspective,
+                             uint8_t king_square,
+                             uint64_t white_pawns,
+                             uint64_t black_pawns);
+
+// Append the pawn-pair delta onto the same removed/added lists the threat delta filled.
+// Pairs that APPEAR go to ADDED and pairs that DISAPPEAR to REMOVED; a backward walk
+// passes the two lists swapped, exactly as upstream swaps its arguments.
+void nnue_pair_append_changed(uint8_t perspective,
+                              uint8_t king_square,
+                              const NnueDirtyPawnPairs *diff,
+                              uint32_t *removed,
+                              size_t *removed_len,
+                              uint32_t *added,
+                              size_t *added_len);
 
 // Report whether a king move crossing the board's centre file invalidates PERSPECTIVE's
 // threat orientation. Bit 2 of the king square is the half-of-the-board bit.

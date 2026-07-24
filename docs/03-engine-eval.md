@@ -38,12 +38,12 @@ gate battery cover them.
 | [`nnue_weight_storage.c`](../src/engine/eval/nnue/nnue_weight_storage.c) | the weight buffers and the loaded-net identity |
 | [`nnue_hash.c`](../src/engine/eval/nnue/nnue_hash.c) | the architecture hashes and the MurmurHash2-64A content hashes |
 | [`nnue_ft.c`](../src/engine/eval/nnue/nnue_ft.c) | the feature-transformer blob layout and its typed accessors |
-| [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c), [`nnue_feature_bb.c`](../src/engine/eval/nnue/nnue_feature_bb.c) | the `HalfKAv2_hm` and `full_threats` index producers |
+| [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c), [`nnue_feature_bb.c`](../src/engine/eval/nnue/nnue_feature_bb.c) | the `HalfKAv2_hm`, `full_threats` and `pp_3wide` index producers |
 | [`nnue_accumulator.c`](../src/engine/eval/nnue/nnue_accumulator.c) | the per-ply accumulator stack, the refresh cache, the transform to the first layer's input |
 | [`nnue_affine.c`](../src/engine/eval/nnue/nnue_affine.c) | the affine kernel and the two activations |
 | [`nnue_inference.c`](../src/engine/eval/nnue/nnue_inference.c) | the per-bucket forward pass |
 | [`simd.h`](../src/engine/eval/nnue/simd.h) | the vector vocabulary, in two implementations |
-| [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv15 dimensions |
+| [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv16 dimensions |
 
 Upstream's `nnue/` sources are the golden.
 
@@ -180,6 +180,15 @@ mode:
   pair the feature set does not encode, and the caller drops it. That return *is*
   the exclusion mechanism, and it is what upstream does. Treating it as a failure,
   or "fixing" it by clamping, changes the feature set.
+- **The pair features are CONCATENATED onto the threats, not stored beside them.**
+  `pp_3wide` numbers every unordered pair of pawns on the same or an adjacent file
+  (ranks 2-7), and its indices start at `NNUE_PAIR_INDEX_BASE`, which must equal
+  `NNUE_THREAT_DIMENSIONS`. That equality is what lets one index address either
+  feature set's row in a single shared weight region, and it is why the two sets
+  fill one changed/active index list and are applied in one pass. The stream still
+  frames the two weight blocks separately, so the parse writes the pair block onto
+  the tail of the threat region. Splitting the region, or letting the two counts
+  drift apart, silently reads pair weights as threat weights.
 - **The architecture hash is the file's admission test.**
   [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h)'s dimensions
   are the architecture, not a tuning knob: the `.nnue` header commits to them, so a

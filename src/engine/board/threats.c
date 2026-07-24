@@ -10,20 +10,8 @@
 // re-ray-casts, and the threat update runs per piece touched per node.
 static Bitboard RayPassBB[SQUARE_NB][SQUARE_NB];
 
-// The single push square plus the two attack squares of a pawn of each color on
-// each square, precomputed so the per-node threat update reads one table entry
-// instead of a shift + OR + attack-table load (upstream PawnPushOrAttacks,
-// attacks.h:250).
-static Bitboard PawnPushOrAttacks[COLOR_NB][SQUARE_NB];
-
 void threats_init(void) {
     memset(RayPassBB, 0, sizeof RayPassBB);
-
-    for (Square s = SQ_A1; s <= SQ_H8; ++s) {
-        const Bitboard b = square_bb(s);
-        PawnPushOrAttacks[WHITE][s] = (b << 8) | PawnAttacksBB[WHITE][s];
-        PawnPushOrAttacks[BLACK][s] = (b >> 8) | PawnAttacksBB[BLACK][s];
-    }
 
     for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1) {
         const PieceType slider_types[2] = { BISHOP, ROOK };
@@ -48,10 +36,6 @@ static inline void add_dirty_threat(
       dirty_threat_make(put_piece, pc, threatened, s, threatened_sq);
     dts->list_size++;
 }
-
-// Return the single push square plus the two attack squares of a color-C pawn on
-// S. The push cannot wrap a file, so it needs no edge mask.
-static inline Bitboard pawn_push_or_attacks(Color c, Square s) { return PawnPushOrAttacks[c][s]; }
 
 // Count a threatened queen as a threat feature only when the slider is itself a
 // queen; every other threatened type always counts. Mirrors upstream
@@ -144,31 +128,18 @@ __attribute__((always_inline)) static inline void threats_update_piece_impl(bool
                         & occupied_no_k;
     Bitboard incoming = PseudoAttacks[KNIGHT][s] & knights;
 
-    // Compute both incoming and outgoing pawn threats. Incoming pawn pushers count
-    // only when `pc` is itself a pawn.
-    Bitboard pawn_threats = 0;
-    if (pt == PAWN) {
-        const Bitboard white_attacks = pawn_push_or_attacks(WHITE, s);
-        const Bitboard black_attacks = pawn_push_or_attacks(BLACK, s);
-
-        threatened |=
-          (color_of_piece(pc) == WHITE ? white_attacks : black_attacks) & pos->by_type[PAWN];
-
-        pawn_threats = (white_attacks & black_pawns) | (black_attacks & white_pawns);
-    } else {
-        pawn_threats =
-          (PawnAttacksBB[WHITE][s] & black_pawns) | (PawnAttacksBB[BLACK][s] & white_pawns);
-    }
-
     // Restrict both directions to the (attacker, attacked) pairs the threat feature
     // set actually encodes — upstream rejects the rest here rather than letting the
-    // feature indexer drop them later.
-    if (pt == PAWN || pt == KNIGHT || pt == ROOK)
-        incoming |= pawn_threats;
+    // feature indexer drop them later. With SFNNv16 the pawn-pawn relationships moved
+    // to the PP_3Wide feature set, so a pawn is no longer a threat target and only a
+    // knight or a rook records an incoming pawn threat. The pusher block is gone.
+    if (pt == KNIGHT || pt == ROOK)
+        incoming |=
+          (PawnAttacksBB[WHITE][s] & black_pawns) | (PawnAttacksBB[BLACK][s] & white_pawns);
 
     switch (pt) {
     case PAWN :
-        threatened &= pos->by_type[PAWN] | pos->by_type[KNIGHT] | pos->by_type[ROOK];
+        threatened &= pos->by_type[KNIGHT] | pos->by_type[ROOK];
         break;
     case BISHOP :
     case ROOK :

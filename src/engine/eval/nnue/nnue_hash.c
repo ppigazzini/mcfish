@@ -78,10 +78,11 @@ static uint32_t combine_hash(const uint32_t *hashes, size_t count) {
 }
 
 uint32_t nnue_feature_transformer_hash_value(void) {
-    // ThreatFeatureSet = full_threats (0x8f234cb8), PSQFeatureSet = half_ka_v2_hm
-    // (0x7f234cb8); OutputDimensions = HalfDimensions = 1024.
-    static const uint32_t FeatureSetHashes[2] = { 0x8f234cb8u, 0x7f234cb8u };
-    return combine_hash(FeatureSetHashes, 2) ^ ((uint32_t) NNUE_HALF_DIMENSIONS * 2u);
+    // ThreatFeatureSet = full_threats (SFNNv16: 0x2e6b9d04), PairFeatureSet = pp_3wide
+    // (0x86f2b1dd), PSQFeatureSet = half_ka_v2_hm (0x7f234cb8); OutputDimensions =
+    // HalfDimensions = 1024. The combine order is upstream's: {threat, pair, psq}.
+    static const uint32_t FeatureSetHashes[3] = { 0x2e6b9d04u, 0x86f2b1ddu, 0x7f234cb8u };
+    return combine_hash(FeatureSetHashes, 3) ^ ((uint32_t) NNUE_HALF_DIMENSIONS * 2u);
 }
 
 size_t nnue_feature_transformer_content_hash(const uint8_t *ft) {

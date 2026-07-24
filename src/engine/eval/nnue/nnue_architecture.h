@@ -34,11 +34,22 @@ enum {
     // appear in the file and in storage.
     NNUE_LAYERS_PER_STACK = 3,
 
-    // FeatureTransformer::HalfDimensions and the two feature sets it concatenates:
-    // PSQFeatureSet = half_ka_v2_hm, ThreatFeatureSet = full_threats.
+    // FeatureTransformer::HalfDimensions and the three feature sets it concatenates:
+    // PSQFeatureSet = half_ka_v2_hm, ThreatFeatureSet = full_threats,
+    // PairFeatureSet = pp_3wide.
     NNUE_HALF_DIMENSIONS = NNUE_L1,
     NNUE_PSQ_FEATURE_DIMENSIONS = 22528,
-    NNUE_THREAT_DIMENSIONS = 60720,
+    NNUE_THREAT_DIMENSIONS = 59808,
+
+    // PP_3Wide: one feature per unordered pair of pawn ids, where a pawn id is
+    // 48 * colour + (square - SQ_A2) over the 48 squares of ranks 2-7.
+    NNUE_PAIR_PAWN_IDS = 2 * 48,
+    NNUE_PAIR_DIMENSIONS = NNUE_PAIR_PAWN_IDS * (NNUE_PAIR_PAWN_IDS - 1) / 2,
+
+    // Pair features are CONCATENATED onto the threats: a pair index is its own
+    // ordinal plus NNUE_THREAT_DIMENSIONS, so one index addresses either feature
+    // set's row in the single shared weight region (upstream threatAndPpWeights).
+    NNUE_THREAT_AND_PAIR_DIMENSIONS = NNUE_THREAT_DIMENSIONS + NNUE_PAIR_DIMENSIONS,
 };
 
 // Name one affine layer's shape. PaddedInputDimensions is the *padded* input, the

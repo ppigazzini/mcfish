@@ -666,6 +666,11 @@ void pos_do_move(
     dirty_threats_clear(dts);
     dts->us = us;
     dts->prev_ksq = king_square(pos, us);
+    // Snapshot the pawn placement for the pawn-pair delta. The PP_3Wide feature set is a
+    // pure function of the two pawn bitboards, so the before/after pair IS the whole
+    // diff; the after-snapshot is taken once every mutation has landed.
+    dts->pp_before[WHITE] = pos->by_color[WHITE] & pos->by_type[PAWN];
+    dts->pp_before[BLACK] = pos->by_color[BLACK] & pos->by_type[PAWN];
 
     if (mt == CASTLING) {
         Square rfrom, rto;
@@ -840,6 +845,8 @@ void pos_do_move(
     // Close the threat delta with the post-move king square. The accumulator
     // compares it against prev_ksq to decide whether the block must be rebuilt.
     dts->ksq = king_square(pos, us);
+    dts->pp_after[WHITE] = pos->by_color[WHITE] & pos->by_type[PAWN];
+    dts->pp_after[BLACK] = pos->by_color[BLACK] & pos->by_type[PAWN];
 }
 
 Key pos_prefetch_key(const Position *pos, Move m) {
@@ -913,6 +920,9 @@ void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThr
     dirty_threats_clear(dts);
     dts->us = pos->side_to_move;
     dts->prev_ksq = dts->ksq = king_square(pos, pos->side_to_move);
+    // A null move moves no pawn, so before == after and the pawn-pair delta is empty.
+    dts->pp_before[WHITE] = dts->pp_after[WHITE] = pos->by_color[WHITE] & pos->by_type[PAWN];
+    dts->pp_before[BLACK] = dts->pp_after[BLACK] = pos->by_color[BLACK] & pos->by_type[PAWN];
 
     memcpy(new_st, pos->st, offsetof(StateInfo, key));
     new_st->previous = pos->st;

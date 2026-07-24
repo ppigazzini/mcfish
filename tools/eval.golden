@@ -1,5 +1,5 @@
 <engine banner>
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -7,21 +7,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |     0.00   |  -  0.67   |  -  0.67   |
-|  1         |     0.00   |  -  0.12   |  -  0.12   |
-|  2         |     0.00   |  +  0.07   |  +  0.07   |
-|  3         |     0.00   |  -  0.26   |  -  0.26   |
-|  4         |     0.00   |  -  0.03   |  -  0.03   |
-|  5         |     0.00   |  +  0.03   |  +  0.03   |
-|  6         |     0.00   |  +  0.05   |  +  0.05   |
-|  7         |     0.00   |  +  0.03   |  +  0.03   | <-- this bucket is used
+|  0         |     0.00   |  -  0.99   |  -  0.99   |
+|  1         |     0.00   |  +  1.11   |  +  1.11   |
+|  2         |     0.00   |  +  0.35   |  +  0.35   |
+|  3         |     0.00   |  +  0.26   |  +  0.26   |
+|  4         |     0.00   |  +  0.13   |  +  0.13   |
+|  5         |     0.00   |  -  0.01   |  -  0.01   |
+|  6         |     0.00   |  -  0.03   |  -  0.03   |
+|  7         |     0.00   |  +  0.01   |  +  0.01   | <-- this bucket is used
 +------------+------------+------------+------------+
 
-NNUE evaluation          +10 (side to move, internal units)
-NNUE evaluation        +0.03 (white side)
-Final evaluation      +0.03 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +5 (side to move, internal units)
+NNUE evaluation        +0.01 (white side)
+Final evaluation      +0.02 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -29,21 +29,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  +  6.54   |  +  4.65   |  + 11.19   | <-- this bucket is used
-|  1         |  +  4.64   |  -  0.44   |  +  4.20   |
-|  2         |  +  5.76   |  -  0.59   |  +  5.18   |
-|  3         |  +  6.15   |  +  0.30   |  +  6.44   |
-|  4         |  +  6.53   |  +  1.67   |  +  8.21   |
-|  5         |  +  6.52   |  +  0.50   |  +  7.02   |
-|  6         |  +  6.44   |  +  3.97   |  + 10.41   |
-|  7         |  +  6.43   |  +  2.55   |  +  8.98   |
+|  0         |  +  6.44   |  +  2.90   |  +  9.34   | <-- this bucket is used
+|  1         |  +  3.96   |  +  2.24   |  +  6.20   |
+|  2         |  +  5.33   |  +  3.93   |  +  9.26   |
+|  3         |  +  6.39   |  +  1.99   |  +  8.38   |
+|  4         |  +  6.65   |  +  0.98   |  +  7.63   |
+|  5         |  +  6.53   |  +  0.19   |  +  6.72   |
+|  6         |  +  6.46   |  -  1.48   |  +  4.97   |
+|  7         |  +  6.43   |  +  2.48   |  +  8.91   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +4343 (side to move, internal units)
-NNUE evaluation        +11.19 (white side)
-Final evaluation      +11.09 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +3627 (side to move, internal units)
+NNUE evaluation        +9.34 (white side)
+Final evaluation      +8.92 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -51,24 +51,24 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  0.10   |  - 10.90   |  - 11.00   |
-|  1         |  -  0.24   |  -  0.36   |  -  0.60   |
-|  2         |  -  0.20   |  -  1.68   |  -  1.88   |
-|  3         |  -  0.20   |  -  0.67   |  -  0.88   |
-|  4         |  -  0.30   |  -  1.00   |  -  1.30   |
-|  5         |  -  0.30   |  -  0.94   |  -  1.25   |
-|  6         |  -  0.31   |  -  0.85   |  -  1.16   |
-|  7         |  -  0.31   |  -  0.81   |  -  1.12   | <-- this bucket is used
+|  0         |  +  0.18   |  -  7.06   |  -  6.89   |
+|  1         |  -  0.27   |  +  0.85   |  +  0.58   |
+|  2         |  -  0.20   |  -  0.05   |  -  0.25   |
+|  3         |  -  0.31   |  -  0.38   |  -  0.70   |
+|  4         |  -  0.41   |  -  0.69   |  -  1.10   |
+|  5         |  -  0.44   |  -  0.67   |  -  1.12   |
+|  6         |  -  0.48   |  -  0.67   |  -  1.15   |
+|  7         |  -  0.43   |  -  0.75   |  -  1.17   | <-- this bucket is used
 +------------+------------+------------+------------+
 
-NNUE evaluation          -427 (side to move, internal units)
-NNUE evaluation        -1.12 (white side)
-Final evaluation      -1.46 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -449 (side to move, internal units)
+NNUE evaluation        -1.17 (white side)
+Final evaluation      -1.55 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 Final evaluation: none (in check)
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -76,21 +76,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |     0.00   |  -  0.67   |  -  0.67   |
-|  1         |     0.00   |  -  0.12   |  -  0.12   |
-|  2         |     0.00   |  +  0.07   |  +  0.07   |
-|  3         |     0.00   |  -  0.26   |  -  0.26   |
-|  4         |     0.00   |  -  0.03   |  -  0.03   |
-|  5         |     0.00   |  +  0.03   |  +  0.03   |
-|  6         |     0.00   |  +  0.05   |  +  0.05   |
-|  7         |     0.00   |  +  0.03   |  +  0.03   | <-- this bucket is used
+|  0         |     0.00   |  -  0.99   |  -  0.99   |
+|  1         |     0.00   |  +  1.11   |  +  1.11   |
+|  2         |     0.00   |  +  0.35   |  +  0.35   |
+|  3         |     0.00   |  +  0.26   |  +  0.26   |
+|  4         |     0.00   |  +  0.13   |  +  0.13   |
+|  5         |     0.00   |  -  0.01   |  -  0.01   |
+|  6         |     0.00   |  -  0.03   |  -  0.03   |
+|  7         |     0.00   |  +  0.01   |  +  0.01   | <-- this bucket is used
 +------------+------------+------------+------------+
 
-NNUE evaluation          +10 (side to move, internal units)
-NNUE evaluation        +0.03 (white side)
-Final evaluation      +0.03 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +5 (side to move, internal units)
+NNUE evaluation        +0.01 (white side)
+Final evaluation      +0.02 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -98,21 +98,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  0.10   |  - 10.90   |  - 11.00   |
-|  1         |  -  0.24   |  -  0.36   |  -  0.60   |
-|  2         |  -  0.20   |  -  1.68   |  -  1.88   |
-|  3         |  -  0.20   |  -  0.67   |  -  0.88   |
-|  4         |  -  0.30   |  -  1.00   |  -  1.30   |
-|  5         |  -  0.30   |  -  0.94   |  -  1.25   |
-|  6         |  -  0.31   |  -  0.85   |  -  1.16   |
-|  7         |  -  0.31   |  -  0.81   |  -  1.12   | <-- this bucket is used
+|  0         |  +  0.18   |  -  7.06   |  -  6.89   |
+|  1         |  -  0.27   |  +  0.85   |  +  0.58   |
+|  2         |  -  0.20   |  -  0.05   |  -  0.25   |
+|  3         |  -  0.31   |  -  0.38   |  -  0.70   |
+|  4         |  -  0.41   |  -  0.69   |  -  1.10   |
+|  5         |  -  0.44   |  -  0.67   |  -  1.12   |
+|  6         |  -  0.48   |  -  0.67   |  -  1.15   |
+|  7         |  -  0.43   |  -  0.75   |  -  1.17   | <-- this bucket is used
 +------------+------------+------------+------------+
 
-NNUE evaluation          -427 (side to move, internal units)
-NNUE evaluation        -1.12 (white side)
-Final evaluation      -1.46 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -449 (side to move, internal units)
+NNUE evaluation        -1.17 (white side)
+Final evaluation      -1.55 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -120,21 +120,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  +  0.03   |  -  1.16   |  -  1.13   |
-|  1         |  +  0.11   |  +  0.23   |  +  0.34   |
-|  2         |  +  0.09   |  +  0.09   |  +  0.19   | <-- this bucket is used
-|  3         |  +  0.11   |  +  0.07   |  +  0.18   |
-|  4         |  +  0.13   |  +  0.08   |  +  0.21   |
-|  5         |  +  0.05   |  +  0.13   |  +  0.18   |
-|  6         |  +  0.05   |  +  0.21   |  +  0.25   |
-|  7         |  -  0.11   |  +  0.32   |  +  0.21   |
+|  0         |  +  0.09   |  +  0.98   |  +  1.07   |
+|  1         |  +  0.11   |  +  0.10   |  +  0.21   |
+|  2         |  +  0.11   |  +  0.15   |  +  0.26   | <-- this bucket is used
+|  3         |  +  0.12   |  +  0.09   |  +  0.21   |
+|  4         |  +  0.15   |  +  0.13   |  +  0.28   |
+|  5         |  +  0.07   |  +  0.32   |  +  0.39   |
+|  6         |  -  0.02   |  +  0.41   |  +  0.40   |
+|  7         |  -  0.02   |  +  0.40   |  +  0.38   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +72 (side to move, internal units)
-NNUE evaluation        +0.19 (white side)
-Final evaluation      +0.20 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +99 (side to move, internal units)
+NNUE evaluation        +0.26 (white side)
+Final evaluation      +0.27 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -142,21 +142,21 @@ NNUE network contributions (Normalized, Black to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  0.15   |  -  2.47   |  -  2.62   |
-|  1         |  +  0.09   |  -  1.33   |  -  1.24   |
-|  2         |  -  0.00   |  -  0.89   |  -  0.89   |
-|  3         |  -  0.08   |  -  0.32   |  -  0.40   |
-|  4         |  -  0.10   |  -  0.33   |  -  0.43   |
-|  5         |  -  0.10   |  -  0.26   |  -  0.37   | <-- this bucket is used
-|  6         |  -  0.10   |  -  0.24   |  -  0.34   |
-|  7         |  -  0.08   |  -  0.29   |  -  0.37   |
+|  0         |  -  0.06   |  -  4.58   |  -  4.64   |
+|  1         |  -  0.02   |  -  0.66   |  -  0.68   |
+|  2         |  -  0.24   |  -  0.47   |  -  0.72   |
+|  3         |  -  0.39   |  -  0.11   |  -  0.50   |
+|  4         |  -  0.43   |  -  0.22   |  -  0.65   |
+|  5         |  -  0.44   |  -  0.18   |  -  0.61   | <-- this bucket is used
+|  6         |  -  0.45   |  -  0.22   |  -  0.67   |
+|  7         |  -  0.45   |  -  0.20   |  -  0.65   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          -141 (side to move, internal units)
-NNUE evaluation        +0.37 (white side)
-Final evaluation      +0.44 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -237 (side to move, internal units)
+NNUE evaluation        +0.61 (white side)
+Final evaluation      +0.74 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -164,21 +164,21 @@ NNUE network contributions (Normalized, Black to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  0.31   |  -  2.69   |  -  3.00   |
-|  1         |  -  0.24   |  -  1.81   |  -  2.05   |
-|  2         |  -  0.32   |  -  1.18   |  -  1.50   |
-|  3         |  -  0.29   |  -  1.14   |  -  1.43   |
-|  4         |  -  0.35   |  -  0.90   |  -  1.25   |
-|  5         |  -  0.37   |  -  0.89   |  -  1.26   |
-|  6         |  -  0.38   |  -  0.80   |  -  1.18   | <-- this bucket is used
-|  7         |  -  0.40   |  -  0.69   |  -  1.09   |
+|  0         |  -  0.95   |  -  2.88   |  -  3.83   |
+|  1         |  -  0.39   |  -  0.13   |  -  0.53   |
+|  2         |  -  0.45   |  -  0.46   |  -  0.91   |
+|  3         |  -  0.44   |  -  0.51   |  -  0.95   |
+|  4         |  -  0.47   |  -  0.91   |  -  1.38   |
+|  5         |  -  0.49   |  -  0.80   |  -  1.29   |
+|  6         |  -  0.50   |  -  0.75   |  -  1.25   | <-- this bucket is used
+|  7         |  -  0.54   |  -  0.69   |  -  1.23   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          -455 (side to move, internal units)
-NNUE evaluation        +1.18 (white side)
-Final evaluation      +1.46 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -482 (side to move, internal units)
+NNUE evaluation        +1.25 (white side)
+Final evaluation      +1.55 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -186,21 +186,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  0.04   |  +  3.42   |  +  3.39   |
-|  1         |  +  0.27   |  +  0.43   |  +  0.70   |
-|  2         |  +  0.43   |  +  1.11   |  +  1.55   |
-|  3         |  +  0.47   |  +  1.75   |  +  2.22   |
-|  4         |  +  0.52   |  +  1.89   |  +  2.41   |
-|  5         |  +  0.50   |  +  2.36   |  +  2.86   |
-|  6         |  +  0.45   |  +  2.52   |  +  2.97   | <-- this bucket is used
-|  7         |  +  0.38   |  +  2.25   |  +  2.63   |
+|  0         |  -  0.35   |  +  0.15   |  -  0.21   |
+|  1         |  +  0.21   |  +  2.06   |  +  2.26   |
+|  2         |  +  0.22   |  +  2.05   |  +  2.27   |
+|  3         |  +  0.34   |  +  2.69   |  +  3.03   |
+|  4         |  +  0.37   |  +  2.74   |  +  3.11   |
+|  5         |  +  0.37   |  +  3.24   |  +  3.61   |
+|  6         |  +  0.35   |  +  2.94   |  +  3.29   | <-- this bucket is used
+|  7         |  +  0.32   |  +  2.81   |  +  3.13   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +1142 (side to move, internal units)
-NNUE evaluation        +2.97 (white side)
-Final evaluation      +3.49 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +1267 (side to move, internal units)
+NNUE evaluation        +3.29 (white side)
+Final evaluation      +3.83 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -208,21 +208,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  0.10   |  -  0.64   |  -  0.75   |
-|  1         |  -  0.11   |  -  1.01   |  -  1.12   |
-|  2         |  -  0.02   |  +  0.17   |  +  0.15   |
-|  3         |  -  0.03   |  -  0.05   |  -  0.09   |
-|  4         |  -  0.04   |  +  0.18   |  +  0.13   |
-|  5         |  -  0.03   |  +  0.12   |  +  0.09   |
-|  6         |  -  0.03   |  +  0.08   |  +  0.05   | <-- this bucket is used
-|  7         |  -  0.04   |  +  0.12   |  +  0.09   |
+|  0         |  -  0.66   |  -  4.75   |  -  5.41   |
+|  1         |  -  0.20   |  +  0.62   |  +  0.42   |
+|  2         |  -  0.03   |  +  0.43   |  +  0.39   |
+|  3         |  -  0.01   |  +  0.28   |  +  0.27   |
+|  4         |  -  0.02   |  +  0.23   |  +  0.20   |
+|  5         |  -  0.01   |  +  0.14   |  +  0.13   |
+|  6         |  +  0.01   |  +  0.09   |  +  0.09   | <-- this bucket is used
+|  7         |  -  0.01   |  +  0.09   |  +  0.08   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +21 (side to move, internal units)
-NNUE evaluation        +0.05 (white side)
-Final evaluation      +0.07 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +36 (side to move, internal units)
+NNUE evaluation        +0.09 (white side)
+Final evaluation      +0.12 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -230,21 +230,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  0.03   |  +  1.22   |  +  1.19   |
-|  1         |  +  0.37   |  -  0.11   |  +  0.27   |
-|  2         |  +  0.47   |  -  0.04   |  +  0.43   |
-|  3         |  +  0.43   |  +  0.28   |  +  0.71   |
-|  4         |  +  0.53   |  -  0.06   |  +  0.48   |
-|  5         |  +  0.59   |  -  0.30   |  +  0.28   | <-- this bucket is used
-|  6         |  +  0.59   |  -  0.28   |  +  0.30   |
-|  7         |  +  0.52   |  -  0.33   |  +  0.19   |
+|  0         |  -  0.15   |  -  2.46   |  -  2.61   |
+|  1         |  +  0.25   |  +  1.04   |  +  1.29   |
+|  2         |  +  0.42   |  +  0.16   |  +  0.58   |
+|  3         |  +  0.46   |  +  0.11   |  +  0.57   |
+|  4         |  +  0.52   |  +  0.13   |  +  0.65   |
+|  5         |  +  0.57   |  +  0.00   |  +  0.57   | <-- this bucket is used
+|  6         |  +  0.57   |  +  0.05   |  +  0.62   |
+|  7         |  +  0.49   |  +  0.11   |  +  0.61   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +110 (side to move, internal units)
-NNUE evaluation        +0.28 (white side)
-Final evaluation      +0.35 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +221 (side to move, internal units)
+NNUE evaluation        +0.57 (white side)
+Final evaluation      +0.71 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -252,21 +252,197 @@ NNUE network contributions (Normalized, Black to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  +  0.70   |  -  0.80   |  -  0.10   |
-|  1         |  -  0.11   |  -  1.26   |  -  1.37   |
-|  2         |  -  0.23   |  -  1.18   |  -  1.41   |
-|  3         |  -  0.24   |  -  0.68   |  -  0.92   |
-|  4         |  -  0.35   |  -  0.70   |  -  1.05   |
-|  5         |  -  0.43   |  -  0.49   |  -  0.92   |
-|  6         |  -  0.49   |  -  0.48   |  -  0.97   |
-|  7         |  -  0.46   |  -  0.60   |  -  1.05   | <-- this bucket is used
+|  0         |  +  0.58   |  -  7.65   |  -  7.07   |
+|  1         |  -  0.15   |  -  0.57   |  -  0.72   |
+|  2         |  -  0.34   |  -  0.31   |  -  0.65   |
+|  3         |  -  0.38   |  -  0.57   |  -  0.95   |
+|  4         |  -  0.43   |  -  0.69   |  -  1.12   |
+|  5         |  -  0.51   |  -  0.82   |  -  1.33   |
+|  6         |  -  0.53   |  -  0.72   |  -  1.25   |
+|  7         |  -  0.53   |  -  0.71   |  -  1.24   | <-- this bucket is used
 +------------+------------+------------+------------+
 
-NNUE evaluation          -404 (side to move, internal units)
-NNUE evaluation        +1.05 (white side)
+NNUE evaluation          -476 (side to move, internal units)
+NNUE evaluation        +1.24 (white side)
+Final evaluation      +1.62 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  1.01   |  +  0.79   |  +  1.80   |
+|  1         |  +  0.01   |  +  0.36   |  +  0.37   |
+|  2         |  +  0.38   |  +  0.45   |  +  0.82   |
+|  3         |  +  0.32   |  +  0.19   |  +  0.51   |
+|  4         |  +  0.33   |  -  0.22   |  +  0.10   |
+|  5         |  +  0.34   |  -  0.30   |  +  0.05   |
+|  6         |  +  0.35   |  -  0.24   |  +  0.11   | <-- this bucket is used
+|  7         |  +  0.34   |  -  0.22   |  +  0.13   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +44 (side to move, internal units)
+NNUE evaluation        +0.11 (white side)
+Final evaluation      +0.15 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.16   |  +  3.69   |  +  3.85   |
+|  1         |  +  0.02   |  +  1.18   |  +  1.20   |
+|  2         |  -  0.03   |  +  0.96   |  +  0.93   |
+|  3         |  -  0.03   |  +  1.26   |  +  1.23   |
+|  4         |  -  0.02   |  +  0.92   |  +  0.90   |
+|  5         |  -  0.02   |  +  0.85   |  +  0.83   |
+|  6         |  -  0.04   |  +  0.84   |  +  0.81   | <-- this bucket is used
+|  7         |  -  0.08   |  +  0.90   |  +  0.83   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +311 (side to move, internal units)
+NNUE evaluation        -0.81 (white side)
+Final evaluation      -0.98 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.92   |  +  4.21   |  +  5.12   |
+|  1         |  +  0.03   |  +  0.73   |  +  0.76   |
+|  2         |  -  0.04   |  +  0.41   |  +  0.37   |
+|  3         |  -  0.08   |  +  0.34   |  +  0.27   |
+|  4         |  -  0.07   |  +  0.15   |  +  0.08   |
+|  5         |  -  0.03   |  +  0.07   |  +  0.04   |
+|  6         |  -  0.01   |  +  0.12   |  +  0.11   | <-- this bucket is used
+|  7         |  -  0.06   |  +  0.14   |  +  0.08   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +43 (side to move, internal units)
+NNUE evaluation        +0.11 (white side)
+Final evaluation      +0.14 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  -  0.80   |  +  2.58   |  +  1.78   |
+|  1         |  +  0.29   |  +  0.58   |  +  0.87   |
+|  2         |  +  0.49   |  +  0.13   |  +  0.61   |
+|  3         |  +  0.57   |  +  0.15   |  +  0.72   |
+|  4         |  +  0.62   |  +  0.09   |  +  0.71   |
+|  5         |  +  0.64   |  +  0.17   |  +  0.80   | <-- this bucket is used
+|  6         |  +  0.62   |  +  0.24   |  +  0.85   |
+|  7         |  +  0.58   |  +  0.27   |  +  0.85   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +306 (side to move, internal units)
+NNUE evaluation        -0.80 (white side)
+Final evaluation      -0.92 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  -  0.66   |  -  3.87   |  -  4.53   |
+|  1         |  +  0.17   |  +  1.70   |  +  1.88   |
+|  2         |  +  0.33   |  +  0.93   |  +  1.26   |
+|  3         |  +  0.46   |  +  0.78   |  +  1.24   |
+|  4         |  +  0.52   |  +  0.83   |  +  1.36   |
+|  5         |  +  0.54   |  +  0.65   |  +  1.19   | <-- this bucket is used
+|  6         |  +  0.56   |  +  0.50   |  +  1.06   |
+|  7         |  +  0.54   |  +  0.46   |  +  1.00   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +457 (side to move, internal units)
+NNUE evaluation        -1.19 (white side)
+Final evaluation      -1.42 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  -  0.64   |  +  3.44   |  +  2.80   |
+|  1         |  -  0.09   |  +  0.25   |  +  0.16   |
+|  2         |  -  0.02   |  +  0.24   |  +  0.22   |
+|  3         |  -  0.02   |  +  0.23   |  +  0.21   | <-- this bucket is used
+|  4         |  +  0.01   |  +  0.14   |  +  0.15   |
+|  5         |  +  0.07   |  -  0.05   |  +  0.02   |
+|  6         |  +  0.23   |  -  0.19   |  +  0.04   |
+|  7         |  +  0.46   |  -  0.16   |  +  0.30   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +81 (side to move, internal units)
+NNUE evaluation        -0.21 (white side)
+Final evaluation      -0.23 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.30   |  +  4.59   |  +  4.88   |
+|  1         |  +  0.30   |  +  0.45   |  +  0.75   |
+|  2         |  +  0.48   |  -  0.54   |  -  0.06   |
+|  3         |  +  0.61   |  -  0.57   |  +  0.04   |
+|  4         |  +  0.68   |  -  0.44   |  +  0.24   | <-- this bucket is used
+|  5         |  +  0.72   |  -  0.57   |  +  0.16   |
+|  6         |  +  0.71   |  -  0.47   |  +  0.24   |
+|  7         |  +  0.58   |  -  0.18   |  +  0.39   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +91 (side to move, internal units)
+NNUE evaluation        +0.24 (white side)
+Final evaluation      +0.26 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  -  0.06   |  -  0.55   |  -  0.60   |
+|  1         |  -  0.01   |  +  1.30   |  +  1.29   |
+|  2         |  -  0.02   |  +  1.28   |  +  1.26   | <-- this bucket is used
+|  3         |  -  0.05   |  +  1.31   |  +  1.27   |
+|  4         |  -  0.07   |  +  1.34   |  +  1.27   |
+|  5         |  -  0.13   |  +  1.91   |  +  1.78   |
+|  6         |  -  0.13   |  +  1.82   |  +  1.70   |
+|  7         |  -  0.32   |  +  2.11   |  +  1.79   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +482 (side to move, internal units)
+NNUE evaluation        +1.26 (white side)
 Final evaluation      +1.37 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -274,43 +450,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  +  0.27   |  +  1.83   |  +  2.10   |
-|  1         |  -  0.02   |  -  0.24   |  -  0.26   |
-|  2         |  +  0.27   |  +  0.28   |  +  0.55   |
-|  3         |  +  0.16   |  -  0.01   |  +  0.16   |
-|  4         |  +  0.17   |  -  0.11   |  +  0.06   |
-|  5         |  +  0.19   |  -  0.19   |     0.00   |
-|  6         |  +  0.20   |  -  0.12   |  +  0.09   | <-- this bucket is used
-|  7         |  +  0.20   |  -  0.13   |  +  0.07   |
+|  0         |  -  2.29   |  -  1.67   |  -  3.96   |
+|  1         |  -  2.16   |  -  0.72   |  -  2.88   |
+|  2         |  -  2.94   |  +  0.65   |  -  2.30   | <-- this bucket is used
+|  3         |  -  3.54   |  +  0.79   |  -  2.75   |
+|  4         |  -  3.78   |  +  0.92   |  -  2.86   |
+|  5         |  -  3.88   |  +  0.71   |  -  3.16   |
+|  6         |  -  3.99   |  +  2.19   |  -  1.81   |
+|  7         |  -  4.10   |  -  0.19   |  -  4.29   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +33 (side to move, internal units)
-NNUE evaluation        +0.09 (white side)
-Final evaluation      +0.11 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -878 (side to move, internal units)
+NNUE evaluation        -2.30 (white side)
+Final evaluation      -2.36 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.07   |  +  2.15   |  +  2.22   |
-|  1         |  -  0.00   |  +  0.27   |  +  0.26   |
-|  2         |  +  0.05   |  +  0.92   |  +  0.97   |
-|  3         |  +  0.03   |  +  0.81   |  +  0.84   |
-|  4         |  +  0.06   |  +  0.49   |  +  0.56   |
-|  5         |  +  0.05   |  +  0.56   |  +  0.61   |
-|  6         |     0.00   |  +  0.65   |  +  0.65   | <-- this bucket is used
-|  7         |  -  0.05   |  +  0.84   |  +  0.78   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +251 (side to move, internal units)
-NNUE evaluation        -0.65 (white side)
-Final evaluation      -0.79 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -318,87 +472,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  +  0.08   |  -  0.63   |  -  0.56   |
-|  1         |  +  0.18   |  -  0.55   |  -  0.38   |
-|  2         |  -  0.01   |  +  0.35   |  +  0.34   |
-|  3         |  -  0.08   |  +  0.45   |  +  0.37   |
-|  4         |  -  0.08   |  +  0.40   |  +  0.32   |
-|  5         |  -  0.05   |  +  0.36   |  +  0.31   |
-|  6         |  -  0.02   |  +  0.32   |  +  0.30   | <-- this bucket is used
-|  7         |  -  0.02   |  +  0.28   |  +  0.27   |
+|  0         |  +  0.20   |  +  0.21   |  +  0.41   |
+|  1         |  +  0.39   |  +  0.65   |  +  1.04   |
+|  2         |  +  0.45   |  +  0.31   |  +  0.75   | <-- this bucket is used
+|  3         |  +  0.49   |  +  0.21   |  +  0.70   |
+|  4         |  +  0.57   |  +  0.36   |  +  0.92   |
+|  5         |  +  0.37   |  +  0.42   |  +  0.79   |
+|  6         |  -  0.07   |  +  0.70   |  +  0.63   |
+|  7         |  +  0.29   |  +  0.92   |  +  1.22   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +115 (side to move, internal units)
-NNUE evaluation        +0.30 (white side)
-Final evaluation      +0.37 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +293 (side to move, internal units)
+NNUE evaluation        +0.75 (white side)
+Final evaluation      +0.80 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.22   |  +  0.37   |  +  0.59   |
-|  1         |  +  0.24   |  +  0.01   |  +  0.25   |
-|  2         |  +  0.42   |  +  0.37   |  +  0.79   |
-|  3         |  +  0.44   |  +  0.24   |  +  0.68   |
-|  4         |  +  0.53   |  +  0.07   |  +  0.60   |
-|  5         |  +  0.56   |  +  0.02   |  +  0.58   | <-- this bucket is used
-|  6         |  +  0.54   |  +  0.10   |  +  0.65   |
-|  7         |  +  0.55   |  +  0.14   |  +  0.69   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +222 (side to move, internal units)
-NNUE evaluation        -0.58 (white side)
-Final evaluation      -0.67 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.97   |  -  0.34   |  -  1.31   |
-|  1         |  +  0.20   |  +  0.74   |  +  0.93   |
-|  2         |  +  0.24   |  +  0.94   |  +  1.18   |
-|  3         |  +  0.35   |  +  1.09   |  +  1.44   |
-|  4         |  +  0.39   |  +  0.95   |  +  1.34   |
-|  5         |  +  0.45   |  +  0.83   |  +  1.28   | <-- this bucket is used
-|  6         |  +  0.42   |  +  0.89   |  +  1.31   |
-|  7         |  +  0.42   |  +  0.71   |  +  1.13   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +493 (side to move, internal units)
-NNUE evaluation        -1.28 (white side)
-Final evaluation      -1.53 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.44   |  +  1.28   |  +  0.83   |
-|  1         |  +  0.02   |  +  0.01   |  +  0.03   |
-|  2         |  +  0.04   |  +  0.44   |  +  0.47   |
-|  3         |  +  0.02   |  +  0.36   |  +  0.38   | <-- this bucket is used
-|  4         |  +  0.05   |  +  0.16   |  +  0.21   |
-|  5         |  +  0.09   |  +  0.10   |  +  0.19   |
-|  6         |  +  0.19   |  +  0.01   |  +  0.20   |
-|  7         |  +  0.50   |  -  0.04   |  +  0.46   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +149 (side to move, internal units)
-NNUE evaluation        -0.38 (white side)
-Final evaluation      -0.42 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -406,21 +494,395 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  +  0.11   |  +  7.20   |  +  7.31   |
-|  1         |  +  0.23   |  +  0.30   |  +  0.53   |
-|  2         |  +  0.39   |  -  0.28   |  +  0.11   |
-|  3         |  +  0.41   |  -  0.41   |  +  0.00   |
-|  4         |  +  0.52   |  -  0.53   |  -  0.01   | <-- this bucket is used
-|  5         |  +  0.57   |  -  0.45   |  +  0.12   |
-|  6         |  +  0.53   |  -  0.44   |  +  0.09   |
-|  7         |  +  0.35   |  -  0.04   |  +  0.31   |
+|  0         |  -  0.20   |  -  1.97   |  -  2.17   |
+|  1         |  -  0.16   |  -  1.79   |  -  1.95   |
+|  2         |  -  0.12   |  -  1.86   |  -  1.98   | <-- this bucket is used
+|  3         |  -  0.14   |  -  2.09   |  -  2.22   |
+|  4         |  -  0.27   |  -  1.44   |  -  1.71   |
+|  5         |  -  0.20   |  -  0.56   |  -  0.77   |
+|  6         |  +  0.45   |  +  0.20   |  +  0.65   |
+|  7         |  +  0.27   |  +  0.82   |  +  1.09   |
++------------+------------+------------+------------+
+
+NNUE evaluation          -767 (side to move, internal units)
+NNUE evaluation        -1.98 (white side)
+Final evaluation      -2.01 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  -  0.15   |  +  0.20   |  +  0.04   |
+|  1         |  -  0.02   |  +  0.10   |  +  0.08   |
+|  2         |  -  0.07   |  +  0.14   |  +  0.08   |
+|  3         |  -  0.05   |  +  0.16   |  +  0.11   | <-- this bucket is used
+|  4         |  -  0.02   |  +  0.16   |  +  0.14   |
+|  5         |  +  0.02   |  +  0.12   |  +  0.15   |
+|  6         |  +  0.06   |  +  0.22   |  +  0.28   |
+|  7         |  +  0.10   |  -  0.05   |  +  0.05   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +41 (side to move, internal units)
+NNUE evaluation        +0.11 (white side)
+Final evaluation      +0.12 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.12   |  -  1.68   |  -  1.56   |
+|  1         |  -  0.09   |  +  1.54   |  +  1.45   |
+|  2         |  -  0.21   |  +  1.11   |  +  0.90   |
+|  3         |  -  0.27   |  +  1.14   |  +  0.87   |
+|  4         |  -  0.29   |  +  1.24   |  +  0.96   | <-- this bucket is used
+|  5         |  -  0.32   |  +  1.23   |  +  0.91   |
+|  6         |  -  0.19   |  +  0.89   |  +  0.70   |
+|  7         |  +  0.27   |  +  0.73   |  +  1.00   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +369 (side to move, internal units)
+NNUE evaluation        -0.96 (white side)
+Final evaluation      -1.03 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  -  0.15   |  -  1.06   |  -  1.21   |
+|  1         |  +  0.07   |  -  1.05   |  -  0.98   |
+|  2         |  +  0.07   |  -  0.76   |  -  0.69   | <-- this bucket is used
+|  3         |  +  0.01   |  -  0.73   |  -  0.72   |
+|  4         |  -  0.11   |  -  0.71   |  -  0.82   |
+|  5         |  +  0.04   |  -  0.86   |  -  0.82   |
+|  6         |  +  0.12   |  -  0.62   |  -  0.51   |
+|  7         |  +  0.30   |  -  0.55   |  -  0.25   |
++------------+------------+------------+------------+
+
+NNUE evaluation          -268 (side to move, internal units)
+NNUE evaluation        +0.69 (white side)
+Final evaluation      +0.72 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.84   |  +  0.65   |  +  1.48   |
+|  1         |  +  0.58   |  -  0.40   |  +  0.18   |
+|  2         |  +  0.75   |  -  0.57   |  +  0.17   |
+|  3         |  +  0.90   |  -  0.74   |  +  0.16   | <-- this bucket is used
+|  4         |  +  0.98   |  -  0.54   |  +  0.44   |
+|  5         |  +  1.00   |  -  0.26   |  +  0.74   |
+|  6         |  +  1.01   |  -  0.37   |  +  0.64   |
+|  7         |  +  0.92   |  +  0.04   |  +  0.97   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +62 (side to move, internal units)
+NNUE evaluation        +0.16 (white side)
+Final evaluation      +0.17 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.04   |  +  3.10   |  +  3.14   |
+|  1         |  -  0.11   |  +  2.07   |  +  1.96   |
+|  2         |  -  0.07   |  +  2.10   |  +  2.03   |
+|  3         |  -  0.07   |  +  1.85   |  +  1.78   |
+|  4         |  -  0.04   |  +  1.77   |  +  1.72   | <-- this bucket is used
+|  5         |  -  0.07   |  +  1.80   |  +  1.73   |
+|  6         |  -  0.18   |  +  1.75   |  +  1.57   |
+|  7         |  -  0.41   |  +  2.05   |  +  1.64   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +657 (side to move, internal units)
+NNUE evaluation        +1.72 (white side)
+Final evaluation      +1.95 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  -  0.44   |  +  4.84   |  +  4.40   |
+|  1         |  -  0.21   |  +  2.02   |  +  1.81   |
+|  2         |  -  0.25   |  +  1.36   |  +  1.11   |
+|  3         |  -  0.29   |  +  1.41   |  +  1.13   |
+|  4         |  -  0.31   |  +  1.46   |  +  1.15   | <-- this bucket is used
+|  5         |  -  0.32   |  +  0.96   |  +  0.64   |
+|  6         |  -  0.30   |  +  0.64   |  +  0.34   |
+|  7         |  -  0.24   |  +  0.48   |  +  0.24   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +439 (side to move, internal units)
+NNUE evaluation        +1.15 (white side)
+Final evaluation      +1.26 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.08   |  -  2.47   |  -  2.39   |
+|  1         |  -  0.39   |  -  0.99   |  -  1.38   |
+|  2         |  -  0.47   |  -  0.83   |  -  1.30   | <-- this bucket is used
+|  3         |  -  0.53   |  -  0.64   |  -  1.16   |
+|  4         |  -  0.71   |  -  0.30   |  -  1.01   |
+|  5         |  -  0.72   |  -  0.08   |  -  0.80   |
+|  6         |  -  0.39   |  +  0.10   |  -  0.29   |
+|  7         |  -  0.35   |  -  0.46   |  -  0.81   |
++------------+------------+------------+------------+
+
+NNUE evaluation          -506 (side to move, internal units)
+NNUE evaluation        -1.30 (white side)
+Final evaluation      -1.38 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.55   |  -  7.23   |  -  6.68   |
+|  1         |  +  0.46   |  +  0.37   |  +  0.83   |
+|  2         |  +  0.54   |  -  0.49   |  +  0.05   |
+|  3         |  +  0.57   |  -  0.30   |  +  0.27   |
+|  4         |  +  0.62   |  -  0.18   |  +  0.44   |
+|  5         |  +  0.63   |  -  0.08   |  +  0.55   | <-- this bucket is used
+|  6         |  +  0.61   |  -  0.08   |  +  0.52   |
+|  7         |  +  0.58   |     0.00   |  +  0.58   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +210 (side to move, internal units)
+NNUE evaluation        +0.55 (white side)
+Final evaluation      +0.35 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  -  1.49   |  -  4.24   |  -  5.73   |
+|  1         |  -  0.20   |  +  0.38   |  +  0.18   |
+|  2         |  -  0.62   |  +  0.67   |  +  0.05   |
+|  3         |  -  0.66   |  +  0.05   |  -  0.61   |
+|  4         |  -  0.67   |  +  0.16   |  -  0.50   |
+|  5         |  -  0.64   |  +  0.18   |  -  0.46   |
+|  6         |  -  0.53   |  +  0.10   |  -  0.43   | <-- this bucket is used
+|  7         |  -  0.37   |  +  0.08   |  -  0.28   |
++------------+------------+------------+------------+
+
+NNUE evaluation          -167 (side to move, internal units)
+NNUE evaluation        -0.43 (white side)
+Final evaluation      -0.43 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.26   |  +  0.62   |  +  0.88   |
+|  1         |  +  0.03   |  +  0.36   |  +  0.39   |
+|  2         |  +  0.05   |  +  0.54   |  +  0.59   |
+|  3         |  +  0.12   |  +  0.17   |  +  0.29   |
+|  4         |  +  0.10   |  +  0.41   |  +  0.51   |
+|  5         |  +  0.11   |  +  0.18   |  +  0.29   |
+|  6         |  +  0.13   |  +  0.16   |  +  0.29   | <-- this bucket is used
+|  7         |  +  0.19   |  +  0.19   |  +  0.39   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +113 (side to move, internal units)
+NNUE evaluation        +0.29 (white side)
+Final evaluation      +0.38 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  1.03   |  -  0.64   |  +  0.39   |
+|  1         |  +  0.19   |  +  0.07   |  +  0.26   |
+|  2         |  +  0.14   |  -  1.28   |  -  1.13   |
+|  3         |  +  0.11   |  -  1.68   |  -  1.56   |
+|  4         |  +  0.12   |  -  2.05   |  -  1.93   |
+|  5         |  +  0.08   |  -  1.99   |  -  1.91   |
+|  6         |  +  0.05   |  -  1.97   |  -  1.92   | <-- this bucket is used
+|  7         |  +  0.29   |  -  2.11   |  -  1.82   |
++------------+------------+------------+------------+
+
+NNUE evaluation          -741 (side to move, internal units)
+NNUE evaluation        +1.92 (white side)
+Final evaluation      +2.20 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |     0.00   |  -  1.02   |  -  1.02   |
+|  1         |     0.00   |  +  1.26   |  +  1.26   |
+|  2         |     0.00   |  +  0.39   |  +  0.39   |
+|  3         |     0.00   |  +  1.09   |  +  1.09   |
+|  4         |     0.00   |  +  1.05   |  +  1.05   | <-- this bucket is used
+|  5         |     0.00   |  +  1.18   |  +  1.18   |
+|  6         |     0.00   |  +  1.02   |  +  1.02   |
+|  7         |     0.00   |  +  0.78   |  +  0.78   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +405 (side to move, internal units)
+NNUE evaluation        +1.05 (white side)
+Final evaluation      +1.22 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.23   |  -  1.34   |  -  1.11   |
+|  1         |  +  0.23   |  -  0.92   |  -  0.70   |
+|  2         |  +  0.35   |  -  1.49   |  -  1.13   |
+|  3         |  +  0.39   |  -  1.39   |  -  1.00   |
+|  4         |  +  0.37   |  -  1.29   |  -  0.92   | <-- this bucket is used
+|  5         |  +  0.40   |  -  1.23   |  -  0.83   |
+|  6         |  +  0.40   |  -  1.16   |  -  0.76   |
+|  7         |  +  0.37   |  -  1.04   |  -  0.67   |
++------------+------------+------------+------------+
+
+NNUE evaluation          -352 (side to move, internal units)
+NNUE evaluation        -0.92 (white side)
+Final evaluation      -1.06 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  + 16.29   |  + 11.08   |  + 27.37   |
+|  1         |  + 11.17   |  +  9.27   |  + 20.44   |
+|  2         |  + 15.08   |  + 11.70   |  + 26.78   |
+|  3         |  + 17.78   |  +  7.87   |  + 25.65   |
+|  4         |  + 18.48   |  + 20.51   |  + 38.99   |
+|  5         |  + 18.04   |  + 15.49   |  + 33.52   |
+|  6         |  + 17.36   |  +  9.43   |  + 26.79   | <-- this bucket is used
+|  7         |  + 16.85   |  +  1.55   |  + 18.40   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +10243 (side to move, internal units)
+NNUE evaluation        +26.79 (white side)
+Final evaluation      +28.87 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  0.00   |  +  2.49   |  +  2.50   |
+|  1         |  +  0.93   |  +  4.06   |  +  4.99   |
+|  2         |  +  1.34   |  +  5.96   |  +  7.30   |
+|  3         |  +  0.86   |  +  5.07   |  +  5.93   |
+|  4         |  +  0.40   |  +  7.81   |  +  8.21   |
+|  5         |  +  0.37   |  +  4.20   |  +  4.57   | <-- this bucket is used
+|  6         |  +  0.26   |  -  0.88   |  -  0.62   |
+|  7         |  +  1.12   |  +  4.12   |  +  5.24   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +1748 (side to move, internal units)
+NNUE evaluation        +4.57 (white side)
+Final evaluation      +5.76 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  1.84   |  -  1.51   |  +  0.33   |
+|  1         |  +  0.85   |  -  0.49   |  +  0.35   | <-- this bucket is used
+|  2         |  +  1.19   |  -  0.96   |  +  0.23   |
+|  3         |  +  1.42   |  -  0.72   |  +  0.70   |
+|  4         |  +  1.28   |  -  0.56   |  +  0.72   |
+|  5         |  +  1.48   |  -  0.17   |  +  1.31   |
+|  6         |  +  2.05   |  -  0.69   |  +  1.37   |
+|  7         |  +  1.98   |  +  0.57   |  +  2.55   |
++------------+------------+------------+------------+
+
+NNUE evaluation          +137 (side to move, internal units)
+NNUE evaluation        +0.35 (white side)
+Final evaluation      +0.35 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+------------+------------+
+|   Bucket   |  Material  | Positional |   Total    |
+|            |   (PSQT)   |  (Layers)  |            |
++------------+------------+------------+------------+
+|  0         |  +  3.46   |  -  3.67   |  -  0.21   |
+|  1         |  +  2.14   |  -  2.15   |  -  0.01   | <-- this bucket is used
+|  2         |  +  2.99   |  -  1.01   |  +  1.98   |
+|  3         |  +  3.48   |  +  0.84   |  +  4.32   |
+|  4         |  +  3.56   |  +  1.14   |  +  4.70   |
+|  5         |  +  3.70   |  +  0.65   |  +  4.35   |
+|  6         |  +  3.72   |  -  0.08   |  +  3.64   |
+|  7         |  +  3.43   |  +  2.46   |  +  5.90   |
 +------------+------------+------------+------------+
 
 NNUE evaluation          -4 (side to move, internal units)
 NNUE evaluation        -0.01 (white side)
 Final evaluation      -0.01 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -428,65 +890,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  0.18   |  +  3.09   |  +  2.91   |
-|  1         |  -  0.19   |  +  1.01   |  +  0.82   |
-|  2         |  -  0.22   |  +  1.27   |  +  1.05   | <-- this bucket is used
-|  3         |  -  0.24   |  +  1.20   |  +  0.96   |
-|  4         |  -  0.33   |  +  1.47   |  +  1.14   |
-|  5         |  -  0.38   |  +  1.17   |  +  0.78   |
-|  6         |  -  0.33   |  +  1.87   |  +  1.54   |
-|  7         |  -  0.44   |  +  1.57   |  +  1.13   |
+|  0         |  +  5.62   |  -  3.76   |  +  1.86   |
+|  1         |  +  4.04   |  -  2.49   |  +  1.55   | <-- this bucket is used
+|  2         |  +  5.53   |  +  0.13   |  +  5.66   |
+|  3         |  +  6.71   |  -  0.56   |  +  6.15   |
+|  4         |  +  7.03   |  +  1.33   |  +  8.36   |
+|  5         |  +  7.11   |  +  0.72   |  +  7.83   |
+|  6         |  +  7.06   |  -  0.70   |  +  6.36   |
+|  7         |  +  6.81   |  +  2.22   |  +  9.03   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +401 (side to move, internal units)
-NNUE evaluation        +1.05 (white side)
-Final evaluation      +1.14 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  2.07   |  - 10.49   |  - 12.57   |
-|  1         |  -  2.52   |  -  0.54   |  -  3.06   |
-|  2         |  -  3.25   |  +  0.47   |  -  2.77   | <-- this bucket is used
-|  3         |  -  3.40   |  +  0.41   |  -  2.99   |
-|  4         |  -  3.71   |  +  1.13   |  -  2.58   |
-|  5         |  -  3.86   |  +  0.96   |  -  2.90   |
-|  6         |  -  3.98   |  +  0.71   |  -  3.28   |
-|  7         |  -  4.06   |  +  0.61   |  -  3.44   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          -1061 (side to move, internal units)
-NNUE evaluation        -2.77 (white side)
-Final evaluation      -2.84 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.03   |  +  0.45   |  +  0.43   |
-|  1         |  +  0.25   |  +  1.06   |  +  1.30   |
-|  2         |  +  0.33   |  +  0.99   |  +  1.33   | <-- this bucket is used
-|  3         |  +  0.34   |  +  1.15   |  +  1.49   |
-|  4         |  +  0.37   |  +  0.75   |  +  1.12   |
-|  5         |  +  0.16   |  +  0.58   |  +  0.74   |
-|  6         |  -  0.39   |  +  1.14   |  +  0.75   |
-|  7         |  -  0.01   |  +  1.06   |  +  1.05   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +516 (side to move, internal units)
-NNUE evaluation        +1.33 (white side)
+NNUE evaluation          +603 (side to move, internal units)
+NNUE evaluation        +1.55 (white side)
 Final evaluation      +1.38 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -494,442 +912,24 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  +  0.15   |  +  0.54   |  +  0.69   |
-|  1         |  -  0.04   |  -  1.57   |  -  1.61   |
-|  2         |  -  0.05   |  -  1.53   |  -  1.58   | <-- this bucket is used
-|  3         |  -  0.07   |  -  1.49   |  -  1.55   |
-|  4         |  -  0.12   |  -  0.95   |  -  1.07   |
-|  5         |  -  0.18   |  -  0.28   |  -  0.46   |
-|  6         |  +  0.14   |  -  0.32   |  -  0.18   |
-|  7         |  +  0.14   |  -  0.41   |  -  0.27   |
+|  0         |  +  0.09   |  +  0.09   |  +  0.17   |
+|  1         |  +  0.27   |  -  0.00   |  +  0.27   | <-- this bucket is used
+|  2         |  +  0.37   |  +  0.16   |  +  0.54   |
+|  3         |  +  0.41   |  +  0.27   |  +  0.68   |
+|  4         |  +  0.23   |  +  0.59   |  +  0.82   |
+|  5         |  +  0.31   |  +  0.67   |  +  0.99   |
+|  6         |  +  0.49   |  +  0.93   |  +  1.42   |
+|  7         |  +  0.37   |  +  1.26   |  +  1.62   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          -613 (side to move, internal units)
-NNUE evaluation        -1.58 (white side)
-Final evaluation      -1.61 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.06   |  +  1.12   |  +  1.18   |
-|  1         |  -  0.01   |  +  0.01   |  +  0.00   |
-|  2         |  +  0.02   |  +  0.23   |  +  0.25   |
-|  3         |  +  0.04   |  +  0.31   |  +  0.36   | <-- this bucket is used
-|  4         |  +  0.09   |  +  0.23   |  +  0.32   |
-|  5         |  +  0.14   |  +  0.15   |  +  0.29   |
-|  6         |  +  0.20   |  +  0.05   |  +  0.25   |
-|  7         |  +  0.24   |  +  0.09   |  +  0.34   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +137 (side to move, internal units)
-NNUE evaluation        +0.36 (white side)
-Final evaluation      +0.40 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.60   |  +  0.23   |  +  0.83   |
-|  1         |  +  0.03   |  +  0.61   |  +  0.64   |
-|  2         |  -  0.08   |  +  0.74   |  +  0.67   |
-|  3         |  -  0.08   |  +  0.80   |  +  0.73   |
-|  4         |  -  0.07   |  +  0.60   |  +  0.52   | <-- this bucket is used
-|  5         |  -  0.11   |  +  0.42   |  +  0.31   |
-|  6         |  -  0.12   |  +  0.38   |  +  0.26   |
-|  7         |  +  0.24   |  +  0.66   |  +  0.90   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +202 (side to move, internal units)
-NNUE evaluation        -0.52 (white side)
-Final evaluation      -0.58 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.16   |  -  6.60   |  -  6.44   |
-|  1         |  +  0.10   |  -  1.17   |  -  1.07   |
-|  2         |  +  0.18   |  -  1.03   |  -  0.86   | <-- this bucket is used
-|  3         |  +  0.13   |  -  0.63   |  -  0.50   |
-|  4         |  +  0.06   |  -  0.54   |  -  0.49   |
-|  5         |     0.00   |  -  0.96   |  -  0.96   |
-|  6         |  +  0.14   |  -  1.32   |  -  1.19   |
-|  7         |  +  0.45   |  -  1.25   |  -  0.80   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          -332 (side to move, internal units)
-NNUE evaluation        +0.86 (white side)
-Final evaluation      +0.89 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.54   |  +  0.27   |  +  0.81   |
-|  1         |  +  0.49   |  -  0.29   |  +  0.20   |
-|  2         |  +  0.77   |  -  0.65   |  +  0.13   |
-|  3         |  +  0.80   |  -  0.56   |  +  0.24   | <-- this bucket is used
-|  4         |  +  0.91   |  -  0.70   |  +  0.22   |
-|  5         |  +  0.95   |  -  0.56   |  +  0.39   |
-|  6         |  +  0.95   |  -  0.40   |  +  0.55   |
-|  7         |  +  0.94   |  -  0.22   |  +  0.72   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +93 (side to move, internal units)
-NNUE evaluation        +0.24 (white side)
-Final evaluation      +0.26 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.42   |  +  5.26   |  +  4.83   |
-|  1         |  -  0.02   |  +  1.51   |  +  1.49   |
-|  2         |  +  0.00   |  +  1.99   |  +  1.99   |
-|  3         |  +  0.07   |  +  1.76   |  +  1.82   |
-|  4         |  +  0.14   |  +  1.72   |  +  1.86   | <-- this bucket is used
-|  5         |  +  0.11   |  +  1.88   |  +  1.99   |
-|  6         |  +  0.03   |  +  1.74   |  +  1.77   |
-|  7         |  -  0.10   |  +  1.50   |  +  1.40   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +708 (side to move, internal units)
-NNUE evaluation        +1.86 (white side)
-Final evaluation      +2.11 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.08   |  +  0.85   |  +  0.78   |
-|  1         |  -  0.25   |  +  1.37   |  +  1.13   |
-|  2         |  -  0.30   |  +  1.14   |  +  0.84   |
-|  3         |  -  0.31   |  +  1.19   |  +  0.88   |
-|  4         |  -  0.36   |  +  1.13   |  +  0.78   | <-- this bucket is used
-|  5         |  -  0.38   |  +  0.91   |  +  0.53   |
-|  6         |  -  0.36   |  +  0.67   |  +  0.30   |
-|  7         |  -  0.29   |  +  0.37   |  +  0.08   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +297 (side to move, internal units)
-NNUE evaluation        +0.78 (white side)
-Final evaluation      +0.86 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.09   |  -  0.02   |  -  0.11   |
-|  1         |  -  0.30   |  -  0.22   |  -  0.53   |
-|  2         |  -  0.48   |  -  0.34   |  -  0.82   | <-- this bucket is used
-|  3         |  -  0.46   |  -  0.47   |  -  0.94   |
-|  4         |  -  0.63   |  -  0.37   |  -  1.00   |
-|  5         |  -  0.68   |  -  0.14   |  -  0.82   |
-|  6         |  -  0.45   |  -  0.15   |  -  0.60   |
-|  7         |  -  0.43   |  -  0.14   |  -  0.57   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          -317 (side to move, internal units)
-NNUE evaluation        -0.82 (white side)
-Final evaluation      -0.87 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.31   |  -  2.68   |  -  2.37   |
-|  1         |  +  0.42   |  -  1.00   |  -  0.58   |
-|  2         |  +  0.52   |  -  0.32   |  +  0.20   |
-|  3         |  +  0.49   |  -  0.38   |  +  0.10   |
-|  4         |  +  0.53   |  -  0.31   |  +  0.22   |
-|  5         |  +  0.51   |  -  0.33   |  +  0.18   | <-- this bucket is used
-|  6         |  +  0.45   |  -  0.32   |  +  0.14   |
-|  7         |  +  0.42   |  -  0.19   |  +  0.23   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +71 (side to move, internal units)
-NNUE evaluation        +0.18 (white side)
-Final evaluation      +0.12 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.70   |  +  0.11   |  -  0.59   |
-|  1         |  -  0.40   |  +  0.05   |  -  0.35   |
-|  2         |  -  0.63   |  +  0.68   |  +  0.05   |
-|  3         |  -  0.59   |  +  0.59   |  -  0.00   |
-|  4         |  -  0.63   |  +  0.31   |  -  0.33   |
-|  5         |  -  0.60   |  +  0.29   |  -  0.31   |
-|  6         |  -  0.48   |  +  0.19   |  -  0.29   | <-- this bucket is used
-|  7         |  -  0.35   |  +  0.09   |  -  0.26   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          -113 (side to move, internal units)
-NNUE evaluation        -0.29 (white side)
-Final evaluation      -0.30 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.56   |  -  0.05   |  -  0.62   |
-|  1         |  -  0.12   |  -  0.26   |  -  0.38   |
-|  2         |  +  0.00   |  +  0.46   |  +  0.46   |
-|  3         |  -  0.00   |  +  0.40   |  +  0.40   |
-|  4         |  -  0.03   |  +  0.46   |  +  0.43   |
-|  5         |  -  0.01   |  +  0.48   |  +  0.48   |
-|  6         |  +  0.03   |  +  0.46   |  +  0.49   | <-- this bucket is used
-|  7         |  +  0.08   |  +  0.44   |  +  0.53   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +188 (side to move, internal units)
-NNUE evaluation        +0.49 (white side)
-Final evaluation      +0.62 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.10   |  - 10.88   |  - 10.78   |
-|  1         |  +  0.12   |  -  0.32   |  -  0.20   |
-|  2         |  +  0.05   |  -  1.03   |  -  0.98   |
-|  3         |  +  0.08   |  -  1.37   |  -  1.30   |
-|  4         |  +  0.04   |  -  1.47   |  -  1.44   |
-|  5         |  +  0.02   |  -  1.40   |  -  1.38   |
-|  6         |  +  0.02   |  -  1.39   |  -  1.37   | <-- this bucket is used
-|  7         |  +  0.40   |  -  1.36   |  -  0.96   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          -528 (side to move, internal units)
-NNUE evaluation        +1.37 (white side)
-Final evaluation      +1.59 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |     0.00   |  +  0.18   |  +  0.18   |
-|  1         |     0.00   |  +  0.65   |  +  0.65   |
-|  2         |     0.00   |  +  0.42   |  +  0.42   |
-|  3         |     0.00   |  +  0.51   |  +  0.51   |
-|  4         |     0.00   |  +  1.13   |  +  1.13   | <-- this bucket is used
-|  5         |     0.00   |  +  1.08   |  +  1.08   |
-|  6         |     0.00   |  +  1.20   |  +  1.20   |
-|  7         |     0.00   |  +  0.78   |  +  0.78   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +436 (side to move, internal units)
-NNUE evaluation        +1.13 (white side)
-Final evaluation      +1.31 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.08   |  -  5.31   |  -  5.23   |
-|  1         |  +  0.22   |  -  1.13   |  -  0.92   |
-|  2         |  +  0.48   |  -  1.15   |  -  0.67   |
-|  3         |  +  0.49   |  -  1.24   |  -  0.75   |
-|  4         |  +  0.52   |  -  1.18   |  -  0.66   | <-- this bucket is used
-|  5         |  +  0.53   |  -  1.25   |  -  0.73   |
-|  6         |  +  0.50   |  -  1.15   |  -  0.65   |
-|  7         |  +  0.42   |  -  1.04   |  -  0.62   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          -253 (side to move, internal units)
-NNUE evaluation        -0.66 (white side)
-Final evaluation      -0.76 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  + 16.33   |  + 11.96   |  + 28.28   |
-|  1         |  + 12.89   |  +  6.54   |  + 19.43   |
-|  2         |  + 16.25   |  + 10.89   |  + 27.13   |
-|  3         |  + 17.22   |  +  9.48   |  + 26.70   |
-|  4         |  + 18.18   |  + 11.88   |  + 30.06   |
-|  5         |  + 17.98   |  + 20.22   |  + 38.20   |
-|  6         |  + 17.32   |  +  8.13   |  + 25.45   | <-- this bucket is used
-|  7         |  + 16.65   |  -  0.62   |  + 16.03   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +9733 (side to move, internal units)
-NNUE evaluation        +25.45 (white side)
-Final evaluation      +26.56 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  -  0.03   |  +  8.14   |  +  8.11   |
-|  1         |  +  1.01   |  +  4.22   |  +  5.23   |
-|  2         |  +  1.52   |  +  4.85   |  +  6.37   |
-|  3         |  +  1.01   |  +  1.72   |  +  2.73   |
-|  4         |  +  0.44   |  +  4.96   |  +  5.39   |
-|  5         |  +  0.56   |  +  3.33   |  +  3.89   | <-- this bucket is used
-|  6         |  +  0.25   |  +  1.67   |  +  1.92   |
-|  7         |  +  1.31   |  +  4.19   |  +  5.50   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +1486 (side to move, internal units)
-NNUE evaluation        +3.89 (white side)
-Final evaluation      +5.02 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  1.75   |  -  1.67   |  +  0.08   |
-|  1         |  +  1.32   |  -  0.64   |  +  0.68   | <-- this bucket is used
-|  2         |  +  1.37   |  -  0.23   |  +  1.13   |
-|  3         |  +  1.51   |  -  0.13   |  +  1.38   |
-|  4         |  +  1.54   |  -  0.12   |  +  1.41   |
-|  5         |  +  1.55   |  +  0.16   |  +  1.71   |
-|  6         |  +  1.89   |  +  0.06   |  +  1.95   |
-|  7         |  +  2.03   |  -  0.19   |  +  1.84   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +263 (side to move, internal units)
-NNUE evaluation        +0.68 (white side)
-Final evaluation      +0.67 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  3.41   |  -  3.58   |  -  0.18   |
-|  1         |  +  3.00   |  -  3.01   |  -  0.02   | <-- this bucket is used
-|  2         |  +  3.38   |  -  0.73   |  +  2.65   |
-|  3         |  +  3.54   |  -  0.33   |  +  3.21   |
-|  4         |  +  3.58   |  +  1.14   |  +  4.72   |
-|  5         |  +  3.75   |  +  0.84   |  +  4.59   |
-|  6         |  +  3.65   |  +  1.30   |  +  4.95   |
-|  7         |  +  3.48   |  +  1.88   |  +  5.35   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          -6 (side to move, internal units)
-NNUE evaluation        -0.02 (white side)
-Final evaluation      -0.02 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  5.42   |  -  3.66   |  +  1.76   |
-|  1         |  +  5.24   |  -  3.41   |  +  1.84   | <-- this bucket is used
-|  2         |  +  5.98   |  -  1.75   |  +  4.24   |
-|  3         |  +  6.52   |  -  1.53   |  +  4.99   |
-|  4         |  +  6.81   |  -  0.10   |  +  6.72   |
-|  5         |  +  6.83   |  -  0.20   |  +  6.63   |
-|  6         |  +  6.81   |  +  1.16   |  +  7.97   |
-|  7         |  +  6.72   |  +  1.34   |  +  8.06   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +713 (side to move, internal units)
-NNUE evaluation        +1.84 (white side)
-Final evaluation      +1.55 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+------------+------------+
-|   Bucket   |  Material  | Positional |   Total    |
-|            |   (PSQT)   |  (Layers)  |            |
-+------------+------------+------------+------------+
-|  0         |  +  0.08   |  -  0.13   |  -  0.05   |
-|  1         |  +  0.18   |  +  0.94   |  +  1.12   | <-- this bucket is used
-|  2         |  +  0.27   |  +  0.78   |  +  1.04   |
-|  3         |  +  0.33   |  +  0.86   |  +  1.19   |
-|  4         |  +  0.27   |  +  0.91   |  +  1.18   |
-|  5         |  +  0.27   |  +  1.05   |  +  1.32   |
-|  6         |  +  0.37   |  +  0.78   |  +  1.14   |
-|  7         |  +  0.20   |  +  0.54   |  +  0.74   |
-+------------+------------+------------+------------+
-
-NNUE evaluation          +436 (side to move, internal units)
-NNUE evaluation        +1.12 (white side)
-Final evaluation      +1.15 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+NNUE evaluation          +105 (side to move, internal units)
+NNUE evaluation        +0.27 (white side)
+Final evaluation      +0.28 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 Final evaluation: none (in check)
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -937,21 +937,21 @@ NNUE network contributions (Normalized, Black to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  +  1.39   |  -  1.86   |  -  0.47   |
-|  1         |  +  1.11   |  -  1.76   |  -  0.65   | <-- this bucket is used
-|  2         |  +  1.11   |  -  1.58   |  -  0.47   |
-|  3         |  +  1.23   |  -  1.29   |  -  0.06   |
-|  4         |  +  1.23   |  -  1.21   |  +  0.02   |
-|  5         |  +  1.13   |  -  1.08   |  +  0.05   |
-|  6         |  +  1.07   |  -  0.38   |  +  0.69   |
-|  7         |  +  0.95   |  -  0.64   |  +  0.31   |
+|  0         |  +  1.11   |  -  1.93   |  -  0.82   |
+|  1         |  +  0.66   |  -  0.80   |  -  0.14   | <-- this bucket is used
+|  2         |  +  0.95   |  -  1.17   |  -  0.22   |
+|  3         |  +  1.16   |  -  1.17   |  -  0.01   |
+|  4         |  +  1.24   |  -  1.14   |  +  0.11   |
+|  5         |  +  1.22   |  -  0.46   |  +  0.75   |
+|  6         |  +  1.08   |  -  0.57   |  +  0.51   |
+|  7         |  +  0.82   |  +  1.07   |  +  1.89   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          -254 (side to move, internal units)
-NNUE evaluation        +0.65 (white side)
-Final evaluation      +0.63 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -56 (side to move, internal units)
+NNUE evaluation        +0.14 (white side)
+Final evaluation      +0.14 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -959,21 +959,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  1.30   |  +  0.45   |  -  0.85   |
-|  1         |  -  0.12   |  +  0.16   |  +  0.04   | <-- this bucket is used
-|  2         |  -  0.19   |  +  0.17   |  -  0.02   |
-|  3         |  -  0.24   |  +  0.18   |  -  0.06   |
-|  4         |  -  0.33   |  -  0.17   |  -  0.49   |
-|  5         |  -  0.45   |  -  0.54   |  -  0.99   |
-|  6         |  +  0.03   |  -  0.30   |  -  0.26   |
-|  7         |  -  0.13   |  +  0.30   |  +  0.17   |
+|  0         |  -  1.36   |  +  0.52   |  -  0.84   |
+|  1         |  -  0.30   |  +  0.22   |  -  0.08   | <-- this bucket is used
+|  2         |  -  0.41   |  +  0.35   |  -  0.05   |
+|  3         |  -  0.56   |  +  0.54   |  -  0.02   |
+|  4         |  -  0.72   |  +  0.32   |  -  0.40   |
+|  5         |  -  0.71   |  -  0.13   |  -  0.84   |
+|  6         |  -  0.11   |  +  0.46   |  +  0.35   |
+|  7         |  -  0.25   |  -  0.28   |  -  0.53   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +17 (side to move, internal units)
-NNUE evaluation        +0.04 (white side)
-Final evaluation      +0.05 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -32 (side to move, internal units)
+NNUE evaluation        -0.08 (white side)
+Final evaluation      -0.09 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -981,21 +981,21 @@ NNUE network contributions (Normalized, Black to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  2.66   |  +  0.96   |  -  1.70   |
-|  1         |  -  2.11   |  +  1.02   |  -  1.09   |
-|  2         |  -  2.60   |  +  1.80   |  -  0.80   |
-|  3         |  -  2.67   |  +  2.23   |  -  0.44   |
-|  4         |  -  2.78   |  +  2.29   |  -  0.49   |
-|  5         |  -  2.78   |  +  2.18   |  -  0.60   | <-- this bucket is used
-|  6         |  -  2.72   |  +  1.99   |  -  0.73   |
-|  7         |  -  2.54   |  +  2.29   |  -  0.25   |
+|  0         |  -  1.98   |  -  0.40   |  -  2.38   |
+|  1         |  -  1.65   |  +  1.14   |  -  0.50   |
+|  2         |  -  2.34   |  +  1.74   |  -  0.60   |
+|  3         |  -  2.71   |  +  2.45   |  -  0.26   |
+|  4         |  -  2.82   |  +  2.27   |  -  0.55   |
+|  5         |  -  2.78   |  +  2.29   |  -  0.49   | <-- this bucket is used
+|  6         |  -  2.66   |  +  2.13   |  -  0.53   |
+|  7         |  -  2.46   |  +  2.22   |  -  0.25   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          -232 (side to move, internal units)
-NNUE evaluation        +0.60 (white side)
-Final evaluation      +0.66 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -189 (side to move, internal units)
+NNUE evaluation        +0.49 (white side)
+Final evaluation      +0.54 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -1003,21 +1003,21 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |  -  1.62   |  -  5.53   |  -  7.15   |
-|  1         |  -  1.16   |  +  1.62   |  +  0.46   |
-|  2         |  -  0.96   |  +  1.86   |  +  0.90   |
-|  3         |  -  1.08   |  +  3.11   |  +  2.03   |
-|  4         |  -  1.05   |  +  3.13   |  +  2.08   |
-|  5         |  -  1.00   |  +  3.21   |  +  2.21   | <-- this bucket is used
-|  6         |  -  0.95   |  +  3.29   |  +  2.33   |
-|  7         |  -  0.87   |  +  3.09   |  +  2.22   |
+|  0         |  -  1.33   |  -  3.52   |  -  4.85   |
+|  1         |  -  0.80   |  +  0.39   |  -  0.42   |
+|  2         |  -  0.97   |  +  2.47   |  +  1.50   |
+|  3         |  -  1.06   |  +  3.67   |  +  2.61   |
+|  4         |  -  1.05   |  +  3.45   |  +  2.40   |
+|  5         |  -  0.99   |  +  3.64   |  +  2.64   | <-- this bucket is used
+|  6         |  -  0.89   |  +  3.40   |  +  2.51   |
+|  7         |  -  0.72   |  +  3.22   |  +  2.50   |
 +------------+------------+------------+------------+
 
-NNUE evaluation          +852 (side to move, internal units)
-NNUE evaluation        +2.21 (white side)
-Final evaluation      +2.49 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +1019 (side to move, internal units)
+NNUE evaluation        +2.64 (white side)
+Final evaluation      +2.95 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-0ee0657fb25e.nnue (106MiB, (83248, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 
 
 NNUE network contributions (Normalized, White to move)
@@ -1025,18 +1025,18 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   |  Material  | Positional |   Total    |
 |            |   (PSQT)   |  (Layers)  |            |
 +------------+------------+------------+------------+
-|  0         |     0.00   |  +  1.06   |  +  1.06   |
-|  1         |     0.00   |  -  0.63   |  -  0.63   |
-|  2         |     0.00   |  -  0.41   |  -  0.41   |
-|  3         |     0.00   |  -  0.18   |  -  0.18   |
-|  4         |     0.00   |  +  0.02   |  +  0.02   |
-|  5         |     0.00   |  -  0.10   |  -  0.10   |
-|  6         |     0.00   |  +  0.13   |  +  0.13   |
-|  7         |     0.00   |  +  0.12   |  +  0.12   | <-- this bucket is used
+|  0         |     0.00   |  +  1.82   |  +  1.82   |
+|  1         |     0.00   |  +  0.68   |  +  0.68   |
+|  2         |     0.00   |  +  0.25   |  +  0.25   |
+|  3         |     0.00   |  +  0.51   |  +  0.51   |
+|  4         |     0.00   |  +  0.18   |  +  0.18   |
+|  5         |     0.00   |  +  0.16   |  +  0.16   |
+|  6         |     0.00   |  +  0.14   |  +  0.14   |
+|  7         |     0.00   |  +  0.14   |  +  0.14   | <-- this bucket is used
 +------------+------------+------------+------------+
 
-NNUE evaluation          +44 (side to move, internal units)
-NNUE evaluation        +0.12 (white side)
-Final evaluation      +0.15 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +55 (side to move, internal units)
+NNUE evaluation        +0.14 (white side)
+Final evaluation      +0.19 (white side) [with scaled NNUE, ...]
 
 exit=0

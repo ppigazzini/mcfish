@@ -391,9 +391,17 @@ NetworkVerifyResult network_verify(const char *evalfile_path, size_t evalfile_pa
     // Fix the verification dimensions by the NNUE architecture: sizeof the
     // FeatureTransformer plus NetworkArchitecture * LayerStacks, and the static
     // InputDimensions / TransformedFeatureDimensions / FC_0_OUTPUTS /
-    // FC_1_OUTPUTS. Fixed constants.
-    const size_t size_bytes = 111263232;
-    const size_t input_dimensions = 83248;
+    // FC_1_OUTPUTS (upstream nnue/network.cpp:192).
+    //
+    // DERIVE both from the architecture rather than pinning the two totals: the
+    // banner is the one place the whole net shape is visible to a user, and a pinned
+    // total goes stale silently on an architecture change — nothing recomputes it and
+    // no gate reads it. Only the per-stack size stays a constant, because it is
+    // sizeof(NetworkArchitecture), a padded C++ object mcfish does not mirror field
+    // for field.
+    const size_t network_architecture_bytes = 35328;
+    const size_t size_bytes = NNUE_FT_TOTAL_BYTES + network_architecture_bytes * NNUE_LAYER_STACKS;
+    const size_t input_dimensions = NNUE_PSQ_FEATURE_DIMENSIONS + NNUE_THREAT_AND_PAIR_DIMENSIONS;
 
     return (NetworkVerifyResult) {
         .should_exit = false,
