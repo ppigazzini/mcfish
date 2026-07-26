@@ -59,15 +59,23 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `tb-fetch` | downloads the 3-man Syzygy set (KPvK KNvK KBvK KRvK KQvK, WDL+DTZ) into `resources/syzygy/` | nothing — it *fetches*. It verifies each file's Syzygy magic (`.rtbw` `71 E8 23 5D`, `.rtbz` `D7 66 0C A5`) and deletes anything that fails, so a mirror's HTML error page cannot masquerade as a table |
 | `tb` | runs the discovery report and the root probe battery in [`../tools/cases/tb.fens`](../tools/cases/tb.fens), diffed against [`../tools/tb.golden`](../tools/tb.golden) | Syzygy discovery, the root DTZ/WDL ranking and the probe path. **Without the tables it checks discovery only and says so in red** — the probe half reads as unexercised, never as a pass |
 | `fmt` / `fmt-fix` | `clang-format --dry-run --Werror` over `src/` and `tests/` | formatting. Exits **127** when no `clang-format` is found |
-| `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) | dead internal links, named paths that do not exist, a quoted bench signature. See [11-writing.md](11-writing.md) |
+| `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) | dead internal links, named paths that do not exist, a quoted bench signature, a backticked `snake_case` symbol absent from the whole tree, and a `build.sh` step no tracked page mentions. See [11-writing.md](11-writing.md) |
 | `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | mcfish's bench against a pristine upstream build — see below |
-| `parity` | the aggregate | the nine gates listed below it — every in-repo gate, but not `upstream-parity` |
-| `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*. It never downloads: the net is a runtime input, not a build product, and fetching it would make every clean build a network dependency |
+| `parity` | the aggregate | the ten gates listed below it — every in-repo gate, but not `upstream-parity` |
+| `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*, and deliberately does not fetch, so that `build` never becomes a network dependency |
+| `net-fetch` | downloads the expected net into `resources/` and **sha256-verifies** it | nothing — it fetches. It is a separate step precisely so `net` can stay offline; this is what the CI lanes run before a gate that needs a net |
+| `simd-scalar` | rebuilds with `MCFISH_SIMD_SCALAR` — every vector type and intrinsic compiled out — and re-asserts the anchor | that `simd.h`'s two implementations are value-identical. In `parity`, and the only gate that can see a portable-spelling/scalar divergence |
+| `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant. Not in `parity`: it is several full builds |
+| `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them — see [05-tablebases.md](05-tablebases.md) |
+| `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
+| `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, per ARCH | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
+| `sync-status` | compares the pinned SHAs against the tracked checkouts, in BOTH directions | that the pins are honest: a checkout *behind* its pin is red, a pin behind its checkout is a yellow report. Not a `parity` gate |
+| `upstream-map` / `upstream-nodes` | the declared-map audit and uncovered ratchet; the random-position node differential | see *Resyncing the pin* below. **LOCAL** — both need the pinned upstream tree |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
 | `signature-update` / `golden-update` / `tb-cursed-update` | re-derive an anchor | read the warning below before running any of them |
 
-`parity` runs: `build`, `zone-check`, `fmt`, `docs-lint`, `test`, `signature`,
-`perft`, `golden`, `tb`.
+`parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `test`,
+`signature`, `simd-scalar`, `perft`, `golden`, `tb`.
 
 `tools/tb.golden` is **oracle-derived**: `./build.sh tb-update` regenerates it by
 running the pristine upstream binary over the same battery, never mcfish. It pins

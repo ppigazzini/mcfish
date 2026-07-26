@@ -278,9 +278,11 @@ The move buffer is reused across stages: quiets are scored on top of the capture
 already consumed, so `cur` only moves forward and one `MAX_MOVES` buffer covers both
 lists.
 
-`see_ge` lives in `movepick.c` and is what splits good captures from bad. Upstream
-has it on `Position`; mcfish has both — `pos_see_ge` in the board zone and the
-picker's own — and collapsing them is board-zone work, not search work.
+`see_ge` is what splits good captures from bad, and there is exactly one of it:
+[`legality.c`](../src/engine/board/legality.c) defines it in the BOARD zone, where
+upstream keeps it on `Position`, and the picker is a caller like the node bodies
+are. The duplicate the picker once carried is gone — `99d7ef56` moved legality and
+SEE out of `position.c` — so a threshold change lands in one place.
 
 ## History
 
@@ -402,7 +404,7 @@ bits 4..0  : generation
 The generation takes the **low** bits so a wrapping increment never disturbs the two
 above it, and `tt_new_search()` masks with `GENERATION_MASK` for the same reason.
 
-`entry_relative_age` counts generations the way clocks count hours — `0 - 1 == 31` —
+`tt_entry_relative_age` counts generations the way clocks count hours — `0 - 1 == 31` —
 and the subtraction is **unsigned** so it borrows correctly regardless of the pv and
 bound bits sitting above the field. Signed arithmetic there would be undefined on
 overflow and would not borrow.

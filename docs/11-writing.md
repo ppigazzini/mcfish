@@ -61,7 +61,7 @@ kept a P0 alive for months.
 **Name the owner and the invariant, not just the mechanism.** Say which file and
 symbol owns the behaviour and what must stay true about it. `depth8` in the TT is
 the local example: "stores a depth" is accurate and useless. What a reader needs
-is that `depth8 != 0` is the **occupancy test**, so `tt_store`'s `+1` bias is
+is that `depth8 != 0` is the **occupancy test**, so `tt_save`'s `+1` bias is
 load-bearing and a wrapping decrement would turn a penalised shallow entry into
 the deepest entry in the table. Write the sentence a reader needs before they
 delete your line.
@@ -70,6 +70,18 @@ delete your line.
 Not "read it carefully" — run it. `grep -n` for a symbol, `printf 'uci\n' |
 ./build/mcfish` for a handshake. Several claims in the first draft of this set
 were false and each took seconds to disprove.
+
+`docs-lint` now holds two classes of this automatically — a backticked
+`snake_case` symbol must exist somewhere in the tree, and every `build.sh` step
+must be mentioned by some page — so a rename or a new step cannot rot quietly.
+**The classes it still cannot reach are the ones a full audit found most of:**
+a right symbol in the wrong *file*, a list with the wrong *count* or *order*, a
+sentence describing behaviour that changed underneath it. `parity` was documented
+as nine gates while running ten, `see_ge` was placed in `movepick.c` when it lives
+in `legality.c`, and one page asserted "there is no LTO in the build" while
+`CFLAGS_RELEASE` had carried `-flto` throughout. Every one of those linted clean.
+When you touch behaviour, re-read the pages that describe it — the gate will not
+do it for you.
 
 **Separate upstream fact from mcfish state.** "Upstream does X" is checkable
 against the SHA in `tools/upstream/UPSTREAM_BASE`. "mcfish does Y" is a claim

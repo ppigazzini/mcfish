@@ -282,7 +282,7 @@ What differs is whether anything reads the value.
 | `Debug Log File` | `uci_output_start_logger` | Tees the session to a file, input lines prefixed `>> ` and output `<< `, as upstream's `Tie` streambuf does. Exits when the path cannot be opened. |
 | `NumaPolicy` | the thread pool | **Live.** Chooses the NUMA topology the worker set binds under. See below. |
 | `Threads` | the thread pool | **Live.** Rebuilds the worker set. See below. |
-| `Hash` | `tt_resize` | |
+| `Hash` | `tt_resize` | A failed allocation is handled in two different places on purpose. Via `setoption` it is **recoverable**: `on_hash` reports through the info listener and the session continues on whatever table it had. At startup `engine_init` treats it as **fatal**, as upstream does (`tt.cpp:181`) — `tt_resize` leaves the one-cluster fallback installed, so continuing would mean answering UCI with every probe colliding in a single cluster: a silently much weaker engine rather than a broken one. |
 | `Clear Hash` | `tt_clear` + `search_clear` | The same pair `ucinewgame` runs, which is what upstream's button does. |
 | `Ponder` | the time manager | Read through the option seam by `search_tm_init`. |
 | `MultiPV` | the search | `search_id_state_init` and `search_emit_pv`. |
@@ -342,7 +342,7 @@ stop taking effect.
 which a subsystem becomes reachable from a `setoption`. Each returns bare text or
 `nullptr`; the transport adds the `info string ` prefix, one line per line, as
 upstream's `print_info_string` does. `on_debug_log_file` reaches back into `uci.c`'s
-transport through `uci_start_logger`, because the log tees the stream the transport
+transport through `uci_output_start_logger`, because the log tees the stream the transport
 owns.
 
 **A callback whose subsystem is unported must say so.** Advertising a control that
