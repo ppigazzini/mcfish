@@ -1,5 +1,5 @@
 <engine banner>
-info string Available processors: 0-15
+info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info depth 1 seldepth 8 multipv 1 score cp -100 nodes 131 hashfull 0 tbhits 0 pv e2a6 b4c3
@@ -13,7 +13,7 @@ info depth 8 seldepth 9 multipv 1 score cp -201 nodes 3209 hashfull 1 tbhits 0 p
 info depth 9 seldepth 17 multipv 1 score cp -181 nodes 3859 hashfull 1 tbhits 0 pv d5e6 e7e6 e2a6 e6e5 c3e2 h3g2 f3g2 f6e4 d2f4
 info depth 10 seldepth 24 multipv 1 score cp -159 nodes 6084 hashfull 2 tbhits 0 pv e2a6 b4c3 d2c3 e6d5 e4d5 h3g2 f3g2 f6d5 e1g1 d5c3
 bestmove e2a6 ponder b4c3
-info string Available processors: 0-15
+info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info depth 1 seldepth 6 multipv 1 score cp 209 nodes 68 hashfull 0 tbhits 0 pv d7c8r
