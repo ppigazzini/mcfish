@@ -1193,8 +1193,15 @@ do_tb_cursed() {
   # probes fire mid-search. The time-check counter resets after every probe
   # (upstream search.cpp:917), and only this leg can see that reset: the counter
   # phase shifts the node-limited stop by hundreds of nodes when the reset is
-  # wrong, while every fixed-depth gate stays green. Golden values come from the
-  # oracle via tb-update's sibling derivation.
+  # wrong, while every fixed-depth gate stays green.
+  #
+  # These two values are a SELF-golden and cannot be otherwise: the oracle
+  # early-returns at depth 1 once the root is in a tablebase and reports `nodes 0`
+  # for both legs, which is the same asymmetry tb.golden documents. So they move
+  # with anything that moves a node count -- a net sync moves them -- and nothing
+  # re-derives them automatically. Re-derive from mcfish when the anchor moves for
+  # an intended reason, and only after the WDL/DTZ half above is still green: that
+  # half is oracle-pinned and is what says the prober is right.
   local nlabel nlimit nfen nactual
   nactual=$(while read -r nlabel nlimit nfen; do
     [[ -z $nlabel || $nlabel == \#* ]] && continue

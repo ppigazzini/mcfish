@@ -73,8 +73,16 @@ binary, not linked by `zone-check`, not reached by `./build.sh test`, and not
 covered by `signature`, `perft` or `golden`. **Read the arrays, not the
 directory listing, to know what the engine is.**
 
-The decomposed shell is the tree's one remaining subsystem in that state today.
-The zone pages name the specific modules — see
+No `.c` file in the tree is in that state today: every one under `src/` appears in
+`SOURCES`. That is a fact to re-check rather than to assume — it was false until
+the shell split in `1e438bc` — and the check is one command:
+
+```sh
+comm -23 <(find src -name '*.c' | sort) <(grep -oE 'src/[a-z_/]+\.c' build.sh | sort -u)
+```
+
+Empty output means the arrays cover the tree. The zone pages name the specific
+modules — see
 [01-engine-board.md](01-engine-board.md),
 [02-engine-search.md](02-engine-search.md),
 [03-engine-eval.md](03-engine-eval.md), [06-platform.md](06-platform.md) and
@@ -280,13 +288,15 @@ the refresh cache — are all allocated once, outside any search.
 
 ## What is on disk but not in the binary
 
-The `SOURCES` array is the sole authority on what is compiled. One decomposition
-sits in the tree outside it:
+Nothing. The `SOURCES` array is the sole authority on what is compiled, and it
+currently enumerates every `.c` file in the tree — run the `comm` check above to
+re-establish that rather than trusting this paragraph.
 
-**The decomposed shell** — `src/shell/engine.c`, `uci_parse.c` and their siblings —
-is on disk but not in `SOURCES`, so not in the binary and not gated. `uci.c` remains
-the live monolith and holds the session state (the position, the state chain and the
-option table) as file-scope statics; `engine.c` registers a second, dead copy of the
-option set. Treat those files as unwired scratch, not as the live shell.
+The last subsystem in that state was the decomposed shell, and `1e438bc` ended it:
+`engine.c` is the live session (the position, its `StateList` chain, the option
+table and its on-change callbacks, the resident net, the search wiring), `uci.c` is
+the thin transport that holds no engine state, and the dead helper cluster the
+initial port had left behind — `uci_parse.c` and its siblings — was deleted rather
+than wired. [07-shell.md](07-shell.md) describes the split as it stands.
 
 The zone diagram above is the shape all of that lands into.

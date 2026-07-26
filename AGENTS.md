@@ -26,7 +26,10 @@ outside it is unwired, not deferred:
   oracle. `./build.sh tb-fetch` gets the 3-man set into `resources/syzygy/`;
   without it the gate checks
   discovery only and says so. The `d` command prints `Tablebases WDL:`/`DTZ:` lines
-  once a `SyzygyPath` covers the position. Still open: no 5-man/cursed-win coverage.
+  once a `SyzygyPath` covers the position. Cursed-win / blessed-loss is covered by
+  `./build.sh tb-cursed`, which needs `./build.sh tb-fetch 5` and is deliberately
+  **not** in `parity` — a gate that is usually skipped stops being read — so run it
+  by hand when touching the prober.
 - **Lazy-SMP threading and NUMA** — **wired.** `Threads` builds a worker set,
   `NumaPolicy` chooses the topology it binds under, and a `go` runs N workers over
   one root. `search_threads.c` is the driver; every piece of per-worker state that
@@ -36,9 +39,12 @@ outside it is unwired, not deferred:
   itself for NUMA replication, so a policy change re-partitions the threads without
   re-replicating any weights, and no unit test constructs a `SearchWorker`. See
   [docs/04-multithreading.md](docs/04-multithreading.md).
-- **The option model** — the live UCI layer advertises a hand-written subset of
-  upstream's option table, and the search answers its own option seam with
-  upstream's defaults because nothing else can.
+- **The option model** — wired, and no longer a subset: the `uci` handshake
+  advertises exactly upstream's option set, which the `golden` gate pins byte for
+  byte, and `engine.c` points the search's seam at the live table
+  (`search_set_option_source`), so an option a caller sets is the value the search
+  reads. The zero-returning defaults in `search_common.c` are the headless fallback
+  for the engine zone linked without a shell, not what the binary runs on.
 - **`go nodes N` matches upstream exactly** since two fixes: the time-check
   counter persists across `go` (upstream resets it only in `ThreadPool::clear`),
   and a no-legal-move root still bumps the TT generation (upstream runs
