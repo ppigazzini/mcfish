@@ -861,14 +861,47 @@ do_tsan_search() {
     -fsanitize=thread "${CFLAGS_ARCH[@]}" \
     -o build/mcfish-tsan-engine "${SOURCES[@]}" -lm -lpthread
 
-  local log; log=$(mktemp)
+  local log script; log=$(mktemp); script=$(mktemp)
   printf 'setoption name Threads value %d\nsetoption name Hash value 1\nucinewgame\nposition startpos\ngo depth %d\nquit\n' \
-    "$threads" "$depth" \
-    | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/build/mcfish-tsan-engine" ) > "$log" 2>&1
+    "$threads" "$depth" > "$script"
 
-  local races threads_seen
+  # Measure the thread count from the OS, not from the sanitizer's output.
+  #
+  # This used to grep the log for "ThreadSanitizer.*Thread T[1-9]", which only ever
+  # appears INSIDE a race report -- so on the one outcome that matters, a clean run,
+  # it was structurally always 0, while the step printed "check the extra-thread
+  # count before reading this as a clean bill of health". The number it asked the
+  # reader to check could not be anything else. A `Threads value N` that silently
+  # spawned nothing produced a byte-identical pass.
+  #
+  # `exec` so $! is the engine itself rather than the subshell, then sample
+  # /proc/<pid>/task while it searches and keep the peak.
+  ( cd "$ROOT/$RESOURCES_DIR" && exec "$ROOT/build/mcfish-tsan-engine" ) \
+    < "$script" > "$log" 2>&1 &
+  local pid=$! peak=0 n
+  if [[ -d /proc/$pid/task ]]; then
+    while kill -0 "$pid" 2>/dev/null; do
+      # Two `set -euo pipefail` hazards live in these three lines, and both showed
+      # up as the gate dying with the engine's own timing rather than as a verdict:
+      #   - `ls` exits 2 the moment /proc/<pid>/task stops existing, which is a
+      #     normal end to the poll; under `pipefail` that status becomes the
+      #     assignment's, and `set -e` takes the script down. Hence `|| n=0`.
+      #   - a bare `[[ ... ]] && peak=$n` is an && list whose status is 1 on every
+      #     sample that does not beat the peak, which `set -e` also treats as
+      #     fatal. Hence the `if`.
+      n=$(ls /proc/"$pid"/task 2>/dev/null | wc -l) || n=0
+      if [[ ${n:-0} -gt $peak ]]; then
+        peak=$n
+      fi
+    done
+  else
+    peak=-1  # no procfs: cannot measure, and must not claim
+  fi
+  wait "$pid" || true
+  rm -f "$script"
+
+  local races
   races=$(grep -c "WARNING: ThreadSanitizer" "$log" || true)
-  threads_seen=$(grep -c "ThreadSanitizer.*Thread T[1-9]" "$log" || true)
 
   if ! grep -q "^bestmove" "$log"; then
     red "tsan-search: the search did not complete -- this is not a clean run"
@@ -877,17 +910,42 @@ do_tsan_search() {
     return 1
   fi
 
-  if [[ $races -eq 0 ]]; then
-    green "tsan-search: 0 races over a depth-$depth search ($threads_seen extra thread(s) seen)"
-    printf '  Zero is only meaningful if the process actually left one thread. Check the\n'
-    printf '  extra-thread count above before reading this as a clean bill of health.\n'
-    printf '  See docs/04-multithreading.md.\n'
-  else
+  if [[ $races -ne 0 ]]; then
     red "tsan-search: $races race(s) reported"
     grep -A6 "WARNING: ThreadSanitizer" "$log" | head -40 >&2
     rm -f "$log"
     return 1
   fi
+
+  # Zero races over a single-threaded run proves nothing, so make that a FAILURE
+  # rather than a footnote the reader is asked to check.
+  if [[ $peak -lt 0 ]]; then
+    red "tsan-search: no procfs -- could not confirm the search ran multi-threaded."
+    red "  0 races is unproven on this host. Treat as SKIPPED, not as a pass."
+    rm -f "$log"
+    return 127
+  fi
+  if [[ $peak -lt $threads ]]; then
+    red "tsan-search: asked for Threads=$threads but the process peaked at $peak OS thread(s)."
+    red "  0 races over a run that never went parallel is not a clean bill of health."
+    rm -f "$log"
+    return 1
+  fi
+
+  # The floor is CONCURRENCY, not worker count. `Threads 1` is a legitimate run of
+  # this gate: `go` dispatches even a one-thread search onto worker 0's own OS
+  # thread, so the main/worker dispatch-and-join handshake is still crossed and is
+  # still a race surface (docs/04-multithreading.md). What proves nothing is a
+  # process that only ever held one thread.
+  if [[ $peak -lt 2 ]]; then
+    red "tsan-search: the process never held more than $peak thread."
+    red "  A race needs two. 0 races here is SKIPPED, not a pass."
+    rm -f "$log"
+    return 127
+  fi
+
+  green "tsan-search: 0 races over a depth-$depth search (peak $peak OS threads, Threads=$threads)"
+  printf '  See docs/04-multithreading.md.\n'
   rm -f "$log"
 }
 
