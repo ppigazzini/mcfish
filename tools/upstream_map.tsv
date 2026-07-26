@@ -63,7 +63,7 @@ src/timeman.h	src/engine/search/timeman.h
 src/tt.cpp	src/engine/search/tt.h,src/engine/search/tt.c,src/engine/state/tt_types.h,src/shell/engine.c,src/platform/worker_pool.c
 src/tt.h	src/engine/search/tt.h,src/engine/state/tt_types.h
 src/types.h	src/engine/board/types.h,src/engine/board/score.h,src/engine/board/threats.h,src/engine/search/tt.h
-src/uci.cpp	src/shell/uci.c,src/shell/benchmark.c,src/engine/board/board_props.h,src/engine/search/search.h,src/engine/board/position.c,src/engine/board/state_list.h,src/engine/board/uci_move.c,src/engine/search/uci_wdl.h,src/shell/benchmark.h,src/shell/engine.h,src/shell/uci_output.c,src/shell/uci_output.h,src/shell/ucioption.h
+src/uci.cpp	src/shell/uci.c,src/shell/benchmark.c,src/engine/board/board_props.h,src/engine/search/search.h,src/engine/board/position.c,src/engine/board/state_list.h,src/engine/board/uci_move.c,src/engine/search/uci_wdl.h,src/shell/benchmark.h,src/shell/engine.h,src/shell/uci_output.c,src/shell/uci_output.h,src/shell/ucioption.h,src/shell/engine.c,src/shell/engine_nnue.c
 src/uci.h	src/shell/uci.h
 src/ucioption.cpp	src/shell/ucioption.c,src/shell/ucioption.h,src/shell/syzygy_option.c,src/shell/syzygy_option.h
 src/ucioption.h	src/shell/ucioption.h
