@@ -64,7 +64,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `parity` | the aggregate | the nine gates listed below it — every in-repo gate, but not `upstream-parity` |
 | `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*. It never downloads: the net is a runtime input, not a build product, and fetching it would make every clean build a network dependency |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
-| `signature-update` / `golden-update` | re-derive an anchor | read the warning below before running either |
+| `signature-update` / `golden-update` / `tb-cursed-update` | re-derive an anchor | read the warning below before running any of them |
 
 `parity` runs: `build`, `zone-check`, `fmt`, `docs-lint`, `test`, `signature`,
 `perft`, `golden`, `tb`.
@@ -111,6 +111,26 @@ The rule, with the case the obvious version of it forbids:
 
 The distinction between the last two is not mechanical and no gate can make it.
 It is the reason the commit body is part of the gate.
+
+### Where a gate CAN make part of the distinction, it should
+
+`tb-cursed-update` is the one update step that refuses. Its golden holds two
+halves with different provenance: the WDL/DTZ probe results are oracle-derived,
+and the two node-limited totals below them are a **self-golden** — the oracle
+early-returns at depth 1 once the root is in a tablebase and reports `nodes 0`
+for both legs, so it cannot supply them. Only the node legs may legitimately move
+on an intended node-count change; a moved probe half is a prober bug.
+
+So the step re-derives the node legs **only** when the probe half already matches,
+and exits 1 without writing anything when it does not. That is not a substitute
+for the judgement above — it just removes the one case where a mechanical check
+can tell laundering from a stale value.
+
+The general lesson is the cheaper one: **a golden with no regeneration step rots.**
+`tb_cursed.golden` had none, sits outside `parity`, and needs tables `tb-fetch`
+does not get by default, so its node legs stayed stale across a net sync that
+moved every node count in the tree. When adding a golden, add the step that
+re-derives it in the same commit.
 
 ## Fact tables versus goldens
 
