@@ -2,6 +2,8 @@
 
 #include "engine_options.h"
 
+#include "../platform/numa.h"
+
 #include "../engine/board/movegen.h"  // MAX_MOVES
 #include "../engine/eval/evaluate.h"  // eval_nnue_default_file_name
 #include "../engine/search/search.h"
@@ -52,13 +54,22 @@ static const char *on_debug_log_file(const UciOption *o) {
 // Rebuild the worker set. Upstream reaches ThreadPool::set from the same option and
 // rebuilds rather than resizes, because a thread must be created on the NUMA node it
 // will run on. Owner: upstream `thread.cpp` (ThreadPool::set).
+// Report the allocation on success, as upstream's callback does
+// (engine.cpp:84-87 -> thread_allocation_information_as_string). The listener
+// prefixes `info string`, so return the bare text.
+static const char *thread_allocation_string(void) {
+    const int n = options_get_int(&Options, "Threads");
+    snprintf(MessageBuf, sizeof MessageBuf, "Using %d thread%s", n, n > 1 ? "s" : "");
+    return MessageBuf;
+}
+
 static const char *on_threads(const UciOption *o) {
     const size_t n = (size_t) strtoul(o->current_value, nullptr, 10);
     if (!search_set_threads(n)) {
         snprintf(MessageBuf, sizeof MessageBuf, "failed to build %zu search thread(s)", n);
         return MessageBuf;
     }
-    return nullptr;
+    return thread_allocation_string();
 }
 
 // Install the NUMA topology the next pool binds under, then re-apply the thread count
@@ -70,7 +81,15 @@ static const char *on_numa_policy(const UciOption *o) {
         return MessageBuf;
     }
     (void) search_set_threads((size_t) options_get_int(&Options, "Threads"));
-    return nullptr;
+
+    // Upstream returns the topology AND the allocation, joined by a newline
+    // (engine.cpp:79-80); the listener splits it into two info strings.
+    char *const cfg = numa_config_string();
+    const int n = options_get_int(&Options, "Threads");
+    snprintf(MessageBuf, sizeof MessageBuf, "Available processors: %s\nUsing %d thread%s",
+             cfg != nullptr ? cfg : "", n, n > 1 ? "s" : "");
+    free(cfg);
+    return MessageBuf;
 }
 
 // Hand a Syzygy option to the module that owns the four of them and the tablebase

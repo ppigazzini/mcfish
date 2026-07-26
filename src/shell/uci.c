@@ -165,6 +165,10 @@ static void cmd_go(char *args) {
         && !limits.time_ms[WHITE] && !limits.time_ms[BLACK])
         limits.depth = 8;
 
+    // Upstream sends these two AFTER the `go` line arrives rather than at startup,
+    // for old GUIs and python-chess that do not read info strings before the first
+    // search (uci.cpp:129-133). Order matches: processors, threads, then the net.
+    engine_report_threads();
     engine_report_net();
     engine_verify_network();
     engine_go(&limits);
