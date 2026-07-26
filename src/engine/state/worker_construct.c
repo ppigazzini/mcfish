@@ -1,6 +1,6 @@
 #include "worker_construct.h"
 
-#include "../../platform/memory.h"
+#include "arena_source.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +9,7 @@ SearchWorker *worker_create(const WorkerCtorInputs *in) {
     // Take the block from the page allocator: it arrives zeroed, and it is the route the
     // engine's big arenas take so this zone never names an OS allocator. Zeroed is the
     // precondition, not a convenience -- see the header.
-    SearchWorker *const w = page_alloc(sizeof *w);
+    SearchWorker *const w = ArenaAlloc(sizeof *w);
     if (w == nullptr)
         return nullptr;
 
@@ -47,7 +47,7 @@ void worker_destroy(SearchWorker *w) {
     root_moves_free(&w->rml);
     eval_arena_destroy(w->eval_arena);
     free(w->manager);
-    page_free(w);
+    ArenaFree(w);
 }
 
 bool worker_ensure_network(SearchWorker *w) {
