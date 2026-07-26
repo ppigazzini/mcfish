@@ -13,7 +13,7 @@ Audience: engine and platform contributors. The zone layout is in
 and a `go` runs N workers over one root. Node counts scale with the thread count
 and the bestmove is the pool's vote.
 
-[`search_threads.c`](../src/engine/search/search_threads.c) is the driver: it owns
+[`worker_pool.c`](../src/platform/worker_pool.c) is the driver: it owns
 the pool, one `SearchWorker` per thread, one shared history bank per occupied NUMA
 node, the summed counters and the thread vote.
 [`search.c`](../src/engine/search/search.c) sets every worker up on the root,
@@ -33,7 +33,7 @@ job only because its `go` returns immediately. The tree is the same either way.
 | [`numa.c`](../src/platform/numa.c) | the topology model, thread distribution, the replication registry |
 | [`memory.c`](../src/platform/memory.c) | large-page aligned allocation and the page-allocator seam |
 | [`../src/engine/state/`](../src/engine/state) | the per-worker `SearchWorker` block and its construction |
-| [`search_threads.c`](../src/engine/search/search_threads.c) | the worker set, the shared banks, the counter sums, the vote |
+| [`worker_pool.c`](../src/platform/worker_pool.c) | the worker set, the shared banks, the counter sums, the vote |
 | [`pool_source.h`](../src/engine/search/pool_source.h) | the seam through which the search reads the pool's totals |
 
 Goldens: upstream `thread.cpp` / `thread.h` for the pool and the idle loop,
@@ -135,7 +135,7 @@ the plain integers did.
 
 ### The thread vote
 
-`search_threads_best` is upstream's `ThreadPool::get_best_thread`, including the
+`search_worker_best` is upstream's `ThreadPool::get_best_thread`, including the
 shortest-mate rule and the PV-length tie-break. Upstream keeps the votes in a hash
 map; a scan over the same worker set is the same arithmetic in the same order, and
 the map's iteration order never reaches the result.

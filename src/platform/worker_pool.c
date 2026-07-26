@@ -1,10 +1,10 @@
-#include "search_threads.h"
+#include "worker_pool.h"
 
-#include "../../platform/numa.h"
-#include "../board/score.h"
-#include "../state/worker_construct.h"
-#include "pool_source.h"
-#include "tt.h"
+#include "numa.h"
+#include "../engine/state/worker_construct.h"
+#include "../engine/search/pool_source.h"
+#include "../engine/search/tt.h"
+#include "../engine/search/worker_set.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +44,7 @@ static void numa_ensure(void) {
     NumaReady = true;
 }
 
-ThreadPool *search_threads_pool(void) {
+static ThreadPool *pool_handle(void) {
     if (!PoolReady) {
         thread_pool_init(&Pool);
         PoolReady = true;
@@ -183,12 +183,12 @@ static size_t tt_clear_thread_count(void *ctx) {
 static void
 tt_clear_run_on_thread(void *ctx, size_t index, void (*job)(void *job_ctx), void *job_ctx) {
     (void) ctx;
-    thread_pool_run_on_thread(search_threads_pool(), index, job, job_ctx);
+    thread_pool_run_on_thread(pool_handle(), index, job, job_ctx);
 }
 
 static void tt_clear_wait_all(void *ctx) {
     (void) ctx;
-    thread_pool_wait_from(search_threads_pool(), 0);
+    thread_pool_wait_from(pool_handle(), 0);
 }
 
 static void install_tt_clear_seam(void) {
@@ -217,13 +217,14 @@ static void workers_release(void) {
     TTClearPool.wait_all = nullptr;
 }
 
-bool search_threads_set(size_t count) {
+static bool pool_resize_impl(void *ctx, size_t count) {
+    (void) ctx;
     if (count == 0)
         count = 1;
     if (count > SEARCH_THREADS_MAX)
         count = SEARCH_THREADS_MAX;
 
-    ThreadPool *const pool = search_threads_pool();
+    ThreadPool *const pool = pool_handle();
     numa_ensure();
 
     workers_release();
@@ -280,24 +281,25 @@ bool search_threads_set(size_t count) {
     return true;
 }
 
-size_t search_threads_count(void) { return WorkerCount; }
+static size_t pool_count_impl(void *ctx) {
+    (void) ctx;
+    return WorkerCount;
+}
 
-SearchWorker *search_threads_at(size_t index) {
+static SearchWorker *pool_at_impl(void *ctx, size_t index) {
+    (void) ctx;
     return index < WorkerCount ? Workers[index] : nullptr;
 }
 
-SearchWorker *search_threads_main(void) {
-    if (WorkerCount == 0 && !search_threads_set(1))
-        return nullptr;
-    return search_threads_at(0);
-}
 
-void search_threads_clear(void) {
+static void pool_clear_impl(void *ctx) {
+    (void) ctx;
     for (size_t i = 0; i < WorkerCount; ++i)
         worker_clear(Workers[i]);
 }
 
-void search_threads_shutdown(void) {
+static void pool_shutdown_impl(void *ctx) {
+    (void) ctx;
     workers_release();
     if (PoolReady) {
         thread_pool_clear(&Pool);
@@ -310,15 +312,50 @@ void search_threads_shutdown(void) {
     }
 }
 
-void search_threads_start_siblings(ThreadJobFn job) {
-    thread_pool_start_jobs(search_threads_pool(), job, 1);
+static void pool_start_siblings_impl(void *ctx, WorkerJobFn job) {
+    (void) ctx;
+    thread_pool_start_jobs(pool_handle(), job, 1);
 }
 
-void search_threads_wait_siblings(void) { thread_pool_wait_from(search_threads_pool(), 1); }
+static void pool_wait_siblings_impl(void *ctx) {
+    (void) ctx;
+    thread_pool_wait_from(pool_handle(), 1);
+}
+
+static void pool_run_main_impl(void *ctx, WorkerJobFn job, void *job_ctx) {
+    (void) ctx;
+    thread_pool_run_on_thread(pool_handle(), 0, job, job_ctx);
+}
+
+static void pool_wait_main_impl(void *ctx) {
+    (void) ctx;
+    thread_pool_wait_on_thread(pool_handle(), 0);
+}
+
+static void pool_set_stop_impl(void *ctx, bool value) {
+    (void) ctx;
+    thread_pool_set_stop(pool_handle(), value);
+}
+
+static atomic_bool *pool_stop_flag_impl(void *ctx) {
+    (void) ctx;
+    return &pool_handle()->stop.value;
+}
+
+static void pool_set_increase_depth_impl(void *ctx, bool value) {
+    (void) ctx;
+    thread_pool_set_increase_depth(pool_handle(), value);
+}
+
+static atomic_bool *pool_increase_depth_flag_impl(void *ctx) {
+    (void) ctx;
+    return &pool_handle()->increase_depth.value;
+}
 
 // ---- the NumaPolicy dispatcher -------------------------------------------
 
-bool search_threads_set_numa_policy(const char *policy) {
+static bool pool_numa_policy_impl(void *ctx, const char *policy) {
+    (void) ctx;
     numa_ensure();
 
     if (policy == nullptr || strcmp(policy, "auto") == 0) {
@@ -351,64 +388,22 @@ bool search_threads_set_numa_policy(const char *policy) {
     return true;
 }
 
-// ---- the thread vote -----------------------------------------------------
-
-// Return the vote M has collected: every worker whose best move is M contributes
-// `score - min_score + 14`. Upstream keeps this in a hash map; with at most
-// SEARCH_THREADS_MAX workers a scan over the same set is the same arithmetic in the same
-// order, which is what matters -- the map's iteration order never reaches the result.
-static int64_t vote_for(Move m, int32_t min_score) {
-    int64_t total = 0;
-    for (size_t i = 0; i < WorkerCount; ++i) {
-        const RootMove *const rm = &Workers[i]->ctx.root_moves[0];
-        if (rm->pv.moves[0] == m)
-            total += (int64_t) rm->score - min_score + 14;
-    }
-    return total;
-}
-
-static bool is_decisive_exact(const RootMove *rm) {
-    return rm->score != -VALUE_INFINITE && value_is_decisive((Value) rm->score)
-        && !root_move_score_is_bound(rm);
-}
-
-SearchWorker *search_threads_best(void) {
-    if (WorkerCount == 0)
-        return nullptr;
-
-    SearchWorker *best = Workers[0];
-    if (WorkerCount == 1 || best->ctx.root_moves == nullptr)
-        return best;
-
-    int32_t min_score = VALUE_INFINITE;
-    for (size_t i = 0; i < WorkerCount; ++i) {
-        const int32_t s = Workers[i]->ctx.root_moves[0].score;
-        if (s < min_score)
-            min_score = s;
-    }
-
-    for (size_t i = 0; i < WorkerCount; ++i) {
-        const RootMove *const best_rm = &best->ctx.root_moves[0];
-        const RootMove *const new_rm = &Workers[i]->ctx.root_moves[0];
-
-        const int64_t best_vote = vote_for(best_rm->pv.moves[0], min_score);
-        const int64_t new_vote = vote_for(new_rm->pv.moves[0], min_score);
-
-        // An aborted depth-1 search can leave an INEXACT win or loss score, which is why
-        // the decisive test also demands the score not be a bound.
-        const bool best_decisive = is_decisive_exact(best_rm);
-        const bool new_decisive = is_decisive_exact(new_rm);
-
-        if (best_decisive) {
-            // Pick the shortest mate / tablebase conversion.
-            if (new_decisive && llabs(new_rm->score) > llabs(best_rm->score))
-                best = Workers[i];
-        } else if (new_decisive
-                   || (!value_is_loss((Value) new_rm->score)
-                       && (new_vote > best_vote
-                           || (new_vote == best_vote && new_rm->pv.length > best_rm->pv.length)))) {
-            best = Workers[i];
-        }
-    }
-    return best;
+// Hand the whole set to the engine. Called once by the composition root, before any
+// search: the engine runs on its built-in one-worker set until this lands.
+void worker_pool_install(void) {
+    WorkerSet = (WorkerSetOps) { .ctx = nullptr,
+                                 .resize = pool_resize_impl,
+                                 .set_numa_policy = pool_numa_policy_impl,
+                                 .count = pool_count_impl,
+                                 .at = pool_at_impl,
+                                 .clear = pool_clear_impl,
+                                 .shutdown = pool_shutdown_impl,
+                                 .run_main = pool_run_main_impl,
+                                 .wait_main = pool_wait_main_impl,
+                                 .start_siblings = pool_start_siblings_impl,
+                                 .wait_siblings = pool_wait_siblings_impl,
+                                 .set_stop = pool_set_stop_impl,
+                                 .stop_flag = pool_stop_flag_impl,
+                                 .set_increase_depth = pool_set_increase_depth_impl,
+                                 .increase_depth_flag = pool_increase_depth_flag_impl };
 }
