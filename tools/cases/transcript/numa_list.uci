@@ -1,0 +1,3 @@
+setoption name NumaPolicy value 5,7,9
+setoption name Threads value 4
+isready
