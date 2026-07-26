@@ -10,7 +10,7 @@ src/benchmark.cpp	src/shell/benchmark.c,src/shell/benchmark.h,src/shell/bench_po
 src/benchmark.h	src/shell/benchmark.h
 src/bitboard.cpp	src/engine/board/fen.c
 src/bitboard.h	src/engine/board/bitboard.h
-src/engine.cpp	src/shell/engine_options.c,src/platform/numa.h,src/shell/engine.c,src/platform/numa.c,src/shell/syzygy_option.h,src/engine/eval/evaluate.c,src/engine/search/search.c,src/engine/search/search_emit.h,src/platform/numa_replication.c,src/shell/engine.h,src/shell/engine_nnue.h,src/shell/engine_options.h,src/shell/syzygy_option.c
+src/engine.cpp	src/shell/engine_options.c,src/platform/numa.h,src/shell/engine.c,src/platform/numa.c,src/shell/syzygy_option.h,src/engine/eval/evaluate.c,src/engine/search/search.c,src/engine/search/search_emit.h,src/platform/numa_replication.c,src/shell/engine.h,src/shell/engine_nnue.h,src/shell/engine_options.h,src/shell/syzygy_option.c,src/platform/worker_pool.c
 src/engine.h	src/shell/engine.h
 src/evaluate.cpp	src/engine/eval/evaluate.c,src/engine/eval/evaluate.h
 src/evaluate.h	src/engine/eval/evaluate.h
