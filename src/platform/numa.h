@@ -122,6 +122,12 @@ bool numa_config_suggests_binding_threads(const NumaConfig *cfg, size_t num_thre
 // NUL-terminated; the caller frees. Return nullptr only on OOM.
 char *numa_config_string(void);
 
+// Render CFG as upstream's NumaConfig::to_string: nodes joined by ':', each an
+// ascending comma list with consecutive runs collapsed to "first-last". malloc'd and
+// NUL-terminated; the caller frees. This is the string `Available processors` reports
+// -- the topology the engine binds under, NOT the process affinity mask.
+char *numa_config_to_string(const NumaConfig *cfg);
+
 // ---- replication ------------------------------------------------------------
 
 typedef struct NumaReplicationContext NumaReplicationContext;
