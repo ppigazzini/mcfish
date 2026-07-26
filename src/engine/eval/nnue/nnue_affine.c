@@ -64,6 +64,78 @@ typedef struct {
     NnueDotAcc c[AFFINE_CHUNKS_32][AFFINE_CHAINS];
 } AffineAcc32;
 
+// Walk the NNZ set as an index LIST wherever the ISA can build the list branch-free.
+//
+// The bitset walk pays a tzcnt, a blsr and a DATA-DEPENDENT branch per set bit, and that
+// branch's trip count is the word's population — it changes every evaluation, so the
+// predictor misses it once or twice per word. Upstream's AVX512 build never materialises a
+// bitset at all: NNZCursor::record2 compresses the non-zero chunk indices into a u16 array
+// (nnz_helper.h) and the sparse propagate consumes three of them per iteration off a
+// straight-line cursor (affine_transform_sparse_input.h), so its only branch is the
+// well-predicted loop back. Reach the same walk from the bitset the transform already
+// writes: one compress per 32 groups buys back one instruction and one unpredictable
+// branch per non-zero group.
+//
+// Every group still lands in exactly one chain and integer addition commutes, so grouping
+// the walk three-at-a-time across word boundaries instead of restarting at each word
+// cannot change the result.
+#if MCFISH_SIMD_VECTOR && defined(__AVX512F__)
+    #define AFFINE_NNZ_INDEX_LIST 1
+#else
+    #define AFFINE_NNZ_INDEX_LIST 0
+#endif
+
+#if AFFINE_NNZ_INDEX_LIST
+enum {
+    AFFINE_NNZ_MAX_GROUPS = NNUE_AFFINE_NNZ_WORD_COUNT * 64,
+    // A compress stores a whole register whatever the mask population, so the list needs
+    // one register of slack past the last index it can hold.
+    AFFINE_NNZ_LIST_SLOTS = AFFINE_NNZ_MAX_GROUPS + 32,
+};
+
+alignas(64) static const uint16_t AffineNnzSeq[32] = { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
+                                                       11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                                                       22, 23, 24, 25, 26, 27, 28, 29, 30, 31 };
+
+// Expand WORDS bitset words into ascending group indices; return how many there are.
+static inline size_t affine_nnz_expand(uint16_t *list, const uint64_t *nnz, size_t words) {
+    size_t n = 0;
+    #if defined(__AVX512VBMI2__)
+    // vpcompressw takes 32 groups per step. Upstream's AVX512ICL record2 uses the same
+    // instruction and warns off the store form (mask_compressstoreu is microcoded on
+    // Zen4), so compress into a register and store the whole register.
+    __m512i idx = _mm512_load_si512((const void *) AffineNnzSeq);
+    const __m512i inc = _mm512_set1_epi16(32);
+    for (size_t k = 0; k < words; k++) {
+        const uint64_t bits = nnz[k];
+        for (unsigned h = 0; h < 2; h++) {
+            const __mmask32 m = (__mmask32) (uint32_t) (bits >> (32 * h));
+            _mm512_storeu_si512((void *) (list + n), _mm512_maskz_compress_epi16(m, idx));
+            n += (size_t) __builtin_popcount((unsigned) m);
+            idx = _mm512_add_epi16(idx, inc);
+        }
+    }
+    #else
+    // Without VBMI2 the compress is 32 bits wide, so it takes 16 groups per step and the
+    // store narrows to u16 — upstream's non-ICL AVX512 record2 shape.
+    __m512i idx =
+      _mm512_cvtepu16_epi32(_mm256_load_si256((const __m256i *) (const void *) AffineNnzSeq));
+    const __m512i inc = _mm512_set1_epi32(16);
+    for (size_t k = 0; k < words; k++) {
+        const uint64_t bits = nnz[k];
+        for (unsigned h = 0; h < 4; h++) {
+            const __mmask16 m = (__mmask16) (uint16_t) (bits >> (16 * h));
+            _mm512_mask_cvtepi32_storeu_epi16((void *) (list + n), 0xFFFF,
+                                              _mm512_maskz_compress_epi32(m, idx));
+            n += (size_t) __builtin_popcount((unsigned) m);
+            idx = _mm512_add_epi32(idx, inc);
+        }
+    }
+    #endif
+    return n;
+}
+#endif  // AFFINE_NNZ_INDEX_LIST
+
 // Seed chain 0 of each chunk with the layer bias vector and zero the rest, so the
 // bias enters the int32 accumulator up front instead of a per-lane scalar add at the
 // tail (upstream seeds acc[k] from biasvec, affine_transform.h:277-282). The bias
@@ -98,6 +170,24 @@ void nnue_affine_32(bool sparse,
     affine_acc32_seed_bias(&acc, biases);
 
     if (sparse) {
+#if AFFINE_NNZ_INDEX_LIST
+        // Expand the bitset once, then run upstream's AVX512 cursor: three indices per
+        // iteration into three chains, and a tail of at most two into chain 0.
+        uint16_t list[AFFINE_NNZ_LIST_SLOTS];
+        const size_t count = affine_nnz_expand(list, nnz, (groups + 63) / 64);
+        size_t p = 0;
+        for (; p + 3 <= count; p += 3) {
+            AFFINE_GROUP_INTO(&acc, 0, load_group(input + (size_t) list[p] * 4),
+                              weights + (size_t) list[p] * N);
+            AFFINE_GROUP_INTO(&acc, 1 % AFFINE_CHAINS, load_group(input + (size_t) list[p + 1] * 4),
+                              weights + (size_t) list[p + 1] * N);
+            AFFINE_GROUP_INTO(&acc, 2 % AFFINE_CHAINS, load_group(input + (size_t) list[p + 2] * 4),
+                              weights + (size_t) list[p + 2] * N);
+        }
+        for (; p < count; p++)
+            AFFINE_GROUP_INTO(&acc, 0, load_group(input + (size_t) list[p] * 4),
+                              weights + (size_t) list[p] * N);
+#else
         // Walk the bitset in upstream's shape (affine_transform_sparse_input.h): load a
         // whole 64-group word, hoist the input and weight bases ONCE per word, then pop
         // set bits with a LOCAL index rather than re-scaling an absolute group index.
@@ -112,15 +202,15 @@ void nnue_affine_32(bool sparse,
         // the unroll removes most of it at avx2, but the SAME unroll REGRESSES the
         // 16-lane native tier, where the wider per-word state spills — so the pragma
         // is tier-guarded, not unconditional.
-#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
-    // EXPECTED WARNING at avx2: the per-TU unroll pass reports -Wpass-failed here
-    // because the trip count (the NNZ word total, 4) only becomes constant once LTO
-    // folds it -- the LTO pass then succeeds and emits the four fixed-displacement
-    // word loops the win was measured on. unroll_count(4) silences the warning but
-    // loses +33M at avx2, and a diagnostic pragma cannot reach a backend-pass
-    // report, so the warning stays and this comment is its record.
-    #pragma clang loop unroll(full)
-#endif
+    #if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+        // EXPECTED WARNING at avx2: the per-TU unroll pass reports -Wpass-failed here
+        // because the trip count (the NNZ word total, 4) only becomes constant once LTO
+        // folds it -- the LTO pass then succeeds and emits the four fixed-displacement
+        // word loops the win was measured on. unroll_count(4) silences the warning but
+        // loses +33M at avx2, and a diagnostic pragma cannot reach a backend-pass
+        // report, so the warning stays and this comment is its record.
+        #pragma clang loop unroll(full)
+    #endif
         for (size_t k = 0; k * 64 < groups; k++) {
             uint64_t bits = nnz[k];
             const uint8_t *in_base = input + k * 64 * 4;
@@ -144,6 +234,7 @@ void nnue_affine_32(bool sparse,
                                   w_base + i2 * N);
             }
         }
+#endif  // AFFINE_NNZ_INDEX_LIST
     } else if (AFFINE_CHAINS > 1) {
         size_t g = 0;
         for (; g + 3 <= groups; g += 3) {
