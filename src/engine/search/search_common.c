@@ -247,8 +247,12 @@ int reduction_of(const int32_t *reductions,
                  int root_delta,
                  bool improving) {
     const int reduction_scale = reductions[depth] * reductions[move_number];
+    // Scale the not-improving term by the flag rather than selecting on it, exactly
+    // as upstream writes `!i * reductionScale * 197 / 512` (search.cpp:1857): the
+    // conditional form compiles to a branch inlined into the move loop, and
+    // `improving` is not predictable from the branch address alone.
     return reduction_scale - delta * 577 / root_delta
-         + (!improving ? reduction_scale * 197 / 512 : 0) + 982;
+         + (int) !improving * reduction_scale * 197 / 512 + 982;
 }
 
 int lmr_ttpv_reduction(bool pv_node, bool value_gt_alpha, bool depth_ge, bool cut_node) {
