@@ -55,7 +55,28 @@ bool thread_spawn(Thread *t, size_t idx) {
     mutex_init(&t->mutex);
     condition_init(&t->cond);
 
-    if (pthread_create(&t->handle, nullptr, idle_loop, t) != 0) {
+    // Ask for the stack explicitly rather than taking the platform default, which is
+    // upstream thread_native.h:52-62 (NativeThread's TH_STACK_SIZE). The default is
+    // 8 MB on glibc and the request changes nothing there, but it is 512 KB for a
+    // non-main thread on macOS -- and a deep search needs somewhat over 1 MB, so the
+    // default overflows the stack rather than returning an error. Requesting the size
+    // is the whole mechanism; it cannot affect the search's node count.
+    //
+    // A failure to set the attribute is not fatal: fall back to the default stack by
+    // passing no attribute, exactly as upstream does when pthread_attr_init fails.
+    pthread_attr_t attr_storage;
+    pthread_attr_t *attr = nullptr;
+    if (pthread_attr_init(&attr_storage) == 0) {
+        attr = &attr_storage;
+        (void) pthread_attr_setstacksize(attr, THREAD_STACK_SIZE);
+    }
+
+    const int rc = pthread_create(&t->handle, attr, idle_loop, t);
+
+    if (attr != nullptr)
+        (void) pthread_attr_destroy(attr);
+
+    if (rc != 0) {
         condition_destroy(&t->cond);
         mutex_destroy(&t->mutex);
         t->searching = false;

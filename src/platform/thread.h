@@ -23,6 +23,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+// Size every spawned thread's stack, rather than inheriting the platform default.
+// This is upstream thread_native.h:52 (NativeThread::TH_STACK_SIZE), and the reason
+// it is stated is not the value but the floor: a deep search needs somewhat more than
+// 1 MB, glibc happens to default to 8 MB, and a non-main thread on macOS defaults to
+// 512 KB — which overflows rather than failing a call. thread_spawn requests this and
+// falls back to the default when the attribute cannot be set.
+#define THREAD_STACK_SIZE ((size_t) 8 * 1024 * 1024)
+
 // Run one unit of work on a Thread. The context is whatever the submitter passed; a null
 // context is legal.
 typedef void (*ThreadJobFn)(void *ctx);

@@ -55,6 +55,7 @@ src/syzygy/tbprobe.cpp	src/platform/syzygy/registry.c,src/platform/syzygy/wdl.c,
 src/syzygy/tbprobe.h	src/platform/tablebase.h
 src/thread.cpp	src/platform/thread_pool.h,src/platform/thread.h,src/engine/search/search.c,src/platform/thread_pool.c,src/engine/search/search_threads.c,src/engine/search/search_threads.h,src/engine/search/search_setup.c,src/engine/state/worker_construct.h,src/engine/state/worker_layout.h,src/platform/thread.c,src/shell/engine_options.c
 src/thread.h	src/platform/thread_runtime.h
+src/thread_native.h	src/platform/thread.c,src/platform/thread.h
 src/timeman.cpp	src/engine/search/timeman.c
 src/timeman.h	src/engine/search/timeman.h
 src/tt.cpp	src/engine/search/tt.h,src/engine/search/tt.c,src/engine/state/tt_types.h,src/engine/search/search_threads.c
