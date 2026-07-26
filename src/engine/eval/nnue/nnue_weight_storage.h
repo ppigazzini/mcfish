@@ -54,14 +54,14 @@ bool nnue_equal_current_name(const char *target, size_t target_len);
 // Return the feature-transformer block, allocating (or re-allocating on a size
 // change) N zeroed, 64-byte-aligned bytes. Return nullptr when N is 0 or the
 // allocation fails; the caller must then reject the net rather than proceed.
-uint8_t *nnue_ft_storage(size_t n);
+[[nodiscard]] uint8_t *nnue_ft_storage(size_t n);
 
 // Return the loaded feature transformer, or nullptr when no net is resident.
 const uint8_t *nnue_ft_ptr(void);
 
 // Return one affine layer's block, allocating N zeroed, 64-byte-aligned bytes on
 // first use. Return nullptr on a bad index or a failed allocation.
-uint8_t *nnue_layer_storage(size_t bucket, size_t idx, NnueLayerPart part, size_t n);
+[[nodiscard]] uint8_t *nnue_layer_storage(size_t bucket, size_t idx, NnueLayerPart part, size_t n);
 
 // Return one affine layer's block, or nullptr when it has never been loaded.
 const uint8_t *nnue_layer_ptr(size_t bucket, size_t idx, NnueLayerPart part);

@@ -35,12 +35,12 @@ typedef struct {
 // Build the ranked root move list for POS from MOVES. ROOT_FEN must be POS's own
 // FEN — the ranking replays each move from it on a scratch board. Return false on
 // allocation failure, leaving OUT untouched.
-bool root_moves_build(const Position *pos,
-                      const char *root_fen,
-                      bool chess960,
-                      const Move *moves,
-                      size_t count,
-                      RootMoveList *out);
+[[nodiscard]] bool root_moves_build(const Position *pos,
+                                    const char *root_fen,
+                                    bool chess960,
+                                    const Move *moves,
+                                    size_t count,
+                                    RootMoveList *out);
 
 void root_moves_free(RootMoveList *list);
 

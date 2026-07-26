@@ -31,7 +31,7 @@ typedef struct EvalArena EvalArena;
 
 // Allocate one arena, or null. The refresh cache is left unseeded; call
 // eval_arena_clear_refresh_cache once a net is resident.
-EvalArena *eval_arena_create(void);
+[[nodiscard]] EvalArena *eval_arena_create(void);
 void eval_arena_destroy(EvalArena *arena);
 
 // Return the process-wide arena, allocating it on first use. It is what a caller with
