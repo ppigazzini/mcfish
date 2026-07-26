@@ -444,6 +444,81 @@ do_engine_standalone() {
   green "engine-standalone: edge holds at $n platform symbol(s) — see $base"
 }
 
+
+# Diff mcfish's WHOLE UCI transcript against the upstream oracle.
+#
+# The `golden` gate pins what MCFISH printed last time, so it catches a regression and
+# is structurally blind to a divergence from the golden: both sides move together when
+# a golden is re-derived. This step compares against upstream itself, which is the only
+# thing that can answer "is the wire output still Stockfish's".
+#
+# LOCAL ONLY: it needs a pristine oracle build, which a CI checkout does not carry.
+#
+# Machine-dependent fields are elided (nps, time, hashfull, the net's size/arch banner)
+# and nothing else. Accepted divergences live in tools/transcript_known.txt, one argued
+# regex each -- a diff line matching none of them fails the step.
+#
+# Hold stdin open past the `go`: both engines run the search off the UCI thread, so
+# closing the pipe immediately makes upstream abort at depth 1 and the comparison then
+# measures the harness rather than the engines.
+do_upstream_transcript() {
+  need_binary
+  local oracle=/home/usr00/_git/.mcfish-upstream-oracle/src/stockfish
+  [[ -x $oracle ]] || { red "upstream-transcript: no oracle at $oracle"; return 127; }
+  local known=tools/transcript_known.txt
+  info "upstream-transcript: whole-transcript diff vs the oracle"
+
+  local dir; dir=$(mktemp -d)
+  # grep -f has NO comment syntax: every line of the file is a pattern, and a BLANK
+  # line is a pattern matching everything. Feeding the annotated file straight to
+  # `grep -vEf` therefore filtered every diff line and the gate could not fail.
+  # Strip comments and blanks into a patterns-only file first.
+  grep -vE '^\s*(#|$)' "$known" > "$dir/known" || true
+  [[ -s $dir/known ]] || printf '%s\n' '$^' > "$dir/known"
+  local ok=0 accepted=0 failed=0 script name
+  for script in tools/cases/transcript/*.uci; do
+    name=$(basename "$script" .uci)
+    # `|| true` on both: a case may drive the engine to a deliberate non-zero exit
+    # (the malformed-input one does, on both engines), and under `set -euo pipefail`
+    # that would abort the sweep instead of being compared.
+    { { cat "$script"; sleep 5; } | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/$BIN" ) 2>&1 \
+      | transcript_normalize > "$dir/mc"; } || true
+    { { cat "$script"; sleep 5; } | ( cd "$(dirname "$oracle")" && "$oracle" ) 2>&1 \
+      | transcript_normalize > "$dir/up"; } || true
+
+    local raw
+    raw=$(diff "$dir/mc" "$dir/up" | grep -E '^[<>]' || true)
+    local unexplained
+    unexplained=$(printf '%s\n' "$raw" | grep -v '^$' | grep -vEf "$dir/known" || true)
+
+    if [[ -z $raw ]]; then
+      printf '  ok    %s\n' "$name"; ok=$((ok + 1))
+    elif [[ -z $unexplained ]]; then
+      printf '  known %s\n' "$name"; accepted=$((accepted + 1))
+    else
+      red "  FAIL  $name"
+      printf '%s\n' "$unexplained" | head -12 | sed 's/^/        /'
+      failed=$((failed + 1))
+    fi
+  done
+  rm -rf "$dir"
+
+  [[ $failed -eq 0 ]] || {
+    red "upstream-transcript: $failed case(s) diverge from the golden"
+    red "  Fix mcfish, or add an ARGUED line to $known naming what retires it."
+    return 1
+  }
+  green "upstream-transcript: $ok identical, $accepted with known divergences only"
+}
+
+# Elide only what the machine decides. Anything else is a claim about behaviour.
+transcript_normalize() {
+  sed -E 's/ nps [0-9]+//; s/ time [0-9]+//; s/ hashfull [0-9]+//' \
+    | sed -E 's/^(mcfish|Stockfish) [^ ]+ by .*/<engine banner>/' \
+    | sed -E 's/\(([0-9]+)MiB, \(([0-9, ]+)\)\)/(<net>)/' \
+    | tr -d '\r'
+}
+
 do_bench() {
   need_binary
   # No depth argument means upstream's definition (depth 13, full default list,
@@ -1539,6 +1614,7 @@ usage: ./build.sh <step> [args]
   sync-status        report drift between the pinned SHAs and the tracked repos
   upstream-map       LOCAL: audit the declared upstream map, ratchet uncovered surface
   upstream-nodes     node-for-node differential on RANDOM positions vs the oracle
+  upstream-transcript LOCAL: whole UCI transcript diffed against the oracle
   upstream-parity    THE finish line: bench vs a pristine upstream build (red until done)
   parity             the aggregate: every in-repo gate above
   clean              remove build/
@@ -1583,6 +1659,7 @@ case "${1:-build}" in
   engine-standalone) do_engine_standalone ;;
   docs-lint)        do_docs_lint ;;
   upstream-nodes)   shift; do_upstream_nodes "$@" ;;
+  upstream-transcript) do_upstream_transcript ;;
   sync-status)      do_sync_status ;;
   upstream-parity)  shift; do_upstream_parity "$@" ;;
   fmt)              do_fmt ;;
