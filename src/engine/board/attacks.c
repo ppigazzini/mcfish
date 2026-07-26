@@ -21,7 +21,16 @@ static Bitboard RookTable[0x19000];
 static Bitboard BishopTable[0x1480];
 
 // Index [square][0] for bishops, [square][1] for rooks.
-static Magic Magics[SQUARE_NB][2];
+//
+// Align to the cache line, as upstream does (`attacks.cpp:36`). sizeof(Magic) is 32,
+// so a square's bishop/rook pair is exactly one line and every site that probes both
+// from the same square touches one line instead of two -- but only if the array
+// starts on a line. Unaligned it landed at offset 16, which splits the second entry's
+// `magic`/`shift` across the boundary on the non-BMI2 path that reads them. The
+// static_assert is what keeps the two facts joined: widen Magic and the pair no
+// longer fits, silently.
+static alignas(64) Magic Magics[SQUARE_NB][2];
+static_assert(2 * sizeof(Magic) == 64, "a square's bishop/rook Magic pair must be one cache line");
 
 static const Direction RookDirs[4] = { NORTH, EAST, SOUTH, WEST };
 static const Direction BishopDirs[4] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
