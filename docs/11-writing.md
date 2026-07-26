@@ -71,17 +71,16 @@ Not "read it carefully" — run it. `grep -n` for a symbol, `printf 'uci\n' |
 ./build/mcfish` for a handshake. Several claims in the first draft of this set
 were false and each took seconds to disprove.
 
-`docs-lint` now holds two classes of this automatically — a backticked
-`snake_case` symbol must exist somewhere in the tree, and every `build.sh` step
-must be mentioned by some page — so a rename or a new step cannot rot quietly.
-**The classes it still cannot reach are the ones a full audit found most of:**
-a right symbol in the wrong *file*, a list with the wrong *count* or *order*, a
-sentence describing behaviour that changed underneath it. `parity` was documented
-as nine gates while running ten, `see_ge` was placed in `movepick.c` when it lives
-in `legality.c`, and one page asserted "there is no LTO in the build" while
-`CFLAGS_RELEASE` had carried `-flto` throughout. Every one of those linted clean.
-When you touch behaviour, re-read the pages that describe it — the gate will not
-do it for you.
+`docs-lint` holds two classes of this automatically — a backticked `snake_case`
+symbol must exist somewhere in the tree, and every `build.sh` step must be
+mentioned by some page — so a rename or a new step cannot rot quietly.
+
+**Three classes stay out of its reach, and they are the common ones:** a real
+symbol attributed to the wrong *file*; a list with the wrong *count* or *order*,
+such as the gates `parity` runs; and a flag or behaviour described as absent from
+a build that has it. Each of those lints perfectly clean. When you change
+behaviour, re-read the pages that describe it in the same commit — the gate will
+not do it for you.
 
 **Separate upstream fact from mcfish state.** "Upstream does X" is checkable
 against the SHA in `tools/upstream/UPSTREAM_BASE`. "mcfish does Y" is a claim
@@ -117,11 +116,11 @@ These pages do not age alike, and treating them the same is why they rot. A page
 is **hot** when it describes code that moves. It is **cold** when what it
 describes barely moves.
 
-**The whole engine set is hot right now**, and more so than in a finished project:
-the port is replacing these modules wholesale, not tweaking them. A page that
-describes an unwired module is describing code that will be edited on its way into
-the build, and a page that describes a `PARTIAL` one is describing code with a
-scheduled demolition date.
+**The whole engine set is hot**, and more so than in a finished project: the port
+still replaces modules wholesale rather than tweaking them, and every perf campaign
+rewrites hot bodies without moving a node count. A page describing scaffolding — the
+classical evaluation is the standing example — is describing code with a demolition
+date, so say so rather than documenting it as the design.
 
 **Change hot code, re-read its page in the same commit.** A doc is wrong from the
 moment the code lands, and nobody knows which claim broke better than the person
@@ -131,10 +130,12 @@ who broke it.
 | --- | --- | --- |
 | [00-architecture.md](00-architecture.md) | the three zones, the zone rule, the composition root, what is in the build | hot |
 | [01-engine-board.md](01-engine-board.md) | `src/engine/board/` | hot |
-| [02-engine-search.md](02-engine-search.md) | `src/engine/search/` | hot — the live search is scheduled for replacement by the decomposition beside it |
-| [03-engine-eval.md](03-engine-eval.md) | `src/engine/eval/` | hot — and scheduled for wholesale replacement at M3 |
-| [06-platform.md](06-platform.md) | `src/platform/` | hot — one module of the zone is in the build |
-| [07-shell.md](07-shell.md) | `src/shell/` | hot — `uci.c` is scheduled for replacement by the decomposition beside it |
+| [02-engine-search.md](02-engine-search.md) | `src/engine/search/` | hot — the decomposition is where per-node work is tuned |
+| [03-engine-eval.md](03-engine-eval.md) | `src/engine/eval/` | hot — the classical fallback under NNUE is scaffolding awaiting deletion |
+| [04-multithreading.md](04-multithreading.md) | Lazy-SMP, the pool, per-worker state, NUMA | hot — NUMA net replication is still open |
+| [05-tablebases.md](05-tablebases.md) | the Syzygy prober and its gates | warm — the prober is wired and gated; the open items are coverage, not code |
+| [06-platform.md](06-platform.md) | `src/platform/` | hot — the engine→platform edge moves as seams land |
+| [07-shell.md](07-shell.md) | `src/shell/` | hot — `engine.c` owns the session, `uci.c` the transport over it |
 | [08-idiomatic-c.md](08-idiomatic-c.md) | the C23 patterns, the porting patterns, the measurement discipline | cold |
 | [09-tooling-ci.md](09-tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
 | [10-references.md](10-references.md) | external links | cold |

@@ -1,6 +1,6 @@
 #include "timeman.h"
 
-#include "../../platform/clock.h"
+#include "time_source.h"
 
 #include <math.h>
 
@@ -158,7 +158,7 @@ TimePoint timeman_optimum(const TimeManagement *tm) { return tm->optimum_time; }
 TimePoint timeman_maximum(const TimeManagement *tm) { return tm->maximum_time; }
 
 TimePoint timeman_elapsed_time(const TimeManagement *tm) {
-    return (TimePoint) now_ms() - tm->start_time;
+    return (TimePoint) TimeNowMs() - tm->start_time;
 }
 
 TimePoint timeman_elapsed(const TimeManagement *tm, uint64_t nodes_searched) {

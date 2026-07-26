@@ -223,14 +223,13 @@ mcfish prints the same diagnostic and reports the file unavailable, so one bad
 file does not take a GUI's engine down mid-game. Keep the diagnostic — without it
 a corrupt table is indistinguishable from an absent one.
 
-Both of the gaps this section used to list have closed. The `d` command prints
-upstream's `Tablebases WDL:` / `Tablebases DTZ:` lines once a `SyzygyPath` covers
-the position, and the cursed-win / blessed-loss branches of `map_score_dtz` and
-`probe_dtz` — reachable only at DTZ > 100, so only from 5-man tables — are driven
-by `./build.sh tb-cursed`, which `./build.sh tb-fetch 5` supplies the tables for.
-`./build.sh tb` itself still runs on the 3-man set; see
-[05-tablebases.md](05-tablebases.md) for why the 5-man leg is kept out of
-`parity`.
+No gap is open here. The `d` command prints upstream's `Tablebases WDL:` /
+`Tablebases DTZ:` lines once a `SyzygyPath` covers the position, and the cursed-win
+/ blessed-loss branches of `map_score_dtz` and `probe_dtz` — reachable only at
+DTZ > 100, so only from 5-man tables — are driven by `./build.sh tb-cursed`, which
+`./build.sh tb-fetch 5` supplies the tables for. `./build.sh tb` itself runs on the
+3-man set; see [05-tablebases.md](05-tablebases.md) for why the 5-man leg is kept
+out of `parity`.
 
 ## The clock
 
@@ -296,21 +295,31 @@ backend means a second implementation file behind the same header, selected in
 
 ## The engine→platform edge
 
-[`../src/engine/search/search.c`](../src/engine/search/search.c) includes
-`../../platform/clock.h` directly. That inverts the stated dependency direction:
-`engine/` is supposed to include nothing outside `engine/`.
+`engine/` is supposed to include nothing outside `engine/`, and it still reaches
+into memory, the thread runtime, the pool and NUMA.
+[00-architecture.md](00-architecture.md) has the breakdown; this section is about
+what sees the edge. For its size, run the gate — the count is a number a gate
+computes, so it is not written down here.
 
-The consequence for this zone specifically: `src/platform/clock.c` is a member of
-`ENGINE_SOURCES` in [`../build.sh`](../build.sh), so it is linked into the zone
-check and into the test binary. `./build.sh zone-check` therefore cannot detect the
-edge — it proves engine+platform links without shell, and clock is on the inside of
-that boundary.
+**`./build.sh zone-check` cannot detect it, structurally.** Every `platform/` file
+is a member of `ENGINE_SOURCES` in [`../build.sh`](../build.sh), so the zone check
+links engine *and* platform and proves only that neither reaches into `shell/`.
+Everything discussed here is on the inside of that boundary.
 
-The read-side fix is landed: the decomposed search takes its clock through
-[`../src/engine/search/time_source.h`](../src/engine/search/time_source.h), the same
-function-pointer seam shape `search_set_output` already uses for output. What remains
-is that the facade `search.c` still registers `now_ms` as that seam's implementation,
-so `engine/` cannot yet be linked without a POSIX clock.
+**`./build.sh engine-standalone` is the gate that does see it.** It links `engine/`
+with no platform object and ratchets the undefined set against
+[`../tools/engine_platform.baseline`](../tools/engine_platform.baseline), failing
+both when the edge grows and when the baseline keeps an entry the tree no longer
+needs.
+
+The clock is the one service all the way across that boundary, and is the pattern
+to copy. It takes three things together, and any one of them missing leaves the
+symbol in the engine's link line: a function-pointer seam in the engine zone
+([`time_source.h`](../src/engine/search/time_source.h), same shape as
+`output_sink.h`); **every** reader in the zone going through it, `timeman.c`
+included, since one direct call keeps the dependency whole; and the host owning
+registration — `search_set_time_source`, called from `engine_init` beside
+`search_set_output`.
 
 ## Do not land a stub whose functions return constants
 

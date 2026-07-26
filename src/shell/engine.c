@@ -11,6 +11,7 @@
 #include "../engine/board/uci_move.h"
 #include "../engine/eval/evaluate.h"
 #include "../engine/search/tt.h"
+#include "../platform/clock.h"
 #include "engine_nnue.h"
 #include "syzygy_option.h"
 #include "engine_options.h"
@@ -29,6 +30,11 @@
 static Position Pos;
 static StateList *States = nullptr;
 static char ReasonBuf[128];
+
+// Adapt the platform clock to the search seam's signature. The seam is int64_t
+// because the zone only ever takes differences; now_ms is unsigned because its
+// origin is arbitrary.
+static int64_t shell_now_ms(void) { return (int64_t) now_ms(); }
 
 void engine_set_output(void (*emit_line)(const char *line),
                        void (*emit_info)(const char *message)) {
@@ -185,6 +191,12 @@ void engine_init(const char *argv0) {
     // Overhead, nodestime, Ponder and UCI_ShowWDL are read where the handshake
     // advertises them.
     search_set_option_source(engine_options_get_int);
+
+    // Install the clock the same way, and from here rather than from the search
+    // facade: reading an OS clock is a platform service, so the zone that owns the
+    // process supplies it. This runs before the first command is read, so no `go`
+    // can reach a time-limited search on the headless tick counter.
+    search_set_time_source(shell_now_ms);
 
     // Size the table from the registered default rather than a second literal.
     // A failure here is fatal, as it is upstream (tt.cpp:181): tt_resize leaves the
