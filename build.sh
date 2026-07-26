@@ -890,11 +890,21 @@ normalize() {
   #     mcfish does not register the network for replication (AGENTS.md names it),
   #     so it has nothing truthful to print. Delete this line when that lands.
   #
-  # "Available processors" and "Using N thread" USED to be dropped here for the same
-  # reason and no longer are: the pool is driven, mcfish emits both on `go` exactly
-  # as upstream does, and the goldens compare them.
+  # "Available processors" and the NUMA binding suffix keep their LINE and lose their
+  # VALUE. The line is behaviour -- mcfish must emit it, on `go`, in upstream's place --
+  # and the goldens assert that. The value is the machine: this box reports 0-15 and a
+  # 4-CPU runner reports 0-3, so pinning it makes every golden fail off the developer's
+  # hardware. That is what `nps` and `time` are elided for, and this belongs with them.
+  #
+  # "Using N thread" is NOT machine-decided -- it echoes the Threads option -- so it
+  # stays pinned in full.
+  #
+  # `upstream-transcript` does NOT elide any of these: it compares two engines on one
+  # machine at one moment, where the real values must agree.
   sed -E 's/ nps [0-9]+//; s/ time [0-9]+//; s/^Total time \(ms\) *: [0-9]+$/Total time (ms) : <elided>/; s/^Nodes\/second *: [0-9]+$/Nodes\/second    : <elided>/' \
     | sed -E 's/^(mcfish|Stockfish) [^ ]+ by .*/<engine banner>/' \
+    | sed -E 's/^info string Available processors: .*/info string Available processors: <cpus>/' \
+    | sed -E 's/ with NUMA node thread binding: .*/ with NUMA node thread binding: <binding>/' \
     | grep -vE '^info string Network replica' \
     | tr -d '\r'
 }
