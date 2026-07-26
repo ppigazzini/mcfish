@@ -275,6 +275,7 @@ int main(int argc, char **argv) {
     double *r_cyc = calloc(rounds, sizeof *r_cyc);
     double *r_ipc = calloc(rounds, sizeof *r_ipc);
     double *r_cache = calloc(rounds, sizeof *r_cache);
+    double *r_branch = calloc(rounds, sizeof *r_branch);
 
     for (size_t i = 0; i < rounds; i++) {
         Counters a = run_once(argv_a, 0);
@@ -303,6 +304,7 @@ int main(int argc, char **argv) {
         r_cyc[i] = ratio(a.cycles, b.cycles);
         r_ipc[i] = ipc_of(b) > 0 ? ipc_of(a) / ipc_of(b) : 0;
         r_cache[i] = ratio(a.cache_misses, b.cache_misses);
+        r_branch[i] = ratio(a.branch_misses, b.branch_misses);
         printf("  %5zu %16lu %16lu %9.3f %8.3f %8.3f\n", i + 1,
                (unsigned long) a.instructions, (unsigned long) b.instructions, r_instr[i],
                ipc_of(a), ipc_of(b));
@@ -317,10 +319,16 @@ int main(int argc, char **argv) {
     printf("#   IPC          : %.3f   <- the EFFICIENCY. <1 means A retires fewer instr/cycle.\n",
            median(r_ipc, rounds));
     printf("#   cache misses : %.3f\n", median(r_cache, rounds));
+    printf("#   branch misses: %.3f   <- the OTHER half of an IPC gap. ~15-20 cycles each,\n"
+           "#                             and invisible to instructions AND to cache misses.\n",
+           median(r_branch, rounds));
     printf("#\n"
            "# READ IT THIS WAY: cycles ~= instructions / IPC. If A's cycle ratio is worse than\n"
-           "# its instruction ratio, the residue is an IPC/memory gap -- A does similar work but\n"
-           "# retires it slower -- and no instruction-count cut closes that half.\n");
+           "# its instruction ratio, the residue is an IPC gap -- A does similar work but retires\n"
+           "# it slower -- and no instruction-count cut closes that half. Then split that residue:\n"
+           "# the cache-miss and branch-miss columns are the two things it can be. A branch-miss\n"
+           "# ratio well above 1 with cache misses at parity is a PREDICTION gap, and only the\n"
+           "# deterministic callgrind --branch-sim run can attribute it to a call site.\n");
 
     // Regression gate when MAX_INSTR_RATIO is set.
     const char *bound_str = getenv("MAX_INSTR_RATIO");
