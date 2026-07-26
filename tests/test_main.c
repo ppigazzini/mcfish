@@ -272,7 +272,9 @@ static void test_null_move(void) {
 
     Position pos;
     StateInfo st;
-    pos_set(&pos, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -", false, &st);
+    CHECK(
+      pos_set(&pos, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -", false, &st),
+      "null-move setup");
 
     const Key key = pos_key(&pos);
     const Color stm = pos.side_to_move;
@@ -297,7 +299,7 @@ static void test_legality(void) {
 
     // A knight pinned along the e-file has no legal move; only the king's remain.
     // The black king sits on a8 so the pinning rook on e8 is the only e-file piece.
-    pos_set(&pos, "k3r3/8/8/8/8/8/4N3/4K3 w - -", false, &st);
+    CHECK(pos_set(&pos, "k3r3/8/8/8/8/8/4N3/4K3 w - -", false, &st), "knight-check setup");
     CHECK(checkers(&pos) == 0, "pin fixture is not itself a check");
     ExtMove list[MAX_MOVES];
     int count = (int) (generate_legal(&pos, list) - list);
@@ -309,7 +311,7 @@ static void test_legality(void) {
     // ASSERT the precondition rather than gate on it -- the previous fixture here
     // was a single check (a knight on c3 does not attack e1), so the loop below
     // never ran and double check went untested while the suite reported a pass.
-    pos_set(&pos, "k7/8/8/8/8/5n2/8/4K2r w - -", false, &st);
+    CHECK(pos_set(&pos, "k7/8/8/8/8/5n2/8/4K2r w - -", false, &st), "pinned-piece setup");
     CHECK(bb_more_than_one(checkers(&pos)), "double-check fixture is not a double check");
     count = (int) (generate_legal(&pos, list) - list);
     CHECK(count > 0, "double-check fixture has no legal move -- it is mate, not a test");
@@ -325,7 +327,7 @@ static void test_legality(void) {
         "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ -",
     };
     for (size_t i = 0; i < sizeof fens / sizeof fens[0]; ++i) {
-        pos_set(&pos, fens[i], false, &st);
+        CHECK(pos_set(&pos, fens[i], false, &st), "setup %zu", i);
 
         ExtMove pseudo[MAX_MOVES];
         const int pn =
@@ -353,7 +355,8 @@ static void test_uci_move_strings(void) {
 
     Position pos;
     StateInfo st;
-    pos_set(&pos, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &st);
+    CHECK(pos_set(&pos, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &st),
+          "startpos setup");
 
     const Move e2e4 = move_from_uci(&pos, "e2e4");
     CHECK(e2e4 != MOVE_NONE, "e2e4 parses");
@@ -368,14 +371,14 @@ static void test_uci_move_strings(void) {
 
     // Castling must print as the KING's destination in standard chess, even though
     // it is stored as king-captures-rook.
-    pos_set(&pos, "r3k2r/8/8/8/8/8/8/R3K2R w KQkq -", false, &st);
+    CHECK(pos_set(&pos, "r3k2r/8/8/8/8/8/8/R3K2R w KQkq -", false, &st), "castling setup");
     const Move oo = move_from_uci(&pos, "e1g1");
     CHECK(oo != MOVE_NONE && move_type(oo) == CASTLING, "e1g1 is castling");
     move_to_uci(&pos, oo, buf);
     CHECK(strcmp(buf, "e1g1") == 0, "castling prints king destination, got %s", buf);
 
     // Under-promotion must be distinguishable from queening.
-    pos_set(&pos, "8/P6k/8/8/8/8/8/K7 w - -", false, &st);
+    CHECK(pos_set(&pos, "8/P6k/8/8/8/8/8/K7 w - -", false, &st), "promotion setup");
     const Move promo_q = move_from_uci(&pos, "a7a8q");
     const Move promo_n = move_from_uci(&pos, "a7a8n");
     CHECK(promo_q != MOVE_NONE && move_promotion(promo_q) == QUEEN, "a7a8q");
@@ -392,20 +395,22 @@ static void test_evaluate(void) {
     StateInfo st;
 
     // The start position is symmetric, so the score is the tempo bonus alone.
-    pos_set(&pos, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &st);
+    CHECK(pos_set(&pos, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &st),
+          "startpos setup");
     const Value start = evaluate(&pos);
     CHECK(start > 0 && start < 100, "start eval is a small tempo bonus, got %d", start);
 
     // A mirrored position must evaluate identically for the side to move, or the
     // eval has a color bias the search would happily exploit into nonsense.
-    pos_set(&pos, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1", false, &st);
+    CHECK(pos_set(&pos, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1", false, &st),
+          "startpos setup (black)");
     CHECK(evaluate(&pos) == start, "eval is color-symmetric");
 
     // A queen up must read as clearly winning.
-    pos_set(&pos, "4k3/8/8/8/8/8/8/3QK3 w - -", false, &st);
+    CHECK(pos_set(&pos, "4k3/8/8/8/8/8/8/3QK3 w - -", false, &st), "white-queen setup");
     CHECK(evaluate(&pos) > QUEEN_VALUE / 2, "queen up is winning, got %d", evaluate(&pos));
 
-    pos_set(&pos, "3qk3/8/8/8/8/8/8/4K3 w - -", false, &st);
+    CHECK(pos_set(&pos, "3qk3/8/8/8/8/8/8/4K3 w - -", false, &st), "black-queen setup");
     CHECK(evaluate(&pos) < -QUEEN_VALUE / 2, "queen down is losing, got %d", evaluate(&pos));
 }
 
@@ -421,7 +426,7 @@ static void test_search(void) {
     SearchLimits limits = { .depth = 6 };
 
     // Mate in one must be found and reported as mate 1, not as a large cp score.
-    pos_set(&pos, "7k/6pp/8/8/8/8/8/R6K w - -", false, &st);
+    CHECK(pos_set(&pos, "7k/6pp/8/8/8/8/8/R6K w - -", false, &st), "rook-endgame setup");
     SearchResult r = search_go(&pos, &limits);
     CHECK(r.score >= VALUE_MATE_IN_MAX_PLY, "mate score, got %d", r.score);
     CHECK(r.score == mate_in(1), "mate in 1, got %d", r.score);
@@ -431,24 +436,26 @@ static void test_search(void) {
     CHECK(strcmp(buf, "a1a8") == 0, "finds Ra8#, got %s", buf);
 
     // A checkmated position has no move and a mated score at ply 0.
-    pos_set(&pos, "7k/6Q1/6K1/8/8/8/8/8 b - -", false, &st);
+    CHECK(pos_set(&pos, "7k/6Q1/6K1/8/8/8/8/8 b - -", false, &st), "mate-in-one setup");
     r = search_go(&pos, &limits);
     CHECK(r.best_move == MOVE_NONE, "no move when mated");
     CHECK(r.score == mated_in(0), "mated_in(0), got %d", r.score);
 
     // Stalemate is a draw, not a loss.
-    pos_set(&pos, "7k/5Q2/8/8/8/8/8/6K1 b - -", false, &st);
+    CHECK(pos_set(&pos, "7k/5Q2/8/8/8/8/8/6K1 b - -", false, &st), "stalemate setup");
     r = search_go(&pos, &limits);
     CHECK(r.score == VALUE_DRAW, "stalemate is a draw, got %d", r.score);
 
     // Free material must be taken.
-    pos_set(&pos, "4k3/8/8/3q4/4B3/8/8/4K3 w - -", false, &st);
+    CHECK(pos_set(&pos, "4k3/8/8/3q4/4B3/8/8/4K3 w - -", false, &st), "hanging-queen setup");
     r = search_go(&pos, &limits);
     move_to_uci(&pos, r.best_move, buf);
     CHECK(strcmp(buf, "e4d5") == 0, "captures the hanging queen, got %s", buf);
 
     // The search must be deterministic: same position, same TT state, same nodes.
-    pos_set(&pos, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -", false, &st);
+    CHECK(
+      pos_set(&pos, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -", false, &st),
+      "kiwipete setup");
     // Clear the SEARCH as well as the table. History and the per-game scalars
     // outlive a `go` by design (upstream resets them only on ucinewgame), so two
     // runs are only comparable from the same game-start state. Clearing just the
@@ -466,7 +473,7 @@ static void test_search(void) {
     // Search must stay correct with the table effectively disabled — nothing may
     // depend on a probe hitting.
     tt_clear();
-    pos_set(&pos, "7k/6pp/8/8/8/8/8/R6K w - -", false, &st);
+    CHECK(pos_set(&pos, "7k/6pp/8/8/8/8/8/R6K w - -", false, &st), "rook-endgame setup");
     r = search_go(&pos, &limits);
     CHECK(r.score == mate_in(1), "mate found with a cleared table, got %d", r.score);
 
@@ -519,7 +526,7 @@ static void test_draw_detection(void) {
     StateInfo chain[16];
 
     // Shuffle the kings back and forth: the position repeats and must be seen.
-    pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - -", false, &st);
+    CHECK(pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - -", false, &st), "bare-kings setup");
     const Move moves[] = {
         move_from_uci(&pos, "e1e2"),
     };

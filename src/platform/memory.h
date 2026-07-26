@@ -21,7 +21,7 @@
 
 // Return SIZE bytes aligned to ALIGNMENT, or nullptr. ALIGNMENT must be a power of two
 // and a multiple of sizeof(void *). The block is uninitialised.
-void *std_aligned_alloc(size_t alignment, size_t size);
+[[nodiscard]] void *std_aligned_alloc(size_t alignment, size_t size);
 
 // Release a block from std_aligned_alloc. A nullptr is a no-op.
 void std_aligned_free(void *ptr);
@@ -29,7 +29,7 @@ void std_aligned_free(void *ptr);
 // Return an UNINITIALISED, 2 MiB-aligned block of at least ALLOC_SIZE bytes, or nullptr.
 // The size is rounded up to a whole number of 2 MiB pages, so the block may be larger
 // than requested; callers must not assume the rounding away.
-void *aligned_large_pages_alloc(size_t alloc_size);
+[[nodiscard]] void *aligned_large_pages_alloc(size_t alloc_size);
 
 // Release a block from aligned_large_pages_alloc. A nullptr is a no-op.
 void aligned_large_pages_free(void *ptr);
@@ -44,7 +44,7 @@ size_t large_page_size(void);
 // Allocate a zeroed block of SIZE bytes whose payload is at least 64-byte aligned, or
 // nullptr. Route the engine's big arenas (transposition table, shared histories, NNUE
 // weight storage) through here so the engine zone never names an OS allocator.
-void *page_alloc(size_t size);
+[[nodiscard]] void *page_alloc(size_t size);
 
 // Release a block from page_alloc. Pointer only -- the size is the allocator's business.
 void page_free(void *ptr);

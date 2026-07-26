@@ -94,13 +94,13 @@ void position_init(void);
 
 // Set POS from a FEN record, anchoring its state chain at SI.
 // Return false and leave POS unspecified when the record is malformed.
-bool pos_set(Position *pos, const char *fen, bool chess960, StateInfo *si);
+[[nodiscard]] bool pos_set(Position *pos, const char *fen, bool chess960, StateInfo *si);
 
 // Set a position and, on failure, report why in upstream's words. `reason` may be
 // nullptr, in which case this is exactly pos_set. The string is a literal with
 // static lifetime; the caller does not own it.
-bool pos_set_reason(
-  Position *pos, const char *fen, bool chess960, StateInfo *si, const char **reason);
+[[nodiscard]] bool
+pos_set_reason(Position *pos, const char *fen, bool chess960, StateInfo *si, const char **reason);
 
 // Write POS's FEN into BUF (needs >= 128 bytes).
 void pos_fen(const Position *pos, char *buf);
@@ -110,7 +110,7 @@ void pos_fen(const Position *pos, char *buf);
 // en-passant rank mirrored. Return false and leave OUT unspecified when FEN has
 // no board field to reverse. Purely textual -- the caller re-parses the result,
 // as upstream's Position::flip ends by re-`set`ting it.
-bool pos_flip_fen(const char *fen, char *out);
+[[nodiscard]] bool pos_flip_fen(const char *fen, char *out);
 
 // Render POS as an ASCII board plus the FEN and key, as UCI `d` prints it.
 void pos_pretty(const Position *pos, char *buf, int buf_len);
