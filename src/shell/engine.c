@@ -12,6 +12,7 @@
 #include "../engine/eval/evaluate.h"
 #include "../engine/search/tt.h"
 #include "../platform/clock.h"
+#include "../platform/memory.h"
 #include "engine_nnue.h"
 #include "syzygy_option.h"
 #include "engine_options.h"
@@ -169,6 +170,22 @@ void engine_trace_eval(char *buf, int buf_len) { evaluate_trace(&Pos, buf, buf_l
 // ---------------------------------------------------------------------------
 
 void engine_init(const char *argv0) {
+    // THE HOST'S SEAMS GO IN FIRST, BEFORE ANY CALL THAT ALLOCATES OR READS A CLOCK.
+    //
+    // The arena pair is the one with teeth: the engine's fallback is an aligned,
+    // zeroed malloc, so a block obtained before this line and released after it would
+    // be handed from one allocator to the other. `search_clear` below reaches
+    // `shared_histories_create`, so registering any later than here is that bug.
+    //
+    // What this buys is the huge-page arena -- the transposition table, the history
+    // bank and every worker block on an anonymous mapping, zeroed by the kernel,
+    // carrying the transparent-huge-page hint the heap cannot give them -- and a
+    // real monotonic clock in place of the deterministic tick counter, which is what
+    // any time-limited `go` needs. Both are platform services, so the zone that owns
+    // the process supplies them; the engine names them and never reaches for them.
+    search_set_arena_source(page_alloc, page_free);
+    search_set_time_source(shell_now_ms);
+
     // Build the state chain before anything can set a position.
     States = state_list_create();
     if (States == nullptr) {
@@ -191,12 +208,6 @@ void engine_init(const char *argv0) {
     // Overhead, nodestime, Ponder and UCI_ShowWDL are read where the handshake
     // advertises them.
     search_set_option_source(engine_options_get_int);
-
-    // Install the clock the same way, and from here rather than from the search
-    // facade: reading an OS clock is a platform service, so the zone that owns the
-    // process supplies it. This runs before the first command is read, so no `go`
-    // can reach a time-limited search on the headless tick counter.
-    search_set_time_source(shell_now_ms);
 
     // Size the table from the registered default rather than a second literal.
     // A failure here is fatal, as it is upstream (tt.cpp:181): tt_resize leaves the

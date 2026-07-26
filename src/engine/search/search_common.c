@@ -1,5 +1,6 @@
 #include "search_common.h"
 
+#include "../state/arena_source.h"
 #include "option_source.h"
 #include "output_sink.h"
 #include "tb_source.h"
@@ -13,6 +14,8 @@
 
 #include <math.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 // ---- injection seams ---------------------------------------------------
 //
@@ -42,6 +45,25 @@ int (*OptionIntByName)(const char *name) = option_zero_by_name;
 int (*OptionSyzygyProbeDepth)(void) = option_zero;
 int (*OptionSyzygyProbeLimit)(void) = option_zero;
 bool (*OptionSyzygy50MoveRule)(void) = option_false;
+
+// Back the arenas with plain aligned, zeroed memory when no host has registered.
+//
+// Correct but plain: it meets the two properties the callers actually depend on --
+// 64-byte alignment and a zero fill -- and gives up the huge-page hint the live
+// backend adds. Round the size up to the alignment, which aligned_alloc requires of
+// its argument.
+static void *arena_alloc_default(size_t size) {
+    const size_t rounded = (size + 63u) & ~(size_t) 63u;
+    void *const p = aligned_alloc(64, rounded);
+    if (p != nullptr)
+        memset(p, 0, rounded);
+    return p;
+}
+
+static void arena_free_default(void *ptr) { free(ptr); }
+
+void *(*ArenaAlloc)(size_t size) = arena_alloc_default;
+void (*ArenaFree)(void *ptr) = arena_free_default;
 
 // Provide a deterministic monotonic counter as the headless fallback. Reading a
 // real OS clock is a platform service, so the engine cannot do it and stay

@@ -8,6 +8,7 @@
 #include "../state/worker_construct.h"
 #include "search_threads.h"
 #include "history.h"
+#include "../state/arena_source.h"
 #include "option_source.h"
 #include "pool_source.h"
 #include "output_sink.h"
@@ -127,6 +128,15 @@ static int (*ShellOptionInt)(const char *name) = nullptr;
 
 void search_set_option_source(int (*option_int_by_name)(const char *name)) {
     ShellOptionInt = option_int_by_name;
+}
+
+void search_set_arena_source(void *(*alloc_fn)(size_t size), void (*free_fn)(void *ptr)) {
+    // Both or neither: a block handed out by one implementation and released by
+    // another is a heap corruption with no diagnostic.
+    if (alloc_fn != nullptr && free_fn != nullptr) {
+        ArenaAlloc = alloc_fn;
+        ArenaFree = free_fn;
+    }
 }
 
 void search_set_time_source(int64_t (*now_ms_fn)(void)) {
