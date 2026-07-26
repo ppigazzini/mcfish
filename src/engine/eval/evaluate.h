@@ -122,7 +122,7 @@ void eval_acc_reset(EvalArena *arena);
 
 // Push one ply and hand back the two records pos_do_move must fill. The pointers
 // address ARENA's own storage, so the make-move writes its delta straight into the
-// slot and nothing is copied. Both are always non-NULL: a ply the stack cannot hold
+// slot and nothing is copied. Both are always non-null: a ply the stack cannot hold
 // lands in the arena's private scratch, so a call site needs no branch.
 //
 // ARENA must not be null. A search that could not get one must not start: without a

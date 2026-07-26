@@ -43,7 +43,7 @@ typedef struct {
     size_t correct_bucket;
 } NnueTraceOutput;
 
-// Carry the outcome of network_verify. MESSAGE is heap-allocated and may be NULL
+// Carry the outcome of network_verify. MESSAGE is heap-allocated and may be nullptr
 // when the allocation failed; release it with network_free_message.
 typedef struct {
     bool should_exit;

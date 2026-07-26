@@ -41,7 +41,7 @@ void nnue_set_loaded_state(const char *current,
                            size_t description_len);
 
 // Return the loaded net's name / description. Both are NUL-terminated for
-// printing; *LEN, when non-NULL, receives the byte length, which is what a
+// printing; *LEN, when non-null, receives the byte length, which is what a
 // comparison must use — a description may contain embedded NULs.
 const char *nnue_nn_current(size_t *len);
 const char *nnue_nn_description(size_t *len);
@@ -52,18 +52,18 @@ bool nnue_equal_current_name(const char *target, size_t target_len);
 // ---- weight storage ----------------------------------------------------------
 
 // Return the feature-transformer block, allocating (or re-allocating on a size
-// change) N zeroed, 64-byte-aligned bytes. Return NULL when N is 0 or the
+// change) N zeroed, 64-byte-aligned bytes. Return nullptr when N is 0 or the
 // allocation fails; the caller must then reject the net rather than proceed.
 uint8_t *nnue_ft_storage(size_t n);
 
-// Return the loaded feature transformer, or NULL when no net is resident.
+// Return the loaded feature transformer, or nullptr when no net is resident.
 const uint8_t *nnue_ft_ptr(void);
 
 // Return one affine layer's block, allocating N zeroed, 64-byte-aligned bytes on
-// first use. Return NULL on a bad index or a failed allocation.
+// first use. Return nullptr on a bad index or a failed allocation.
 uint8_t *nnue_layer_storage(size_t bucket, size_t idx, NnueLayerPart part, size_t n);
 
-// Return one affine layer's block, or NULL when it has never been loaded.
+// Return one affine layer's block, or nullptr when it has never been loaded.
 const uint8_t *nnue_layer_ptr(size_t bucket, size_t idx, NnueLayerPart part);
 
 // Release every block and forget the loaded-net identity. A subsequent load

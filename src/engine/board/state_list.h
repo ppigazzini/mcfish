@@ -15,7 +15,7 @@
 // walk in `repetition.c`, so a root that is not zeroed is a read off the end of
 // the chain.
 //
-// Every allocating call returns NULL on failure and leaves the list unchanged and
+// Every allocating call returns nullptr on failure and leaves the list unchanged and
 // usable — the list is legitimately growable (bounded by the move list a client
 // sends, not by MAX_PLY), so out-of-memory is an error to propagate, not to
 // assert on.
@@ -33,17 +33,17 @@
 
 typedef struct StateList StateList;
 
-// Create a list holding a single zeroed root StateInfo. Return NULL on failure.
+// Create a list holding a single zeroed root StateInfo. Return nullptr on failure.
 StateList *state_list_create(void);
 
-// Free the list and every StateInfo in it. Accept NULL.
+// Free the list and every StateInfo in it. Accept nullptr.
 void state_list_destroy(StateList *list);
 
 // Drop to a single fresh zeroed root and return its address. Cannot fail: the root
 // block already exists, so this only frees and zeroes.
 StateInfo *state_list_reset(StateList *list);
 
-// Append one zeroed StateInfo and return its address. Return NULL on failure,
+// Append one zeroed StateInfo and return its address. Return nullptr on failure,
 // leaving the list unchanged.
 StateInfo *state_list_push(StateList *list);
 
@@ -62,19 +62,19 @@ typedef struct PendingStateStorage PendingStateStorage;
 
 PendingStateStorage *pending_states_create(void);
 
-// Free the wrapper, and the list it still owns if it was never moved out. Accept NULL.
+// Free the wrapper, and the list it still owns if it was never moved out. Accept nullptr.
 void pending_states_destroy(PendingStateStorage *storage);
 
 // Drop to a single fresh root and return its address. Re-create the list if it was
-// moved out. Return NULL on failure.
+// moved out. Return nullptr on failure.
 StateInfo *pending_states_reset(PendingStateStorage *storage);
 
-// Append one StateInfo. Return NULL on failure, or if the list was moved out.
+// Append one StateInfo. Return nullptr on failure, or if the list was moved out.
 StateInfo *pending_states_push(PendingStateStorage *storage);
 
 bool pending_states_has_states(const PendingStateStorage *storage);
 
-// Transfer the list to the caller and null the wrapper. Return NULL if it was
+// Transfer the list to the caller and null the wrapper. Return nullptr if it was
 // already moved out. The caller becomes responsible for `state_list_destroy`.
 StateList *pending_states_move_out(PendingStateStorage *storage);
 

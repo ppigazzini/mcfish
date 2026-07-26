@@ -39,7 +39,7 @@ static void toggle_aux_keys(StateInfo *st, Piece pc, Square sq) {
     }
 }
 
-// Mutate the boards, recording the threat delta into DTS when it is non-NULL.
+// Mutate the boards, recording the threat delta into DTS when it is non-null.
 //
 // The threat call sits on the side of the board update that leaves `occupied`
 // describing the OTHER half of the transition: before the boards change for a

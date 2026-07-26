@@ -29,13 +29,13 @@ static size_t NnDescriptionLen = 0;
 
 // Hold the inference storage. The parse writes the weights straight here;
 // inference reads from the same memory.
-static uint8_t *FtStorage = NULL;
+static uint8_t *FtStorage = nullptr;
 static size_t FtLen = 0;
 
 static uint8_t *LayerWeights[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK];
 static uint8_t *LayerBiases[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK];
 
-// Return N uninitialised bytes aligned to the cache line, or NULL. Round the
+// Return N uninitialised bytes aligned to the cache line, or nullptr. Round the
 // request up to the alignment: aligned_alloc wants a size the alignment divides.
 //
 // Do not zero the block. A successful parse writes every byte a reader can
@@ -64,14 +64,14 @@ enum { HUGE_PAGE_SIZE = 2u << 20, HUGE_PAGE_MIN_BLOCK = 1u << 20 };
 
 static uint8_t *aligned_uninit(size_t n) {
     if (n == 0)
-        return NULL;
+        return nullptr;
 
     const bool huge = n >= HUGE_PAGE_MIN_BLOCK;
     const size_t align = huge ? (size_t) HUGE_PAGE_SIZE : (size_t) NNUE_CACHE_LINE_SIZE;
     const size_t total = NNUE_CEIL_TO_MULTIPLE(n, align);
     uint8_t *block = aligned_alloc(align, total);
-    if (block == NULL)
-        return NULL;
+    if (block == nullptr)
+        return nullptr;
 
 #if defined(__linux__) && defined(MADV_HUGEPAGE)
     if (huge)
@@ -101,13 +101,13 @@ void nnue_set_loaded_state(const char *current,
 }
 
 const char *nnue_nn_current(size_t *len) {
-    if (len != NULL)
+    if (len != nullptr)
         *len = NnCurrentLen;
     return NnCurrent;
 }
 
 const char *nnue_nn_description(size_t *len) {
-    if (len != NULL)
+    if (len != nullptr)
         *len = NnDescriptionLen;
     return NnDescription;
 }
@@ -118,16 +118,16 @@ bool nnue_equal_current_name(const char *target, size_t target_len) {
 
 uint8_t *nnue_ft_storage(size_t n) {
     if (n == 0)
-        return NULL;
-    if (FtStorage != NULL && FtLen != n) {
+        return nullptr;
+    if (FtStorage != nullptr && FtLen != n) {
         free(FtStorage);
-        FtStorage = NULL;
+        FtStorage = nullptr;
         FtLen = 0;
     }
-    if (FtStorage == NULL) {
+    if (FtStorage == nullptr) {
         FtStorage = aligned_uninit(n);
-        if (FtStorage == NULL)
-            return NULL;
+        if (FtStorage == nullptr)
+            return nullptr;
         FtLen = n;
     }
     return FtStorage;
@@ -137,34 +137,34 @@ const uint8_t *nnue_ft_ptr(void) { return FtStorage; }
 
 static uint8_t **layer_slot(size_t bucket, size_t idx, NnueLayerPart part) {
     if (bucket >= NNUE_LAYER_STACKS || idx >= NNUE_LAYERS_PER_STACK)
-        return NULL;
+        return nullptr;
     return part == NNUE_LAYER_WEIGHTS ? &LayerWeights[bucket][idx] : &LayerBiases[bucket][idx];
 }
 
 uint8_t *nnue_layer_storage(size_t bucket, size_t idx, NnueLayerPart part, size_t n) {
     uint8_t **slot = layer_slot(bucket, idx, part);
-    if (slot == NULL || n == 0)
-        return NULL;
-    if (*slot == NULL)
+    if (slot == nullptr || n == 0)
+        return nullptr;
+    if (*slot == nullptr)
         *slot = aligned_uninit(n);
     return *slot;
 }
 
 const uint8_t *nnue_layer_ptr(size_t bucket, size_t idx, NnueLayerPart part) {
     uint8_t **slot = layer_slot(bucket, idx, part);
-    return slot == NULL ? NULL : *slot;
+    return slot == nullptr ? nullptr : *slot;
 }
 
 void nnue_weight_storage_free(void) {
     free(FtStorage);
-    FtStorage = NULL;
+    FtStorage = nullptr;
     FtLen = 0;
     for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket) {
         for (size_t idx = 0; idx < NNUE_LAYERS_PER_STACK; ++idx) {
             free(LayerWeights[bucket][idx]);
-            LayerWeights[bucket][idx] = NULL;
+            LayerWeights[bucket][idx] = nullptr;
             free(LayerBiases[bucket][idx]);
-            LayerBiases[bucket][idx] = NULL;
+            LayerBiases[bucket][idx] = nullptr;
         }
     }
     NnInitialized = false;

@@ -30,7 +30,7 @@ enum { BENCH_DEFAULT_DEPTH = 13 };
 //
 // fenFile is `default` (upstream's list), `current` (the position now set), or a
 // path to a file of FENs, one per line. limitType is depth, nodes, movetime, perft
-// or eval. Pass NULL or "" for upstream's defaults, which are what the signature
+// or eval. Pass nullptr or "" for upstream's defaults, which are what the signature
 // anchor is defined against. Golden: `Stockfish/src/benchmark.cpp:390`.
 uint64_t benchmark_run(const char *args);
 
