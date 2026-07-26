@@ -14,8 +14,8 @@
 # shrink monotonically or it stops meaning anything.
 #
 # Reaching zero makes src/engine/ the standalone chess library its header comments
-# already claim it is. Each line is one seam away from gone; the four groups below
-# are four different pieces of work, not one.
+# already claim it is. Each line is one seam away from gone; the groups below are
+# separate pieces of work, not one.
 #
 # The clock is the worked example of a service that is NOT on this list: a seam in
 # the engine zone (time_source.h), every reader in the zone going through it, and
@@ -25,11 +25,6 @@
 # --- memory (2): the engine's big arenas allocate through the host --------------
 page_alloc
 page_free
-
-# --- thread runtime (3): the stop flag's atomics ---------------------------------
-atomic_bool_init
-atomic_bool_load
-atomic_bool_store
 
 # --- thread pool (10): Lazy-SMP dispatch, reached from search_threads.c ----------
 thread_pool_clear
