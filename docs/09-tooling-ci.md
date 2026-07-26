@@ -62,6 +62,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `fmt` / `fmt-fix` | `clang-format --dry-run --Werror` over `src/` and `tests/` | formatting. Exits **127** when no `clang-format` is found |
 | `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) | dead internal links, named paths that do not exist, a quoted bench signature, a backticked `snake_case` symbol absent from the whole tree, and a `build.sh` step no tracked page mentions. See [11-writing.md](11-writing.md) |
 | `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | mcfish's bench against a pristine upstream build — see below |
+| `upstream-transcript` | drives both engines over [`../tools/cases/transcript/`](../tools/cases/transcript) and diffs the whole output | the UCI SURFACE against the golden, which `golden` structurally cannot do — that gate pins what mcfish printed last time, so both sides move together when a golden is re-derived. Machine-dependent fields are elided and nothing else; accepted divergences carry an argued reason in [`../tools/transcript_known.txt`](../tools/transcript_known.txt). **LOCAL** — it needs the oracle build |
 | `parity` | the aggregate | the ten gates listed below it — every in-repo gate, but not `upstream-parity` |
 | `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*, and deliberately does not fetch, so that `build` never becomes a network dependency |
 | `net-fetch` | downloads the expected net into `resources/` and **sha256-verifies** it | nothing — it fetches. It is a separate step precisely so `net` can stay offline; this is what the CI lanes run before a gate that needs a net |
@@ -342,6 +343,19 @@ Four rules that each cost a wrong number before they were written down:
   the whole-process ratio reads 0.987x where the search-only ratio is 1.19x.
   Profile `printf 'quit\n' | <bin>` for a startup figure and subtract it, or name
   the offenders with `perf_fingerprint.py costs`.
+
+### Two gates named parity, and only one reads the wire
+
+`upstream-parity` compares one number — the bench total — and is the finish line for
+the SEARCH. It says nothing about what the engine prints. `upstream-transcript`
+compares the bytes, and is the only thing that can catch a divergence in the option
+table, an `info string`, an error path or an exit code.
+
+Both are needed and neither substitutes: a port can be bit-exact on nodes while
+answering `setoption` with the wrong text, and it can print a perfect transcript while
+searching a different tree. Keep `tools/transcript_known.txt` short — each line is a
+standing claim that mcfish may differ from the golden, which is the opposite of what
+this port is for, so each names what would retire it.
 
 **Call counts, not costs, are the parity test.** `perf_fingerprint.py --calls`
 answers "do we run Stockfish's algorithm?" — call counts are inlining-immune,

@@ -1,0 +1,4 @@
+boguscommand
+position startpos moves e2e4 zzzz
+setoption name Nonexistent value 3
+isready
