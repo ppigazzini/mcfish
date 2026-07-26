@@ -3,13 +3,11 @@
 # source paths that do not exist, a bench signature quoted into prose, backticked
 # symbols the tree does not contain, and a build.sh step no page mentions.
 #
-# WHAT THIS CANNOT DO: tell you a sentence is FALSE. A page can link cleanly, name
-# only real paths and real symbols, quote no numbers, and still describe code that
-# was replaced three commits ago -- wrong ORDER, wrong COUNT, wrong reason. An
-# audit found `parity` documented as nine gates when it runs ten, and "there is no
-# LTO in the build" on a page whose build has had `-flto` throughout; neither is
-# reachable from here. This gate buys the mechanical half so review can spend its
-# attention on the half that needs a reader. See docs/11-writing.md.
+# WHAT THIS CANNOT DO: tell you a sentence is FALSE. Every name can resolve and the
+# claim still be wrong -- a real symbol placed in the wrong file, a list with the
+# wrong count or order, a flag described as absent from a build that sets it. None
+# of those is reachable from here. This gate buys the mechanical half so review can
+# spend its attention on the half that needs a reader. See docs/11-writing.md.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -115,10 +113,7 @@ fi
 
 # A `snake_case` token in backticks is a claim that the tree contains that name.
 # Renames are what break it: the code moves, the prose keeps the old spelling, and
-# nothing notices -- this gate was added after an audit found `tt_store` (now
-# `tt_save`), `entry_relative_age` (`tt_entry_relative_age`), `uci_start_logger`
-# (`uci_output_start_logger`) and `pos_see_ge` (a duplicate collapsed long ago)
-# all still named in the pages.
+# nothing else notices -- every other gate reads the code, not the pages.
 #
 # The corpus is every tracked source, script and workflow PLUS the tracked path
 # list, so a doc may name a tool by its filename (`nps_ab`) or a build.sh function
@@ -138,9 +133,8 @@ done
 
 # ------------------------------------------- every build.sh step is documented
 
-# The step table in 09-tooling-ci.md claims to say what each step proves. A step
-# added without a row is a feature nobody can find; `net-fetch`, `pgo` and
-# `perf-budget-update` were each absent from every page when this was added.
+# The step table in 09-tooling-ci.md claims to say what each step proves, so a step
+# added without a row is a feature nobody reading the docs can find.
 while read -r step; do
   [[ -z $step ]] && continue
   grep -qF -- "$step" "${DOCS[@]}" \

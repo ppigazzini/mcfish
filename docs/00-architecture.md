@@ -37,25 +37,45 @@ flowchart TD
     shell --> engine
     shell --> platform
     platform --> engine
-    engine -.->|"search.c includes platform/clock.h"| platform
+    engine -.->|"memory, thread runtime, pool, NUMA"| platform
 
     style engine fill:#1f6f3f,color:#fff
 ```
 
-**The dashed edge is real and is a gap, not a design — but it has shrunk to one
-file.** The search zone itself reads the clock through the injection seam
-[`src/engine/search/time_source.h`](../src/engine/search/time_source.h), the same
-shape `output_sink.h` uses for output; no node body, no time decision and no info
-line calls into `platform/`. What remains is the facade
-[`src/engine/search/search.c`](../src/engine/search/search.c), which includes
-`../../platform/clock.h` to *register* `now_ms` as that seam's implementation and to
-stamp the search's start time.
+**The dashed edge is real and is a gap, not a design**, and it is **counted, not
+described**. A prose summary of it cannot be trusted: `zone-check` is structurally
+blind to this direction — the array it links contains all of `platform/` — so
+nothing contradicts a sentence here that has drifted from the tree.
 
-That registration belongs in the shell, which is the zone that already owns
-`search_set_output`. It sits in the facade only because the live shell has no
-startup hook that runs before the first `go`. The cost is unchanged in kind and
-smaller in degree: `engine/` still cannot be linked without a POSIX clock, so the
-zone is not yet the standalone library the header comments claim.
+`./build.sh engine-standalone` closes that hole. It compiles every `src/engine/*.c`
+alone, links them with no platform object, and holds the undefined set against
+[`../tools/engine_platform.baseline`](../tools/engine_platform.baseline). A new
+symbol fails, because that is a fresh dependency on the host and the fix is a seam.
+A symbol that is no longer needed also fails, asking to be struck from the list, so
+the baseline cannot outlive what it measures. Read the current edge from that file
+or from the gate, never from a sentence here.
+
+What remains is four separate pieces of work rather than one: `page_alloc` /
+`page_free` for the big arenas; the `atomic_bool_*` trio behind the stop flag;
+`thread_pool_*` and `thread_set_worker` for Lazy-SMP dispatch; and `numa_*` for
+topology and replication. **Nothing in the search's hot path is among them** — no
+node body, no evaluation, no move generation. The edge is entirely worker-set
+lifecycle plus arena allocation, which is why the single-threaded search is already
+portable in everything but its link line.
+
+The clock is the worked example of a service that is **off** the list, and the
+shape to copy for one that is on it. Three things have to hold together, and a
+seam with any of them missing still leaves the symbol in the link line:
+
+- the engine zone declares a function pointer —
+  [`time_source.h`](../src/engine/search/time_source.h), the same shape as
+  `output_sink.h`;
+- **every** reader in the zone goes through it. `timeman.c` and the search facade
+  read `TimeNowMs`, not `now_ms`. A single direct call anywhere in `engine/` keeps
+  the dependency whole, however complete the seam looks;
+- the **host** registers the implementation. `engine_init` calls
+  `search_set_time_source`, beside the `search_set_output` and
+  `search_set_option_source` it already owns, before the first command is read.
 
 ## What is actually in the binary
 
@@ -74,8 +94,7 @@ covered by `signature`, `perft` or `golden`. **Read the arrays, not the
 directory listing, to know what the engine is.**
 
 No `.c` file in the tree is in that state today: every one under `src/` appears in
-`SOURCES`. That is a fact to re-check rather than to assume — it was false until
-the shell split in `1e438bc` — and the check is one command:
+`SOURCES`. Re-check that rather than assume it; the check is one command:
 
 ```sh
 comm -23 <(find src -name '*.c' | sort) <(grep -oE 'src/[a-z_/]+\.c' build.sh | sort -u)
@@ -115,10 +134,11 @@ Three properties of this check matter:
   declarations are visible; linking is what proves no call is left dangling. A
   forbidden call to a shell function compiles fine against any prototype and fails
   only at link time.
-- **It cannot see the engine→platform edge.** `clock.c` is *inside*
-  `ENGINE_SOURCES`, so `search.c`'s include of `platform/clock.h` resolves and the
-  check passes. `zone-check` proves exactly one thing: engine plus platform links
-  without shell. It says nothing about the boundary between engine and platform.
+- **It cannot see the engine→platform edge.** Every `platform/` file is *inside*
+  `ENGINE_SOURCES`, so an engine file's include of a platform header resolves and
+  the check passes. `zone-check` proves exactly one thing: engine plus platform
+  links without shell. It says nothing about the boundary between engine and
+  platform — `engine-standalone` is the gate for that.
 - **It cannot see a file that is not in the array.** An unwired engine module
   could call straight into `shell/` and `zone-check` would stay green, because it
   never compiles that file at all.
@@ -214,9 +234,11 @@ consequence: a gate that forgets to install a sink sees a search that runs and
 prints nothing, which looks like a hung engine rather than a wiring bug.
 
 This seam is why `engine/` links without `shell/`, and why a future in-process gate
-can capture search output without spawning a subprocess. The clock is the one
-service that did **not** get this treatment in the live search; see the dashed edge
-above.
+can capture search output without spawning a subprocess. The clock now has the same
+treatment — `time_source.h` and `search_set_time_source`, installed from
+`engine_init` — so output and time are injected the same way. The services that
+still are not are the arena allocator, the thread pool and NUMA; the dashed edge
+above counts them.
 
 ## How a search flows
 
@@ -289,14 +311,14 @@ the refresh cache — are all allocated once, outside any search.
 ## What is on disk but not in the binary
 
 Nothing. The `SOURCES` array is the sole authority on what is compiled, and it
-currently enumerates every `.c` file in the tree — run the `comm` check above to
-re-establish that rather than trusting this paragraph.
+enumerates every `.c` file in the tree — run the `comm` check above to re-establish
+that rather than trusting this paragraph.
 
-The last subsystem in that state was the decomposed shell, and `1e438bc` ended it:
-`engine.c` is the live session (the position, its `StateList` chain, the option
-table and its on-change callbacks, the resident net, the search wiring), `uci.c` is
-the thin transport that holds no engine state, and the dead helper cluster the
-initial port had left behind — `uci_parse.c` and its siblings — was deleted rather
-than wired. [07-shell.md](07-shell.md) describes the split as it stands.
+The shell is the zone where that is easiest to doubt, because two of its files look
+like alternatives to each other and are not: `engine.c` owns the session — the
+position and its `StateList` chain, the option table and its on-change callbacks,
+the resident net, the search wiring — and `uci.c` is the transport over it, holding
+no engine state. Both are in `SOURCES`. [07-shell.md](07-shell.md) describes the
+split.
 
 The zone diagram above is the shape all of that lands into.

@@ -49,7 +49,8 @@ battery. `./build.sh help` prints the list; this table says what each step
 | --- | --- | --- |
 | `build` | clang `-O3 -DNDEBUG`, one invocation over `SOURCES` | that the files **in `SOURCES`** compile under the full warning set. Not the tree — see above |
 | `debug` | the same sources with ASan + UBSan and `-fno-sanitize-recover=undefined` | nothing on its own; it is the binary the sanitizer lane drives |
-| `zone-check` | links `ENGINE_SOURCES` plus a stub `main`, with no shell object | that no **listed** `engine/` file calls into `shell/`. It **links**, so a forbidden call is an undefined symbol rather than a clean compile. It cannot see the engine→platform edge, because `clock.c` is inside the array |
+| `zone-check` | links `ENGINE_SOURCES` plus a stub `main`, with no shell object | that no **listed** `engine/` file calls into `shell/`. It **links**, so a forbidden call is an undefined symbol rather than a clean compile. It cannot see the engine→platform edge — all of `platform/` is inside the array — which is what `engine-standalone` is for |
+| `engine-standalone` | compiles every `src/engine/*.c` alone and links them with **no** platform object | the engine→platform edge, as a count rather than a claim. Ratchets the undefined symbols against [`../tools/engine_platform.baseline`](../tools/engine_platform.baseline): a new one fails (fix it with a seam, not a baseline edit), and a stale one fails too, so the list cannot outlive what it measures. See [00-architecture.md](00-architecture.md) |
 | `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism |
 | `tsan` | rebuilds `ENGINE_SOURCES` + the test binary under ThreadSanitizer and runs it | the thread pool: that spawning, dispatching a job, waiting on the condition variable and joining carry the happens-before edges they claim. **This is the only gate that can see a threading bug at all** — the single-threaded search never reaches that code, and a race does not have to fire to be there. Kept out of `parity`: it needs its own build of the engine and roughly triples the suite. Run it whenever `src/platform/thread*.c` changes |
 | `tsan-search [depth] [threads]` | builds the **whole engine** under ThreadSanitizer and drives one `go` through the UCI front end | races in the SEARCH, which `tsan` cannot see: that step links the test binary, so the only concurrent code it reaches is the thread-pool test. Now that the pool is driven it measures a genuinely multi-threaded search — see [04-multithreading.md](04-multithreading.md). It is the search-race gate the thread-pool `tsan` run cannot substitute for |
@@ -134,11 +135,10 @@ and exits 1 without writing anything when it does not. That is not a substitute
 for the judgement above — it just removes the one case where a mechanical check
 can tell laundering from a stale value.
 
-The general lesson is the cheaper one: **a golden with no regeneration step rots.**
-`tb_cursed.golden` had none, sits outside `parity`, and needs tables `tb-fetch`
-does not get by default, so its node legs stayed stale across a net sync that
-moved every node count in the tree. When adding a golden, add the step that
-re-derives it in the same commit.
+The general rule is the cheaper one: **a golden with no regeneration step rots**,
+and it rots invisibly when it also sits outside `parity` and needs inputs the
+default fetch does not supply — `tb_cursed.golden` is all three. Add the step that
+re-derives a golden in the same commit that adds the golden.
 
 ## Fact tables versus goldens
 

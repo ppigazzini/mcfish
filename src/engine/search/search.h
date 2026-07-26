@@ -84,6 +84,17 @@ void search_set_output(void (*emit)(const char *line));
 // must therefore replace the default set wholesale, never merge with it.
 void search_set_option_source(int (*option_int_by_name)(const char *name));
 
+// Install the monotonic clock the zone reads, in milliseconds. Reading an OS clock
+// is a platform service, so the HOST supplies it -- the same shape
+// search_set_output uses, and registered from the same place (engine_init).
+//
+// Unregistered, the zone falls back to the per-call counter in time_source.h. That
+// keeps a headless caller deterministic and every ordering property intact, but the
+// UNIT is ticks rather than milliseconds, so any time-LIMITED search needs this
+// installed. Every root that is time-limited comes through the shell, which
+// installs it before the first command.
+void search_set_time_source(int64_t (*now_ms_fn)(void));
+
 // Request that the running search stop at the next check. Safe to call from the
 // input thread while search_go runs.
 void search_stop(void);

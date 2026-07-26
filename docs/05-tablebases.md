@@ -95,10 +95,10 @@ The two lazy maps **are** thread-safe, because every probing thread reaches them
 `ready`, then a mutex, then a recheck, then the map and parse, and only then the
 store that publishes the flag.
 
-**The flag is published LAST.** It used to be raised on entry, before the file
-was even opened, so a second thread taking the fast path read either a null base
-— reporting "no such table" for a table that exists — or a base whose
-`PairsData` was still being parsed underneath it.
+**The flag is published LAST**, after the map and the parse. Raise it any earlier
+— on entry, before the file is even opened — and a second thread taking the fast
+path reads either a null base, reporting "no such table" for a table that exists,
+or a base whose `PairsData` is still being parsed underneath it.
 
 WDL and DTZ take **separate** mutexes, because upstream's `static std::mutex`
 sits inside a function template and is therefore per instantiation; one lock

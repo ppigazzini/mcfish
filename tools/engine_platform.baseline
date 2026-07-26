@@ -1,0 +1,55 @@
+# Platform symbols src/engine/ cannot link without: the engine->platform edge,
+# enumerated instead of described.
+#
+# docs/00-architecture.md draws this edge dashed and calls it a gap, not a design.
+# `zone-check` cannot see it: the array it links (ENGINE_SOURCES) contains all of
+# platform/, so the edge is inside its boundary and prose is the only other thing
+# that could describe it -- which is exactly what drifts.
+#
+# THE RATCHET: `./build.sh engine-standalone` compiles every src/engine/*.c on its
+# own, links them with no platform object, and compares the undefined set to this
+# list. A symbol that is NOT here fails the gate -- that is a NEW dependency on the
+# host, and the fix is a seam, not an edit to this file. A symbol here that is no
+# longer needed also fails, with instructions to delete the line: the list must
+# shrink monotonically or it stops meaning anything.
+#
+# Reaching zero makes src/engine/ the standalone chess library its header comments
+# already claim it is. Each line is one seam away from gone; the four groups below
+# are four different pieces of work, not one.
+#
+# The clock is the worked example of a service that is NOT on this list: a seam in
+# the engine zone (time_source.h), every reader in the zone going through it, and
+# the host registering the implementation (engine_init, search_set_time_source).
+# All three are needed -- one direct call left anywhere in engine/ keeps the symbol.
+
+# --- memory (2): the engine's big arenas allocate through the host --------------
+page_alloc
+page_free
+
+# --- thread runtime (3): the stop flag's atomics ---------------------------------
+atomic_bool_init
+atomic_bool_load
+atomic_bool_store
+
+# --- thread pool (10): Lazy-SMP dispatch, reached from search_threads.c ----------
+thread_pool_clear
+thread_pool_init
+thread_pool_reconfigure
+thread_pool_run_on_thread
+thread_pool_set_increase_depth
+thread_pool_set_stop
+thread_pool_start_jobs
+thread_pool_wait_from
+thread_pool_wait_on_thread
+thread_set_worker
+
+# --- NUMA (9): topology and replication, reached from search_threads.c -----------
+numa_config_init
+numa_context_destroy
+numa_context_init
+numa_context_set_from_string
+numa_context_set_hardware
+numa_context_set_none
+numa_context_set_system
+numa_distribute_threads_among_nodes
+numa_suggests_binding_threads

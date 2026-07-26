@@ -248,15 +248,16 @@ zero on one thread is a measurement of the thread count, not of the state. Read
 any run of this step against that history — the tempting reading of a small number
 is the wrong one.
 
-That reading is no longer left to the reader. The step used to print the caveat and
-a count it derived by grepping the log for `Thread T[1-9]` — a string that only
-occurs *inside* a race report, so on a clean run it was always zero and the caveat
-could not be answered. It now samples `/proc/<pid>/task` while the search runs and
-reports the **peak OS thread count**, then acts on it: fewer threads than requested
-is a failure, and a process that never held two threads exits 127 as skipped,
-because a race needs two. `Threads 1` still passes on its own terms — the
-dispatch-and-join handshake above is real concurrency — which is the distinction
-the old grep could not draw.
+That reading is not left to the reader. The step samples `/proc/<pid>/task` while
+the search runs and reports the **peak OS thread count**, then acts on it: fewer
+threads than requested is a failure, and a process that never held two threads
+exits 127 as skipped, because a race needs two. Note what it does not do — count
+threads out of the sanitizer's own output. Any such string appears only inside a
+race report, so on a clean run it is zero by construction and would answer the
+caveat with the one number that cannot mean anything.
+
+`Threads 1` passes on its own terms: `go` dispatches even a one-thread search onto
+worker 0's OS thread, so the dispatch-and-join handshake is real concurrency.
 
 zfish ran the same experiment once its pool was live and found
 **10,664 races** on an 8-thread depth-14 search, on state it had until then been

@@ -378,6 +378,62 @@ do_zone_check() {
   green "zone check passed"
 }
 
+# Measure the engine->platform edge instead of describing it.
+#
+# `zone-check` above links ENGINE_SOURCES, which CONTAINS all of platform/, so it
+# proves engine/ does not call into shell/ and is structurally blind to engine/
+# calling into platform/. That edge is the one docs/00-architecture.md draws dashed
+# and calls a gap. Prose cannot hold it: nothing contradicts a sentence that has
+# drifted, so the edge has to be read off the linker instead.
+#
+# Link engine/ ALONE and take the undefined set. It is a ratchet,
+# not a pass/fail on zero: the list in tools/engine_platform.baseline is what the
+# edge is TODAY, a new symbol fails (that is a fresh host dependency, and the fix is
+# a seam), and a symbol that has become unnecessary also fails, asking to be deleted
+# -- a baseline that only ever grows stale is the failure mode the uncovered ratchet
+# in upstream-map already guards against.
+do_engine_standalone() {
+  local base=tools/engine_platform.baseline
+  [[ -f $base ]] || { red "engine-standalone: no $base"; return 1; }
+  info "engine-standalone: link engine/ with no platform object, ratchet the edge"
+
+  local dir; dir=$(mktemp -d)
+  local f obj=()
+  for f in $(find src/engine -name '*.c' | sort); do
+    "$CC" "${CFLAGS_COMMON[@]}" -O1 -c "$f" -o "$dir/$(basename "${f%.c}").o" || {
+      red "engine-standalone: $f does not compile on its own"; rm -rf "$dir"; return 1; }
+    obj+=("$dir/$(basename "${f%.c}").o")
+  done
+
+  # No stub main: `main` then shows up as undefined and is filtered, which keeps the
+  # link command honest about what the engine objects alone actually require.
+  "$CC" -o "$dir/eng" "${obj[@]}" -lm 2>"$dir/err" || true
+  grep -oE "undefined reference to \`[A-Za-z_][A-Za-z0-9_]*'" "$dir/err" \
+    | sed "s/.*\`//; s/'//" | sort -u | grep -v '^main$' > "$dir/have"
+  grep -vE '^\s*(#|$)' "$base" | tr -d ' \t' | sort -u > "$dir/want"
+
+  local added removed
+  added=$(comm -23 "$dir/have" "$dir/want")
+  removed=$(comm -13 "$dir/have" "$dir/want")
+  local n; n=$(wc -l < "$dir/have")
+  rm -rf "$dir"
+
+  if [[ -n $added ]]; then
+    red "engine-standalone: NEW platform dependencies in engine/ --"
+    printf '%s\n' "$added" | sed 's/^/      /'
+    red "  Route it through an injection seam the host registers (search_set_time_source"
+    red "  is the worked example); do not add it to $base."
+    return 1
+  fi
+  if [[ -n $removed ]]; then
+    red "engine-standalone: these are no longer needed -- delete them from $base:"
+    printf '%s\n' "$removed" | sed 's/^/      /'
+    red "  A baseline that outlives its entries stops measuring anything."
+    return 1
+  fi
+  green "engine-standalone: edge holds at $n platform symbol(s) — see $base"
+}
+
 do_bench() {
   need_binary
   # No depth argument means upstream's definition (depth 13, full default list,
@@ -867,12 +923,10 @@ do_tsan_search() {
 
   # Measure the thread count from the OS, not from the sanitizer's output.
   #
-  # This used to grep the log for "ThreadSanitizer.*Thread T[1-9]", which only ever
-  # appears INSIDE a race report -- so on the one outcome that matters, a clean run,
-  # it was structurally always 0, while the step printed "check the extra-thread
-  # count before reading this as a clean bill of health". The number it asked the
-  # reader to check could not be anything else. A `Threads value N` that silently
-  # spawned nothing produced a byte-identical pass.
+  # Any "Thread T<n>" string TSan prints appears only INSIDE a race report, so on a
+  # clean run it is zero however many threads ran -- counting it would answer "did
+  # this go parallel?" with the one number that cannot mean anything, and a
+  # `Threads value N` that silently spawned nothing would pass identically.
   #
   # `exec` so $! is the engine itself rather than the subshell, then sample
   # /proc/<pid>/task while it searches and keep the peak.
@@ -1020,9 +1074,8 @@ do_sync_status() {
     # which is a defect in the workspace -- ../Stockfish is the golden, so a
     # checkout behind the pin means every grep of it, and upstream_map.py's
     # fallback read, answers from source this tree has already ported past.
-    # Counting only the first direction reported a checkout four commits behind
-    # the pin as "in sync at <pin>", which is worse than silence: it asserts the
-    # thing a reader would otherwise verify.
+    # Count only the first direction and that state prints as "in sync at <pin>",
+    # which is worse than silence: it asserts the thing a reader would verify.
     ahead=$(git -C "$dir" rev-list --count "$pin..HEAD")
     behind=$(git -C "$dir" rev-list --count "HEAD..$pin")
 
@@ -1320,9 +1373,9 @@ do_tb_cursed() {
   fi
 }
 
-# Re-derive tools/tb_cursed.golden. This golden had no regeneration path at all, which
-# is why it sat stale from 007a589 (the SFNNv16 net sync moved every node count) until
-# someone ran the gate by hand three commits later.
+# Re-derive tools/tb_cursed.golden. A golden with no regeneration step rots, and this
+# one rots invisibly: it is outside `parity` and needs tables `tb-fetch` does not get
+# by default, so nothing re-derives it when a net change moves every node count.
 #
 # REFUSE unless the probe half already matches. That half is derived from the oracle
 # and is what says the prober is right; the node legs below it are a self-golden that
@@ -1465,6 +1518,7 @@ usage: ./build.sh <step> [args]
   tb-cursed          LOCAL: cursed-win/blessed-loss DTZ>100 branches (needs tb-fetch 5)
   tb                 assert Syzygy discovery and the root probe vs tools/tb.golden
   zone-check         assert engine/+platform/ link without shell/
+  engine-standalone  ratchet the engine->platform edge (link engine/ alone)
   fmt / fmt-fix      check / apply clang-format
   docs-lint          check docs for dead links and stale paths
   sync-status        report drift between the pinned SHAs and the tracked repos
@@ -1511,6 +1565,7 @@ case "${1:-build}" in
   tb-cursed-update) do_tb_cursed_update ;;
   golden-update)    do_golden_update ;;
   zone-check)       do_zone_check ;;
+  engine-standalone) do_engine_standalone ;;
   docs-lint)        do_docs_lint ;;
   upstream-nodes)   shift; do_upstream_nodes "$@" ;;
   sync-status)      do_sync_status ;;
