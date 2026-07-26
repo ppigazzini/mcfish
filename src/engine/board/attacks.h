@@ -4,6 +4,14 @@
 // carries several slider backends selected by macro; mcfish implements the
 // classic magic-bitboard one.
 //
+// The declarations here are the C form of upstream's header-side surface, which
+// this file owns in full: attacks.h:42 (Attacks::init), attacks.h:197
+// (sliding_attack), attacks.h:293 (attacks_bb over an occupancy), attacks.h:174
+// and attacks.h:179 (line_bb, between_bb) and attacks.h:191 (safe_destination,
+// mcfish's safe_step). Cited with :line deliberately — mcfish has an attacks.h of
+// its own, so a bare basename is ambiguous and tools/upstream_map.py skips it
+// rather than guess, which is how this file read as unported surface.
+//
 // A magic replaces the per-node ray walk with mask/multiply/shift/load. The
 // tables are built once by attacks_init() and are READ-ONLY during search — the
 // single-threaded startup init is the only writer, which is what makes them safe
