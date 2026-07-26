@@ -466,12 +466,23 @@ static void refresh_latest_psq(uint8_t perspective,
 // Perform the fused refresh: the HalfKA half through the finny cache fills the combined
 // accumulation and sets computed; the threat features are then ADDED on top (additive, no
 // zeroing), so combined = psq + threat — the refresh half of apply_combined.
-static void refresh_combined(uint8_t perspective,
-                             uint8_t king_square,
-                             NnueAccumulatorStack *stack,
-                             const Position *pos,
-                             const NnueFeatureTransformer *ft,
-                             NnueRefreshCache *cache) {
+//
+// Keep this OUT of the caller's body. Only a king move needs a refresh, so this path runs
+// a small fraction of the evaluations the incremental step does, but it carries the two
+// widest kernels in the file — the board diff plus both dual-store tile sweeps, plus the
+// full active-threat accumulate — and LTO inlines all of it into the one function that
+// every evaluation enters. That is what makes the transform the largest hot object in the
+// binary: with the refresh folded in it does not fit the instruction cache at all, and the
+// cold half is fetched alongside the hot half on every pass. Outlining it also stops the
+// body being duplicated at each inline site, so it costs no instructions to move — it
+// saves them. Attach the attribute rather than trusting an inline-cost heuristic, which
+// has no notion of how rarely a king moves.
+__attribute__((noinline)) static void refresh_combined(uint8_t perspective,
+                                                       uint8_t king_square,
+                                                       NnueAccumulatorStack *stack,
+                                                       const Position *pos,
+                                                       const NnueFeatureTransformer *ft,
+                                                       NnueRefreshCache *cache) {
     refresh_latest_psq(perspective, king_square, stack, pos, ft, cache);
 
     const size_t latest_index = stack_size(stack) - 1;
