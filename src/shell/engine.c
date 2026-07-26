@@ -187,7 +187,17 @@ void engine_init(const char *argv0) {
     search_set_option_source(engine_options_get_int);
 
     // Size the table from the registered default rather than a second literal.
-    tt_resize((size_t) engine_options_get_int("Hash"));
+    // A failure here is fatal, as it is upstream (tt.cpp:181): tt_resize leaves the
+    // one-cluster fallback installed, so the engine would keep answering UCI while
+    // every probe collided in a single cluster -- a silently much weaker engine, not
+    // a broken one, which is the failure mode nobody notices. The `setoption name
+    // Hash` path stays recoverable and reports through on_hash: rejecting one bad
+    // value mid-session is not the same as starting up unable to allocate a table.
+    const size_t hash_mb = (size_t) engine_options_get_int("Hash");
+    if (!tt_resize(hash_mb)) {
+        fprintf(stderr, "Failed to allocate %zuMB for transposition table.\n", hash_mb);
+        exit(EXIT_FAILURE);
+    }
 
     const char *r = nullptr;
     (void) engine_set_startpos(&r);
