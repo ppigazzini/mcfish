@@ -221,12 +221,14 @@ that golden at all — see [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PRO
 
 ## Gaps
 
-- **The `tb` gate is 3-man only.** The cursed-win / blessed-loss branches of
-  `map_score_dtz` and `probe_dtz` need DTZ > 100, reachable only from 5-man
-  tables, and are unexercised.
-- **No `d`-command probe lines.** Upstream prints `Tablebases WDL:` /
-  `Tablebases DTZ:`; mcfish has no such inspection surface, so there is no
-  per-position probe output to gate.
+- **The `tb` gate is 3-man only** — but the cursed-win / blessed-loss branches of
+  `map_score_dtz` and `probe_dtz` are no longer unexercised. They need DTZ > 100,
+  so only a 5-man table reaches them, and `./build.sh tb-cursed` drives exactly
+  that against `tools/tb_cursed.golden` after `./build.sh tb-fetch 5`. It is
+  deliberately outside `parity`, because it depends on tables `tb-fetch` does not
+  get by default and a gate that is usually skipped stops being read. Run it by
+  hand when touching the prober; it exits **127**, not 0, when the tables are
+  absent.
 - **The material key is local.** Upstream looks tables up by
   `Position::material_key`; mcfish's `Position` carries none, so `registry.c`
   hashes the piece counts with a private fixed-seed table. Only self-consistency

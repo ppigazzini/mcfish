@@ -27,9 +27,10 @@ compiled by nothing, so `build`, `test`, `zone-check`, `signature`, `perft` and
 `golden` all pass over it without reading a line. **A green `parity` is a statement
 about the arrays, not about `src/`.**
 
-The decomposed shell is the tree's one remaining subsystem in that state today —
-see [00-architecture.md](00-architecture.md). Two consequences for anyone using
-these gates:
+No file is in that state today — see [00-architecture.md](00-architecture.md) for
+the check that establishes it. The arrays covering the tree is the condition that
+makes a green `parity` mean what a reader expects, so it is worth re-checking
+whenever a file is added. Two consequences for anyone using these gates:
 
 - **Adding a file means editing `SOURCES`**, and `ENGINE_SOURCES` too if it belongs
   to `engine/` or `platform/`, or `zone-check` and the test binary will not see it.

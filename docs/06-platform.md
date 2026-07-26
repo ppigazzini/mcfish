@@ -216,11 +216,14 @@ mcfish prints the same diagnostic and reports the file unavailable, so one bad
 file does not take a GUI's engine down mid-game. Keep the diagnostic — without it
 a corrupt table is indistinguishable from an absent one.
 
-Two gaps remain. The `d` command prints no `Tablebases WDL:` / `Tablebases DTZ:`
-lines, so there is no per-position probe inspection surface. And `./build.sh tb`
-runs on the 3-man set only, which leaves the cursed-win / blessed-loss branches of
-`map_score_dtz` and `probe_dtz` — reachable only at DTZ > 100, so only from 5-man
-tables — unexercised.
+Both of the gaps this section used to list have closed. The `d` command prints
+upstream's `Tablebases WDL:` / `Tablebases DTZ:` lines once a `SyzygyPath` covers
+the position, and the cursed-win / blessed-loss branches of `map_score_dtz` and
+`probe_dtz` — reachable only at DTZ > 100, so only from 5-man tables — are driven
+by `./build.sh tb-cursed`, which `./build.sh tb-fetch 5` supplies the tables for.
+`./build.sh tb` itself still runs on the 3-man set; see
+[05-tablebases.md](05-tablebases.md) for why the 5-man leg is kept out of
+`parity`.
 
 ## The clock
 
