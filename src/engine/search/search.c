@@ -1,6 +1,5 @@
 #include "search.h"
 
-#include "../../platform/clock.h"
 #include "../board/board_props.h"
 #include "../board/legality.h"
 #include "../board/movegen.h"
@@ -130,7 +129,10 @@ void search_set_option_source(int (*option_int_by_name)(const char *name)) {
     ShellOptionInt = option_int_by_name;
 }
 
-static int64_t facade_now_ms(void) { return (int64_t) now_ms(); }
+void search_set_time_source(int64_t (*now_ms_fn)(void)) {
+    if (now_ms_fn != nullptr)
+        TimeNowMs = now_ms_fn;
+}
 
 // Register the seams the zone reads. Idempotent, and run before every search so a
 // caller that never touches the shell still gets a correct clock and option set.
@@ -139,7 +141,9 @@ static void install_seams(void) {
     OutputIsQuiet = facade_is_quiet;
     OutputSetLastNodesSearched = facade_set_last_nodes;
     OptionIntByName = ShellOptionInt ? ShellOptionInt : facade_option_int;
-    TimeNowMs = facade_now_ms;
+    // TimeNowMs is deliberately NOT reset here. It is installed once by the host
+    // through search_set_time_source; re-pointing it per search would undo that
+    // and drag platform/clock.h back into this zone.
 }
 
 // ---- per-search state ---------------------------------------------------
@@ -336,7 +340,7 @@ static void run_main_search(void *unused) {
         search_emit_pv(&best->ctx, best->ctx.root_depth);
     search_emit_bestmove(best->ctx.root_pos, &best->ctx.root_moves[0]);
 
-    Session.result = result_of(&best->ctx, (TimePoint) now_ms() - Session.start);
+    Session.result = result_of(&best->ctx, (TimePoint) TimeNowMs() - Session.start);
 
     // Clear the guard LAST, after every session field is written: a second `go`
     // waiting on this flag must not start setup until this job is done reading and
@@ -364,7 +368,7 @@ void search_go_start(Position *pos, const SearchLimits *limits) {
     // measured as early as possible). Fall back to stamping here when it is unset -- the
     // bench and test callers, which do not score elapsed time.
     const TimePoint start =
-      limits->start_time != 0 ? (TimePoint) limits->start_time : (TimePoint) now_ms();
+      limits->start_time != 0 ? (TimePoint) limits->start_time : (TimePoint) TimeNowMs();
 
     thread_pool_set_stop(search_threads_pool(), false);
     thread_pool_set_increase_depth(search_threads_pool(), true);
