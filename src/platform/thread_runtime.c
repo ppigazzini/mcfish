@@ -23,37 +23,3 @@ void condition_wait(Condition *cv, Mutex *m) { (void) pthread_cond_wait(&cv->han
 void condition_signal(Condition *cv) { (void) pthread_cond_signal(&cv->handle); }
 
 void condition_broadcast(Condition *cv) { (void) pthread_cond_broadcast(&cv->handle); }
-
-void atomic_bool_init(AtomicBool *a, bool value) { atomic_init(&a->value, value); }
-
-void atomic_bool_store(AtomicBool *a, bool value) {
-    atomic_store_explicit(&a->value, value, memory_order_seq_cst);
-}
-
-// Cast the const away for the load. C11's atomic_load_explicit takes a non-const pointer,
-// but a load mutates nothing the caller can observe, so the const in the signature is the
-// honest description of what this does.
-bool atomic_bool_load(const AtomicBool *a) {
-    AtomicBool *mut = (AtomicBool *) (uintptr_t) (const void *) a;
-    return atomic_load_explicit(&mut->value, memory_order_seq_cst);
-}
-
-bool atomic_bool_load_relaxed(const AtomicBool *a) {
-    AtomicBool *mut = (AtomicBool *) (uintptr_t) (const void *) a;
-    return atomic_load_explicit(&mut->value, memory_order_relaxed);
-}
-
-void atomic_u64_init(AtomicU64 *a, uint64_t value) { atomic_init(&a->value, value); }
-
-void atomic_u64_store(AtomicU64 *a, uint64_t value) {
-    atomic_store_explicit(&a->value, value, memory_order_relaxed);
-}
-
-uint64_t atomic_u64_load(const AtomicU64 *a) {
-    AtomicU64 *mut = (AtomicU64 *) (uintptr_t) (const void *) a;
-    return atomic_load_explicit(&mut->value, memory_order_relaxed);
-}
-
-uint64_t atomic_u64_fetch_add(AtomicU64 *a, uint64_t delta) {
-    return atomic_fetch_add_explicit(&a->value, delta, memory_order_relaxed);
-}
