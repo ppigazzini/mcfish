@@ -136,6 +136,18 @@ arch_report_label() {
 # at the same ISA from 1.242x to 1.154x.
 CFLAGS_RELEASE=(-O3 -DNDEBUG -fno-math-errno -flto "${CFLAGS_ARCH[@]}")
 
+# Stop unrolling at the 512-bit tiers, where it is a pure I-cache cost. Unrolling is
+# what makes the hot code big: at x86-64-avx512icl it accounts for 30% of .text
+# (296384 -> 208031 B) and 71% of the static zmm ops (6355 -> 1821), because the NNUE
+# kernels' constant-trip loops get replicated wholesale. -funroll-loops, which
+# upstream's Makefile passes at every ARCH, is a BYTE-IDENTICAL no-op here -- clang
+# already unrolls at -O3, so this is the only direction the flag has left. Confine it
+# to the wide tiers: at sse41 the same loops are a quarter of the width and the
+# unrolled form is far smaller, and that tier has not been measured.
+case "$MCFISH_ARCH" in
+  vnni512 | native) CFLAGS_RELEASE+=(-fno-unroll-loops) ;;
+esac
+
 # -fno-sanitize-recover is load-bearing: without it UBSan PRINTS a diagnostic and
 # then continues, so the process still exits 0 and CI reports a green run over a
 # real finding. Make undefined behaviour abort.
