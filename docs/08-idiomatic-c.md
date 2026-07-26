@@ -112,9 +112,13 @@ only thing standing between a wrap and a silent out-of-bounds table index.
 - **`static inline` in headers** is how the hot leaf functions are shared:
   `lsb`, `msb`, `pop_lsb`, `popcount_bb`, `shift_bb` in
   [`../src/engine/board/bitboard.h`](../src/engine/board/bitboard.h), and the
-  square/piece accessors in `types.h`. There is no LTO in the build, so a
-  cross-translation-unit call in the recursion is a real call. `static inline`
-  puts the body where the optimiser can see it.
+  square/piece accessors in `types.h`. The release build **is** `-flto`
+  (`CFLAGS_RELEASE`), but that does not make the boundary free: link-time
+  optimisation folds constants across translation units and inlines under size
+  budgets, and it leaves most out-of-line calls out of line — so a leaf called once
+  per node from another unit is still a real call. `static inline` puts the body
+  where the optimiser can see it without needing that judgement to go your way.
+  This is the same mechanism the file-split rule below rests on.
 
   The cost is that the body is **in the header**, so every translation unit that
   includes it is recompiled against the new body. `build.sh` does not track header
@@ -232,7 +236,7 @@ the only record that the narrowing was intended.
 An assertion that a value fits and a deliberate discard of high bits are not the
 same operation, and both spell `(uint8_t) x` in C — so the distinction survives
 only in a comment. Write it wherever upstream relies on the truncation, as
-`tt_store`'s `depth8` does.
+`tt_save`'s `depth8` does.
 
 ### Wrapping is undefined on signed types
 
@@ -245,7 +249,7 @@ arithmetic in the matching unsigned type and convert back, or widen. `stats_upda
 in [`../src/engine/search/history.c`](../src/engine/search/history.c) is the live
 example of the general hazard — the gravity term exists so an `int16_t` entry
 cannot overflow, and deleting it invokes UB that only a deep enough search reaches.
-The unsigned-borrow requirement in `entry_relative_age` in
+The unsigned-borrow requirement in `tt_entry_relative_age` in
 [`../src/engine/search/tt.c`](../src/engine/search/tt.c) is the same hazard from
 the other side: the generation counter must wrap, so the subtraction is written in
 an unsigned type on purpose.
@@ -305,8 +309,19 @@ gate that regenerates and diffs it, or the generator rots away from its output.
 
 ### Errors become return codes
 
-C does not force a caller to handle an error, so the convention has to be carried
-by hand and stated at the declaration:
+C does not force a caller to handle an error. The convention is stated at the
+declaration, and **`[[nodiscard]]` is what makes the compiler hold callers to it** —
+applied to every declaration whose return value reports failure, in both forms
+below. Both compilers in the parity workflow honour it, and both accept the
+`(void)` cast as the deliberate-discard escape the tree already uses.
+
+It is deliberately **not** on predicates: `pos_legal`, `see_ge` and
+`search_stopped` return an answer, not an error, and nothing is carried by hand
+there. `worker_ensure_network` reads like the same shape and is not — its `bool`
+says a net is resident, and both call sites correctly ignore it because the
+classical fallback covers the no-net case.
+
+The two forms:
 
 - **`bool` plus an out-parameter** where the failure is expected and local:
   `pos_set` returns `false` and leaves `pos` unspecified; `tt_resize` returns

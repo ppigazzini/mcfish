@@ -11,8 +11,9 @@ both zones rather than sitting inside [06-platform.md](06-platform.md).
 [`src/platform/syzygy/`](../src/platform/syzygy) plus
 [`tablebase.c`](../src/platform/tablebase.c) are in **both** `SOURCES` and
 `ENGINE_SOURCES`, the four UCI options are live, and `./build.sh tb` compares
-discovery and the root probe against `tools/tb.golden`. This is not one of the
-zone's unwired rows — read [06-platform.md](06-platform.md) for those.
+discovery and the root probe against `tools/tb.golden`. Nothing in this zone — or
+any zone — sits outside the source arrays today; see
+[00-architecture.md](00-architecture.md) for the check that establishes it.
 
 **Tables are a runtime input, like the net**, and live beside it in
 `resources/syzygy/`. With no `SyzygyPath` the max cardinality is 0, the root

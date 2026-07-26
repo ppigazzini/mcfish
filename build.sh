@@ -1057,7 +1057,7 @@ do_upstream_parity() {
 }
 
 do_docs_lint() {
-  info "docs-lint: dead links, named paths, pinned signature"
+  info "docs-lint: links, paths, signature, symbols, step coverage"
   bash tools/docs_lint.sh
 }
 

@@ -84,6 +84,13 @@ here — the pool's builder attaches the search payload and this module never
 dereferences it, which is what keeps the thread vehicle separable from the search
 zone it will drive.
 
+`thread_spawn` also **asks for the stack explicitly** rather than inheriting the
+platform default — `THREAD_STACK_SIZE`, upstream's `TH_STACK_SIZE`. The size is not
+the point; the floor is. A deep search needs somewhat over 1 MB, glibc happens to
+give 8 MB, and a non-main thread on macOS defaults to 512 KB, where the default
+overflows rather than failing a call. Failing to set the attribute is not fatal: it
+falls back to the default, as upstream does.
+
 `thread_pool.c` is **inert until `thread_pool_set` is called**, and a pool of one
 thread performs no binding, no distribution and no cross-thread synchronisation
 beyond the single idle-loop handshake. That is the property the `signature` gate
@@ -281,7 +288,9 @@ neighbours.
 **This is the portability boundary of the whole repo.** mcfish builds on POSIX
 hosts. A Windows build would need a `now_ms` backed by `QueryPerformanceCounter`, a
 replacement for the shell zone's `strtok` usage, and Windows equivalents for the
-`pthread`, `mmap` and `/sys` dependencies in the unwired modules above. Adding that
+`pthread`, `mmap` and `/sys` dependencies this zone carries — `thread.c` and
+`thread_runtime.c`, `memory.c`, and `numa.c`'s topology probe, all of them wired
+and in the binary. Adding that
 backend means a second implementation file behind the same header, selected in
 `build.sh`'s source list — not `#ifdef _WIN32` scattered through `clock.c`.
 

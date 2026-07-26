@@ -25,15 +25,20 @@ Any change that touches engine behaviour must keep the whole battery green:
 ./build.sh parity
 ```
 
+All ten, in the order `parity` runs them:
+
 | Gate | Asserts |
 |---|---|
+| `build` | the files in `SOURCES` compile under the full warning set |
 | `zone-check` | `engine/` + `platform/` link with no `shell/` object |
 | `fmt` | clang-format is clean |
 | `docs-lint` | no dead doc links, no named paths that do not exist |
 | `test` | the unit + property suite passes under ASan+UBSan |
 | `signature` | `bench` reproduces `tools/signature.golden` |
+| `simd-scalar` | the scalar SIMD fallback reproduces the same anchor as the vector path |
 | `perft` | the reference positions in `tools/perft.table` match |
 | `golden` | the UCI case outputs match `tools/*.golden` |
+| `tb` | Syzygy discovery and the root probe match `tools/tb.golden` |
 
 A gate whose **tool** is missing exits 127; `parity` names it as SKIPPED and does
 not claim it passed. A skipped gate proves nothing — install the tool before
