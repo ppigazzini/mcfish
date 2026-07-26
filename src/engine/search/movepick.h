@@ -68,7 +68,9 @@ typedef struct {
     const Stack *ss;
     // Continuation-history pages (ss-1) .. (ss-6). Quiet scoring reads slots
     // 0, 1, 2, 3 and 5; evasion scoring reads slot 0. Every slot a stage reads
-    // is filled by that stage's init before the read.
+    // is filled by that stage's init before the read. Slot 4 -- (ss-5) -- is
+    // read by nothing and so is filled by nothing; the index stays in the array
+    // to keep slot k meaning (ss-1-k), as upstream's contHist does.
     const SharedStat *cont_hist[6];
     int ply;
 

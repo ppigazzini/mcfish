@@ -280,6 +280,10 @@ Move movepick_next(MovePicker *mp) {
             mp->end_captures = mp->end_cur;
             partial_insertion_sort(mp->moves + mp->cur, count, INT32_MIN);
             ++mp->stage;
+            // Re-dispatch, as upstream's `goto top` does here (movepick.cpp:305): three
+            // stages share this block and each has a different successor, so the
+            // successor has to be read back off the stage. Every OTHER transition below
+            // has exactly one successor and falls through to it.
             continue;
         }
 
@@ -289,15 +293,25 @@ Move movepick_next(MovePicker *mp) {
                 return m;
 
             ++mp->stage;
-            continue;
+            // Fall into the one successor this stage has, as upstream does
+            // (movepick.cpp:317): re-dispatching would reload the stage and jump
+            // through the switch's table, and that indirect jump is the one the
+            // hardware predicts worst -- measured 48% mispredicted here.
+            [[fallthrough]];
         }
 
         case MP_QUIET_INIT : {
             if (!mp->skip_quiets) {
-                // Gather the six continuation pages only now that quiet scoring
-                // will read them; a picker cut off before this stage never pays.
-                for (size_t k = 0; k < 6; ++k)
-                    mp->cont_hist[k] = (mp->ss - 1 - (ptrdiff_t) k)->continuation_history;
+                // Gather the five continuation pages quiet scoring reads -- (ss-1)
+                // through (ss-4) and (ss-6) -- only now that it will read them; a
+                // picker cut off before this stage never pays. Slot 4 is (ss-5),
+                // which upstream's contHist array also builds (search.cpp:1093) and
+                // which no scorer reads, so skip it and leave that frame untouched.
+                mp->cont_hist[0] = (mp->ss - 1)->continuation_history;
+                mp->cont_hist[1] = (mp->ss - 2)->continuation_history;
+                mp->cont_hist[2] = (mp->ss - 3)->continuation_history;
+                mp->cont_hist[3] = (mp->ss - 4)->continuation_history;
+                mp->cont_hist[5] = (mp->ss - 6)->continuation_history;
 
                 const size_t count = score_list(mp, KIND_QUIETS, mp->moves + mp->cur);
 
@@ -307,7 +321,7 @@ Move movepick_next(MovePicker *mp) {
             }
 
             ++mp->stage;
-            continue;
+            [[fallthrough]];
         }
 
         case MP_GOOD_QUIET : {
@@ -320,7 +334,7 @@ Move movepick_next(MovePicker *mp) {
             mp->cur = 0;
             mp->end_cur = mp->end_bad_captures;
             ++mp->stage;
-            continue;
+            [[fallthrough]];
         }
 
         case MP_BAD_CAPTURE : {
@@ -331,7 +345,7 @@ Move movepick_next(MovePicker *mp) {
             mp->cur = mp->end_captures;
             mp->end_cur = mp->end_generated;
             ++mp->stage;
-            continue;
+            [[fallthrough]];
         }
 
         case MP_BAD_QUIET :
@@ -350,7 +364,7 @@ Move movepick_next(MovePicker *mp) {
             mp->end_generated = mp->end_cur;
             partial_insertion_sort(mp->moves + mp->cur, count, INT32_MIN);
             ++mp->stage;
-            continue;
+            [[fallthrough]];
         }
 
         case MP_EVASION :
