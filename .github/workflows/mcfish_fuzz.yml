@@ -40,6 +40,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # uci_fuzz.py parses on the runner's 3.12 today, but it is covered by the
+      # same requires-python >= 3.14 floor and the same py314 formatter, so it is
+      # one reformat away from the SyntaxError that took out the upstream-check
+      # gate. Provision the declared floor rather than rely on the file happening
+      # not to use 3.14 syntax yet.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
       - name: Install clang ${{ env.CLANG_VERSION }}
         run: |
           wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh

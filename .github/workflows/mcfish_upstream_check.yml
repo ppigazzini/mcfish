@@ -35,6 +35,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # pyproject pins requires-python >= 3.14 and ruff's target-version to py314,
+      # and the formatter EMITS 3.14-only syntax accordingly -- it rewrites
+      # `except (A, B):` to PEP 758's `except A, B:`. ubuntu-latest still ships
+      # 3.12, where that is a SyntaxError, so without this step upstream_map.py
+      # could not be parsed and the audit below died before it checked anything.
+      # A gate that cannot run is not a gate. Keep this in step with
+      # requires-python.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
       # upstream_map.py resolves the pin from this repo's objects or a sibling
       # ../Stockfish checkout; CI has neither, so clone the golden full-history
       # beside the workspace (the pin may be well behind master).
