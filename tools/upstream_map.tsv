@@ -4,7 +4,7 @@
 # declared radius under-estimates reality) and a declared owner with no citation
 # or no file is ROT. Absorb drift by adding the owner; never trim a row to make
 # the audit pass. By-design exclusions live in upstream_map.exceptions.
-src/attacks.cpp	src/engine/board/attacks.h
+src/attacks.cpp	src/engine/board/attacks.h,src/engine/board/attacks.c
 src/attacks.h	src/engine/board/threats.c,src/engine/board/attacks.h
 src/benchmark.cpp	src/shell/benchmark.c,src/shell/benchmark.h,src/shell/bench_positions.h
 src/benchmark.h	src/shell/benchmark.h
