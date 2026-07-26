@@ -61,10 +61,12 @@ static void store(char *dst, size_t cap, const char *src) {
     dst[n] = '\0';
 }
 
-void options_clear(OptionsMap *map) {
-    map->count = 0;
-    map->info = nullptr;
-}
+// Drop the OPTIONS, not the transport. `info` is the listener the shell installs
+// before the table is built (engine_set_output runs ahead of engine_init), so
+// clearing it here silently disconnected every on-change message the table can
+// produce -- a failed Hash allocation, a refused Threads rebuild, a NumaPolicy that
+// names no node. Keep the sink; only the option set is being reset.
+void options_clear(OptionsMap *map) { map->count = 0; }
 
 void options_set_info(OptionsMap *map, OptionInfoFn info) { map->info = info; }
 
