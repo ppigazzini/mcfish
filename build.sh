@@ -935,7 +935,7 @@ do_upstream_nodes() {
 # This does not gate. A tracked repository moving is normal and is not a defect
 # here; the failure it catches is not NOTICING that it moved.
 do_sync_status() {
-  local name dir pin head n
+  local name dir pin head ahead behind
   local rc=0
   for pair in "Stockfish:../Stockfish:tools/upstream/UPSTREAM_BASE" \
               "zfish:../zfish:tools/upstream/ZFISH_BASE"; do
@@ -955,12 +955,31 @@ do_sync_status() {
       continue
     fi
 
-    n=$(git -C "$dir" rev-list --count "$pin..HEAD")
-    if [[ $n -eq 0 ]]; then
+    # BOTH directions, and they are not the same finding.
+    #
+    # `ahead` is the tracked project having moved past the pin: normal, and the
+    # resync worklist's input. `behind` is the CHECKOUT sitting before the pin,
+    # which is a defect in the workspace -- ../Stockfish is the golden, so a
+    # checkout behind the pin means every grep of it, and upstream_map.py's
+    # fallback read, answers from source this tree has already ported past.
+    # Counting only the first direction reported a checkout four commits behind
+    # the pin as "in sync at <pin>", which is worse than silence: it asserts the
+    # thing a reader would otherwise verify.
+    ahead=$(git -C "$dir" rev-list --count "$pin..HEAD")
+    behind=$(git -C "$dir" rev-list --count "HEAD..$pin")
+
+    if [[ $ahead -eq 0 && $behind -eq 0 ]]; then
       green "  $name: in sync at ${pin:0:9}"
+    elif [[ $behind -ne 0 ]]; then
+      # Red, and rc=1: this one is actionable here rather than a port decision.
+      red "  $name: CHECKOUT IS BEHIND THE PIN by $behind commit(s)"
+      red "      pinned ${pin:0:9}, $dir HEAD ${head:0:9}$([[ $ahead -ne 0 ]] && echo ' (diverged)')"
+      red "      $dir is the golden -- fetch and check it out at the pin before"
+      red "      comparing anything against it."
+      rc=1
     else
-      printf '  \033[33m%s: %d commit(s) behind\033[0m  (pinned %s, HEAD %s)\n' \
-        "$name" "$n" "${pin:0:9}" "${head:0:9}"
+      printf '  \033[33m%s: pin is %d commit(s) behind the checkout\033[0m  (pinned %s, HEAD %s)\n' \
+        "$name" "$ahead" "${pin:0:9}" "${head:0:9}"
       git -C "$dir" log --oneline --reverse "$pin..HEAD" | sed 's/^/      /'
     fi
   done
