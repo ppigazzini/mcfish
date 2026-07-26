@@ -43,4 +43,9 @@
 // second thread.
 void worker_pool_install(void);
 
+// Render the NUMA topology the pool binds under, as upstream's
+// NumaConfig::to_string. malloc'd; the caller frees. This is what `Available
+// processors` reports -- the installed config, not the process affinity mask.
+char *worker_pool_numa_config_string(void);
+
 #endif  // MCFISH_WORKER_POOL_H

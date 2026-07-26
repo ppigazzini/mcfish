@@ -44,6 +44,13 @@ static void numa_ensure(void) {
     NumaReady = true;
 }
 
+// Render the topology the pool binds under, for `Available processors`. The context
+// is this module's, so the reporter has to come from here.
+char *worker_pool_numa_config_string(void) {
+    numa_ensure();
+    return numa_config_to_string(numa_context_config(&Numa));
+}
+
 static ThreadPool *pool_handle(void) {
     if (!PoolReady) {
         thread_pool_init(&Pool);
