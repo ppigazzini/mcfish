@@ -811,11 +811,16 @@ normalize() {
   # only thing keeping it out of the goldens -- so when the subsystem lands, delete
   # its line here FIRST and let the gate go red. A filter that outlives its gap
   # silently stops comparing real output.
-  #   - "Available processors" / "Using N thread" / "Network replica": thread pool
-  #     and NNUE shared-memory replication (src/platform/thread_pool.c, unwired).
+  #   - "Network replica": upstream reports the NNUE net replicated per NUMA node.
+  #     mcfish does not register the network for replication (AGENTS.md names it),
+  #     so it has nothing truthful to print. Delete this line when that lands.
+  #
+  # "Available processors" and "Using N thread" USED to be dropped here for the same
+  # reason and no longer are: the pool is driven, mcfish emits both on `go` exactly
+  # as upstream does, and the goldens compare them.
   sed -E 's/ nps [0-9]+//; s/ time [0-9]+//; s/^Total time \(ms\) *: [0-9]+$/Total time (ms) : <elided>/; s/^Nodes\/second *: [0-9]+$/Nodes\/second    : <elided>/' \
     | sed -E 's/^(mcfish|Stockfish) [^ ]+ by .*/<engine banner>/' \
-    | grep -vE '^info string (Available processors|Using [0-9]+ thread|Network replica)' \
+    | grep -vE '^info string Network replica' \
     | tr -d '\r'
 }
 

@@ -91,6 +91,12 @@ void engine_ponderhit(void);
 // upstream prints before every go/perft/eval.
 void engine_report_net(void);
 
+// Emit the two `info string` lines upstream prints on every `go` (uci.cpp:129-133):
+// the process affinity mask and the thread allocation. Upstream sends them AFTER the
+// `go` arrives rather than at startup, and says why -- old GUIs and python-chess do
+// not read info strings before the first search.
+void engine_report_threads(void);
+
 // Terminate the process unless a usable net is loaded, printing upstream's five
 // error lines to stderr. Called from the same three sites upstream checks.
 void engine_verify_network(void);
