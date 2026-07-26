@@ -30,18 +30,18 @@ typedef struct {
     size_t description_len;
 } Header;
 
-// Render a NUL-terminated message on the heap, or NULL when the allocation fails.
+// Render a NUL-terminated message on the heap, or nullptr when the allocation fails.
 static char *alloc_message(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    const int needed = vsnprintf(NULL, 0, fmt, args);
+    const int needed = vsnprintf(nullptr, 0, fmt, args);
     va_end(args);
     if (needed < 0)
-        return NULL;
+        return nullptr;
 
     char *out = malloc((size_t) needed + 1);
-    if (out == NULL)
-        return NULL;
+    if (out == nullptr)
+        return nullptr;
 
     va_start(args, fmt);
     (void) vsnprintf(out, (size_t) needed + 1, fmt, args);
@@ -116,7 +116,7 @@ static void permute_packus_order(void *data, size_t elem_bytes, size_t count) {
 // than aborting: the file is user input and the storage is megabytes.
 static bool read_feature_transformer(const uint8_t *bytes, size_t len, size_t *offset) {
     uint8_t *dst = nnue_ft_storage(NNUE_FT_TOTAL_BYTES);
-    if (dst == NULL)
+    if (dst == nullptr)
         return false;
 
     const size_t remaining = len - *offset;
@@ -153,7 +153,7 @@ static bool read_layer(size_t bucket, const uint8_t *bytes, size_t len, size_t *
         const size_t bb = nnue_layer_biases_bytes(idx);
         uint8_t *bdst = nnue_layer_storage(bucket, idx, NNUE_LAYER_BIASES, bb);
         uint8_t *wdst = nnue_layer_storage(bucket, idx, NNUE_LAYER_WEIGHTS, wb);
-        if (bdst == NULL || wdst == NULL)
+        if (bdst == nullptr || wdst == nullptr)
             return false;
 
         size_t used = 0;
@@ -210,14 +210,14 @@ typedef struct {
     bool mapped;
 } NetFile;
 
-// Read PATH whole into a heap buffer. Return NULL when the file is missing, empty,
+// Read PATH whole into a heap buffer. Return nullptr when the file is missing, empty,
 // or unreadable. The parse-from-a-map path falls back to this.
 static uint8_t *read_file(const char *path, size_t *out_len) {
     FILE *file = fopen(path, "rb");
-    if (file == NULL)
-        return NULL;
+    if (file == nullptr)
+        return nullptr;
 
-    uint8_t *bytes = NULL;
+    uint8_t *bytes = nullptr;
     if (fseek(file, 0, SEEK_END) != 0)
         goto done;
 
@@ -230,11 +230,11 @@ static uint8_t *read_file(const char *path, size_t *out_len) {
 
         const size_t len = (size_t) size;
         bytes = malloc(len);
-        if (bytes == NULL)
+        if (bytes == nullptr)
             goto done;
         if (fread(bytes, 1, len, file) != len) {
             free(bytes);
-            bytes = NULL;
+            bytes = nullptr;
             goto done;
         }
         *out_len = len;
@@ -246,10 +246,10 @@ done:
 }
 
 // Map PATH read-only, or read it whole where a map is unavailable. Leave `bytes`
-// NULL on any failure. The map is MAP_PRIVATE, so the parse reads a stable snapshot
+// nullptr on any failure. The map is MAP_PRIVATE, so the parse reads a stable snapshot
 // even if the file changes underneath it.
 static NetFile open_net_file(const char *path) {
-    NetFile f = { NULL, 0, false };
+    NetFile f = { nullptr, 0, false };
 
 #if defined(NNUE_HAVE_MMAP)
     const int fd = open(path, O_RDONLY);
@@ -257,7 +257,7 @@ static NetFile open_net_file(const char *path) {
         struct stat st;
         if (fstat(fd, &st) == 0 && st.st_size > 0) {
             const size_t len = (size_t) st.st_size;
-            void *m = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0);
+            void *m = mmap(nullptr, len, PROT_READ, MAP_PRIVATE, fd, 0);
             if (m != MAP_FAILED) {
                 f.bytes = m;
                 f.len = len;
@@ -266,7 +266,7 @@ static NetFile open_net_file(const char *path) {
         }
         close(fd);  // the mapping keeps its own reference; the descriptor is done
     }
-    if (f.bytes != NULL)
+    if (f.bytes != nullptr)
         return f;
 #endif
 
@@ -276,17 +276,17 @@ static NetFile open_net_file(const char *path) {
 }
 
 static void close_net_file(NetFile *f) {
-    if (f->bytes == NULL)
+    if (f->bytes == nullptr)
         return;
 #if defined(NNUE_HAVE_MMAP)
     if (f->mapped) {
         munmap(f->bytes, f->len);
-        f->bytes = NULL;
+        f->bytes = nullptr;
         return;
     }
 #endif
     free(f->bytes);
-    f->bytes = NULL;
+    f->bytes = nullptr;
 }
 
 static void load_user_net(const char *dir, size_t dir_len, const char *name, size_t name_len) {
@@ -295,7 +295,7 @@ static void load_user_net(const char *dir, size_t dir_len, const char *name, siz
     // Concatenate with no separator, as upstream does: the root directory already
     // carries its trailing separator.
     char *path = malloc(dir_len + name_len + 1);
-    if (path == NULL)
+    if (path == nullptr)
         return;
     if (dir_len != 0)
         memcpy(path, dir, dir_len);
@@ -305,7 +305,7 @@ static void load_user_net(const char *dir, size_t dir_len, const char *name, siz
 
     NetFile f = open_net_file(path);
     free(path);
-    if (f.bytes == NULL)
+    if (f.bytes == nullptr)
         return;
 
     (void) load_network_bytes(f.bytes, f.len, name, name_len);
@@ -344,8 +344,8 @@ void network_load(const char *root_directory,
     const Slice dirs[3] = {
         { InternalDir, sizeof InternalDir - 1 },
         { "", 0 },
-        { root_directory == NULL ? "" : root_directory,
-          root_directory == NULL ? 0 : root_directory_len },
+        { root_directory == nullptr ? "" : root_directory,
+          root_directory == nullptr ? 0 : root_directory_len },
     };
 
     for (size_t i = 0; i < 3; ++i) {

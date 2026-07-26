@@ -13,22 +13,22 @@ struct StateList {
 };
 
 struct PendingStateStorage {
-    StateList *list;  // NULL once moved out
+    StateList *list;  // nullptr once moved out
 };
 
 // Append one zeroed StateInfo. Free the record if the vector growth fails, since
 // it is not tracked yet and destroy would not see it.
 static StateInfo *append_block(StateList *list) {
     StateInfo *const block = calloc(1, sizeof(StateInfo));
-    if (block == NULL)
-        return NULL;
+    if (block == nullptr)
+        return nullptr;
 
     if (list->len == list->capacity) {
         const size_t next = list->capacity ? list->capacity * 2 : 8;
         StateInfo **const grown = realloc(list->blocks, next * sizeof(StateInfo *));
-        if (grown == NULL) {
+        if (grown == nullptr) {
             free(block);
-            return NULL;
+            return nullptr;
         }
         list->blocks = grown;
         list->capacity = next;
@@ -40,18 +40,18 @@ static StateInfo *append_block(StateList *list) {
 
 StateList *state_list_create(void) {
     StateList *const list = calloc(1, sizeof(StateList));
-    if (list == NULL)
-        return NULL;
+    if (list == nullptr)
+        return nullptr;
 
-    if (append_block(list) == NULL) {
+    if (append_block(list) == nullptr) {
         state_list_destroy(list);
-        return NULL;
+        return nullptr;
     }
     return list;
 }
 
 void state_list_destroy(StateList *list) {
-    if (list == NULL)
+    if (list == nullptr)
         return;
 
     for (size_t i = 0; i < list->len; ++i)
@@ -80,19 +80,19 @@ size_t state_list_len(const StateList *list) { return list->len; }
 
 PendingStateStorage *pending_states_create(void) {
     PendingStateStorage *const storage = calloc(1, sizeof(PendingStateStorage));
-    if (storage == NULL)
-        return NULL;
+    if (storage == nullptr)
+        return nullptr;
 
     storage->list = state_list_create();
-    if (storage->list == NULL) {
+    if (storage->list == nullptr) {
         free(storage);
-        return NULL;
+        return nullptr;
     }
     return storage;
 }
 
 void pending_states_destroy(PendingStateStorage *storage) {
-    if (storage == NULL)
+    if (storage == nullptr)
         return;
 
     state_list_destroy(storage->list);
@@ -100,25 +100,25 @@ void pending_states_destroy(PendingStateStorage *storage) {
 }
 
 StateInfo *pending_states_reset(PendingStateStorage *storage) {
-    if (storage->list == NULL) {
+    if (storage->list == nullptr) {
         storage->list = state_list_create();
-        if (storage->list == NULL)
-            return NULL;
+        if (storage->list == nullptr)
+            return nullptr;
         return state_list_back(storage->list);
     }
     return state_list_reset(storage->list);
 }
 
 StateInfo *pending_states_push(PendingStateStorage *storage) {
-    return storage->list ? state_list_push(storage->list) : NULL;
+    return storage->list ? state_list_push(storage->list) : nullptr;
 }
 
 bool pending_states_has_states(const PendingStateStorage *storage) {
-    return storage->list != NULL && state_list_has_states(storage->list);
+    return storage->list != nullptr && state_list_has_states(storage->list);
 }
 
 StateList *pending_states_move_out(PendingStateStorage *storage) {
     StateList *const list = storage->list;
-    storage->list = NULL;
+    storage->list = nullptr;
     return list;
 }
