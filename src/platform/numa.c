@@ -35,10 +35,30 @@ static bool node_reserve(NumaNode *node, size_t want) {
 }
 
 // Insert CPU keeping the node's set ascending; treat a duplicate as a no-op success.
+// Keep a node's CPU list ascending. Upstream holds it in a std::set (numa.h), so an
+// insert is O(log n) there; a linear scan from index 0 here is O(n) per insert and
+// O(n^2) over a node, which a NumaPolicy string reaches directly -- `0-65535` is one
+// option value that builds a node of NumaMaxCpus entries. Measured before this:
+// 32768 CPUs 0.11 s, 65536 CPUs 0.45 s, the quadratic doubling exactly.
+//
+// Two cases cover it. A range is parsed in ascending order, so the common insert
+// appends past the end -- test that first and skip the search entirely. Anything else
+// binary-searches, which is upstream's complexity.
 static bool node_insert_sorted(NumaNode *node, size_t cpu) {
-    size_t i = 0;
-    while (i < node->count && node->cpus[i] < cpu)
-        ++i;
+    size_t i;
+    if (node->count == 0 || node->cpus[node->count - 1] < cpu) {
+        i = node->count;  // the ascending-range fast path
+    } else {
+        size_t lo = 0, hi = node->count;
+        while (lo < hi) {
+            const size_t mid = lo + (hi - lo) / 2;
+            if (node->cpus[mid] < cpu)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        i = lo;
+    }
     if (i < node->count && node->cpus[i] == cpu)
         return true;
 
