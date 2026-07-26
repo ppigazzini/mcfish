@@ -1164,23 +1164,50 @@ do_tb() {
 # A cursed win is a win whose DTZ exceeds 100 plies, which the fifty-move rule
 # turns into a draw. Those two branches are unreachable from any 3-man table, so
 # without this they were never executed at all.
-do_tb_cursed() {
-  need_binary
+# Guard the 5-man tables both the gate and its update need. Exit 127, never 1: an
+# absent table is a gate that could not run, not a gate that failed.
+tb_cursed_need_tables() {
   [[ -s $TB5_DIR/KNNvKP.rtbz && -s $TB5_DIR/KNNvK.rtbz ]] || {
-    red "tb-cursed: no 5-man tables in $TB5_DIR -- run './build.sh tb-fetch 5'."
+    red "$1: no 5-man tables in $TB5_DIR -- run './build.sh tb-fetch 5'."
     red "  NOT a pass: the cursed-win branches are UNEXERCISED without them."
     return 127
   }
-  info "tb-cursed: cursed-win / blessed-loss WDL+DTZ vs tools/tb_cursed.golden"
-  local label fen actual
-  actual=$(while read -r label fen; do
+}
+
+# Derive the two halves. Both the gate and tb-cursed-update read them through these,
+# so a regenerated golden cannot be produced by a different command than the one that
+# checks it -- the way tb_cursed.golden's node legs drifted for three commits while
+# a comment claimed the oracle derived them.
+tb_cursed_probe_half() {
+  local label fen
+  while read -r label fen; do
     [[ -z $label || $label == \#* ]] && continue
     printf '%s %s\n' "$label" \
       "$(printf 'setoption name SyzygyPath value %s\nposition fen %s\nd\nquit\n' \
            "$ROOT/$TB5_DIR:$ROOT/$TB_DIR" "$fen" \
          | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/$BIN" ) 2>&1 \
          | grep -E '^Tablebases' | tr '\n' '|' )"
-  done < "$ROOT/tools/cases/tb_cursed.fens")
+  done < "$ROOT/tools/cases/tb_cursed.fens"
+}
+
+tb_cursed_nodes_half() {
+  local nlabel nlimit nfen
+  while read -r nlabel nlimit nfen; do
+    [[ -z $nlabel || $nlabel == \#* ]] && continue
+    printf '%s %s\n' "$nlabel" \
+      "$(printf 'setoption name SyzygyPath value %s\nposition fen %s\ngo nodes %s\nquit\n' \
+           "$ROOT/$TB5_DIR:$ROOT/$TB_DIR" "$nfen" "$nlimit" \
+         | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/$BIN" ) 2>&1 \
+         | grep -oE 'nodes [0-9]+' | tail -1)"
+  done < "$ROOT/tools/cases/tb_nodes.fens"
+}
+
+do_tb_cursed() {
+  need_binary
+  tb_cursed_need_tables tb-cursed || return $?
+  info "tb-cursed: cursed-win / blessed-loss WDL+DTZ vs tools/tb_cursed.golden"
+  local actual
+  actual=$(tb_cursed_probe_half)
 
   if diff -u <(grep -v '^nodes-tb-' tools/tb_cursed.golden) <(printf '%s\n' "$actual"); then
     green "tb-cursed passed (cursed-win and blessed-loss)"
@@ -1202,22 +1229,50 @@ do_tb_cursed() {
   # re-derives them automatically. Re-derive from mcfish when the anchor moves for
   # an intended reason, and only after the WDL/DTZ half above is still green: that
   # half is oracle-pinned and is what says the prober is right.
-  local nlabel nlimit nfen nactual
-  nactual=$(while read -r nlabel nlimit nfen; do
-    [[ -z $nlabel || $nlabel == \#* ]] && continue
-    printf '%s %s\n' "$nlabel" \
-      "$(printf 'setoption name SyzygyPath value %s\nposition fen %s\ngo nodes %s\nquit\n' \
-           "$ROOT/$TB5_DIR:$ROOT/$TB_DIR" "$nfen" "$nlimit" \
-         | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/$BIN" ) 2>&1 \
-         | grep -oE 'nodes [0-9]+' | tail -1)"
-  done < "$ROOT/tools/cases/tb_nodes.fens")
+  local nactual
+  nactual=$(tb_cursed_nodes_half)
 
   if diff -u <(grep '^nodes-tb-' tools/tb_cursed.golden) <(printf '%s\n' "$nactual"); then
     green "tb-cursed nodes legs passed (TB-probe time-check reset pinned)"
   else
     red "tb-cursed: node-limited TB totals drifted from tools/tb_cursed.golden"
+    red "  A net or search change moves these; ./build.sh tb-cursed-update re-derives"
+    red "  them, but ONLY once the WDL/DTZ half above is green -- that half is the"
+    red "  oracle-pinned one and is what says the prober is still right."
     return 1
   fi
+}
+
+# Re-derive tools/tb_cursed.golden. This golden had no regeneration path at all, which
+# is why it sat stale from 007a589 (the SFNNv16 net sync moved every node count) until
+# someone ran the gate by hand three commits later.
+#
+# REFUSE unless the probe half already matches. That half is derived from the oracle
+# and is what says the prober is right; the node legs below it are a self-golden that
+# only pins the time-check-counter phase. Regenerating both together would let a real
+# prober regression be written straight into the expectation -- the exact laundering
+# docs/09-tooling-ci.md describes. So the probe half is a precondition here, not an
+# output.
+do_tb_cursed_update() {
+  need_binary
+  tb_cursed_need_tables tb-cursed-update || return $?
+
+  local probe
+  probe=$(tb_cursed_probe_half)
+  if ! diff -u <(grep -v '^nodes-tb-' tools/tb_cursed.golden) <(printf '%s\n' "$probe") \
+       > /dev/null; then
+    red "tb-cursed-update: the WDL/DTZ half does not match the golden."
+    red "  That half is ORACLE-derived: a mismatch is a prober bug, not a stale value."
+    red "  Fix the code. Re-deriving here would pin the defect."
+    return 1
+  fi
+  info "tb-cursed-update: WDL/DTZ half matches; re-deriving the node-limited legs"
+
+  local nodes
+  nodes=$(tb_cursed_nodes_half)
+  { printf '%s\n' "$probe"; printf '%s\n' "$nodes"; } > tools/tb_cursed.golden
+  green "tb_cursed golden re-derived:"
+  printf '%s\n' "$nodes" | sed 's/^/  /'
 }
 
 do_upstream_map() {
@@ -1346,6 +1401,7 @@ usage: ./build.sh <step> [args]
   perf-budget-update re-derive the instruction budget for this arch (known-good build)
   golden-update      re-derive the UCI goldens       (intended changes only)
   tb-update          re-derive tools/tb.golden FROM THE ORACLE
+  tb-cursed-update   re-derive the tb-cursed node legs (refuses on a bad WDL/DTZ half)
 
 Read docs/09-tooling-ci.md before regenerating any golden: doing so on a red
 gate pins the defect instead of fixing it.
@@ -1375,6 +1431,7 @@ case "${1:-build}" in
   tb-fetch)         shift; do_tb_fetch "$@" ;;
   tb-cursed)        do_tb_cursed ;;
   tb-update)        do_tb_update ;;
+  tb-cursed-update) do_tb_cursed_update ;;
   golden-update)    do_golden_update ;;
   zone-check)       do_zone_check ;;
   docs-lint)        do_docs_lint ;;
