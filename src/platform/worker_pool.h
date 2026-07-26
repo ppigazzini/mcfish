@@ -48,4 +48,10 @@ void worker_pool_install(void);
 // processors` reports -- the installed config, not the process affinity mask.
 char *worker_pool_numa_config_string(void);
 
+// Render the per-node thread split as upstream's thread_binding_information_as_string:
+// "placed/cpus" per node, joined by ':'. malloc'd; the caller frees. NULL when nothing
+// is bound -- the caller then omits the whole " with NUMA node thread binding: "
+// suffix, exactly as upstream does.
+char *worker_pool_thread_binding_string(void);
+
 #endif  // MCFISH_WORKER_POOL_H
