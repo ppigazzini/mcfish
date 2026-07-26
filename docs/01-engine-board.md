@@ -175,8 +175,17 @@ Three invariants hold this together, and each has a silent failure mode:
   the previous square's block — a heap-shaped bug inside a file-scope array, so
   ASan sees nothing.
 - **The tables are read-only during search.** `attacks_init` is the only writer and
-  runs once, single-threaded, before any `Position` exists. That is what will make
-  them safe to share across the workers M4 adds; a lazily-filled table would not be.
+  runs once, single-threaded, before any `Position` exists. That is what makes them
+  safe to share across the pool's workers, which now run; a lazily-filled table
+  would not be.
+- **`Magics` is cache-line aligned, and a square's pair must stay one line.**
+  `sizeof(Magic)` is 32, so `Magics[s][0..1]` — bishop then rook — is exactly 64
+  bytes, and the `alignas(64)` is what puts that pair on a line boundary instead of
+  straddling two. Every site that probes both sliders from one square depends on it
+  (`pos_attackers_to_occ`, `set_check_info`, `see_ge`, `threats_update_piece`), and
+  it matters most on the non-BMI2 path, which reads `magic` and `shift` as well as
+  `mask` and `attacks`. A `static_assert` pins the pair-fits-a-line half, because
+  widening `Magic` would otherwise break it in silence.
 - **The magic search's generator and seeds are fixed.** `prng_rand64` is
   xorshift64* and `prng_sparse_rand` ANDs three draws so candidates are sparse.
   Different magics are equally correct and produce an incomparable table dump, which

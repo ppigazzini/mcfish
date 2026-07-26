@@ -81,7 +81,8 @@ There is **no Makefile and no build system**. A new `.c` file must be added to
 **A behaviour-changing edit is not done until a gate says so.**
 
 ```sh
-./build.sh parity       # build, zone-check, fmt, docs-lint, test, signature, perft, golden
+./build.sh parity       # build, zone-check, fmt, docs-lint, test, signature,
+                        # simd-scalar, perft, golden, tb
 ./build.sh signature    # just the anchor
 ./build.sh test         # unit + property suite, ASan+UBSan
 ```

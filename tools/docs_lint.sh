@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Check the mechanical half of the documentation: dead internal links, named
-# source paths that do not exist, and a bench signature quoted into prose.
+# source paths that do not exist, a bench signature quoted into prose, backticked
+# symbols the tree does not contain, and a build.sh step no page mentions.
 #
-# WHAT THIS CANNOT DO: tell you a sentence is FALSE. A page can link cleanly,
-# name only real paths, quote no numbers, and still describe code that was
-# replaced three commits ago. This gate buys the mechanical half so review can
-# spend its attention on the half that needs a reader. See docs/11-writing.md.
+# WHAT THIS CANNOT DO: tell you a sentence is FALSE. A page can link cleanly, name
+# only real paths and real symbols, quote no numbers, and still describe code that
+# was replaced three commits ago -- wrong ORDER, wrong COUNT, wrong reason. An
+# audit found `parity` documented as nine gates when it runs ten, and "there is no
+# LTO in the build" on a page whose build has had `-flto` throughout; neither is
+# reachable from here. This gate buys the mechanical half so review can spend its
+# attention on the half that needs a reader. See docs/11-writing.md.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -36,6 +40,17 @@ strip_noise() {
   awk 'BEGIN{f=0} /^```/{f=!f; next} !f{print}' "$1" \
     | sed 's/`[^`]*`//g' \
     | sed -E 's|https?://[^ )]*||g'
+}
+
+# The INVERSE of strip_noise's second step: emit the snake_case identifiers inside
+# inline code spans. Fenced blocks are still dropped -- those are transcripts and
+# examples, which may legitimately name things this tree does not have. Keep this
+# next to strip_noise: the two must agree on what a fenced block is, and a symbol
+# scan built on strip_noise silently matches nothing, because that function
+# deletes the very spans this one reads.
+code_spans() {
+  awk 'BEGIN{f=0} /^```/{f=!f; next} !f{print}' "$1" \
+    | grep -oE '`[a-z][a-z0-9]*(_[a-z0-9]+)+`' | tr -d '`'
 }
 
 path_exists() {
@@ -95,6 +110,44 @@ if [[ -f tools/signature.golden ]]; then
     done
   fi
 fi
+
+# ------------------------------------------- backticked symbols must exist
+
+# A `snake_case` token in backticks is a claim that the tree contains that name.
+# Renames are what break it: the code moves, the prose keeps the old spelling, and
+# nothing notices -- this gate was added after an audit found `tt_store` (now
+# `tt_save`), `entry_relative_age` (`tt_entry_relative_age`), `uci_start_logger`
+# (`uci_output_start_logger`) and `pos_see_ge` (a duplicate collapsed long ago)
+# all still named in the pages.
+#
+# The corpus is every tracked source, script and workflow PLUS the tracked path
+# list, so a doc may name a tool by its filename (`nps_ab`) or a build.sh function
+# (`do_parity`) as well as a C symbol. Only tokens containing an underscore are
+# checked: a bare word is prose far more often than it is an identifier.
+symbol_corpus=$(
+  git ls-files | grep -E '\.(c|h|sh|py|yml)$' | xargs cat 2>/dev/null
+  git ls-files
+)
+for doc in "${DOCS[@]}"; do
+  while read -r sym; do
+    [[ -z $sym ]] && continue
+    grep -qw -- "$sym" <<< "$symbol_corpus" \
+      || fail "$doc: names a symbol that exists nowhere in the tree -> $sym"
+  done < <(code_spans "$doc" | sort -u)
+done
+
+# ------------------------------------------- every build.sh step is documented
+
+# The step table in 09-tooling-ci.md claims to say what each step proves. A step
+# added without a row is a feature nobody can find; `net-fetch`, `pgo` and
+# `perf-budget-update` were each absent from every page when this was added.
+while read -r step; do
+  [[ -z $step ]] && continue
+  grep -qF -- "$step" "${DOCS[@]}" \
+    || fail "docs: ./build.sh '$step' is a real step but no tracked page mentions it"
+done < <(sed -n "$(grep -n '^case ' build.sh | tail -1 | cut -d: -f1),\$p" build.sh \
+         | grep -oE '^\s*[a-z][a-z0-9|-]*\)' | tr -d ' )' | tr '|' '\n' \
+         | grep -v '^-' | sort -u)
 
 # ------------------------------------------------------------------ report
 
