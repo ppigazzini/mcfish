@@ -175,6 +175,17 @@ def audit(mapped: dict[str, dict[str, int]]) -> int:
     tracked = set(run(["git", "ls-files"], REPO).splitlines())
     fails = 0
 
+    # An excused file that no longer exists upstream is the same rot as a declared
+    # row that does, and it is worse in one way: an exception SUPPRESSES the
+    # uncovered report, so a dead entry silently absolves whatever inherits the
+    # name. src/thread_win32_osx.h sat here excused as "the port is POSIX-only"
+    # after upstream had renamed it to thread_native.h and made pthread universal,
+    # and nothing said so.
+    for path in exceptions():
+        if path not in at_pin:
+            print(f"ROT: excused upstream file absent at the pin: {path}")
+            fails += 1
+
     for path, owners in decl.items():
         if path not in at_pin:
             print(f"ROT: declared upstream file absent at the pin: {path}")
