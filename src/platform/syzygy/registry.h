@@ -81,8 +81,8 @@ PairsData *tbtable_get(TBTable *t, bool dtz, size_t stm, size_t f);
 
 // Map and parse T's file on first use. Return false — permanently, for this
 // registry generation — when the file is missing, truncated or corrupt.
-bool registry_map_wdl(TBTable *t);
-bool registry_map_dtz(TBTable *t);
+[[nodiscard]] bool registry_map_wdl(TBTable *t);
+[[nodiscard]] bool registry_map_dtz(TBTable *t);
 
 // Compute the material key of a piece-count array indexed by Piece (16 entries,
 // `color << 3 | type`). Registry keys and probed positions must both come from

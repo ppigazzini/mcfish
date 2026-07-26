@@ -101,12 +101,12 @@ void search_clear(void);
 //
 // A rebuild drops every history table, so reach it the way upstream does: from the
 // `Threads` option, whose change is a new pool.
-bool search_set_threads(size_t count);
+[[nodiscard]] bool search_set_threads(size_t count);
 
 // Install the NumaPolicy the next `search_set_threads` binds under. Accept `auto`,
 // `none`, `system`, `hardware` or an explicit topology string. Return false when the
 // string names no node at all, leaving the previous topology in place.
-bool search_set_numa_policy(const char *policy);
+[[nodiscard]] bool search_set_numa_policy(const char *policy);
 
 // Release everything the search owns: the worker block, its NNUE arena and the shared
 // history bank. Call once at process exit, after the last search has returned -- the

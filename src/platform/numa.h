@@ -91,21 +91,22 @@ void numa_config_remove_empty_nodes(NumaConfig *cfg);
 // segments without advancing the node index. Return false and leave OUT untouched on a
 // malformed string -- the caller must then REFUSE the option and keep the previous config,
 // as upstream does (engine.cpp:236).
-bool numa_config_from_string(NumaConfig *out, const char *s, size_t len);
+[[nodiscard]] bool numa_config_from_string(NumaConfig *out, const char *s, size_t len);
 
 // Build the topology from /sys/devices/system/node. Restrict to the process affinity mask
 // when RESPECT_PROCESS_AFFINITY. Fall back to a single node holding every allowed CPU
 // when /sys is absent or unreadable. Never fails other than on OOM.
-bool numa_config_from_system(NumaConfig *out, bool respect_process_affinity);
+[[nodiscard]] bool numa_config_from_system(NumaConfig *out, bool respect_process_affinity);
 
 // Build a bare single-node config holding every allowed CPU (the `hardware` policy, and the
 // fallback when the system exposes no NUMA topology). Return false only on OOM.
-bool numa_config_from_system_single(NumaConfig *out, bool respect_process_affinity);
+[[nodiscard]] bool numa_config_from_system_single(NumaConfig *out, bool respect_process_affinity);
 
 // Assign each of NUM_THREADS threads to a node, writing NUM_THREADS entries into
 // OUT_NODES. Place greedily on the node with the lowest (occupation+1)/size fill ratio;
 // a single node takes everything. Return false only on OOM.
-bool numa_config_distribute_threads(const NumaConfig *cfg, size_t num_threads, size_t *out_nodes);
+[[nodiscard]] bool
+numa_config_distribute_threads(const NumaConfig *cfg, size_t num_threads, size_t *out_nodes);
 
 // Decide whether to bind threads to nodes. Bind when the affinity is user-set; never bind
 // a single thread; otherwise bind once the threads no longer fit comfortably in one node.
@@ -115,7 +116,7 @@ bool numa_config_suggests_binding_threads(const NumaConfig *cfg, size_t num_thre
 
 // Confine the CALLING thread to node NODE's CPUs. Return false when NODE is out of range
 // or the host refuses; the thread then keeps its inherited affinity.
-bool numa_config_bind_current_thread(const NumaConfig *cfg, size_t node);
+[[nodiscard]] bool numa_config_bind_current_thread(const NumaConfig *cfg, size_t node);
 
 // Render the process affinity mask as comma-joined ranges ("0-7,16-23"), malloc'd and
 // NUL-terminated; the caller frees. Return nullptr only on OOM.
@@ -146,7 +147,7 @@ void numa_context_init(NumaReplicationContext *ctx, NumaConfig *config);
 void numa_context_destroy(NumaReplicationContext *ctx);
 
 // Register OBJ. Return false on OOM, or when OBJ is already tracked.
-bool numa_context_attach(NumaReplicationContext *ctx, NumaReplicatedBase *obj);
+[[nodiscard]] bool numa_context_attach(NumaReplicationContext *ctx, NumaReplicatedBase *obj);
 void numa_context_detach(NumaReplicationContext *ctx, NumaReplicatedBase *obj);
 
 // Move a registration OLD_OBJ (possibly already invalid) -> NEW_OBJ, same registry slot.
@@ -171,7 +172,8 @@ void numa_context_set_none(NumaReplicationContext *ctx);
 
 // Install an explicit topology string. Return false and leave the context's config in
 // place when the string does not parse.
-bool numa_context_set_from_string(NumaReplicationContext *ctx, const char *s, size_t len);
+[[nodiscard]] bool
+numa_context_set_from_string(NumaReplicationContext *ctx, const char *s, size_t len);
 
 size_t numa_context_node_count(const NumaReplicationContext *ctx);
 size_t numa_context_cpus_in_node(const NumaReplicationContext *ctx, size_t node);

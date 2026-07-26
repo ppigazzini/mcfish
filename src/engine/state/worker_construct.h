@@ -37,7 +37,7 @@ typedef struct {
 //
 // Call this ON the thread that will run the worker, so the block is first-touched on the
 // NUMA node that will read it.
-SearchWorker *worker_create(const WorkerCtorInputs *in);
+[[nodiscard]] SearchWorker *worker_create(const WorkerCtorInputs *in);
 
 // Release the worker and everything it owns. Idempotent on null.
 void worker_destroy(SearchWorker *w);

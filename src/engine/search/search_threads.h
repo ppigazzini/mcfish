@@ -39,12 +39,12 @@
 // Build COUNT workers, replacing any current set. Return false on OOM or a refused
 // spawn, in which case the set is left EMPTY -- a caller must re-check
 // `search_threads_main`. A COUNT of 0 is read as 1: a search needs a worker.
-bool search_threads_set(size_t count);
+[[nodiscard]] bool search_threads_set(size_t count);
 
 // Choose the NUMA policy the next `search_threads_set` binds under. Return false when
 // POLICY names no node at all, leaving the previous topology in place -- a config with
 // zero nodes makes every distribution and binding decision divide by zero.
-bool search_threads_set_numa_policy(const char *policy);
+[[nodiscard]] bool search_threads_set_numa_policy(const char *policy);
 
 size_t search_threads_count(void);
 

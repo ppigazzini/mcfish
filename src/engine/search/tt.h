@@ -133,7 +133,7 @@ extern TTCluster TTFallback[1];
 
 // Size the table to MB megabytes and clear it. Return false when the allocation
 // fails; the caller must then not probe.
-bool tt_resize(size_t mb);
+[[nodiscard]] bool tt_resize(size_t mb);
 void tt_free(void);
 
 // Dispatch the clear's span jobs onto the pool's threads. Installed by the pool owner

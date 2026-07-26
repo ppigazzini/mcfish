@@ -119,7 +119,7 @@ typedef struct SharedHistories {
 // Allocate one node's bank sized for THREAD_COUNT threads, or null. THREAD_COUNT must be
 // a power of two and at least 1 -- upstream asserts exactly that (history.h:205), because
 // the size multiplier is what keeps the index a mask.
-SharedHistories *shared_histories_create(size_t thread_count);
+[[nodiscard]] SharedHistories *shared_histories_create(size_t thread_count);
 void shared_histories_destroy(SharedHistories *sh);
 
 // Hold one worker's own tables plus the reference to its node's bank. `shared` is never

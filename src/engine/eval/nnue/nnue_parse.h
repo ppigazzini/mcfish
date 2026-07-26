@@ -105,21 +105,21 @@ nnue_weight_index_scrambled(size_t i, size_t padded_input, size_t output_dims) {
 // Parse the feature-transformer blob into DST (NNUE_FT_TOTAL_BYTES of 64-byte
 // aligned storage) and store the blob bytes consumed in *CONSUMED. Return false
 // on malformed input. No permute: PackusEpi16Order is the identity on this target.
-bool nnue_parse_feature_transformer(const uint8_t *blob,
-                                    size_t blob_len,
-                                    uint8_t *dst,
-                                    size_t *consumed);
+[[nodiscard]] bool nnue_parse_feature_transformer(const uint8_t *blob,
+                                                  size_t blob_len,
+                                                  uint8_t *dst,
+                                                  size_t *consumed);
 
 // Parse one affine layer at the start of BLOB: biases (OutputDimensions int32,
 // little-endian, linear) then weights (int8, written through the SSSE3 scramble).
 // OutputDimensions and PaddedInputDimensions are derived from the destination
 // sizes. Store the bytes consumed in *CONSUMED; return false on malformed input.
-bool nnue_parse_layer(const uint8_t *blob,
-                      size_t blob_len,
-                      uint8_t *biases_dst,
-                      size_t biases_len,
-                      uint8_t *weights_dst,
-                      size_t weights_len,
-                      size_t *consumed);
+[[nodiscard]] bool nnue_parse_layer(const uint8_t *blob,
+                                    size_t blob_len,
+                                    uint8_t *biases_dst,
+                                    size_t biases_len,
+                                    uint8_t *weights_dst,
+                                    size_t weights_len,
+                                    size_t *consumed);
 
 #endif  // MCFISH_NNUE_PARSE_H

@@ -88,11 +88,11 @@ void thread_pool_init(ThreadPool *pool);
 // BIND_NODES[i]'s CPUs before its Worker is built. Pass either as null to leave every
 // thread on its inherited affinity. Return false on OOM or a refused thread spawn, leaving
 // the pool empty.
-bool thread_pool_set(ThreadPool *pool,
-                     size_t count,
-                     const ThreadBuilder *builder,
-                     const NumaReplicationContext *numa_ctx,
-                     const size_t *bind_nodes);
+[[nodiscard]] bool thread_pool_set(ThreadPool *pool,
+                                   size_t count,
+                                   const ThreadBuilder *builder,
+                                   const NumaReplicationContext *numa_ctx,
+                                   const size_t *bind_nodes);
 
 // Wait for every in-flight job, join and free every thread, and release the bound vector.
 // Idempotent, and safe on a zeroed pool.
@@ -121,7 +121,8 @@ bool thread_pool_increase_depth(const ThreadPool *pool);
 
 // Replace the bound-node vector. Free any prior buffer on every reassign; pass null or a
 // zero count to clear. Return false on OOM, leaving the vector empty.
-bool thread_pool_bound_nodes_assign(ThreadPool *pool, const size_t *nodes, size_t count);
+[[nodiscard]] bool
+thread_pool_bound_nodes_assign(ThreadPool *pool, const size_t *nodes, size_t count);
 
 size_t thread_pool_bound_count(const ThreadPool *pool);
 size_t thread_pool_bound_at(const ThreadPool *pool, size_t index);
@@ -133,11 +134,11 @@ size_t thread_pool_bound_at(const ThreadPool *pool, size_t index);
 // REQUESTED == 1 never binds -- numa_config_suggests_binding_threads refuses a single
 // thread, and an explicit policy still resolves to the one node it names -- so the
 // single-threaded path takes the same shape on every host.
-bool thread_pool_reconfigure(ThreadPool *pool,
-                             const NumaReplicationContext *numa_ctx,
-                             size_t requested,
-                             NumaPolicyMode policy,
-                             const ThreadBuilder *builder,
-                             const SharedHistoryHooks *histories);
+[[nodiscard]] bool thread_pool_reconfigure(ThreadPool *pool,
+                                           const NumaReplicationContext *numa_ctx,
+                                           size_t requested,
+                                           NumaPolicyMode policy,
+                                           const ThreadBuilder *builder,
+                                           const SharedHistoryHooks *histories);
 
 #endif  // MCFISH_THREAD_POOL_H

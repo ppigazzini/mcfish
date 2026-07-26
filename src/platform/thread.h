@@ -48,7 +48,7 @@ typedef struct {
 
 // Spawn T's idle loop and return once it has parked. Return false if the OS refused the
 // thread, leaving T safe to discard without a join.
-bool thread_spawn(Thread *t, size_t idx);
+[[nodiscard]] bool thread_spawn(Thread *t, size_t idx);
 
 // Submit a job and return immediately. Wait for any job already in flight first, so
 // submissions to one thread never overlap.
@@ -71,7 +71,7 @@ size_t thread_index(const Thread *t);
 // -- a restricted cgroup, a seccomp filter, an index outside the mask -- in which case the
 // thread keeps its inherited affinity and stays fully functional. Never treat a false
 // return as fatal: an unbound thread is slower on a multi-node host, not incorrect.
-bool thread_set_affinity(const size_t *cpus, size_t count);
+[[nodiscard]] bool thread_set_affinity(const size_t *cpus, size_t count);
 
 // Return the number of logical CPUs the process may run on, at least 1.
 size_t thread_hardware_concurrency(void);
