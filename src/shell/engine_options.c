@@ -2,7 +2,7 @@
 
 #include "engine_options.h"
 
-#include "../platform/numa.h"
+#include "../platform/worker_pool.h"
 
 #include "../engine/board/movegen.h"  // MAX_MOVES
 #include "../engine/eval/evaluate.h"  // eval_nnue_default_file_name
@@ -84,7 +84,7 @@ static const char *on_numa_policy(const UciOption *o) {
 
     // Upstream returns the topology AND the allocation, joined by a newline
     // (engine.cpp:79-80); the listener splits it into two info strings.
-    char *const cfg = numa_config_string();
+    char *const cfg = worker_pool_numa_config_string();
     const int n = options_get_int(&Options, "Threads");
     snprintf(MessageBuf, sizeof MessageBuf, "Available processors: %s\nUsing %d thread%s",
              cfg != nullptr ? cfg : "", n, n > 1 ? "s" : "");

@@ -13,7 +13,6 @@
 #include "../engine/search/tt.h"
 #include "../platform/clock.h"
 #include "../platform/memory.h"
-#include "../platform/numa.h"
 #include "../platform/worker_pool.h"
 #include "engine_nnue.h"
 #include "syzygy_option.h"
@@ -70,7 +69,7 @@ void engine_report_threads(void) {
         return;
 
     char line[256];
-    char *const cfg = numa_config_string();
+    char *const cfg = worker_pool_numa_config_string();
     snprintf(line, sizeof line, "Available processors: %s", cfg != nullptr ? cfg : "");
     free(cfg);
     EmitInfo(line);

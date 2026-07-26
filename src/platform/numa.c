@@ -34,10 +34,9 @@ static bool node_reserve(NumaNode *node, size_t want) {
     return true;
 }
 
-// Insert CPU keeping the node's set ascending; treat a duplicate as a no-op success.
-// Keep a node's CPU list ascending. Upstream holds it in a std::set (numa.h), so an
-// insert is O(log n) there; a linear scan from index 0 here is O(n) per insert and
-// O(n^2) over a node, which a NumaPolicy string reaches directly -- `0-65535` is one
+// Keep a node's CPU list ascending, treating a duplicate as a no-op success. Upstream holds it in a
+// std::set (numa.h), so an insert is O(log n) there; a linear scan from index 0 here is O(n) per
+// insert and O(n^2) over a node, which a NumaPolicy string reaches directly -- `0-65535` is one
 // option value that builds a node of NumaMaxCpus entries. Measured before this:
 // 32768 CPUs 0.11 s, 65536 CPUs 0.45 s, the quadratic doubling exactly.
 //
@@ -846,6 +845,69 @@ bool numa_config_bind_current_thread(const NumaConfig *cfg, size_t node) {
 }
 
 // ---- the affinity string ----------------------------------------------------
+
+// Append SRC to a malloc'd buffer, growing it. Return false on OOM, leaving *BUF valid
+// for the caller to free.
+static bool str_append(char **buf, size_t *capacity, size_t *len, const char *src) {
+    const size_t add = strlen(src);
+    if (*len + add + 1 > *capacity) {
+        size_t want = *capacity;
+        while (want < *len + add + 1)
+            want *= 2;
+        char *grown = realloc(*buf, want);
+        if (grown == nullptr)
+            return false;
+        *buf = grown;
+        *capacity = want;
+    }
+    memcpy(*buf + *len, src, add + 1);
+    *len += add;
+    return true;
+}
+
+// Render a CONFIG the way upstream's NumaConfig::to_string does (numa.h): nodes joined
+// by ':', each an ascending comma list whose consecutive runs collapse to "first-last".
+//
+// This is what `Available processors` must report. The process affinity mask below
+// answers a different question and diverges the moment a NumaPolicy installs a
+// topology narrower than the box -- upstream reports the config it will bind under,
+// not the CPUs the process happens to be allowed on.
+char *numa_config_to_string(const NumaConfig *cfg) {
+    size_t capacity = 128, len = 0;
+    char *buf = malloc(capacity);
+    if (buf == nullptr)
+        return nullptr;
+    buf[0] = '\0';
+
+    for (size_t node = 0; node < cfg->node_count; ++node) {
+        const NumaNode *const n = &cfg->nodes[node];
+        if (node != 0) {
+            char sep[2] = { ':', '\0' };
+            if (!str_append(&buf, &capacity, &len, sep)) {
+                free(buf);
+                return nullptr;
+            }
+        }
+        for (size_t i = 0; i < n->count;) {
+            size_t j = i;
+            while (j + 1 < n->count && n->cpus[j + 1] == n->cpus[j] + 1)
+                ++j;
+
+            char segment[48];
+            if (j == i)
+                (void) snprintf(segment, sizeof segment, "%s%zu", i == 0 ? "" : ",", n->cpus[i]);
+            else
+                (void) snprintf(segment, sizeof segment, "%s%zu-%zu", i == 0 ? "" : ",", n->cpus[i],
+                                n->cpus[j]);
+            if (!str_append(&buf, &capacity, &len, segment)) {
+                free(buf);
+                return nullptr;
+            }
+            i = j + 1;
+        }
+    }
+    return buf;
+}
 
 char *numa_config_string(void) {
     AffinityMask mask;
