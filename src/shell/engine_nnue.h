@@ -11,6 +11,11 @@
 // Install the line sink the status is announced through (the search/status sink).
 void engine_nnue_set_output(void (*emit_line)(const char *line));
 
+// Install the sink the verify failure reports through. It is the same sink the option
+// table uses, which splits on newlines and prefixes `info string` -- upstream's
+// print_info_string.
+void engine_nnue_set_info(void (*emit_info)(const char *message));
+
 // Record the directory ARGV0 was launched from, with its trailing separator, as the
 // third candidate network_load searches (after "<internal>" and the cwd).
 void engine_nnue_set_root(const char *argv0);

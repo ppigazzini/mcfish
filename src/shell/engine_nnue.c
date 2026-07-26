@@ -16,8 +16,11 @@ static char WantedFile[256];
 
 static bool NetOk = false;
 static void (*EmitLine)(const char *line) = nullptr;
+static void (*EmitInfo)(const char *message) = nullptr;
 
 void engine_nnue_set_output(void (*emit_line)(const char *line)) { EmitLine = emit_line; }
+
+void engine_nnue_set_info(void (*emit_info)(const char *message)) { EmitInfo = emit_info; }
 
 void engine_nnue_set_root(const char *argv0) {
     RootDirectory[0] = '\0';
@@ -53,15 +56,23 @@ void engine_nnue_verify(void) {
     if (NetOk)
         return;
 
-    fprintf(stderr,
-            "ERROR: Network evaluation parameters compatible with the engine must be "
-            "available.\n"
-            "ERROR: The network file %s was not loaded successfully.\n"
-            "ERROR: The UCI option EvalFile might need to specify the full path, including "
-            "the directory name, to the network file.\n"
-            "ERROR: The default net can be downloaded from: "
-            "https://tests.stockfishchess.org/api/nn/%s\n"
-            "ERROR: The engine will be terminated now.\n",
-            WantedFile, eval_nnue_default_file_name());
+    // Report through the INFO sink, not stderr. Upstream hands the whole block to
+    // print_info_string (nnue/network.cpp:187 -> uci.cpp:55), which splits it and
+    // prefixes each line with `info string` on stdout. A GUI reads stdout; writing a
+    // fatal diagnostic to stderr unprefixed means it sees nothing at all before the
+    // engine exits.
+    char msg[1024];
+    snprintf(msg, sizeof msg,
+             "ERROR: Network evaluation parameters compatible with the engine must be "
+             "available.\n"
+             "ERROR: The network file %s was not loaded successfully.\n"
+             "ERROR: The UCI option EvalFile might need to specify the full path, including "
+             "the directory name, to the network file.\n"
+             "ERROR: The default net can be downloaded from: "
+             "https://tests.stockfishchess.org/api/nn/%s\n"
+             "ERROR: The engine will be terminated now.",
+             WantedFile, eval_nnue_default_file_name());
+    if (EmitInfo != nullptr)
+        EmitInfo(msg);
     exit(EXIT_FAILURE);
 }
