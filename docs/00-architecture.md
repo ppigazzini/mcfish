@@ -37,49 +37,50 @@ flowchart TD
     shell --> engine
     shell --> platform
     platform --> engine
-    engine -.->|"memory, thread runtime, pool, NUMA"| platform
-
     style engine fill:#1f6f3f,color:#fff
 ```
 
-**The dashed edge is real and is a gap, not a design**, and it is **counted, not
-described**. A prose summary of it cannot be trusted: `zone-check` is structurally
-blind to this direction — the array it links contains all of `platform/` — so
-nothing contradicts a sentence here that has drifted from the tree.
+**There is no edge.** `src/engine/` links with no platform object at all — it is
+the standalone chess library its header comments claim, and every host service it
+needs arrives through an injection seam.
 
-`./build.sh engine-standalone` closes that hole. It compiles every `src/engine/*.c`
-alone, links them with no platform object, and holds the undefined set against
-[`../tools/engine_platform.baseline`](../tools/engine_platform.baseline). A new
-symbol fails, because that is a fresh dependency on the host and the fix is a seam.
-A symbol that is no longer needed also fails, asking to be struck from the list, so
-the baseline cannot outlive what it measures. Read the current edge from that file
-or from the gate, never from a sentence here.
+That is **checked, not asserted**. `zone-check` is structurally blind to this
+direction, because the array it links contains all of `platform/`, so a sentence
+here could drift with nothing to contradict it.
+`./build.sh engine-standalone` compiles every `src/engine/*.c` alone, links them
+with nothing else, and fails on any undefined symbol —
+[`../tools/engine_platform.baseline`](../tools/engine_platform.baseline) is empty,
+so the next host dependency added to `engine/` fails the gate rather than joining
+a list.
 
-What remains is two separate pieces of work rather than one: `thread_pool_*` and
-`thread_set_worker` for Lazy-SMP dispatch, and `numa_*` for topology and
-replication. **Nothing in the search's hot path is among them** — no node body, no
-evaluation, no move generation. The edge is entirely worker-set lifecycle, which is
-why the single-threaded search is already portable in everything but its link line.
+**Five seams carry it**, each the same shape: the engine declares a function
+pointer, the host registers an implementation before the first search.
 
-Not every line leaves by way of a seam. The atomics went the other way: their
-bodies are C11 `<stdatomic.h>`, not a host service, so the type moved into the
-engine zone ([`atomic.h`](../src/engine/state/atomic.h)) and `platform/` includes
-it — the direction the zone rule already permits. Check whether a symbol is
-genuinely a platform service before designing an injection point for it.
+| seam | registered by | supplies |
+| --- | --- | --- |
+| [`output_sink.h`](../src/engine/search/output_sink.h) | `search_set_output` | the `info` / `bestmove` line sink |
+| [`option_source.h`](../src/engine/search/option_source.h) | `search_set_option_source` | the live UCI option table |
+| [`time_source.h`](../src/engine/search/time_source.h) | `search_set_time_source` | the monotonic clock |
+| [`arena_source.h`](../src/engine/state/arena_source.h) | `search_set_arena_source` | the page allocator behind the TT, the history banks and each worker |
+| [`worker_set.h`](../src/engine/search/worker_set.h) | `worker_pool_install` | the Lazy-SMP worker set on real OS threads |
 
-The clock is the worked example of a service that is **off** the list, and the
-shape to copy for one that is on it. Three things have to hold together, and a
-seam with any of them missing still leaves the symbol in the link line:
+**Three things have to hold together or a seam leaves its symbol in the link line**,
+and the middle one is the one that gets missed:
 
-- the engine zone declares a function pointer —
-  [`time_source.h`](../src/engine/search/time_source.h), the same shape as
-  `output_sink.h`;
-- **every** reader in the zone goes through it. `timeman.c` and the search facade
-  read `TimeNowMs`, not `now_ms`. A single direct call anywhere in `engine/` keeps
-  the dependency whole, however complete the seam looks;
-- the **host** registers the implementation. `engine_init` calls
-  `search_set_time_source`, beside the `search_set_output` and
-  `search_set_option_source` it already owns, before the first command is read.
+- the engine zone declares the pointer;
+- **every** reader in the zone goes through it. `timeman.c` reads `TimeNowMs`, not
+  `now_ms`. One direct call anywhere in `engine/` keeps the dependency whole,
+  however complete the seam looks;
+- the **host** registers the implementation. `engine_init` does all five, and the
+  arena pair goes in FIRST — a block taken from the engine's fallback allocator and
+  released by the host's is heap corruption with no diagnostic.
+
+Each seam's default is a working implementation rather than a stub, which is what
+lets `engine/` search on its own: the test binary links no platform object and runs
+the one-worker set in
+[`worker_set.c`](../src/engine/search/worker_set.c) over a malloc-backed arena.
+What it cannot do is spawn a second thread, and `resize` says so by refusing a
+count above one instead of quietly searching with fewer workers than asked for.
 
 ## What is actually in the binary
 

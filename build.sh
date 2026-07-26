@@ -182,7 +182,7 @@ SOURCES=(
   src/engine/search/search_control.c
   src/engine/search/search_emit.c
   src/engine/search/pool_source.c
-  src/engine/search/search_threads.c
+  src/engine/search/worker_set.c
   src/engine/search/syzygy_pv.c
   src/engine/search/root_move_build.c
   src/engine/search/uci_wdl.c
@@ -199,6 +199,7 @@ SOURCES=(
   src/platform/numa.c
   src/platform/numa_replication.c
   src/platform/thread_pool.c
+  src/platform/worker_pool.c
   src/platform/tablebase.c
   src/platform/syzygy/tables.c
   src/platform/syzygy/registry.c
@@ -257,7 +258,7 @@ ENGINE_SOURCES=(
   src/engine/search/search_control.c
   src/engine/search/search_emit.c
   src/engine/search/pool_source.c
-  src/engine/search/search_threads.c
+  src/engine/search/worker_set.c
   src/engine/search/syzygy_pv.c
   src/engine/search/root_move_build.c
   src/engine/search/uci_wdl.c
@@ -274,6 +275,7 @@ ENGINE_SOURCES=(
   src/platform/numa.c
   src/platform/numa_replication.c
   src/platform/thread_pool.c
+  src/platform/worker_pool.c
   src/platform/tablebase.c
   src/platform/syzygy/tables.c
   src/platform/syzygy/registry.c
@@ -408,9 +410,13 @@ do_engine_standalone() {
   # No stub main: `main` then shows up as undefined and is filtered, which keeps the
   # link command honest about what the engine objects alone actually require.
   "$CC" -o "$dir/eng" "${obj[@]}" -lm 2>"$dir/err" || true
-  grep -oE "undefined reference to \`[A-Za-z_][A-Za-z0-9_]*'" "$dir/err" \
-    | sed "s/.*\`//; s/'//" | sort -u | grep -v '^main$' > "$dir/have"
-  grep -vE '^\s*(#|$)' "$base" | tr -d ' \t' | sort -u > "$dir/want"
+  # `|| true` twice, deliberately: grep exits 1 when it matches nothing, and matching
+  # nothing is the SUCCESS case here -- an engine that needs no platform symbol at all.
+  # Under `set -e` the bare pipeline killed the gate exactly when it had good news.
+  { grep -oE "undefined reference to \`[A-Za-z_][A-Za-z0-9_]*'" "$dir/err" || true; } \
+    | sed "s/.*\`//; s/'//" | sort -u | { grep -v '^main$' || true; } > "$dir/have"
+  # Same `|| true`: an EMPTY baseline is the goal state, and grep exits 1 on it.
+  { grep -vE '^\s*(#|$)' "$base" || true; } | tr -d ' \t' | sort -u > "$dir/want"
 
   local added removed
   added=$(comm -23 "$dir/have" "$dir/want")
@@ -430,6 +436,10 @@ do_engine_standalone() {
     printf '%s\n' "$removed" | sed 's/^/      /'
     red "  A baseline that outlives its entries stops measuring anything."
     return 1
+  fi
+  if [[ $n -eq 0 ]]; then
+    green "engine-standalone: engine/ links with NO platform object — the edge is closed"
+    return 0
   fi
   green "engine-standalone: edge holds at $n platform symbol(s) — see $base"
 }

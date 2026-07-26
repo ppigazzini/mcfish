@@ -33,7 +33,7 @@ in `SOURCES` means the module compiles under the full warning set, links into
 `zone-check`, and can be reached by `./build.sh test` — the thread pool and the
 NUMA config are covered by unit tests and by `./build.sh tsan`. Being *driven by the
 search* means the engine's behaviour changes when the module does, and for the
-thread and NUMA rows it now does: `search_threads.c` constructs the pool, so
+thread and NUMA rows it now does: `worker_pool.c` constructs the pool, so
 `Threads` above 1 runs that many workers over one root.
 
 **How the pool is driven.** Lazy-SMP was not just a matter of calling
