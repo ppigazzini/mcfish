@@ -1,6 +1,6 @@
 #include "history.h"
 
-#include "../../platform/memory.h"
+#include "../state/arena_source.h"
 #include "../board/position.h"
 #include "../board/types.h"
 
@@ -10,7 +10,7 @@ SharedHistories *shared_histories_create(size_t thread_count) {
     if (thread_count == 0 || (thread_count & (thread_count - 1)) != 0)
         return nullptr;
 
-    SharedHistories *sh = page_alloc(sizeof *sh);
+    SharedHistories *sh = ArenaAlloc(sizeof *sh);
     if (sh == nullptr)
         return nullptr;
 
@@ -22,10 +22,10 @@ SharedHistories *shared_histories_create(size_t thread_count) {
     sh->pawn_size = thread_count * (size_t) PAWN_HISTORY_BASE_SIZE;
     sh->pawn_size_minus1 = sh->pawn_size - 1;
 
-    sh->correction_history = page_alloc(sh->corr_size * COLOR_NB * sizeof(CorrectionBundle));
-    sh->pawn_history = page_alloc(sh->pawn_size * HIST_PIECETO * sizeof(int16_t));
+    sh->correction_history = ArenaAlloc(sh->corr_size * COLOR_NB * sizeof(CorrectionBundle));
+    sh->pawn_history = ArenaAlloc(sh->pawn_size * HIST_PIECETO * sizeof(int16_t));
     sh->continuation_history =
-      page_alloc((size_t) CONTINUATION_PAGES * HIST_PIECETO * sizeof(int16_t));
+      ArenaAlloc((size_t) CONTINUATION_PAGES * HIST_PIECETO * sizeof(int16_t));
 
     if (sh->correction_history == nullptr || sh->pawn_history == nullptr
         || sh->continuation_history == nullptr) {
@@ -38,10 +38,10 @@ SharedHistories *shared_histories_create(size_t thread_count) {
 void shared_histories_destroy(SharedHistories *sh) {
     if (sh == nullptr)
         return;
-    page_free(sh->correction_history);
-    page_free(sh->pawn_history);
-    page_free(sh->continuation_history);
-    page_free(sh);
+    ArenaFree(sh->correction_history);
+    ArenaFree(sh->pawn_history);
+    ArenaFree(sh->continuation_history);
+    ArenaFree(sh);
 }
 
 // Hold the block a caller with no pool runs against: the unit tests, the bench harness and

@@ -22,10 +22,6 @@
 # the host registering the implementation (engine_init, search_set_time_source).
 # All three are needed -- one direct call left anywhere in engine/ keeps the symbol.
 
-# --- memory (2): the engine's big arenas allocate through the host --------------
-page_alloc
-page_free
-
 # --- thread pool (10): Lazy-SMP dispatch, reached from search_threads.c ----------
 thread_pool_clear
 thread_pool_init

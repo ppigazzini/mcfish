@@ -95,6 +95,16 @@ void search_set_option_source(int (*option_int_by_name)(const char *name));
 // installs it before the first command.
 void search_set_time_source(int64_t (*now_ms_fn)(void));
 
+// Install the page allocator the engine's big arenas come from -- the transposition
+// table, the shared history bank and each SearchWorker block. Both pointers or
+// neither; a block must be released by the implementation that produced it.
+//
+// ALLOC MUST RETURN ZEROED MEMORY ALIGNED TO AT LEAST 64. tt_clear and history_clear
+// both read a fresh arena as zero, and the accumulator indexes from a cache-line
+// boundary. Unregistered, the zone falls back to an aligned, zeroed malloc, which is
+// correct and simply gives up the host's huge-page hint.
+void search_set_arena_source(void *(*alloc_fn)(size_t size), void (*free_fn)(void *ptr));
+
 // Request that the running search stop at the next check. Safe to call from the
 // input thread while search_go runs.
 void search_stop(void);
