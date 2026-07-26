@@ -6,6 +6,7 @@
 #include "../engine/search/tt.h"
 #include "../engine/search/worker_set.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,6 +20,12 @@ static bool PoolReady = false;
 static NumaReplicationContext Numa;
 static bool NumaReady = false;
 static NumaPolicyMode Policy = NUMA_POLICY_AUTO;
+
+// Whether the last resize actually bound. Upstream reports the per-node split only
+// when binding is in effect (thread_binding_information_as_string returns "" and the
+// caller then omits the whole suffix), and `auto` refuses to bind a single thread --
+// so this is not derivable from the policy alone.
+static bool BoundInEffect = false;
 
 // Hold one shared history bank per occupied NUMA node. `banks[i]` is null for a node with
 // no worker on it, which is every node but 0 on a single-node run.
@@ -261,6 +268,7 @@ static bool pool_resize_impl(void *ctx, size_t count) {
         break;
     }
 
+    BoundInEffect = do_bind;
     if (do_bind)
         (void) numa_distribute_threads_among_nodes(&Numa, count, NodeOfThread);
     for (size_t i = 0; i < count; ++i) {
@@ -393,6 +401,36 @@ static bool pool_numa_policy_impl(void *ctx, const char *policy) {
         return false;
     Policy = NUMA_POLICY_EXPLICIT;
     return true;
+}
+
+// Render upstream's thread_binding_information_as_string (engine.cpp:371): for each
+// node, the threads placed on it over the CPUs it holds, joined by ':'. Empty when
+// nothing is bound, which is what makes the caller drop the whole suffix.
+char *worker_pool_thread_binding_string(void) {
+    if (!BoundInEffect || WorkerCount == 0)
+        return nullptr;
+
+    numa_ensure();
+    const NumaConfig *const cfg = numa_context_config(&Numa);
+    const size_t nodes = numa_config_num_nodes(cfg);
+    if (nodes == 0)
+        return nullptr;
+
+    size_t cap = 32 * nodes + 1, len = 0;
+    char *buf = malloc(cap);
+    if (buf == nullptr)
+        return nullptr;
+    buf[0] = '\0';
+
+    for (size_t node = 0; node < nodes; ++node) {
+        size_t placed = 0;
+        for (size_t t = 0; t < WorkerCount && t < SEARCH_THREADS_MAX; ++t)
+            if (NodeOfThread[t] == node)
+                ++placed;
+        len += (size_t) snprintf(buf + len, cap - len, "%s%zu/%zu", node == 0 ? "" : ":", placed,
+                                 numa_config_num_cpus_in_node(cfg, node));
+    }
+    return buf;
 }
 
 // Hand the whole set to the engine. Called once by the composition root, before any

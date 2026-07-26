@@ -59,7 +59,13 @@ static const char *on_debug_log_file(const UciOption *o) {
 // prefixes `info string`, so return the bare text.
 static const char *thread_allocation_string(void) {
     const int n = options_get_int(&Options, "Threads");
-    snprintf(MessageBuf, sizeof MessageBuf, "Using %d thread%s", n, n > 1 ? "s" : "");
+    char *const bind = worker_pool_thread_binding_string();
+    if (bind != nullptr)
+        snprintf(MessageBuf, sizeof MessageBuf,
+                 "Using %d thread%s with NUMA node thread binding: %s", n, n > 1 ? "s" : "", bind);
+    else
+        snprintf(MessageBuf, sizeof MessageBuf, "Using %d thread%s", n, n > 1 ? "s" : "");
+    free(bind);
     return MessageBuf;
 }
 
@@ -76,8 +82,10 @@ static const char *on_threads(const UciOption *o) {
 // so the policy takes effect now. Owner: upstream `numa.h`, engine.cpp:227.
 static const char *on_numa_policy(const UciOption *o) {
     if (!search_set_numa_policy(o->current_value)) {
-        snprintf(MessageBuf, sizeof MessageBuf, "NumaPolicy \"%s\" names no usable node",
-                 o->current_value);
+        // Upstream's wording verbatim (engine.cpp:78), and its semantics: the previous
+        // config stays installed rather than the engine degrading to no topology.
+        snprintf(MessageBuf, sizeof MessageBuf,
+                 "NumaPolicy: invalid value '%s', keeping previous config.", o->current_value);
         return MessageBuf;
     }
     (void) search_set_threads((size_t) options_get_int(&Options, "Threads"));
@@ -85,10 +93,15 @@ static const char *on_numa_policy(const UciOption *o) {
     // Upstream returns the topology AND the allocation, joined by a newline
     // (engine.cpp:79-80); the listener splits it into two info strings.
     char *const cfg = worker_pool_numa_config_string();
-    const int n = options_get_int(&Options, "Threads");
-    snprintf(MessageBuf, sizeof MessageBuf, "Available processors: %s\nUsing %d thread%s",
-             cfg != nullptr ? cfg : "", n, n > 1 ? "s" : "");
+    char head[192];
+    snprintf(head, sizeof head, "Available processors: %s", cfg != nullptr ? cfg : "");
     free(cfg);
+
+    // Upstream returns the topology AND the allocation joined by a newline
+    // (engine.cpp:79-80); the listener splits it into two info strings.
+    char tail[192];
+    snprintf(tail, sizeof tail, "%s", thread_allocation_string());
+    snprintf(MessageBuf, sizeof MessageBuf, "%s\n%s", head, tail);
     return MessageBuf;
 }
 

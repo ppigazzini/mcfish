@@ -75,7 +75,13 @@ void engine_report_threads(void) {
     EmitInfo(line);
 
     const int n = engine_options_get_int("Threads");
-    snprintf(line, sizeof line, "Using %d thread%s", n, n > 1 ? "s" : "");
+    char *const bind = worker_pool_thread_binding_string();
+    if (bind != nullptr)
+        snprintf(line, sizeof line, "Using %d thread%s with NUMA node thread binding: %s", n,
+                 n > 1 ? "s" : "", bind);
+    else
+        snprintf(line, sizeof line, "Using %d thread%s", n, n > 1 ? "s" : "");
+    free(bind);
     EmitInfo(line);
 }
 
