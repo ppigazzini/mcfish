@@ -21,8 +21,10 @@ built from, and `ENGINE_SOURCES` is what `zone-check` and the test binary link.
 A file that is not in those arrays compiles nowhere, links nowhere, and is
 covered by **no gate** — not `signature`, not `perft`, not `golden`, not `test`.
 
-One ported subsystem is in that state today: the decomposed shell in
-`src/shell/engine.c`, a dead duplicate of the live option table in `uci.c`.
+No file is in that state today — `SOURCES` and `ENGINE_SOURCES` between them
+enumerate every `.c` in the tree. That has not always been true, so treat it as a
+claim to re-check ([00-architecture.md](00-architecture.md) gives the one-line
+command) rather than as a standing property.
 
 A second failure mode sits one step past it and reads the same from the outside: a
 module that IS in `SOURCES`, compiles, links and is unit-tested, but that nothing in
@@ -136,8 +138,8 @@ mcfish/
 |   |-- platform/        -- the OS runtime: the monotonic clock, syzygy/ (the
 |   |                       tablebase prober), and thread, NUMA and memory
 |   |                       (built, tested and driven)
-|   `-- shell/           -- main (composition root), the live uci.c, bench, and
-|                           engine.c (a dead duplicate of uci.c's option table)
+|   `-- shell/           -- main (composition root), engine.c (the session and the
+|                           option table), uci.c (the transport), and bench
 |-- resources/           -- the external runtime inputs: the NNUE net and
 |                           syzygy/ (the tablebases). Fetched, never committed;
 |                           every ./build.sh step runs the engine from here
@@ -148,10 +150,9 @@ mcfish/
 `-- Copying.txt, AUTHORS -- GPL v3; Stockfish attribution
 ```
 
-The tree's one remaining gap of that kind is the decomposed shell: `build.sh`
-leaves `src/shell/engine.c` and the loop's decomposition out of `SOURCES`, so they
-compile nowhere and no gate defends them against the next edit until the wiring
-commit lands.
+There is no gap of that kind open: `build.sh` compiles every `.c` above, so each
+one is defended by the gates against the next edit. The last one — the decomposed
+shell — closed in `1e438bc`.
 
 **Every file in this tree is mcfish-owned.** The imported Stockfish copies that
 used to sit in `tests/` and `scripts/` are gone: nothing consumed them, and a
