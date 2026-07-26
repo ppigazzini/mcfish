@@ -6,7 +6,7 @@
 #include "../board/uci_move.h"
 #include "../eval/evaluate.h"
 #include "../state/worker_construct.h"
-#include "search_threads.h"
+#include "worker_set.h"
 #include "history.h"
 #include "../state/arena_source.h"
 #include "option_source.h"
@@ -71,15 +71,17 @@ static void facade_set_last_nodes(uint64_t nodes) { LastNodesSearched = nodes; }
 // Expose the two as plain `atomic_bool *`, which is what the zone's SearchCtx and
 // SearchIdState hold. The address is the pool's own storage, so a write through either is
 // the write every worker polls.
-static atomic_bool *pool_stop(void) { return &search_threads_pool()->stop.value; }
+static atomic_bool *pool_stop(void) { return WorkerSet.stop_flag(WorkerSet.ctx); }
 static atomic_bool *pool_increase_depth(void) {
-    return &search_threads_pool()->increase_depth.value;
+    return WorkerSet.increase_depth_flag(WorkerSet.ctx);
 }
 
-void search_stop(void) { thread_pool_set_stop(search_threads_pool(), true); }
+void search_stop(void) { WorkerSet.set_stop(WorkerSet.ctx, true); }
 
-bool search_set_threads(size_t count) { return search_threads_set(count); }
-bool search_set_numa_policy(const char *policy) { return search_threads_set_numa_policy(policy); }
+bool search_set_threads(size_t count) { return WorkerSet.resize(WorkerSet.ctx, count); }
+bool search_set_numa_policy(const char *policy) {
+    return WorkerSet.set_numa_policy(WorkerSet.ctx, policy);
+}
 
 // Clear every worker's tables, as upstream's ThreadPool::clear does. The per-game
 // manager scalars are the SearchManager's, so `worker_clear` resets them with the rest --
@@ -88,12 +90,12 @@ bool search_set_numa_policy(const char *policy) { return search_threads_set_numa
 // because bench drives its position list behind a single ucinewgame that would change the
 // anchor by percent, not by nodes.
 void search_clear(void) {
-    if (search_threads_main() != nullptr)
-        search_threads_clear();
+    if (search_worker_main() != nullptr)
+        WorkerSet.clear(WorkerSet.ctx);
 }
 
 void search_shutdown(void) {
-    search_threads_shutdown();
+    WorkerSet.shutdown(WorkerSet.ctx);
     histories_shutdown();
 }
 
@@ -303,13 +305,13 @@ static void run_main_search(void *unused) {
     // Start the siblings, then search thread 0 here. Upstream hands thread 0 a job
     // for the same reason: its `go` returns immediately, so the driver runs off the
     // input thread.
-    search_threads_start_siblings(sibling_search);
+    WorkerSet.start_siblings(WorkerSet.ctx, sibling_search);
     const bool uci_pv_sent = iterative_deepening(ctx, &Session.id);
 
     // Raise stop and collect every sibling before reading any of their root move lists.
     // The join is the happens-before edge the vote below depends on.
-    thread_pool_set_stop(search_threads_pool(), true);
-    search_threads_wait_siblings();
+    WorkerSet.set_stop(WorkerSet.ctx, true);
+    WorkerSet.wait_siblings(WorkerSet.ctx);
 
     // In `nodes as time` mode, subtract what this search spent from the budget
     // before returning (Stockfish/src/search.cpp:235-237). Read the limit here,
@@ -329,7 +331,7 @@ static void run_main_search(void *unused) {
     // bench -- always plays thread 0's move whatever the thread count.
     SearchWorker *best = w;
     if (Session.limit_depth == 0 && !Session.id.skill_enabled)
-        best = search_threads_best();
+        best = search_worker_best();
 
     // Record what this search concluded, so the next `go` in this game seeds its
     // aspiration window and its falling-eval term from it. Upstream assigns these
@@ -380,15 +382,15 @@ void search_go_start(Position *pos, const SearchLimits *limits) {
     const TimePoint start =
       limits->start_time != 0 ? (TimePoint) limits->start_time : (TimePoint) TimeNowMs();
 
-    thread_pool_set_stop(search_threads_pool(), false);
-    thread_pool_set_increase_depth(search_threads_pool(), true);
+    WorkerSet.set_stop(WorkerSet.ctx, false);
+    WorkerSet.set_increase_depth(WorkerSet.ctx, true);
 
     Session.result = (SearchResult) { .score = VALUE_ZERO, .best_move = MOVE_NONE };
 
     ExtMove legal[MAX_MOVES];
     const size_t count = (size_t) (generate_legal(pos, legal) - legal);
 
-    SearchWorker *const w = search_threads_main();
+    SearchWorker *const w = search_worker_main();
     if (w == nullptr) {
         // No worker could be built, so there is nothing to search against. Return a legal
         // move rather than MOVE_NONE, as the root-move allocation failure below does.
@@ -443,9 +445,9 @@ void search_go_start(Position *pos, const SearchLimits *limits) {
 
     const SearchZoneLimits zone_limits = to_zone_limits(limits, start);
 
-    const size_t threads = search_threads_count();
+    const size_t threads = WorkerSet.count(WorkerSet.ctx);
     for (size_t i = 0; i < threads; ++i) {
-        SearchWorker *const wi = search_threads_at(i);
+        SearchWorker *const wi = WorkerSet.at(WorkerSet.ctx, i);
         if (!worker_root_setup(wi, pos, root_fen, &ranked, &zone_limits)) {
             // Leave this worker with no root move list. `sibling_search` refuses such a
             // worker and the vote skips it, so one failed setup costs a thread rather
@@ -487,13 +489,13 @@ void search_go_start(Position *pos, const SearchLimits *limits) {
     // Arm the guard, then dispatch onto thread 0. Everything above ran on the UCI
     // thread; from here the search runs on worker 0's OS thread and this call returns.
     atomic_bool_store(&Session.running, true);
-    thread_pool_run_on_thread(search_threads_pool(), 0, run_main_search, nullptr);
+    WorkerSet.run_main(WorkerSet.ctx, run_main_search, nullptr);
 }
 
 // Block until the in-flight search, if any, has finished and published its result.
 // A no-op when nothing is running (no dispatched job, or the synchronous early-outs
 // in search_go_start that never reach thread 0).
-void search_wait(void) { thread_pool_wait_on_thread(search_threads_pool(), 0); }
+void search_wait(void) { WorkerSet.wait_main(WorkerSet.ctx); }
 
 // Clear the ponder flag worker 0's check_time polls, so a `go ponder` search that was
 // exempt from every time limit begins enforcing them (upstream: SearchManager::ponder
@@ -502,7 +504,7 @@ void search_wait(void) { thread_pool_wait_on_thread(search_threads_pool(), 0); }
 void search_ponderhit(void) {
     if (!search_is_running())
         return;
-    SearchWorker *const w = search_threads_main();
+    SearchWorker *const w = search_worker_main();
     if (w != nullptr && w->manager != nullptr)
         atomic_bool_store(&w->manager->ponder, false);
 }

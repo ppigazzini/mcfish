@@ -32,7 +32,7 @@ outside it is unwired, not deferred:
   by hand when touching the prober.
 - **Lazy-SMP threading and NUMA** — **wired.** `Threads` builds a worker set,
   `NumaPolicy` chooses the topology it binds under, and a `go` runs N workers over
-  one root. `search_threads.c` is the driver; every piece of per-worker state that
+  one root. `worker_pool.c` is the driver; every piece of per-worker state that
   was a file-scope static now lives in the `SearchWorker` block, and the pool's
   totals reach the search only through `pool_source.h`, which answers with thread
   0's own values at `Threads 1`. Still open: the NNUE network does not register

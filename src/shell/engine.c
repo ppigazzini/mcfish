@@ -13,6 +13,7 @@
 #include "../engine/search/tt.h"
 #include "../platform/clock.h"
 #include "../platform/memory.h"
+#include "../platform/worker_pool.h"
 #include "engine_nnue.h"
 #include "syzygy_option.h"
 #include "engine_options.h"
@@ -185,6 +186,11 @@ void engine_init(const char *argv0) {
     // the process supplies them; the engine names them and never reaches for them.
     search_set_arena_source(page_alloc, page_free);
     search_set_time_source(shell_now_ms);
+
+    // Hand the engine a worker set backed by real OS threads. Without this it runs on
+    // the one-worker set compiled into the engine zone, which searches the same tree
+    // but cannot honour `Threads` above 1.
+    worker_pool_install();
 
     // Build the state chain before anything can set a position.
     States = state_list_create();

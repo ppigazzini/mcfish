@@ -33,7 +33,7 @@ contract rather than an optimisation.
 [`history.c`](../src/engine/search/history.c),
 [`timeman.c`](../src/engine/search/timeman.c),
 [`tt.c`](../src/engine/search/tt.c),
-[`search_threads.c`](../src/engine/search/search_threads.c), plus the injection seams
+[`worker_set.c`](../src/engine/search/worker_set.c), plus the injection seams
 [`pool_source.h`](../src/engine/search/pool_source.h),
 [`output_sink.h`](../src/engine/search/output_sink.h),
 [`option_source.h`](../src/engine/search/option_source.h),
@@ -52,7 +52,7 @@ search that drifts from the first.
 node body threads through, and it lives inside a `SearchWorker` — one per thread,
 holding that worker's history tables, its NNUE arena and, on thread 0 only, the
 `SearchManager`. The driver is
-[`search_threads.c`](../src/engine/search/search_threads.c); the pool sum in
+[`worker_set.c`](../src/engine/search/worker_set.c); the pool sum in
 `check_time`, `Worker::elapsed`, `output_pv`, the `nodes as time` settle and the
 `best_move_changes` collection reach it through
 [`pool_source.h`](../src/engine/search/pool_source.h), which answers with thread
