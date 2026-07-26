@@ -228,7 +228,10 @@ that golden at all — see [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PRO
   deliberately outside `parity`, because it depends on tables `tb-fetch` does not
   get by default and a gate that is usually skipped stops being read. Run it by
   hand when touching the prober; it exits **127**, not 0, when the tables are
-  absent.
+  absent. Its golden mixes provenance — oracle-pinned probe results over two
+  self-golden node totals — and `./build.sh tb-cursed-update` re-derives only the
+  latter, refusing outright if the former has moved. See
+  [09-tooling-ci.md](09-tooling-ci.md).
 - **The material key is local.** Upstream looks tables up by
   `Position::material_key`; mcfish's `Position` carries none, so `registry.c`
   hashes the piece counts with a private fixed-seed table. Only self-consistency
