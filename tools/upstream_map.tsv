@@ -5,7 +5,7 @@
 # or no file is ROT. Absorb drift by adding the owner; never trim a row to make
 # the audit pass. By-design exclusions live in upstream_map.exceptions.
 src/attacks.cpp	src/engine/board/attacks.h
-src/attacks.h	src/engine/board/threats.c
+src/attacks.h	src/engine/board/threats.c,src/engine/board/attacks.h
 src/benchmark.cpp	src/shell/benchmark.c,src/shell/benchmark.h,src/shell/bench_positions.h
 src/benchmark.h	src/shell/benchmark.h
 src/bitboard.cpp	src/engine/board/fen.c
@@ -18,7 +18,7 @@ src/history.h	src/engine/search/history.h,src/engine/search/history.c
 src/main.cpp	src/shell/uci.c
 src/memory.cpp	src/platform/memory.h,src/platform/memory.c
 src/memory.h	src/platform/memory.h
-src/misc.cpp	src/engine/eval/nnue/nnue_hash.h,src/shell/uci_output.c,src/engine/eval/nnue/nnue_hash.c,src/shell/uci.c,src/shell/uci_output.h
+src/misc.cpp	src/engine/eval/nnue/nnue_hash.h,src/shell/uci_output.c,src/engine/eval/nnue/nnue_hash.c,src/shell/uci.c,src/shell/uci_output.h,src/platform/numa.c
 src/misc.h	src/engine/search/tt.h
 src/movegen.cpp	src/engine/board/movegen.c,src/engine/board/movegen.h
 src/movegen.h	src/engine/board/movegen.h
@@ -28,17 +28,19 @@ src/nnue/features/full_threats.cpp	src/engine/eval/nnue/nnue_feature.c,src/engin
 src/nnue/features/full_threats.h	src/engine/eval/nnue/nnue_feature.h
 src/nnue/features/half_ka_v2_hm.cpp	src/engine/eval/nnue/nnue_accumulator.c,src/engine/eval/nnue/nnue_feature.h,src/engine/eval/nnue/nnue_feature_bb.h
 src/nnue/features/half_ka_v2_hm.h	src/engine/eval/nnue/nnue_feature.h
+src/nnue/features/pp_3wide.cpp	src/engine/eval/nnue/nnue_feature.c,src/engine/eval/nnue/nnue_feature.h
+src/nnue/features/pp_3wide.h	src/engine/eval/nnue/nnue_feature.h
 src/nnue/layers/affine_transform.h	src/engine/eval/nnue/nnue_affine.c,src/engine/eval/nnue/nnue_affine.h
 src/nnue/layers/affine_transform_sparse_input.h	src/engine/eval/nnue/nnue_affine.c
 src/nnue/layers/clipped_relu.h	src/engine/eval/nnue/nnue_affine.c
 src/nnue/layers/sqr_clipped_relu.h	src/engine/eval/nnue/nnue_affine.c
-src/nnue/network.cpp	src/engine/eval/evaluate.c,src/engine/eval/nnue/network.h,src/engine/eval/nnue/nnue_hash.h,src/engine/eval/nnue/nnue_inference.c,src/engine/eval/nnue/nnue_inference.h,src/engine/eval/nnue/nnue_weight_storage.h,src/shell/engine_nnue.c,src/shell/engine_nnue.h
+src/nnue/network.cpp	src/engine/eval/evaluate.c,src/engine/eval/nnue/network.h,src/engine/eval/nnue/nnue_hash.h,src/engine/eval/nnue/nnue_inference.c,src/engine/eval/nnue/nnue_inference.h,src/engine/eval/nnue/nnue_weight_storage.h,src/shell/engine_nnue.c,src/shell/engine_nnue.h,src/engine/eval/nnue/network.c
 src/nnue/network.h	src/engine/eval/nnue/network.h
 src/nnue/nnue_accumulator.cpp	src/engine/eval/nnue/nnue_accumulator.c,src/engine/eval/nnue/nnue_acc_rowops.c,src/engine/eval/nnue/nnue_accumulator.h
 src/nnue/nnue_accumulator.h	src/engine/eval/nnue/nnue_accumulator.h
 src/nnue/nnue_architecture.h	src/engine/eval/nnue/nnue_architecture.h
 src/nnue/nnue_common.h	src/engine/eval/nnue/nnue_common.h
-src/nnue/nnue_feature_transformer.h	src/engine/eval/nnue/nnue_acc_rowops.h,src/engine/eval/nnue/nnue_ft.h,src/engine/eval/nnue/nnue_parse.h
+src/nnue/nnue_feature_transformer.h	src/engine/eval/nnue/nnue_acc_rowops.h,src/engine/eval/nnue/nnue_ft.h,src/engine/eval/nnue/nnue_parse.h,src/engine/eval/nnue/nnue_feature.h
 src/nnue/nnue_misc.cpp	src/engine/eval/evaluate.c
 src/nnue/nnue_misc.h	src/engine/eval/evaluate.h
 src/nnue/nnz_helper.h	src/engine/eval/nnue/simd.h
@@ -58,7 +60,7 @@ src/thread.h	src/platform/thread_runtime.h
 src/thread_native.h	src/platform/thread.c,src/platform/thread.h
 src/timeman.cpp	src/engine/search/timeman.c
 src/timeman.h	src/engine/search/timeman.h
-src/tt.cpp	src/engine/search/tt.h,src/engine/search/tt.c,src/engine/state/tt_types.h,src/engine/search/search_threads.c
+src/tt.cpp	src/engine/search/tt.h,src/engine/search/tt.c,src/engine/state/tt_types.h,src/engine/search/search_threads.c,src/shell/engine.c
 src/tt.h	src/engine/search/tt.h,src/engine/state/tt_types.h
 src/types.h	src/engine/board/types.h,src/engine/board/score.h,src/engine/board/threats.h,src/engine/search/tt.h
 src/uci.cpp	src/shell/uci.c,src/shell/benchmark.c,src/engine/board/board_props.h,src/engine/search/search.h,src/engine/board/position.c,src/engine/board/state_list.h,src/engine/board/uci_move.c,src/engine/search/uci_wdl.h,src/shell/benchmark.h,src/shell/engine.h,src/shell/uci_output.c,src/shell/uci_output.h,src/shell/ucioption.h
