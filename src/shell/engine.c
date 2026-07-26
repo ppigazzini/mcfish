@@ -13,6 +13,7 @@
 #include "../engine/search/tt.h"
 #include "../platform/clock.h"
 #include "../platform/memory.h"
+#include "../platform/numa.h"
 #include "../platform/worker_pool.h"
 #include "engine_nnue.h"
 #include "syzygy_option.h"
@@ -38,11 +39,18 @@ static char ReasonBuf[128];
 // origin is arbitrary.
 static int64_t shell_now_ms(void) { return (int64_t) now_ms(); }
 
+// The info sink splits on newlines and prefixes each line with `info string`, which
+// is upstream's print_info_string (uci.cpp:55). Everything that reports through it
+// therefore lands on stdout in upstream's shape; nothing here formats that prefix.
+static void (*EmitInfo)(const char *message) = nullptr;
+
 void engine_set_output(void (*emit_line)(const char *line),
                        void (*emit_info)(const char *message)) {
     search_set_output(emit_line);
     engine_options_set_info(emit_info);
     engine_nnue_set_output(emit_line);
+    engine_nnue_set_info(emit_info);
+    EmitInfo = emit_info;
 }
 
 OptionsMap *engine_options(void) { return engine_options_map(); }
@@ -56,6 +64,21 @@ int engine_setoption(const char *args, char name[OPTION_NAME_MAX]) {
 void engine_render_options(char *buf, size_t buf_len) { engine_options_render(buf, buf_len); }
 
 void engine_report_net(void) { engine_nnue_report(); }
+
+void engine_report_threads(void) {
+    if (EmitInfo == nullptr)
+        return;
+
+    char line[256];
+    char *const cfg = numa_config_string();
+    snprintf(line, sizeof line, "Available processors: %s", cfg != nullptr ? cfg : "");
+    free(cfg);
+    EmitInfo(line);
+
+    const int n = engine_options_get_int("Threads");
+    snprintf(line, sizeof line, "Using %d thread%s", n, n > 1 ? "s" : "");
+    EmitInfo(line);
+}
 
 void engine_verify_network(void) { engine_nnue_verify(); }
 
