@@ -26,7 +26,7 @@
 #define MCFISH_WORKER_LAYOUT_H
 
 #include "../../platform/thread_pool.h"
-#include "../../platform/thread_runtime.h"
+#include "atomic.h"
 #include "../board/position.h"
 #include "../board/types.h"
 #include "../eval/evaluate.h"

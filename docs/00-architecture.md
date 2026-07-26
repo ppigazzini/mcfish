@@ -55,13 +55,19 @@ A symbol that is no longer needed also fails, asking to be struck from the list,
 the baseline cannot outlive what it measures. Read the current edge from that file
 or from the gate, never from a sentence here.
 
-What remains is four separate pieces of work rather than one: `page_alloc` /
-`page_free` for the big arenas; the `atomic_bool_*` trio behind the stop flag;
-`thread_pool_*` and `thread_set_worker` for Lazy-SMP dispatch; and `numa_*` for
-topology and replication. **Nothing in the search's hot path is among them** — no
-node body, no evaluation, no move generation. The edge is entirely worker-set
-lifecycle plus arena allocation, which is why the single-threaded search is already
-portable in everything but its link line.
+What remains is three separate pieces of work rather than one: `page_alloc` /
+`page_free` for the big arenas; `thread_pool_*` and `thread_set_worker` for
+Lazy-SMP dispatch; and `numa_*` for topology and replication. **Nothing in the
+search's hot path is among them** — no node body, no evaluation, no move
+generation. The edge is entirely worker-set lifecycle plus arena allocation, which
+is why the single-threaded search is already portable in everything but its link
+line.
+
+Not every line leaves by way of a seam. The atomics went the other way: their
+bodies are C11 `<stdatomic.h>`, not a host service, so the type moved into the
+engine zone ([`atomic.h`](../src/engine/state/atomic.h)) and `platform/` includes
+it — the direction the zone rule already permits. Check whether a symbol is
+genuinely a platform service before designing an injection point for it.
 
 The clock is the worked example of a service that is **off** the list, and the
 shape to copy for one that is on it. Three things have to hold together, and a
