@@ -65,3 +65,10 @@ __DEV/
 # Local, per-machine/per-toolchain instruction budget (build.sh perf-budget). Not shared:
 # the retired-instruction count is toolchain-specific; each dev records their own.
 tools/instr_budget.golden
+
+# fastchess resume state, not configuration. The harness autosaves it into its CWD so
+# a killed Elo match can resume, and the file carries that run's engine paths, TC and
+# W/L/D. The book and the fastchess binary it belongs to are already covered by
+# `resources/`; this one lands at the root, where nothing was catching it -- and at a
+# few KiB the large-file hook waves it through.
+/config.json
