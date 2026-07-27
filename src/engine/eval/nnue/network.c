@@ -89,16 +89,27 @@ static bool read_header(const uint8_t *bytes, size_t len, size_t *offset, Header
 
 // ---- section parses ----------------------------------------------------------
 
-#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
-// Reorder every 64-lane span of an accumulator-side array so the avx2 transform's
-// vpackuswb lands the u8 outputs in canonical order with no cross-lane vpermq
-// (upstream permute_weights / PackusEpi16Order): swap the middle two 8-lane blocks
-// of each 32-lane half. Apply it to every array the 16-bit accumulator is built
-// from — biases, psq weight rows, threat weight rows — and to nothing else; all
-// other consumers add these arrays lane-wise, where one fixed permutation applied
-// to every writer is invisible, and the transform's packus undoes it exactly.
+#if MCFISH_SIMD_VECTOR && (defined(__AVX512BW__) || (defined(__AVX2__) && !defined(__AVX512F__)))
+// Reorder every 64-lane span of an accumulator-side array so the transform's
+// vpackuswb lands the u8 outputs in canonical order with no cross-lane permute
+// (upstream permute_weights / PackusEpi16Order). Apply it to every array the 16-bit
+// accumulator is built from — biases, psq weight rows, threat weight rows — and to
+// nothing else; all other consumers add these arrays lane-wise, where one fixed
+// permutation applied to every writer is invisible, and the transform's packus
+// undoes it exactly.
+//
+// THE TABLE IS THE PACK WIDTH'S, so it moves with the tier. vpackuswb interleaves its
+// two operands per 128-bit lane, so over one step's span the output block order is
+// (0,2,1,3) per 32 lanes at 256-bit and (0,4,1,5,2,6,3,7) per 64 lanes at 512-bit;
+// what the loader must apply is the inverse of that, which is why the 256-bit entry
+// is self-inverse and the 512-bit one is not. Keep this paired with the step body in
+// nnue_accumulator.c: nothing but `signature` and `simd-scalar` holds them together.
 static void permute_packus_order(void *data, size_t elem_bytes, size_t count) {
+    #if defined(__AVX512BW__)
+    static const size_t order[8] = { 0, 2, 4, 6, 1, 3, 5, 7 };
+    #else
     static const size_t order[8] = { 0, 2, 1, 3, 4, 6, 5, 7 };
+    #endif
     const size_t block = 8 * elem_bytes;
     const size_t chunk = 8 * block;
     unsigned char *cursor = data;
@@ -125,7 +136,7 @@ static bool read_feature_transformer(const uint8_t *bytes, size_t len, size_t *o
         return false;
     if (consumed == 0 || consumed > remaining)
         return false;
-#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+#if MCFISH_SIMD_VECTOR && (defined(__AVX512BW__) || (defined(__AVX2__) && !defined(__AVX512F__)))
     permute_packus_order(dst + NNUE_FT_BIASES_OFF, sizeof(int16_t), NNUE_FT_BIASES_COUNT);
     permute_packus_order(dst + NNUE_FT_WEIGHTS_OFF, sizeof(int16_t), NNUE_FT_PSQ_WEIGHTS_COUNT);
     permute_packus_order(dst + NNUE_FT_THREAT_WEIGHTS_OFF, sizeof(int8_t),
