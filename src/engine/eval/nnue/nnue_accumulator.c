@@ -158,6 +158,24 @@ enum { TRANSFORM_VEC_WIDTH = 64 };
     #define tf_u8_as_groups nnue_v64_u8_as_u32x16
     #define tf_movemask nnue_v16u32_movemask
 #endif
+// Select the product step's native width — the register width whose vpackuswb the step
+// narrows with. Upstream reaches its packus body from the generic `#else` arm, which
+// every x86 tier takes (feature_transformer.h); only NEON, LSX/LASX and wasm branch
+// away. Spell the choice once: the operand clamps, the step body and the nnz harvest
+// all hang off it, and three independently written guards had already drifted into
+// leaving the 512-bit tiers on the portable widening path alone.
+//
+// Gate the 512-bit arm on AVX512BW, the feature that owns vpmulhw and vpackuswb at zmm
+// width — not on AVX512F, which has neither.
+#if MCFISH_SIMD_VECTOR && defined(__AVX512BW__)
+    #define TRANSFORM_PACKUS_BITS 512
+#elif MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+    #define TRANSFORM_PACKUS_BITS 256
+#elif MCFISH_SIMD_VECTOR && defined(__SSE2__) && !defined(__AVX512F__)
+    #define TRANSFORM_PACKUS_BITS 128
+#else
+    #define TRANSFORM_PACKUS_BITS 0
+#endif
 static_assert((NNUE_HALF_DIMENSIONS / 2) % TRANSFORM_VEC_WIDTH == 0,
               "the transform half-output must be a multiple of TRANSFORM_VEC_WIDTH");
 // The transform stores each step's nnz mask bytes exactly once at their own offset,
@@ -707,7 +725,7 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
     // product 128*c0*c1 is exact and >>16 is floor, so this is bit-identical to the
     // int32 clamp*mul>>9 path — integer throughout, no rounding.
     const size_t half = NNUE_HALF_DIMENSIONS / 2;
-#if !(MCFISH_SIMD_VECTOR && defined(__SSE2__) && !defined(__AVX512F__))
+#if TRANSFORM_PACKUS_BITS == 0
     const TfI16 zero = tf_i16_splat(0);
     const TfI16 c255 = tf_i16_splat(255);
 #endif
@@ -726,7 +744,7 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
         const size_t pp = p == 0 ? p0 : p1;
         const size_t offset = half * p;
         const size_t base = pp * NNUE_HALF_DIMENSIONS;
-#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+#if TRANSFORM_PACKUS_BITS >= 256
         // Rebase the bitset cursor per perspective so the store below indexes it
         // with the loop counter alone; folding the perspective offset into the
         // index expression instead makes clang carry a second, or-adjusted cursor
@@ -734,7 +752,61 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
         unsigned char *const nnz_bytes = (unsigned char *) *nnz + offset / 32;
 #endif
         for (size_t j = 0; j < half; j += TRANSFORM_VEC_WIDTH) {
-#if MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+#if TRANSFORM_PACKUS_BITS == 512
+            // Native avx512bw product step, upstream's packus-clip shape at zmm width.
+            // Same identity the avx2 branch below documents: clamp the FIRST operand
+            // from above and below, the second from above only — when the second stays
+            // negative the SIGNED vpmulhw product is negative and vpackuswb's low-side
+            // saturation zeroes it, exactly what the explicit max(0, ·) lands on — and
+            // vpmulhw equals the unsigned mulhi on the remaining all-non-negative
+            // operands (both factors < 2^15). Against the portable widening step this
+            // drops four vpmaxsw, and narrows with two vpackuswb where that path paid
+            // four vpmovwb plus two vinserti64x4 per 128 lanes. No cross-lane permute
+            // follows the pack: the loader permutes every accumulator-side weight array
+            // into the 512-bit packus order (network.c permute_packus_order), so the
+            // pack's per-lane interleave IS the canonical output order.
+            const __m512i ftmax = _mm512_set1_epi16(255);
+            const __m512i sgnzero = _mm512_setzero_si512();
+            const int16_t *in0 = comb_acc + base + j;
+            const int16_t *in1 = comb_acc + base + j + half;
+            // Unroll the two packs even though the 512-bit tiers build with
+            // -fno-unroll-loops (build.sh). That flag is right for the big row and
+            // search loops it was measured on and wrong for a two-trip loop whose body
+            // is 13 instructions: rolled, clang re-derives both halves' displacements
+            // per trip and emulates the trip count through a flag register, MEASURED at
+            // ~10 scalar instructions per 64 lanes — more than the vector ops the
+            // packus shape saves. Unrolled, every displacement is a literal.
+    #pragma clang loop unroll(full)
+            for (size_t k = 0; k < 2; k++) {
+                const __m512i a0 = _mm512_loadu_si512((const void *) (in0 + 64 * k));
+                const __m512i a1 = _mm512_loadu_si512((const void *) (in0 + 64 * k + 32));
+                const __m512i b0 = _mm512_loadu_si512((const void *) (in1 + 64 * k));
+                const __m512i b1 = _mm512_loadu_si512((const void *) (in1 + 64 * k + 32));
+                const __m512i sum0a =
+                  _mm512_slli_epi16(_mm512_max_epi16(_mm512_min_epi16(a0, ftmax), sgnzero), 7);
+                const __m512i sum0b =
+                  _mm512_slli_epi16(_mm512_max_epi16(_mm512_min_epi16(a1, ftmax), sgnzero), 7);
+                const __m512i pa = _mm512_mulhi_epi16(sum0a, _mm512_min_epi16(b0, ftmax));
+                const __m512i pb = _mm512_mulhi_epi16(sum0b, _mm512_min_epi16(b1, ftmax));
+                const __m512i packed = _mm512_packus_epi16(pa, pb);
+                // Store each pack where it lands — upstream's `*out++`, not a 128-byte
+                // step temporary. The temporary is what the narrower tiers assemble
+                // because their steps are unrolled and it costs nothing there; at 512
+                // bits the build runs -fno-unroll-loops (build.sh), so the two halves
+                // cannot live in registers across the k iterations and the temporary
+                // becomes a real stack round trip: MEASURED at +1.8% whole-binary
+                // instructions with it, against the portable step this replaces.
+                _mm512_storeu_si512((void *) (output + offset + j + 64 * k), packed);
+                // Harvest this half's non-zero-chunk bits while it is still a register —
+                // upstream's NNZCursor::record2 shape, one step's mask stored at its own
+                // offset. The u8 lanes are at most 126, so each dword group is a
+                // non-negative i32 and greater-than-zero IS non-zero. AVX-512 compares
+                // into a mask register, so this is one vpcmpd and one kmovw where the
+                // narrower tiers pay a compare plus a movemask extract.
+                const uint16_t mask16 = (uint16_t) _mm512_cmpgt_epi32_mask(packed, sgnzero);
+                __builtin_memcpy(nnz_bytes + j / 32 + 2 * k, &mask16, sizeof mask16);
+            }
+#elif TRANSFORM_PACKUS_BITS == 256
             // Native avx2 product step, upstream's packus-clip shape (the
             // feature_transformer.h block comment): clamp the second operand from
             // above only — when it stays negative the SIGNED mulhi product is
@@ -781,7 +853,7 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
                   (uint32_t) _mm256_movemask_ps((__m256) _mm256_cmpgt_epi32(packed, sgnzero));
                 nnz_bytes[j / 32 + k] = (uint8_t) mask8;
             }
-#elif MCFISH_SIMD_VECTOR && defined(__SSE2__) && !defined(__AVX512F__)
+#elif TRANSFORM_PACKUS_BITS == 128
             // Native sse41 product step, the same packus-clip shape as the avx2 branch
             // above: clamp only the FIRST operand from below — when the second stays
             // negative the SIGNED pmulhw product is negative and packuswb's low-side
@@ -820,12 +892,15 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
             const TfU16 q = tf_u32_to_u16(tf_u32_shr(tf_u32_mul(lhs, rhs), 16));
             const TfU8 bytes = tf_u16_to_u8(q);
 #endif
+#if TRANSFORM_PACKUS_BITS != 512
+            // The 512-bit step above already stored each pack at its own offset.
             tf_u8_store(output + offset + j, bytes);
+#endif
 
-#if !(MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__))
+#if TRANSFORM_PACKUS_BITS < 256
             // Record which 4-byte chunks are non-zero while they are still in a register:
-            // no reload of what was just stored. (The avx2 branch above already stored
-            // its per-step movemask bytes.)
+            // no reload of what was just stored. (The 512- and 256-bit branches above
+            // already stored their per-pack mask bytes.)
             const TfGroups groups = tf_u8_as_groups(bytes);
 
             // Build the non-zero-chunk mask with one horizontal movemask (compare-to-zero
