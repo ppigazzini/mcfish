@@ -549,43 +549,55 @@ the diff: the specialized node bodies shift under register-allocation changes, a
 an edit near the transposition table flips link-time inlining, so a local estimate
 answers a different question than the binary does.
 
-**Take cycle and cache claims to an idle box, floored by an A/A run — and know what
-each axis's floor is.** Measure the build against a byte-identical *copy* of itself,
-both orientations, reported as the geometric mean of the two so the position bias
-cancels. Settled, on this class of host:
+**Take cycle and cache claims to an idle box, floored by an A/A run — and know that
+each axis has its OWN floor.** Measure the build against a byte-identical *copy* of
+itself, both orientations, reported as the geometric mean of the two so the position
+bias cancels. The five axes do not share one floor: instructions is exact, and the
+four efficiency axes spread over more than an order of magnitude between the
+tightest and the widest, so the same reading is a result on one axis and noise on
+another. **Per-axis floors: TBD** — derive them on the box in front of you and
+quote them beside any ratio you report. No figure recorded here has survived audit.
 
-```text
-instructions   1.000   exact
-branch misses  1.001   ~0.1%
-cycles         0.999   ~0.1%
-IPC            1.001   ~0.1%
-cache misses   1.005   ~0.5%
-```
+**That floor is a property of the box's STATE, not a constant of the host.** The
+same control run immediately after a heavy build reads far wider than the settled
+one, while instructions stay exact. So run the control *adjacent in time* to the
+comparison it floors, and when it reads wide, discard the comparison rather than the
+control: a wide A/A is the box saying every efficiency ratio measured beside it is
+noise. A four-tier sweep has been thrown out and re-run for precisely this. A
+control taken once at the start of a session floors nothing an hour later.
 
-**That floor is a property of the box's state, not a constant.** The same control,
-run immediately after building eight binaries, read cycles 1.023 and cache misses
-1.073 — twenty times the settled spread — while instructions stayed exactly 1.000.
-So run the control *adjacent in time* to the comparison it floors, and when it reads
-wide, discard the comparison rather than the control: a wide A/A is the box saying
-every efficiency ratio measured beside it is noise. A whole four-tier sweep has been
-thrown out and re-run for precisely this.
+**Subtract startup before quoting any search ratio.** `perf_counters.sh` counts the
+whole process, and net load is a large share of a shallow bench — large enough that
+the whole-process ratio and the search-only ratio have been observed to disagree in
+SIGN. Measure a near-empty search separately and subtract it, or the number
+describes the loader rather than the engine. This is the error that put a false
+standing into this page and into the local ledger; treat any un-subtracted
+whole-process ratio as unusable.
 
 The two halves of an IPC gap floor differently, which is what makes the split worth
-reading: **branch misses move for a prediction change and carry the tightest floor
-of the four efficiency axes; cache misses move for a data one and carry the widest.**
-A repeatable cache-miss win earns a commit only when cycles follow it — this tree
-has measured miss reductions that cost more cycles than they saved, in both the
+reading: **branch misses move for a prediction change; cache misses move for a data
+one.** A repeatable cache-miss win earns a commit only when cycles follow it — this
+tree has measured miss reductions that cost more cycles than they saved, in both the
 prefetch and the wide-store families. State which axis a commit's evidence rides on
 in its body.
 
 **Instructions lead because they are deterministic, not because they predict Elo.**
-The obvious test — rank the four ISA tiers by each counter axis and by measured Elo
-against the same-tier oracle, then correlate — has been run here over 12 000 games,
-and it settles nothing: cycles and cache misses rank at Spearman +0.40, IPC and
-branch misses at +0.20, and instructions at −0.20. It could not have settled
-anything, because the Elo ranking it would have to reproduce is itself noise — the
-widest gap between two tiers is 0.7 sigma and four of the six pairs are under 0.5.
-The zfish port ran the same experiment on its own tiers and got +1.00 for
-instructions; two sibling ports reaching opposite extremes from n = 4 is what a
-noise-driven correlation looks like from the inside. **Do not read a tier ordering
-out of the counter table, in either direction.**
+The obvious test — rank the ISA tiers by each counter axis and by measured Elo
+against the same-tier oracle, then correlate — has been run here and settles
+nothing, and could not have: with four tiers the Elo ranking it would need to
+reproduce is itself sub-sigma. The sibling zfish port ran the same experiment and
+landed at the opposite extreme on the instruction axis; two ports reaching opposite
+conclusions from n = 4 is what a noise-driven correlation looks like from the
+inside. **Do not read a tier ordering out of the counter table, in either
+direction**, and do not restate the correlation as a figure — it carries no
+information. **Rank correlations: TBD, and likely not worth deriving.**
+
+**A per-function ratio is a lie unless the grouping is inlining-neutral.** callgrind
+attributes inlined code to the file it came from under the CALLER's name, and the
+two engines inline differently — mcfish folds `do_move` into the node body where
+upstream keeps it out of line. Comparing one symbol per side has produced large
+fictitious divergences in this tree more than once, in both directions. Group every
+logical component with its inlined callees on BOTH sides and let
+[`../tools/perf_fingerprint.py`](../tools/perf_fingerprint.py) reconcile the sum
+against callgrind's own program totals; it fails loudly on a shortfall where a
+hand-rolled parser prints a plausible lie.
