@@ -306,6 +306,15 @@ binaries directly: the paired ratio cancels the thermal spread that makes a lone
 cycles reading lie (a 128-lane transform that reads +3% cycles against the oracle in
 one batch reads a flat 1.000 in a direct 12-round pair).
 
+**Every ratio but instructions needs its floor quoted beside it.** The five axes do
+not share one — settled, the A/A control reads instructions exactly 1.000, branch
+misses and cycles and IPC around 0.1%, and cache misses around 0.5%, so the same
+0.6% reading is signal on one axis and noise on another. Worse, those figures are
+the *settled* box: run the control right after a heavy build and cycles read 1.023
+and cache misses 1.073. The floor table and the discard rule are in
+[08-idiomatic-c.md](08-idiomatic-c.md#measurement-discipline); measure the control
+next to the comparison, never once at the start of a session.
+
 **Pick by size of the effect.** `nps` cannot resolve anything under about 5% —
 wall-clock on this class of hardware swings by more than that between batches, so
 it has both falsely confirmed and falsely refuted real changes. callgrind is

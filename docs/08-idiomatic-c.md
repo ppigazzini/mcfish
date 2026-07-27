@@ -549,9 +549,43 @@ the diff: the specialized node bodies shift under register-allocation changes, a
 an edit near the transposition table flips link-time inlining, so a local estimate
 answers a different question than the binary does.
 
-**Take cycle and cache claims to an idle box, floored by an A/A run.** Measure the
-same binary against itself first; that spread is the floor, and a claim below it
-is unresolved. A repeatable cache-miss win earns a commit only when cycles follow
-it — this tree has measured miss reductions that cost more cycles than they saved,
-in both the prefetch and the wide-store families. State which axis a commit's
-evidence rides on in its body.
+**Take cycle and cache claims to an idle box, floored by an A/A run — and know what
+each axis's floor is.** Measure the build against a byte-identical *copy* of itself,
+both orientations, reported as the geometric mean of the two so the position bias
+cancels. Settled, on this class of host:
+
+```text
+instructions   1.000   exact
+branch misses  1.001   ~0.1%
+cycles         0.999   ~0.1%
+IPC            1.001   ~0.1%
+cache misses   1.005   ~0.5%
+```
+
+**That floor is a property of the box's state, not a constant.** The same control,
+run immediately after building eight binaries, read cycles 1.023 and cache misses
+1.073 — twenty times the settled spread — while instructions stayed exactly 1.000.
+So run the control *adjacent in time* to the comparison it floors, and when it reads
+wide, discard the comparison rather than the control: a wide A/A is the box saying
+every efficiency ratio measured beside it is noise. A whole four-tier sweep has been
+thrown out and re-run for precisely this.
+
+The two halves of an IPC gap floor differently, which is what makes the split worth
+reading: **branch misses move for a prediction change and carry the tightest floor
+of the four efficiency axes; cache misses move for a data one and carry the widest.**
+A repeatable cache-miss win earns a commit only when cycles follow it — this tree
+has measured miss reductions that cost more cycles than they saved, in both the
+prefetch and the wide-store families. State which axis a commit's evidence rides on
+in its body.
+
+**Instructions lead because they are deterministic, not because they predict Elo.**
+The obvious test — rank the four ISA tiers by each counter axis and by measured Elo
+against the same-tier oracle, then correlate — has been run here over 12 000 games,
+and it settles nothing: cycles and cache misses rank at Spearman +0.40, IPC and
+branch misses at +0.20, and instructions at −0.20. It could not have settled
+anything, because the Elo ranking it would have to reproduce is itself noise — the
+widest gap between two tiers is 0.7 sigma and four of the six pairs are under 0.5.
+The zfish port ran the same experiment on its own tiers and got +1.00 for
+instructions; two sibling ports reaching opposite extremes from n = 4 is what a
+noise-driven correlation looks like from the inside. **Do not read a tier ordering
+out of the counter table, in either direction.**
