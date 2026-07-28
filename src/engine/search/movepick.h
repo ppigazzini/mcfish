@@ -62,16 +62,13 @@ typedef struct {
     const Position *pos;
     Histories *hist;
     Key pawn_key;
-    // The frame the picker gathers continuation pages from, lazily, at the one
-    // stage that scores them: QUIET_INIT fills all six slots, EVASION_INIT only
-    // slot 0. Null for the ProbCut picker, whose stages read no page.
-    const Stack *ss;
-    // Continuation-history pages (ss-1) .. (ss-6). Quiet scoring reads slots
-    // 0, 1, 2, 3 and 5; evasion scoring reads slot 0. Every slot a stage reads
-    // is filled by that stage's init before the read. Slot 4 -- (ss-5) -- is
-    // read by nothing and so is filled by nothing; the index stays in the array
-    // to keep slot k meaning (ss-1-k), as upstream's contHist does.
-    const SharedStat *cont_hist[6];
+    // The CALLER's continuation-page array, not a copy: `contHist` in upstream's
+    // constructor (movepick.cpp:160). Slot k is the (ss-1-k) page. Quiet scoring
+    // reads slots 0, 1, 2, 3 and 5, evasion scoring reads slot 0, and the
+    // quiescence caller passes a one-entry array because its only scorer is the
+    // evasion one (search.cpp:1732). Null for the ProbCut picker, whose stages
+    // read no page.
+    const SharedStat *const *cont_hist;
     int ply;
 
     Move tt_move;
@@ -101,7 +98,7 @@ void movepick_init(MovePicker *mp,
                    Move tt_move,
                    int depth,
                    int ply,
-                   const Stack *ss);
+                   const SharedStat *const *cont_hist);
 
 // Set up the ProbCut picker: captures only, kept when they pass SEE >= THRESHOLD.
 // The caller selects the opening stage afterwards, as with movepick_init.
