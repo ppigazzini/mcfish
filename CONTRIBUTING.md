@@ -25,6 +25,21 @@ Any change that touches engine behaviour must keep the whole battery green:
 ./build.sh parity
 ```
 
+**Check its EXIT CODE, not a piped fragment.** `./build.sh parity | tail -1` reads
+`0` from `tail` while the gate is red; that has laundered red gates in this port and
+its sibling. Run it unpiped, or redirect and test `$?`.
+
+**Two changes need a gate `parity` does not run:**
+
+- **ISA-gated code** — `./build.sh arch-determinism`. The tiers run different
+  algorithms now (slider attacks switch at avx2, move sorting at avx512, threat
+  writing at ICL), so that step is what compares the vector path against the scalar
+  path *on the same tree*. `signature` tests one tier and would pass over a wrong
+  attack set at another.
+- **Anything touching `platform/thread*.c`** — `./build.sh tsan`, and
+  `./build.sh tsan-search` for the search itself. A race does not have to fire to
+  be there.
+
 All ten, in the order `parity` runs them:
 
 | Gate | Asserts |
