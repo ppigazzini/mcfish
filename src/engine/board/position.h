@@ -76,9 +76,13 @@ typedef struct StateInfo {
 } StateInfo;
 
 typedef struct Position {
+    // `board` FIRST, as upstream declares it. It is exactly 64 bytes -- one cache
+    // line -- and only if it starts at offset 0 does `piece_on` touch a single line
+    // per read. Declared after the bitboards it began at offset 72 and straddled the
+    // 64/128 boundary, so a random square read could land on either of two lines.
+    Piece board[SQUARE_NB];
     Bitboard by_type[PIECE_TYPE_NB];  // index 0 (ALL_PIECES) is the occupancy
     Bitboard by_color[COLOR_NB];
-    Piece board[SQUARE_NB];
     int piece_count[PIECE_NB];
     Color side_to_move;
     int game_ply;
