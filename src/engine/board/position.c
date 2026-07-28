@@ -58,14 +58,14 @@ static void put_piece(Position *pos, Piece pc, Square s, DirtyThreats *dts) {
     pos->piece_count[pc]++;
 
     if (dts)
-        threats_update_piece(true, pos, pc, true, s, dts, ALL_SQUARES_BB);
+        threats_update_piece_ray(pos, pc, true, s, dts, ALL_SQUARES_BB);
 }
 
 static void remove_piece(Position *pos, Square s, DirtyThreats *dts) {
     const Piece pc = pos->board[s];
 
     if (dts)
-        threats_update_piece(true, pos, pc, false, s, dts, ALL_SQUARES_BB);
+        threats_update_piece_ray(pos, pc, false, s, dts, ALL_SQUARES_BB);
 
     pos->by_type[ALL_PIECES] ^= square_bb(s);
     pos->by_type[type_of_piece(pc)] ^= square_bb(s);
@@ -81,7 +81,7 @@ static void move_piece(Position *pos, Square from, Square to, DirtyThreats *dts)
     // Pass `from | to` as the no-rays mask so the mover's own vacated and occupied
     // squares do not register as a discovery.
     if (dts)
-        threats_update_piece(true, pos, pc, false, from, dts, fromto);
+        threats_update_piece_ray(pos, pc, false, from, dts, fromto);
 
     pos->by_type[ALL_PIECES] ^= fromto;
     pos->by_type[type_of_piece(pc)] ^= fromto;
@@ -90,7 +90,7 @@ static void move_piece(Position *pos, Square from, Square to, DirtyThreats *dts)
     pos->board[to] = pc;
 
     if (dts)
-        threats_update_piece(true, pos, pc, true, to, dts, fromto);
+        threats_update_piece_ray(pos, pc, true, to, dts, fromto);
 }
 
 // Replace the piece on S in place — the capture-and-promote square. The occupancy
@@ -102,12 +102,12 @@ static void swap_piece(Position *pos, Square s, Piece pc, DirtyThreats *dts) {
     remove_piece(pos, s, nullptr);
 
     if (dts)
-        threats_update_piece(false, pos, old, false, s, dts, ALL_SQUARES_BB);
+        threats_update_piece_no_ray(pos, old, false, s, dts, ALL_SQUARES_BB);
 
     put_piece(pos, pc, s, nullptr);
 
     if (dts)
-        threats_update_piece(false, pos, pc, true, s, dts, ALL_SQUARES_BB);
+        threats_update_piece_no_ray(pos, pc, true, s, dts, ALL_SQUARES_BB);
 }
 
 Bitboard pos_attackers_to_occ(const Position *pos, Square s, Bitboard occupied) {
