@@ -53,7 +53,8 @@ typedef struct {
     uint64_t cycles;
     uint64_t cache_misses;
     uint64_t branch_misses;
-    uint64_t ops;  // retired macro-ops; 0 when the host has no counter for them
+    uint64_t ops;       // retired macro-ops; 0 when the host has no counter for them
+    uint64_t branches;  // retired branches, so the miss RATE is readable
     uint64_t nodes;
 } Counters;
 
@@ -158,6 +159,9 @@ static Counters run_once(char *const argv[], int core) {
     int c_cache = open_counter(PERF_COUNT_HW_CACHE_MISSES, pid);
     int c_branch = open_counter(PERF_COUNT_HW_BRANCH_MISSES, pid);
     int c_ops = open_counter_typed(PERF_TYPE_RAW, AMD_EX_RET_OPS, pid);
+    // Retired branches. Misses alone cannot say whether a surplus is more branches or
+    // worse prediction of the same ones, and those two call for opposite fixes.
+    int c_br = open_counter(PERF_COUNT_HW_BRANCH_INSTRUCTIONS, pid);
     if (c_instr < 0 || c_cyc < 0) {
         fprintf(stderr,
                 "error: perf_event_open failed (need perf_event_paranoid <= 1 or CAP_PERFMON;\n"
@@ -165,8 +169,8 @@ static Counters run_once(char *const argv[], int core) {
         exit(2);
     }
 
-    int fds[5] = { c_instr, c_cyc, c_cache, c_branch, c_ops };
-    for (int i = 0; i < 5; i++)
+    int fds[6] = { c_instr, c_cyc, c_cache, c_branch, c_ops, c_br };
+    for (int i = 0; i < 6; i++)
         if (fds[i] >= 0) {
             ioctl(fds[i], PERF_EVENT_IOC_RESET, 0);
             ioctl(fds[i], PERF_EVENT_IOC_ENABLE, 0);
@@ -191,7 +195,7 @@ static Counters run_once(char *const argv[], int core) {
     close(pipe_fds[0]);
     waitpid(pid, &status, 0);
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 6; i++)
         if (fds[i] >= 0)
             ioctl(fds[i], PERF_EVENT_IOC_DISABLE, 0);
 
@@ -205,8 +209,10 @@ static Counters run_once(char *const argv[], int core) {
         result.branch_misses = 0;
     if (c_ops < 0 || read(c_ops, &result.ops, 8) != 8)
         result.ops = 0;
+    if (c_br < 0 || read(c_br, &result.branches, 8) != 8)
+        result.branches = 0;
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 6; i++)
         if (fds[i] >= 0)
             close(fds[i]);
 
@@ -342,12 +348,14 @@ int main(int argc, char **argv) {
         // startup-subtracted -- the delta of two ratios is not the ratio of two deltas --
         // so the raw counts have to leave the tool for the caller to difference two
         // workloads (a deep run minus a depth-1 run) into a search-only figure.
-        printf("#R %zu A %lu %lu %lu %lu %lu\n", i + 1, (unsigned long) a.instructions,
+        printf("#R %zu A %lu %lu %lu %lu %lu %lu\n", i + 1, (unsigned long) a.instructions,
                (unsigned long) a.cycles, (unsigned long) a.cache_misses,
-               (unsigned long) a.branch_misses, (unsigned long) a.ops);
-        printf("#R %zu B %lu %lu %lu %lu %lu\n", i + 1, (unsigned long) b.instructions,
+               (unsigned long) a.branch_misses, (unsigned long) a.ops,
+               (unsigned long) a.branches);
+        printf("#R %zu B %lu %lu %lu %lu %lu %lu\n", i + 1, (unsigned long) b.instructions,
                (unsigned long) b.cycles, (unsigned long) b.cache_misses,
-               (unsigned long) b.branch_misses, (unsigned long) b.ops);
+               (unsigned long) b.branch_misses, (unsigned long) b.ops,
+               (unsigned long) b.branches);
         fflush(stdout);
     }
 
