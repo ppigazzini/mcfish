@@ -58,6 +58,17 @@ holding that worker's history tables, its NNUE arena and, on thread 0 only, the
 0's own values at `Threads 1`. See
 [04-multithreading.md](04-multithreading.md).
 
+**`SearchCtx`'s per-node fields are contiguous, and adding to it has a rule.**
+Everything a node reads — `hist`, `eval_arena`, the counters, `optimism`,
+`root_depth`, `root_delta`, `reductions`, `stop`, `is_main`, `eval_nnue_ready`,
+`time_state` — sits inside the first 192 bytes. Anything read once per `go`, and the
+big arrays (`last_iter_pv`, `limits`), go **after** them. The rule exists because
+`last_iter_pv` was once declared in the middle of the block, which pushed `stop`,
+`is_main` and `time_state` out to offsets 584, 592 and 744 and made every node reach
+three further cache lines of context. Upstream's `Worker` keeps its per-node scalars
+adjacent for the same reason: the big things it embeds are at one end, not
+interleaved.
+
 ## Iterative deepening
 
 `search_go(pos, limits)` in [`search.c`](../src/engine/search/search.c) is the
@@ -231,10 +242,24 @@ is exactly the mate/stalemate case.
 
 ## Quiescence
 
-`qsearch_node` ([`search_qsearch.c`](../src/engine/search/search_qsearch.c)) extends
-the leaf until the position is quiet. **It is a call-graph leaf**: it recurses only
-into itself, never into `search_node`, so the search zone's only import cycle is
-`search_node`'s own recursion.
+`qsearch_node_pv` / `qsearch_node_nonpv`
+([`search_qsearch.c`](../src/engine/search/search_qsearch.c)) extend the leaf until
+the position is quiet. **It is a call-graph leaf**: it recurses only into itself,
+never into `search_node`, so the search zone's only import cycle is `search_node`'s
+own recursion.
+
+**Two clones, one per NodeType, as upstream instantiates `qsearch<PV>` and
+`qsearch<NonPV>`** (`search.cpp:1621`). Quiescence is where most of the tree's nodes
+are, so a runtime `pv_node` flag costs four tests at every one of them.
+
+The specialization has to be written a particular way to exist at all: marking the
+body `always_inline` and calling it from two wrappers does nothing while the body
+recurses into *itself*, because a recursive function cannot be flattened — clang
+emits one shared copy and the flag stays live. **The recursion must go through the
+clone**, exactly as upstream's `qsearch<nodeType>` (`search.cpp:1797`) resolves to one
+instantiation. Written that way the ternary folds to a direct call and the two bodies
+appear; written the other way the first attempt produced a single 4238-byte
+`qsearch_node_impl` and folded nothing.
 
 **Stand-pat**: when not in check, evaluate first — through the correction tables,
 like the main node — and treat that score as a floor, since the side to move may
@@ -257,6 +282,23 @@ of the pair with no dependency on the other.
 
 [`movepick.h`](../src/engine/search/movepick.h) /
 [`movepick.c`](../src/engine/search/movepick.c).
+
+**The picker borrows the caller's continuation array; it does not own one.**
+`movepick_init` takes the six-entry `contHist` the node already built before its move
+loop (upstream `search.cpp:1093`, and the picker's own constructor takes it at
+`movepick.cpp:160`). Quiescence hands over a **one**-element array, because its only
+scorer is the evasion one, which reads slot 0 alone (`search.cpp:1732`) — the size
+difference between the two call sites is part of the shape. The array is borrowed, so
+it must outlive the picker; ASan catches a caller that builds it in an inner scope.
+
+**At vnni512 and above the leading run is sorted in vector registers**, as upstream's
+`MoveSorter` does (`movepick.cpp:66`, gated on `USE_AVX512`). Values and moves live in
+*separate* 512-bit registers so an insertion is one masked expand each, and the
+reassembly permutes across the pair to rebuild the 8-byte `ExtMove`s; up to sixteen
+moves are ordered with no data-dependent branching. The scalar insertion sort then
+finishes the tail. The order must match the scalar order **exactly** — one swap
+different changes the move loop and therefore the tree, which is what `signature` and
+`arch-determinism` gate.
 
 **The picker is a lazy state machine, not a sorted list.** `movepick_next` walks the
 stages in order and generates only when a stage demands it, so a node that fails
