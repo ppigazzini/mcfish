@@ -37,11 +37,13 @@ static void mp_set_probcut_stage(MovePicker *mp, const Position *pos, Move tt_mo
 }
 
 // Clone the node body per NodeType, the way upstream instantiates
-// search<NonPV>/search<PV>/search<Root>: NT is a literal in every clone, so each
-// pv_node / root_node test below folds at compile time instead of running at
-// every node. always_inline forces the clone -- the cost model refuses a body
-// this size -- and search_run_back's own always_inline carries the folded
-// constants through the move loop as well.
+// search<NonPV>/search<PV>/search<Root>: NT is a literal in every clone, so every
+// pv_node / root_node test below -- including the ones in the move loop -- folds
+// at compile time instead of running at every node. `always_inline` is what makes
+// the clone happen at all: the cost model refuses a body this size, and a body
+// that is emitted once with NT live is the shape this exists to avoid. The
+// recursion goes through the exported clones below, never through this body,
+// for the same reason qsearch's does.
 __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *ctx,
                                                                     Position *pos,
                                                                     Stack *ss,
