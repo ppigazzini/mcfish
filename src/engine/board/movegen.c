@@ -155,16 +155,10 @@ static ExtMove *generate_castling(const Position *pos, ExtMove *list, Color us) 
             continue;
 
         const Square rfrom = pos->castling_rook_square[cr];
-        const Square kto = make_square(side == 0 ? 6 : 2, rank_of(ksq));
-        const Square rto = make_square(side == 0 ? 5 : 3, rank_of(ksq));
 
-        // Every square the king or rook must traverse has to be empty, ignoring
-        // the two movers themselves — in Chess960 either may already stand there.
-        const Bitboard movers = square_bb(ksq) | square_bb(rfrom);
-        Bitboard path =
-          (BetweenBB[ksq][kto] | BetweenBB[rfrom][rto] | square_bb(kto) | square_bb(rto)) & ~movers;
-
-        if (path & pieces(pos))
+        // One AND against the occupancy, as upstream's castling_impeded is
+        // (position.h:283): the path was precomputed with the right.
+        if (pos->castling_path[cr] & pieces(pos))
             continue;
 
         (list++)->move = make_move_typed(CASTLING, ksq, rfrom, KNIGHT);
