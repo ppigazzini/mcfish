@@ -136,6 +136,16 @@ arch_report_label() {
 # at the same ISA from 1.242x to 1.154x.
 CFLAGS_RELEASE=(-O3 -DNDEBUG -fno-math-errno -flto "${CFLAGS_ARCH[@]}")
 
+# MCFISH_EVAL_MATERIAL=1 replaces the per-node evaluation with a material sum
+# (src/engine/search/search_common.c). It is a MEASUREMENT knob and never a build
+# mode: the binary it produces plays badly by construction and moves the anchor,
+# so no gate accepts it. What it buys is isolation — with the network gone, a
+# differential against an oracle patched with the same formula measures the
+# spine, which the whole-binary counters otherwise read through ~60% NNUE.
+if [[ ${MCFISH_EVAL_MATERIAL:-0} == 1 ]]; then
+  CFLAGS_RELEASE+=(-DMCFISH_EVAL_MATERIAL)
+fi
+
 # Stop unrolling at the 512-bit tiers, where it is a pure I-cache cost. Unrolling is
 # what makes the hot code big: at x86-64-avx512icl it accounts for 30% of .text
 # (296384 -> 208031 B) and 71% of the static zmm ops (6355 -> 1821), because the NNUE
