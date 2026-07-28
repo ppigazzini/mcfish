@@ -67,7 +67,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*, and deliberately does not fetch, so that `build` never becomes a network dependency |
 | `net-fetch` | downloads the expected net into `resources/` and **sha256-verifies** it | nothing — it fetches. It is a separate step precisely so `net` can stay offline; this is what the CI lanes run before a gate that needs a net |
 | `simd-scalar` | rebuilds with `MCFISH_SIMD_SCALAR` — every vector type and intrinsic compiled out — and re-asserts the anchor | that `simd.h`'s two implementations are value-identical. In `parity`, and the only gate that can see a portable-spelling/scalar divergence |
-| `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant. Not in `parity`: it is several full builds |
+| `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant — **and, since the tiers now run different ALGORITHMS, that those algorithms agree.** Upstream switches slider attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port follows; that makes this step the gate for a whole class of change, because it compares the vector path against the scalar path *on the same tree*. `signature` alone tests one tier and would pass over a wrong attack set at another. Run it on every ISA-gated commit. Not in `parity`: it is several full builds |
 | `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them — see [05-tablebases.md](05-tablebases.md) |
 | `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
 | `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, per ARCH | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
@@ -532,6 +532,79 @@ and each is testable alone by splitting it and re-reading the branch-miss ratio.
 I-cache reasons, costs the SPINE 2.0% (intra-engine, icl PGO, identical trees, median
 0.980 over 11 alternating rounds). Whether it still pays with the network on is a
 separate measurement; on a material-eval build it is pure cost.
+
+### Strength testing, and what a match can actually resolve
+
+**Read this before running games.** A cell that cannot resolve the effect you are
+looking for does not return "no change" — it returns a number with a sign, and that
+sign is a coin flip. Two runs of the SAME binaries at the SAME time control,
+differing only in `-srand`:
+
+| seed | Elo |
+| --- | ---: |
+| 20260728 | **−18.43 ± 17.50** |
+| 991733 | **+2.78 ± 18.14** |
+
+A 21-point swing from the opening set alone. Both were 1000 games.
+
+The arithmetic that predicts this, and which decides the sample size BEFORE the run:
+
+| games/cell | 95% CI (drawish pair) | resolves |
+| ---: | ---: | --- |
+| 200 | ±31 | almost nothing |
+| 1 000 | ±18 | a large regression |
+| 5 000 | ±8 | ~10 Elo |
+| 10 000 | ±6 | ~6 Elo — a 6% speed change |
+| 20 000 | ±4 | a 4% speed change |
+
+Speed converts at roughly **70 Elo per doubling**, so a 6% per-node gain is about
++6 Elo and needs ~10 000 games to see. Twelve 1000-game cells were run here against
+an effect that size; none of them could have detected it, and the differences
+*between* cells were read as structure when they were the opening set. **Never
+compare two cells that each carry a ±18 bar.**
+
+Corollary: for a few-percent change, `tools/nps_ab.sh` is not a weaker substitute for
+an Elo run — it is the stronger measurement, because its spread can exclude 1.000 in
+nine rounds where the match needs ten thousand games.
+
+**A fixed-NODE match is a diagnostic, not a strength test.** Give both engines
+`nodes=N` and any difference in play is impossible unless the search itself differs.
+Between this port and its oracle it returns **Elo 0.00 ± 0.00, Ptnml [0, 0, 100, 0,
+0]** — every pair a perfect mirror. That single run proves the search, the evaluation
+and the move ordering are identical, which localises every timed-game difference to
+how many nodes each engine chooses to spend. Run it whenever a behavioural
+divergence is suspected; it is 200 games and answers a question no counter can.
+
+**Isolate the evaluation when the question is about the spine.** Build both sides
+with the material eval (`MCFISH_EVAL_MATERIAL=1` here, the matching patch on the
+oracle) and assert the node counts match before believing anything — this catches the
+build that silently came out with the network still in it, which happened here when
+`EXTRACXXFLAGS` did not reach a sub-make and would otherwise have made the whole
+match measure evaluation instead of speed.
+
+### Debugging a divergence the gates cannot see
+
+Every gate in this repository is behavioural: it compares what the engine *does*.
+A divergence in how the engine is *laid out* or *allocated* passes all of them —
+identical call counts, identical node counts, green signature, perft, golden and tb.
+Four of the six found this way were invisible to every gate here.
+
+The method, in the order that worked:
+
+1. **`sizeof` every hot structure against the oracle.** A C program and a C++ program
+   printing the same list side by side. `Position` read 744 bytes against upstream's
+   1056, and the 312-byte gap named a missing member (`castlingPath`) directly.
+2. **`offsetof`, field by field, when the sizes match.** Equal size does not mean
+   equal layout. `StateInfo` matched at 184 bytes with `previous` at 176 against
+   upstream's 80 — same fields, different cache line, on a pointer chase run a
+   million times a search.
+3. **`/proc/PID/maps` for every large allocation.** Alignment and huge-page backing
+   are invisible to every other tool. The 256 MB table sat at 4 KiB alignment against
+   the oracle's 2 MiB.
+4. **`grep` upstream for its ISA gates**, not its portable path — see
+   [08-idiomatic-c.md](08-idiomatic-c.md#port-upstreams-isa-gated-paths-not-just-its-logic).
+5. **`perf_fingerprint.py compare --calls`** to confirm the algorithm is unchanged
+   while you do all of the above.
 
 ### A counter is a hypothesis until it is validated
 
