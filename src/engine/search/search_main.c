@@ -66,7 +66,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
 
     // Dive into qsearch at depth 0.
     if (depth_in <= 0)
-        return qsearch_node(ctx, pos, ss, alpha_in, beta_in, pv_node);
+        return pv_node ? qsearch_node_pv(ctx, pos, ss, alpha_in, beta_in)
+                       : qsearch_node_nonpv(ctx, pos, ss, alpha_in, beta_in);
 
     Histories *const h = ctx->hist;
     Stack *const ss1 = ss - 1;
@@ -285,7 +286,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
 
         // Step 7. Apply razoring.
         if (!pv_node && eval < alpha - razor_margin(depth))
-            return qsearch_node(ctx, pos, ss, alpha, beta, false);
+            return qsearch_node_nonpv(ctx, pos, ss, alpha, beta);
 
         // Step 8. Prune by futility.
         if (!ss->tt_pv && depth < 19 && eval >= beta && (tt_move == MOVE_NONE || tt_capture)
@@ -344,8 +345,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 if (move == excluded_move || !pos_legal(pos, move))
                     continue;
                 search_do_move(ctx, pos, move, &st, search_gives_check(pos, move), ss);
-                Value value =
-                  (Value) -qsearch_node(ctx, pos, ss + 1, -pc_beta, -pc_beta + 1, false);
+                Value value = (Value) -qsearch_node_nonpv(ctx, pos, ss + 1, -pc_beta, -pc_beta + 1);
                 if (value >= pc_beta && probcut_depth > 0)
                     value = (Value) -search_node_nonpv(ctx, pos, ss + 1, -pc_beta, -pc_beta + 1,
                                                        probcut_depth, !cut_node);
