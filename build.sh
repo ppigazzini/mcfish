@@ -309,7 +309,28 @@ red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 info()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
 
-need_binary() { [[ -x $BIN ]] || do_build; }
+# Build when the binary is missing OR older than anything it is built from.
+#
+# This used to be `[[ -x $BIN ]] || do_build`, which rebuilt only when the binary was
+# ABSENT -- so `./build.sh signature` after an edit asserted the anchor against the
+# previous binary and reported green over code it had never compiled. That is the one
+# thing a dependency-tracked build system gives for free, and the reason the perf
+# tooling carries a standing "run ./build.sh build explicitly first" warning.
+#
+# `-nt` on each source is enough: the source set is fully enumerated, and headers are
+# covered by globbing src/ rather than by a dependency scanner. A false positive costs
+# one 7-second build; a false negative costs a gate that lies.
+need_binary() {
+  [[ -x $BIN ]] || { do_build; return; }
+  local f
+  for f in "${SOURCES[@]}" $(find src -name '*.h' 2> /dev/null); do
+    if [[ $f -nt $BIN ]]; then
+      info "$BIN is older than $f -- rebuilding before the gate runs"
+      do_build
+      return
+    fi
+  done
+}
 
 do_build() {
   info "building $BIN (release)"
