@@ -63,10 +63,30 @@ config that upstream initialises through `Tablebases::Config`'s own member defau
 `page_alloc` is the exception and says so: it is backed by an anonymous mapping,
 which the kernel is required to hand over zeroed.
 
-It degrades to a plain aligned allocation on a host without huge pages and **never
-fails an allocation `malloc` could serve**. Today `tt_resize` calls `aligned_alloc`
-directly; routing it through here is what puts the hottest random-access structure
-in the engine onto large pages.
+**It aligns the PAYLOAD to a large page, not the mapping, and the difference is the
+whole point of the seam.** mmap hands back a 2 MiB-aligned base for a mapping this
+size; the allocator used to return `base + 64` so it could keep a size header there,
+which threw that away. Every block on the seam — the transposition table, the shared
+history bank, each worker block, the NNUE arenas — then started 64 bytes past a page
+boundary, and two things followed: transparent huge pages could never back the
+region, because promotion needs a 2 MiB-aligned start, so the `MADV_HUGEPAGE` hint
+two lines below the offset was **inert on every allocation it was written for**; and
+every TT cluster's cache-set index was skewed relative to its page.
+
+It now over-allocates by one large page, aligns the payload up, and keeps the two
+header words (mapping base and length) immediately ahead of it, so `page_free` needs
+neither a size from the caller nor a fixed offset back to the mapping. The `madvise`
+covers the aligned payload, which is the region the kernel can actually promote.
+
+**Everything hot goes through this seam — check `/proc/PID/maps` when adding an
+allocation.** The pinned oracle 2 MiB-aligns its 256 MB table; this port did not, and
+that comparison is how the bug was found. The NNUE arenas were a second instance:
+they called `aligned_alloc` directly, so a 7.2 MiB accumulator block sat at 4 KiB
+alignment while every other hot block was on a boundary. They also carried a size
+threshold deciding whether a block was "big enough to deserve" alignment, which
+silently stopped applying when a net change shrank the accumulator stack below it —
+an arena walked by every make/unmake, dropped to 64-byte alignment by a constant
+nobody re-checked. The seam has no such cliff.
 
 ### Threads and the pool
 

@@ -28,6 +28,15 @@ The intended stack is `shell -> platform -> engine`, engine at the bottom.
 `platform/` is not a layer *beneath* the engine: it is the runtime that hosts the
 engine, so it is allowed to depend on engine types, not the other way round.
 
+**Inside `engine/` there is no further layering rule**, and one edge relies on that:
+`board/position.c` includes `search/tt.h` and `search/history.h` so the make can
+issue the child's transposition and history prefetches from the point its keys become
+final, which is where upstream issues them (`position.cpp:1006-1010`). Upstream's
+`position.cpp` includes `tt.h` and `history.h` for exactly the same reason. Hoisting
+those prefetches out to the caller — which is what the port did before — costs the
+lead time the rest of the make would have given them, and no counter here can see it:
+callgrind does not model prefetch at all, and a prefetch retires as one instruction.
+
 ```mermaid
 flowchart TD
     shell["src/shell/ — the process"]
@@ -178,9 +187,13 @@ int main(int argc, char **argv) {
 1. `bitboards_init()` fills `SquareBB` in
    [`src/engine/board/bitboard.c`](../src/engine/board/bitboard.c). That header is
    the std-only leaf; it holds no attack tables.
-2. `attacks_init()` runs the magic search in
+2. `attacks_init()` builds the slider lookup in
    [`src/engine/board/attacks.c`](../src/engine/board/attacks.c) and derives
-   `PseudoAttacks`, `PawnAttacksBB`, `BetweenBB` and `LineBB` from it.
+   `PseudoAttacks`, `PawnAttacksBB`, `BetweenBB` and `LineBB` from it. **Which
+   lookup depends on the ISA**: at avx2 and above it fills the 64 `DualMagic`
+   structs and the rank-attack table for hyperbola quintessence, below that it runs
+   the magic search. Both are always initialised in this step; see
+   [01-engine-board.md](01-engine-board.md).
 3. `threats_init()` builds `RayPassBB` in
    [`src/engine/board/threats.c`](../src/engine/board/threats.c), which reads the
    attack tables step 2 just filled.

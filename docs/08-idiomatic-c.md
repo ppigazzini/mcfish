@@ -518,6 +518,41 @@ concurrent path. Grep for the class with
 `clang … -Rpass-analysis=loop-vectorize` and look for `instruction cannot be
 vectorized` on a fill loop.
 
+## Port upstream's ISA-GATED paths, not just its logic
+
+Upstream does not have one implementation of the hot board and picker code — it has
+one per ISA tier, selected by `#ifdef`, and **a port that transcribes only the
+portable path silently ships upstream's oldest algorithm at every tier.** That is not
+a micro-optimisation left on the table; it was the single largest divergence this
+tree has had, and it hid behind every behavioural gate for the port's whole life,
+because a different algorithm producing the same attack set produces the same tree.
+
+The ones that exist, all now ported, with the gate each is under here:
+
+| upstream | gate | what it replaces |
+| --- | --- | --- |
+| dual hyperbola quintessence (`attacks.h:91`) | `__AVX2__` | magic bitboards — 841 KiB of random-access tables becomes 3 KiB of L1-resident structs, and both ray sets come out of one pass |
+| `MoveSorter` (`movepick.cpp:66`) | `__AVX512F__` | the scalar insertion sort's leading run |
+| `write_multiple_dirties` (`position.cpp:1157`) | `__AVX512VBMI__` + `VBMI2` | the scalar dirty-threat loop, in the hottest board function there is |
+
+Three rules, each paid for:
+
+- **Find them by grepping upstream for its gates**, not by reading the portable path.
+  `grep -hoE "#(if|ifdef|elif) +(defined\()?[A-Z_0-9]+" ` over the board and search
+  files lists every one in a few seconds. Two of the three above sit in files this
+  port had already "finished".
+- **`arch-determinism` is what makes them safe to land.** It builds every tier the
+  host can execute and requires one node count, so it compares the vector path
+  against the scalar path *on the same tree* — a stronger check than any measurement,
+  and the only one that can catch a wrong attack set or a wrong threat list. Run it
+  on every such commit; `signature` alone tests one tier.
+- **A divergence from upstream is a strong PRIOR, not a proof.** Upstream's
+  `Move*`-generator interface plus its vectorised move splats was ported in full,
+  bit-exact and fully gated, and measured **slower on three separate runs** — the port
+  generated straight into `ExtMove` in one pass where upstream's shape needs two, and
+  the splats did not recover the copy. It was reverted. Port them one at a time and
+  let the clock rule on each.
+
 ## Measurement discipline
 
 The port is allowed to be slow. It is not allowed to be a guess.
