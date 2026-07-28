@@ -7,6 +7,7 @@
 
 #include "memory.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 
@@ -15,8 +16,18 @@
 // be backed by them.
 enum { LargePageSize = 2 * 1024 * 1024 };
 
-// Reserve one 64-byte unit before the page-allocator payload: keep the payload
-// 64-aligned (page memory is already 4096-aligned) and hold the block length for free().
+// Reserve one 64-byte unit before the page-allocator payload to hold the bookkeeping
+// free() needs. The payload is then aligned UP to a large-page boundary, which is the
+// whole point of this seam and what the previous shape quietly gave away.
+//
+// It used to return `mmap_base + 64`. mmap hands back a 2 MiB-aligned base for a
+// mapping this size, and adding the header offset destroyed that: every arena block --
+// the transposition table, the shared history bank, each worker block -- started 64
+// bytes past a page boundary. Two consequences, both measured against the pinned
+// oracle, whose 256 MB table IS 2 MiB-aligned where mcfish's was page-aligned only:
+// transparent huge pages can never back the region (promotion needs a 2 MiB-aligned
+// start, so the MADV_HUGEPAGE hint below was inert), and every cluster's cache-set
+// index is skewed relative to the page it lives in.
 enum { PayloadOffset = 64 };
 
 void *std_aligned_alloc(size_t alignment, size_t size) {
@@ -77,10 +88,19 @@ static void *page_alloc_default(size_t size) {
     if (size == 0)
         return nullptr;
 
-    const size_t total = (size_t) PayloadOffset + size;
+    // Over-allocate by one large page so the PAYLOAD -- not the mapping -- can start on
+    // a large-page boundary with the header still ahead of it.
+    const size_t align = (size_t) LargePageSize;
+    const size_t total = size + align;
     void *raw = mmap(nullptr, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (raw == MAP_FAILED)
         return nullptr;
+
+    // First large-page boundary at least PayloadOffset past the mapping, so the two
+    // header words always fit between `raw` and the payload.
+    uintptr_t addr = (uintptr_t) raw + (uintptr_t) PayloadOffset;
+    addr = (addr + align - 1) & ~(uintptr_t) (align - 1);
+    unsigned char *const payload = (unsigned char *) addr;
 
     // Hint transparent huge pages once the mapping is large enough to hold at least one.
     // The big arenas that ride this seam -- the 16 MiB transposition table, the per-node
@@ -91,22 +111,29 @@ static void *page_alloc_default(size_t size) {
     // still hands the region over zeroed either way. Guard on MADV_HUGEPAGE so the call
     // compiles away where the constant is undefined.
 #if defined(MADV_HUGEPAGE)
-    if (total >= (size_t) LargePageSize)
-        (void) madvise(raw, total, MADV_HUGEPAGE);
+    // Advise on the ALIGNED payload, which is the region the kernel can actually back
+    // with huge pages now that it starts on a boundary.
+    if (size >= (size_t) LargePageSize)
+        (void) madvise(payload, size, MADV_HUGEPAGE);
 #endif
 
     // MAP_ANONYMOUS pages arrive zeroed, which is the contract's zero-fill. Record the
-    // block length in the header word so free() needs no size from the caller.
-    *(size_t *) raw = total;
-    return (unsigned char *) raw + PayloadOffset;
+    // mapping base and length in the two words ahead of the payload, so free() needs
+    // neither a size from the caller nor a fixed offset back to the mapping.
+    ((size_t *) payload)[-1] = total;
+    ((void **) payload)[-2] = raw;
+    return payload;
 }
 
 static void page_free_default(void *ptr) {
     if (ptr == nullptr)
         return;
 
-    unsigned char *raw = (unsigned char *) ptr - PayloadOffset;
-    const size_t total = *(size_t *) (void *) raw;
+    // The payload is aligned, not at a fixed offset from the mapping, so both the
+    // base and the length come out of the two header words ahead of it.
+    unsigned char *const payload = (unsigned char *) ptr;
+    const size_t total = ((size_t *) (void *) payload)[-1];
+    void *const raw = ((void **) (void *) payload)[-2];
     (void) munmap(raw, total);
 }
 
