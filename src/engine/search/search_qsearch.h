@@ -81,6 +81,9 @@ static inline int cont_val(const SharedStat *page, Piece pc, Square to) {
 }
 
 // Search the captures (and, in check, the evasions) until the position is quiet.
-Value qsearch_node(SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, bool pv_node);
+// Two entry points, one per NodeType, as upstream instantiates qsearch<PV> and
+// qsearch<NonPV>; a caller's node type is always a compile-time literal.
+Value qsearch_node_pv(SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta);
+Value qsearch_node_nonpv(SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta);
 
 #endif  // MCFISH_SEARCH_QSEARCH_H

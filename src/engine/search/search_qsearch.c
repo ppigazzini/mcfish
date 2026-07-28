@@ -52,8 +52,12 @@ static void mp_set_main_stage(MovePicker *mp, const Position *pos, Move tt_move,
     mp->stage = base + (int) (!usable);
 }
 
-Value qsearch_node(
-  SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, bool pv_node) {
+// Clone the body per NodeType, the way upstream instantiates qsearch<PV> and
+// qsearch<NonPV> (search.cpp:1621). `pv_node` is a literal in each clone, so the
+// four tests below fold at compile time instead of running at every quiescence
+// node -- and quiescence is where most of the tree's nodes are.
+__attribute__((always_inline)) static inline Value qsearch_node_impl(
+  SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta, const bool pv_node) {
     Histories *const h = ctx->hist;
     Stack *const ss1 = ss - 1;
     Stack *const ss_next = ss + 1;
@@ -190,7 +194,15 @@ Value qsearch_node(
 
             // Step 7. Make and search the move.
             search_do_move(ctx, pos, move, &st, gc, ss);
-            const Value value = (Value) -qsearch_node(ctx, pos, ss_next, -beta, -alpha, pv_node);
+            // Recurse through the CLONE, not through this body: a self-call would
+            // make the body recursive, which no always_inline can flatten, and clang
+            // would emit one shared copy with `pv_node` live at run time -- which is
+            // the shape this specialization exists to remove. `pv_node` is a literal
+            // here, so the ternary folds to a direct call, exactly as upstream's
+            // `qsearch<nodeType>` (search.cpp:1797) resolves to one instantiation.
+            const Value value = pv_node
+                                ? (Value) -qsearch_node_pv(ctx, pos, ss_next, -beta, -alpha)
+                                : (Value) -qsearch_node_nonpv(ctx, pos, ss_next, -beta, -alpha);
             search_undo_move(ctx, pos, move);
 
             // Step 8. Record a new best move.
@@ -233,4 +245,15 @@ Value qsearch_node(
                    unadjusted_static_eval);
 
     return best_value;
+}
+
+// Emit the two specializations upstream's template produces. Every call site
+// whose NodeType is a literal calls one of these directly, as upstream's
+// `qsearch<NonPV>` call sites do.
+Value qsearch_node_pv(SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta) {
+    return qsearch_node_impl(ctx, pos, ss, alpha, beta, true);
+}
+
+Value qsearch_node_nonpv(SearchCtx *ctx, Position *pos, Stack *ss, Value alpha, Value beta) {
+    return qsearch_node_impl(ctx, pos, ss, alpha, beta, false);
 }
