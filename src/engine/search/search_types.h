@@ -189,8 +189,11 @@ typedef struct SearchCtx {
 
     const int32_t *reductions;
 
-    PVMoves last_iter_pv;
-
+    // EVERY FIELD ABOVE AND BELOW THIS COMMENT IS READ PER NODE, so they are kept
+    // contiguous: `last_iter_pv` is a ~500-byte array and used to sit in the middle
+    // of them, which pushed `stop`, `is_main` and `time_state` onto three further
+    // cache lines that every node then had to touch (they were at 584, 592 and 744).
+    // Upstream's Worker keeps its per-node scalars adjacent for the same reason.
     atomic_bool *stop;
 
     // True only on the main worker. Gates the reporting that upstream restricts to
@@ -209,9 +212,13 @@ typedef struct SearchCtx {
     RootMove *root_moves;
     size_t root_moves_count;
 
+    SearchTimeState time_state;  // check_time reads this at every node
     TbConfig tb_config;
+
+    // Cold from here: read once per go, or only on the paths a default build never
+    // enters. The big PV array goes last so it cannot split the hot block again.
     SearchZoneLimits limits;
-    SearchTimeState time_state;
+    PVMoves last_iter_pv;
 } SearchCtx;
 
 // Read and bump this worker's own counters. The read-modify-write needs no atomicity --
