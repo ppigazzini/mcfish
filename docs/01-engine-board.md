@@ -148,11 +148,38 @@ east/west cases mask off the H- and A-files first. `pawn_attacks_bb` is two shif
 ORed. `bb_more_than_one(b)` is `(b & (b - 1)) != 0` — used by the evasion generator
 to detect double check without a popcount.
 
-## Slider attacks: the magic tables
+## Slider attacks: two algorithms, split by ISA
 
 [`attacks.h`](../src/engine/board/attacks.h) /
 [`attacks.c`](../src/engine/board/attacks.c) own the slider lookup and the derived
 square-pair geometry.
+
+**Upstream switches slider ALGORITHM at avx2, and so does this zone.** The gate is
+`attacks.h:35` upstream (`#elif defined(USE_AVX512ICL)` … `USE_DUAL_HYPERBOLA_QUINT`)
+and `__AVX2__` here. Getting this wrong is not a micro-optimisation: the port ran the
+magic path at every tier for its whole life, which is upstream's *pre-avx2* code, and
+that single omission accounted for the per-node deficit tracking the ISA tier — near
+parity at sse41, where both engines use magics, and 8–14% above it.
+
+### At avx2 and above: dual hyperbola quintessence
+
+`both_attacks_bb(s, occupied)` returns **both** ray sets in one pass. A 32-byte
+`DualMagic` per square holds the file, diagonal and antidiagonal masks; one 256-bit
+load, one subtract, one byte-reversed subtract and an xor produce all three rays
+together, and the rank — the one direction the byte reversal cannot serve, because a
+rank's eight squares share a byte — comes from a 256-entry lookup.
+
+The whole slider dataset is **3 KiB and L1-resident**. The magic path's is **841 KiB**
+(`RookTable[0x19000] + BishopTable[0x1480]`) walked at random. Upstream does not even
+compile its magic tables in this configuration (`attacks.cpp:28`).
+
+Five sites want both sets and take the dual call, matching upstream exactly:
+`threats_update_piece` (`position.cpp:1203`), `set_check_info` (`:473`),
+`attackers_to` (`:645`), `gives_check`'s en-passant case (`:796`) and `see_ge`'s queen
+branch (`:1505`). `see_ge`'s pawn and bishop branches uncover diagonals alone and its
+rook branch files alone, so they stay single-ray — there too.
+
+### Below avx2: the magic tables
 
 `attacks_bb(pt, s, occupied)` dispatches on the piece type. Leapers read the
 precomputed `PseudoAttacks[pt][s]` and ignore `occupied`. Sliders take upstream's
@@ -233,15 +260,42 @@ Both tables are `Bitboard[64][64]`, filled once at startup.
 
 The split is the core design decision on this page:
 
-- **`Position`** holds what a move rewrites in place: `by_type` (index 0 is the
-  total occupancy, aliased as `ALL_PIECES`), `by_color`, the `board[64]` mailbox,
-  `piece_count`, `side_to_move`, `game_ply`, the castling lookup arrays, the
-  `chess960` flag, a pointer to the current `StateInfo`, and the two scratch NNUE
-  delta slots described under *Threat deltas* below.
+- **`Position`** holds what a move rewrites in place: the `board[64]` mailbox,
+  `by_type` (index 0 is the total occupancy, aliased as `ALL_PIECES`), `by_color`,
+  `piece_count`, `side_to_move`, `game_ply`, the castling lookup arrays including
+  `castling_path`, the `chess960` flag, a pointer to the current `StateInfo`, and the
+  two scratch NNUE delta slots described under *Threat deltas* below.
 - **`StateInfo`** holds what a move cannot cheaply recompute on the way back: the
   Zobrist `key`, the four auxiliary keys, `repetition`, `rule50`,
   `plies_from_null`, `ep_square`, `castling_rights`, `captured_piece`, and the
   derived `checkers` / `blockers` / `pinners` sets, plus a `previous` pointer.
+
+### The field ORDER of both is upstream's, and it is load-bearing
+
+Two members are placed by cache line, not by taste, and both were found by putting
+`offsetof` side by side against the oracle rather than by any behavioural test:
+
+- **`board` is declared FIRST.** It is `Piece[64]` — exactly one cache line — so only
+  at offset 0 does `piece_on` touch a single line per read. Declared after the
+  bitboards it began at offset 72 and straddled the 64/128 boundary.
+- **`StateInfo`'s tail runs `key, checkers, previous, blockers, pinners,
+  check_squares, captured_piece, repetition`**, giving `key` at 64 and `previous` at
+  80. The repetition walk steps `st = st->previous` and reads `st->key` at every step,
+  and it runs on the order of a million times a search (`pos_is_draw` alone is called
+  ~2.3M times on the depth-12 bench). With `previous` at the end of the struct — where
+  it used to be — each step of that pointer chase touched two lines where upstream's
+  touches one.
+
+`offsetof(StateInfo, key)` is 64 on both engines, so `pos_do_move`'s forward copy
+moves the same bytes.
+
+**`castling_path` is precomputed, not derived.** Upstream stores the squares each
+castling right needs empty when the right is set (`position.cpp:462`) and tests it
+with one AND (`position.h:283`). The port used to rebuild that path inside
+`generate_castling` on every call — two random lookups into the 32 KiB `BetweenBB`
+table plus five bitboard ops, per side, per node. Identical call counts, identical
+results, invisible to every gate; the `sizeof` comparison against upstream (744 bytes
+against 1056) is what exposed it.
 
 **Undo restores by popping, never by recomputing.** `pos_undo_move` moves the pieces
 back, then does `pos->st = pos->st->previous`. It never recalculates the key, the
@@ -336,6 +390,27 @@ recomputed key with the incremental one.
 `threats_init` builds `RayPassBB`, the geometry the discovered-threat scan walks,
 and it reads the attack tables — hence its place in the init order in
 [00-architecture.md](00-architecture.md).
+
+**At the ICL tier the list is written vectorised**, as upstream's
+`write_multiple_dirties` does (`position.cpp:1157`, gated on `USE_AVX512ICL`; here on
+`__AVX512VBMI__ && __AVX512VBMI2__`). The scalar form is up to sixteen iterations of
+`pop_lsb` → `board[sq]` → pack → append, each dependent on the last, in the hottest
+board function there is — `threats_update_piece_ray` runs ~3.5M times on the
+depth-12 bench. The vector form collapses it: the whole 64-square board is one
+register (it is exactly 64 bytes), `compress_epi8` turns the bitboard into the packed
+square list in one instruction, `permutexvar_epi8` looks up all sixteen pieces from
+the board register with no memory access, and one `ternarylogic` ORs the constant
+template together with both shifted fields.
+
+**It is not a drop-in, and the control flow moves with it.** On the vector path the
+direct sliders are folded into the *incoming* mask and written by the same call, and
+`process_sliders` is then told not to emit them again (upstream `position.cpp:1273`
+and `:1293`); the scalar path folds them in only on the `!compute_ray` branch. Both
+shapes live side by side under the same gate.
+
+The 64-byte store is unmasked, which is why `DIRTY_THREAT_MAX` is 96 rather than the
+80 the feature bound needs — the 16-slot tail exists so that store cannot leave the
+array.
 
 Three things a caller must know:
 
