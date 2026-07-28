@@ -502,7 +502,33 @@ identical — a 200-game fixed-node match returns Elo 0.00 ± 0.00 with Ptnml
 for symbol. So the algorithm is right and the whole difference is the rate at which
 each engine converts time into nodes.
 
-**First 2% attributed.** `-fno-unroll-loops`, applied at the 512-bit tiers for NNUE
+**What the deficit IS: branch misprediction.** Bias-cancelled over both orientations
+at the shipping configuration, against an A/A floor of 0.998:
+
+| axis | mc/sf |
+| --- | ---: |
+| instructions | 0.895 |
+| macro-ops | 0.880 |
+| cache misses | 0.915 |
+| **branch misses** | **1.382** |
+| search time | 1.135 |
+
+mcfish does 10% less work with better cache behaviour and mispredicts 38% more
+branches — ~90 cycles per node against a ~1300-cycle node, the right size for the
+whole gap. The trees are identical, so both engines' branches see the same decision
+sequence: same data, same outcomes, worse prediction. That is layout and site count,
+not logic, and callgrind's *ideal* predictor agrees — it puts mcfish at 1.008 where
+the hardware says 1.382, and the difference between those two numbers is BTB and
+history-table capacity, which callgrind does not model.
+
+This names a defect class a transcription is structurally prone to: **where upstream's
+templates emit N specialized copies, a port that emits fewer makes one branch site
+carry the interleaved histories of several contexts.** `qsearch` was exactly that
+until it was split. Upstream instantiates on NodeType, GenType, Color, PieceType and
+several bools; every place this port serves two or more from one body is a candidate,
+and each is testable alone by splitting it and re-reading the branch-miss ratio.
+
+**Also attributed:** `-fno-unroll-loops`, applied at the 512-bit tiers for NNUE
 I-cache reasons, costs the SPINE 2.0% (intra-engine, icl PGO, identical trees, median
 0.980 over 11 alternating rounds). Whether it still pays with the network on is a
 separate measurement; on a material-eval build it is pure cost.
