@@ -13,6 +13,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __AVX512F__
+    #include <immintrin.h>
+#endif
+
 // Index the piece values by PIECE, not by PieceType: the capture and evasion
 // scorers read `PieceValue[pos.piece_on(to))]` straight off the board, so the
 // table repeats for the black half and leaves the two encoding gaps at 0.
@@ -134,13 +138,90 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
 // Sort the entries whose value is at least LIMIT to the front, in descending
 // order, leaving the rest where they are. Entry 0 is the initial sorted head and
 // is never tested against LIMIT, exactly as upstream's partial_insertion_sort.
+#ifdef __AVX512F__
+// Sort the first up-to-16 qualifying moves in two 512-bit registers, as upstream's
+// MoveSorter does (movepick.cpp:66). Values and moves live in SEPARATE registers so
+// an insertion is one masked expand each; `write_sorted` reassembles the 8-byte
+// ExtMoves with a permute across the register pair.
+//
+// The ORDER this produces is the scalar order, exactly -- a difference of one swap
+// changes the move loop and therefore the tree, which is what ./build.sh signature
+// and arch-determinism gate. mcfish's ExtMove is 8 bytes with `move` at 0 and
+// `value` at 4, matching what the reassembly below assumes.
+enum { MOVE_SORTER_MAX = 16 };
+
+typedef struct {
+    __m512i sorted_values;
+    __m512i sorted_moves;
+} MoveSorter;
+
+static void splat_extmove(ExtMove m, __m512i *move, __m512i *value) {
+    *move = _mm512_set1_epi32((int) (unsigned) m.move);
+    *value = _mm512_set1_epi32(m.value);
+}
+
+static MoveSorter move_sorter_init(ExtMove first) {
+    MoveSorter s;
+    splat_extmove(first, &s.sorted_moves, &s.sorted_values);
+    // Every lane but the first sorts below any real move.
+    s.sorted_values = _mm512_mask_set1_epi32(s.sorted_values, (__mmask16) ~1, INT32_MIN);
+    return s;
+}
+
+static void move_sorter_insert(MoveSorter *s, ExtMove m) {
+    __m512i move, value;
+    splat_extmove(m, &move, &value);
+
+    // Mask of every element except the insertion point.
+    const __mmask16 expand =
+      _kadd_mask16(_mm512_cmplt_epi32_mask(s->sorted_values, value), (__mmask16) -1);
+
+    s->sorted_values = _mm512_mask_expand_epi32(value, expand, s->sorted_values);
+    s->sorted_moves = _mm512_mask_expand_epi32(move, expand, s->sorted_moves);
+}
+
+static void move_sorter_write(const MoveSorter *s, ExtMove *moves, size_t count) {
+    static_assert(sizeof(ExtMove) == 8, "the reassembly below packs two 32-bit lanes per move");
+
+    // Values and moves are held apart, so interleave them back into ExtMoves.
+    const __m512i lo = _mm512_setr_epi32(0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23);
+    const __m512i hi =
+      _mm512_setr_epi32(8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31);
+
+    for (size_t offset = 0; offset < 16; offset += 8) {
+        if (count <= offset)
+            break;
+        const __m512i ext =
+          _mm512_permutex2var_epi32(s->sorted_moves, offset == 0 ? lo : hi, s->sorted_values);
+        const size_t store_count = count - offset;
+        _mm512_mask_storeu_epi64(moves + offset, (__mmask8) ((1u << store_count) - 1u), ext);
+    }
+}
+#endif
+
 static void partial_insertion_sort(ExtMove *entries, size_t count, int limit) {
     if (count == 0)
         return;
 
     size_t sorted_end = 0;
+    size_t scan = 1;
 
-    for (size_t scan = 1; scan < count; ++scan) {
+#ifdef __AVX512F__
+    // Vector pass over the leading run, then the scalar loop finishes the tail --
+    // upstream's shape at movepick.cpp:114.
+    MoveSorter sorter = move_sorter_init(entries[0]);
+    for (; scan < count; ++scan) {
+        if (entries[scan].value >= limit) {
+            if (sorted_end + 1 >= (size_t) MOVE_SORTER_MAX)  // sorter full
+                break;
+            move_sorter_insert(&sorter, entries[scan]);
+            entries[scan] = entries[++sorted_end];
+        }
+    }
+    move_sorter_write(&sorter, entries, sorted_end + 1);
+#endif
+
+    for (; scan < count; ++scan) {
         if (entries[scan].value >= limit) {
             const ExtMove current = entries[scan];
             ++sorted_end;
