@@ -221,38 +221,13 @@ static inline TTData tt_empty_data(void) {
 // Look the position up. On a hit return the entry's data and a writer to it; on a
 // miss return the empty data and a writer to the cluster entry worth least, where
 // an entry's worth is its depth minus eight times its relative age (tt.cpp:254).
-__attribute__((always_inline)) static inline TTProbeResult tt_probe(Key key) {
-    // Use the low 16 bits as the key inside the cluster; the high bits already
-    // chose the cluster. TT.table always points at a real table — the one-cluster
-    // fallback before any resize — so the probe carries no null test, exactly as
-    // upstream's probe carries none (tt.cpp:254).
-    const uint16_t key16 = (uint16_t) key;
-    TTEntry *const tte = TT.table[tt_mul_hi64(key, TT.cluster_count)].entry;
-
-    for (size_t i = 0; i < TT_CLUSTER_SIZE; ++i)
-        if (TT_LOAD(tte[i].key16) == key16) {
-            // This gap is the main place for read races. Once tt_entry_read
-            // returns, the copy is final, though it may be self-inconsistent.
-            // Read depth8 once; it answers both the occupancy test and the
-            // entry's stored depth.
-            const uint8_t depth8 = TT_LOAD(tte[i].depth8);
-            return (TTProbeResult) { .found = depth8 != 0,
-                                     .data = tt_entry_read(&tte[i], depth8),
-                                     .writer = &tte[i] };
-        }
-
-    // Pick the entry to replace: the least valuable one, where value is depth
-    // minus eight times relative age (tt.cpp:266).
-    TTEntry *replace = tte;
-    for (size_t i = 1; i < TT_CLUSTER_SIZE; ++i)
-        if ((int32_t) TT_LOAD(replace->depth8)
-              - 8 * (int32_t) tt_entry_relative_age(replace, TT.generation8)
-            > (int32_t) TT_LOAD(tte[i].depth8)
-                - 8 * (int32_t) tt_entry_relative_age(&tte[i], TT.generation8))
-            replace = &tte[i];
-
-    return (TTProbeResult) { .found = false, .data = tt_empty_data(), .writer = replace };
-}
+//
+// OUT OF LINE, as upstream's `TranspositionTable::probe` is (tt.cpp:254) -- an
+// ordinary method its link-time optimizer keeps as one 331-byte symbol rather
+// than folding into the node bodies. Forcing it inline here put a copy of the
+// cluster loop, and the register pressure that comes with it, inside each of the
+// three search clones and both qsearch clones.
+TTProbeResult tt_probe(Key key);
 
 // Preload the cluster KEY maps onto into cache. A non-blocking hint issued a few
 // instructions ahead of the matching tt_probe, so the line is arriving by the time
