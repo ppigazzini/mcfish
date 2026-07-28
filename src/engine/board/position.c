@@ -111,11 +111,13 @@ static void swap_piece(Position *pos, Square s, Piece pc, DirtyThreats *dts) {
 }
 
 Bitboard pos_attackers_to_occ(const Position *pos, Square s, Bitboard occupied) {
+    // Both ray sets in one pass, as upstream's attackers_to does (position.cpp:645).
+    const DualAttacks slider_attacks = both_attacks_bb(s, occupied);
     return (PawnAttacksBB[BLACK][s] & pieces_cp(pos, WHITE, PAWN))
          | (PawnAttacksBB[WHITE][s] & pieces_cp(pos, BLACK, PAWN))
          | (PseudoAttacks[KNIGHT][s] & pos->by_type[KNIGHT])
-         | (attacks_bb(ROOK, s, occupied) & (pos->by_type[ROOK] | pos->by_type[QUEEN]))
-         | (attacks_bb(BISHOP, s, occupied) & (pos->by_type[BISHOP] | pos->by_type[QUEEN]))
+         | (slider_attacks.rook & (pos->by_type[ROOK] | pos->by_type[QUEEN]))
+         | (slider_attacks.bishop & (pos->by_type[BISHOP] | pos->by_type[QUEEN]))
          | (PseudoAttacks[KING][s] & pos->by_type[KING]);
 }
 
@@ -168,8 +170,10 @@ static void set_check_info(Position *pos) {
     const Bitboard occ = pieces(pos);
     pos->st->check_squares[PAWN] = PawnAttacksBB[them][tksq];
     pos->st->check_squares[KNIGHT] = attacks_bb(KNIGHT, tksq, occ);
-    pos->st->check_squares[BISHOP] = attacks_bb(BISHOP, tksq, occ);
-    pos->st->check_squares[ROOK] = attacks_bb(ROOK, tksq, occ);
+    // One pass for both, as upstream's set_check_info does (position.cpp:473).
+    const DualAttacks king_slider_attacks = both_attacks_bb(tksq, occ);
+    pos->st->check_squares[BISHOP] = king_slider_attacks.bishop;
+    pos->st->check_squares[ROOK] = king_slider_attacks.rook;
     pos->st->check_squares[QUEEN] = pos->st->check_squares[BISHOP] | pos->st->check_squares[ROOK];
     pos->st->check_squares[KING] = 0;
 }
