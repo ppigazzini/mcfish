@@ -168,27 +168,13 @@ __attribute__((always_inline)) static inline void threats_update_piece_impl(bool
     }
 }
 
-// Keep the two specializations out-of-line so each gets its own register
-// allocation, mirroring upstream's two emitted instantiations.
-__attribute__((noinline)) static void threats_update_piece_ray(
+// The two instantiations upstream's template emits. Left inlinable: see threats.h.
+void threats_update_piece_ray(
   const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays) {
     threats_update_piece_impl(true, pos, pc, put_piece, s, dts, no_rays);
 }
 
-__attribute__((noinline)) static void threats_update_piece_no_ray(
+void threats_update_piece_no_ray(
   const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays) {
     threats_update_piece_impl(false, pos, pc, put_piece, s, dts, no_rays);
-}
-
-void threats_update_piece(bool compute_ray,
-                          const Position *pos,
-                          Piece pc,
-                          bool put_piece,
-                          Square s,
-                          DirtyThreats *dts,
-                          Bitboard no_rays) {
-    if (compute_ray)
-        threats_update_piece_ray(pos, pc, put_piece, s, dts, no_rays);
-    else
-        threats_update_piece_no_ray(pos, pc, put_piece, s, dts, no_rays);
 }
