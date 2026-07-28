@@ -531,7 +531,7 @@ uint64_t perft(Position *pos, int depth, bool root) {
         if (depth > 1) {
             StateInfo st;
             pos_do_move(pos, list[i].move, &st, pos_gives_check(pos, list[i].move),
-                        &pos->scratch_dp, &pos->scratch_dts);
+                        &pos->scratch_dp, &pos->scratch_dts, nullptr);
             n = perft(pos, depth - 1, false);
             pos_undo_move(pos, list[i].move);
         }

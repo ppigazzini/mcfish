@@ -61,7 +61,7 @@ static void
 rank_by_opponent_mobility(Position *pos, StateInfo *scratch, RankedRootMove *ranked, size_t n) {
     for (size_t i = 0; i < n; ++i) {
         pos_do_move(pos, ranked[i].raw_move, scratch, pos_gives_check(pos, ranked[i].raw_move),
-                    &pos->scratch_dp, &pos->scratch_dts);
+                    &pos->scratch_dp, &pos->scratch_dts, nullptr);
 
         ExtMove replies[MAX_MOVES];
         const ExtMove *const end = generate_legal(pos, replies);
@@ -95,7 +95,7 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
     // a tablebase it is deliberately not the top-ranked move.
     size_t made = 0;
     pos_do_move(pos, rm->pv.moves[made], &sts[made], pos_gives_check(pos, rm->pv.moves[made]),
-                &pos->scratch_dp, &pos->scratch_dts);
+                &pos->scratch_dp, &pos->scratch_dts, nullptr);
     ++made;
     size_t ply = 1;
 
@@ -115,7 +115,7 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
 
         ++ply;
         pos_do_move(pos, pv_move, &sts[made], pos_gives_check(pos, pv_move), &pos->scratch_dp,
-                    &pos->scratch_dts);
+                    &pos->scratch_dts, nullptr);
         ++made;
 
         // Never show a repetition or a fifty-move draw inside a won tablebase line:
@@ -164,7 +164,7 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
         const Move pv_move = ranked[0].raw_move;
         rm->pv.moves[rm->pv.length++] = pv_move;
         pos_do_move(pos, pv_move, &sts[made], pos_gives_check(pos, pv_move), &pos->scratch_dp,
-                    &pos->scratch_dts);
+                    &pos->scratch_dts, nullptr);
         ++made;
     }
 

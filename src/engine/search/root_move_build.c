@@ -130,7 +130,7 @@ static DtzRankResult rank_root_moves_dtz(Position *pos,
     for (size_t i = 0; i < count; ++i) {
         RankedRootMove *const rm = &ranked[i];
         pos_do_move(pos, rm->raw_move, st, pos_gives_check(pos, rm->raw_move), &pos->scratch_dp,
-                    &pos->scratch_dts);
+                    &pos->scratch_dts, nullptr);
 
         int32_t dtz = 0;
         bool probe_failed = false;
@@ -196,7 +196,7 @@ static bool rank_root_moves_wdl(
     for (size_t i = 0; i < count; ++i) {
         RankedRootMove *const rm = &ranked[i];
         pos_do_move(pos, rm->raw_move, st, pos_gives_check(pos, rm->raw_move), &pos->scratch_dp,
-                    &pos->scratch_dts);
+                    &pos->scratch_dts, nullptr);
 
         int32_t wdl = WDL_DRAW;
         bool probe_failed = false;

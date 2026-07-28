@@ -67,7 +67,7 @@ typedef struct {
     // reads slots 0, 1, 2, 3 and 5, evasion scoring reads slot 0, and the
     // quiescence caller passes a one-entry array because its only scorer is the
     // evasion one (search.cpp:1732). Null for the ProbCut picker, whose stages
-    // read no page.
+    // read no page. It must OUTLIVE the picker -- it is borrowed, not copied.
     const SharedStat *const *cont_hist;
     int ply;
 

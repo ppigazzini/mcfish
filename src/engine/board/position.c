@@ -1,5 +1,8 @@
 #include "position.h"
 
+#include "../search/history.h"
+#include "../search/tt.h"
+
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -634,8 +637,13 @@ static void do_castling(Position *pos,
     put_piece(pos, make_piece(us, ROOK), undo ? rfrom : rto, dts);
 }
 
-void pos_do_move(
-  Position *pos, Move m, StateInfo *new_st, bool gives_check, DirtyPiece *dp, DirtyThreats *dts) {
+void pos_do_move(Position *pos,
+                 Move m,
+                 StateInfo *new_st,
+                 bool gives_check,
+                 DirtyPiece *dp,
+                 DirtyThreats *dts,
+                 Histories *history) {
     const Color us = pos->side_to_move;
     const Color them = flip_color(us);
     const Square from = move_from(m);
@@ -813,6 +821,21 @@ void pos_do_move(
 
     new_st->captured_piece = captured;
     new_st->key = key;
+
+    // Preload the lines the child will read, now that every key it is indexed by
+    // is final (upstream position.cpp:1006-1010). The make is not finished: the
+    // checkers scan, set_check_info and the repetition walk all still run below,
+    // and that is the lead time these hints are issued to buy.
+    if (history != nullptr) {
+        tt_prefetch(pos_adjust_key50_of(key, new_st->rule50));
+        __builtin_prefetch(
+          &pawn_history_row(history, new_st->pawn_key)[(size_t) pc * SQUARE_NB + (size_t) to], 0,
+          3);
+        __builtin_prefetch(corr_bundle(history, new_st->pawn_key, them), 0, 3);
+        __builtin_prefetch(corr_bundle(history, new_st->minor_piece_key, them), 0, 3);
+        __builtin_prefetch(corr_bundle(history, new_st->non_pawn_key[WHITE], them), 0, 3);
+        __builtin_prefetch(corr_bundle(history, new_st->non_pawn_key[BLACK], them), 0, 3);
+    }
 
     // Derive the child's checkers from GIVES_CHECK rather than re-scanning the
     // board: zero on the no-check majority path, one attackers scan otherwise

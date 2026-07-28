@@ -195,7 +195,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             if (depth >= 7 && tt_move != MOVE_NONE && search_pseudo_legal(pos, tt_move)
                 && pos_legal(pos, tt_move) && !value_is_decisive(tt_value)) {
                 pos_do_move(pos, tt_move, &st, search_gives_check(pos, tt_move), &pos->scratch_dp,
-                            &pos->scratch_dts);
+                            &pos->scratch_dts, nullptr);
                 const Key next_key = adjust_key50(pos);
                 const TTProbe probe_next = search_tt_probe(next_key);
                 pos_undo_move(pos, tt_move);
