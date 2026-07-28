@@ -39,6 +39,34 @@ whenever a file is added. Two consequences for anyone using these gates:
   it. That is the cost of leaving a finished module out of the array, and it is why
   the port rule is one module per commit, wired.
 
+## Why a shell script and not a Makefile
+
+The question is worth re-deriving rather than assuming, so here are the numbers on
+this tree:
+
+| | wall | CPU |
+| --- | ---: | ---: |
+| one `clang -flto` invocation over all 69 sources | **6.7 s** | 5.3 s |
+| a comparable codebase built per-TU with `make -j8` | 16.2 s | 64.7 s |
+
+A single invocation is **2.4x faster in wall clock and 12x cheaper in CPU** than
+parallel per-TU compilation, because it parses each header once instead of once per
+translation unit and does one LTO pass instead of compile-then-link. Make's headline
+advantage — incremental, parallel builds — is *negative* here, and incremental buys
+little against a 7-second full build that must relink the whole program under LTO
+anyway.
+
+The rest of this file is 36 workflow steps: golden diffs, tablebase fetches, a
+three-phase PGO build, per-tier determinism sweeps. Make is a poor workflow runner
+(the recipes are shell regardless), so a Makefile would wrap this script rather than
+replace it.
+
+**The one thing make gives free was worth taking, though.** `need_binary` used to
+rebuild only when the binary was ABSENT, so a gate run after an edit asserted against
+the previous binary and could report green over code it had never compiled. It now
+compares timestamps against every source and header. That was the real cost of having
+no dependency graph, and it is paid.
+
 ## The steps
 
 [`../build.sh`](../build.sh) is the whole build system and the whole in-repo gate
@@ -363,8 +391,9 @@ Tool-shape traps, each paid for:
 - `perf-budget` measures the **existing** `build/mcfish`. Rebuild at the target
   `MCFISH_ARCH` first, or the comparison crosses tiers and reads as a fake
   regression.
-- `./build.sh signature` does not always rebuild — run `./build.sh build`
-  explicitly before any measurement, or a stale binary answers.
+- Gates now rebuild when the binary is older than any source or header, so a stale
+  binary can no longer answer. `./build.sh build` before a measurement is still worth
+  running deliberately, because a rebuild inside a timed step leaves the machine hot.
 - The hardware instruction counter is **blind to `rep stosb`** (an erms memset
   retires as one instruction) and callgrind is blind to software prefetch —
   memset and prefetch work need callgrind Ir and idle-box cycles respectively.
