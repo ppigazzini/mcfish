@@ -131,7 +131,7 @@ void shared_histories_destroy(SharedHistories *sh);
 // the dependent `h->shared` chain -- upstream's Worker reads its DynStats
 // base+mask through one indirection (search.h:341, history.h:95), and the chain
 // was a second one the port had added on top.
-typedef struct {
+typedef struct Histories {
     int16_t main_history[COLOR_NB * HIST_UINT16];
     int16_t low_ply_history[LOW_PLY_HISTORY_SIZE * HIST_UINT16];
     int16_t capture_history[PIECE_NB * SQUARE_NB * HIST_PIECE_TYPE_NB];

@@ -126,8 +126,40 @@ void pos_pretty(const Position *pos, char *buf, int buf_len);
 // TRUSTED, never re-derived — it must equal pos_gives_check(pos, m) on the
 // pre-move position, and a wrong value corrupts the child's checkers and every
 // evasion/movegen decision below it.
-void pos_do_move(
-  Position *pos, Move m, StateInfo *new_st, bool gives_check, DirtyPiece *dp, DirtyThreats *dts);
+// HISTORY is the worker's history block, or null. Non-null means "this make is a
+// search make": the child's transposition cluster, its four correction bundles and
+// its pawn-history row are prefetched from INSIDE the make, at the point the keys
+// become final, which is where upstream issues them (position.cpp:1008-1010). It
+// is a hint and changes no value; a caller with no search behind it -- perft, the
+// root builder, the tablebase PV walk -- passes null and pays nothing.
+//
+// Issuing them here rather than after the make is the whole point. Everything the
+// make still has to do afterwards -- the checkers scan, set_check_info, the
+// repetition walk -- is lead time the memory system gets for free, and a prefetch
+// issued after the make returns has none of it.
+//
+// Forward-declared rather than included: the search zone owns the block's layout,
+// and all the make does with it is compute five addresses.
+typedef struct Histories Histories;
+
+// Hash the halfmove clock into K past move 14, so a position reached with a
+// different rule50 count cannot reuse a TT entry the rule invalidates. Upstream
+// keeps this on Position (position.h:322); the make needs it to prefetch the
+// child's cluster, and the search reads it through `adjust_key50`.
+static inline Key pos_adjust_key50_of(Key k, int rule50) {
+    if (rule50 < 14)
+        return k;
+    const Key seed = (Key) ((rule50 - 14) / 8);
+    return k ^ (seed * 6364136223846793005ULL + 1442695040888963407ULL);
+}
+
+void pos_do_move(Position *pos,
+                 Move m,
+                 StateInfo *new_st,
+                 bool gives_check,
+                 DirtyPiece *dp,
+                 DirtyThreats *dts,
+                 Histories *history);
 void pos_undo_move(Position *pos, Move m);
 
 // Approximate the key the position would have AFTER M, cheaply enough to prefetch its

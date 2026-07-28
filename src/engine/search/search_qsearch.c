@@ -31,13 +31,7 @@ bool is_shuffling(const Position *pos, const Stack *ss, Move move) {
         && move_from(ss2->current_move) == move_to(ss4->current_move);
 }
 
-Key adjust_key50(const Position *pos) {
-    const Key k = pos->st->key;
-    if (pos->st->rule50 < 14)
-        return k;
-    const Key seed = (Key) ((pos->st->rule50 - 14) / 8);
-    return k ^ (seed * 6364136223846793005ULL + 1442695040888963407ULL);
-}
+Key adjust_key50(const Position *pos) { return pos_adjust_key50_of(pos->st->key, pos->st->rule50); }
 
 void tt_move_history_update(Histories *h, int bonus) {
     stats_update(&h->tt_move_history, bonus, 8192);

@@ -336,7 +336,8 @@ TbProbeValue search_wdl(Position *pos, bool check_zeroing) {
         // pos_do_move trusts this argument for the child's checkers set, so pass
         // the real predicate — upstream's `search<CheckZeroingMoves>` uses the
         // two-argument do_move, which computes `pos.gives_check(m)` itself.
-        pos_do_move(pos, m, &st, pos_gives_check(pos, m), &pos->scratch_dp, &pos->scratch_dts);
+        pos_do_move(pos, m, &st, pos_gives_check(pos, m), &pos->scratch_dp, &pos->scratch_dts,
+                    nullptr);
         const TbProbeValue child = search_wdl(pos, false);
         pos_undo_move(pos, m);
         if (child.state == PROBE_FAIL) {
