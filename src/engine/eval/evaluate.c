@@ -7,6 +7,8 @@
 
 #include "evaluate.h"
 
+#include "../state/arena_source.h"
+
 #include "../board/board_props.h"
 #include "../search/uci_wdl.h"
 #include "nnue/network.h"
@@ -94,17 +96,20 @@ const char *eval_nnue_default_file_name(void) { return NETWORK_DEFAULT_EVAL_FILE
 enum { ARENA_HUGE_PAGE = 2u << 20, ARENA_HUGE_MIN = 2u << 20 };
 
 static void *alloc_arena(size_t n) {
-    const bool huge = n >= (size_t) ARENA_HUGE_MIN;
-    const size_t align = huge ? (size_t) ARENA_HUGE_PAGE : (size_t) NNUE_ALIGN;
-    const size_t rounded = (n + align - 1) / align * align;
-    void *p = aligned_alloc(align, rounded);
-    if (p != nullptr) {
-#if defined(__linux__) && defined(MADV_HUGEPAGE)
-        if (huge)
-            (void) madvise(p, rounded, MADV_HUGEPAGE);
-#endif
-        memset(p, 0, rounded);
-    }
+    // Go through the arena seam, not aligned_alloc. The seam's live backend is the
+    // page allocator, which returns a large-page-aligned, kernel-zeroed, huge-page-
+    // advised block; going around it left these arenas on malloc's alignment, which
+    // is where a 7.2 MiB accumulator block was observed sitting at 4 KiB alignment
+    // while every other hot block in the process was on a 2 MiB boundary.
+    //
+    // The size threshold this used to apply is gone with it. It decided whether a
+    // block was "big enough to deserve" alignment, and it silently stopped applying
+    // when a net change shrank the accumulator stack below the bound -- an arena
+    // walked by every make/unmake, dropped to 64-byte alignment by a constant no one
+    // re-checked. The seam has no such cliff.
+    void *const p = ArenaAlloc(n);
+    if (p != nullptr)
+        memset(p, 0, n);
     return p;
 }
 
@@ -125,8 +130,8 @@ EvalArena *eval_arena_create(void) {
 void eval_arena_destroy(EvalArena *arena) {
     if (arena == nullptr)
         return;
-    free(arena->acc_stack);
-    free(arena->refresh_cache);
+    ArenaFree(arena->acc_stack);
+    ArenaFree(arena->refresh_cache);
     free(arena);
 }
 
