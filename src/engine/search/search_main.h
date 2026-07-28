@@ -1,13 +1,12 @@
-// Run the main alpha-beta node: Steps 1-12, up to the move loop.
+// Run the main alpha-beta node: Steps 1-21, node init through the TT store.
 //
-// COMPONENT: search_main and search_back are ONE component, deliberately.
-// They form the search zone's only import cycle (search_node <-> search_run_back)
-// and that cycle IS the alpha-beta recursion, not a layering defect. search_node
-// runs a node's Steps 1-12, hands the node state to search_back's move loop
-// (Steps 13-21), and that loop recurses back into search_node for each child.
-// Splitting the file did not split the recursion, so do not "fix" this by
-// inverting an import or threading a function pointer: it would buy nothing and
-// cost an optimizer barrier on the hottest path in the engine.
+// ONE FUNCTION BODY, as upstream's `search<NodeType>` is one function body. The
+// move loop reads roughly thirty values Steps 1-12 established, and it reads them
+// as LOCALS in the same scope. A previous shape put Steps 13-21 in a second file
+// and passed those values across as a struct; the struct was then built at every
+// interior node and read back through a pointer, and its field order acquired a
+// comment about the lowering the stores provoked. None of that exists upstream.
+// Do not re-split it.
 //
 // search_node recurses on itself and dives into qsearch_node at depth 0. It never
 // calls the iterative-deepening driver.
