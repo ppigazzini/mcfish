@@ -22,7 +22,6 @@ contract rather than an optimisation.
 [`search_setup.c`](../src/engine/search/search_setup.c),
 [`search_id.c`](../src/engine/search/search_id.c),
 [`search_main.c`](../src/engine/search/search_main.c),
-[`search_back.c`](../src/engine/search/search_back.c),
 [`search_qsearch.c`](../src/engine/search/search_qsearch.c),
 [`search_common.c`](../src/engine/search/search_common.c),
 [`search_control.c`](../src/engine/search/search_control.c),
@@ -118,14 +117,17 @@ independently of the node count. The `pv` field carries the whole variation, and
 
 ## Alpha-beta
 
-`search_node` ([`search_main.c`](../src/engine/search/search_main.c)) runs Steps
-1-12 of a node and hands the established state to `search_run_back`
-([`search_back.c`](../src/engine/search/search_back.c)), which owns the move loop
-and the finalization, Steps 13-21. That pair is **one component with one deliberate
-import cycle, and the cycle is the recursion** — `search_run_back` calls back into
-`search_node` for every child. Do not break it by inverting an import or threading
-a function pointer: it would buy nothing and cost an optimizer barrier on the
-hottest path in the engine.
+`search_node` ([`search_main.c`](../src/engine/search/search_main.c)) is the whole
+node — Steps 1-21, node init through the TT store — in **one function body**, the
+way upstream's `search<NodeType>` is one function body. It recurses into itself for
+every child.
+
+That shape is load-bearing rather than incidental. The body was once split across
+two files joined by a 30-field state struct, and the struct had to be built at
+every interior node and then read back through a pointer; its field order even
+carried a comment about dodging a vectorizer lowering. Upstream keeps the move
+loop in the same lexical scope as the state it reads, so every one of those fields
+is a live local the optimizer can place in a register. Do not re-split it.
 
 Node order:
 
@@ -231,8 +233,8 @@ is exactly the mate/stalemate case.
 
 `qsearch_node` ([`search_qsearch.c`](../src/engine/search/search_qsearch.c)) extends
 the leaf until the position is quiet. **It is a call-graph leaf**: it recurses only
-into itself, never into `search_node`, which is what keeps the zone's one import
-cycle confined to the `search_main` / `search_back` pair.
+into itself, never into `search_node`, so the search zone's only import cycle is
+`search_node`'s own recursion.
 
 **Stand-pat**: when not in check, evaluate first — through the correction tables,
 like the main node — and treat that score as a floor, since the side to move may

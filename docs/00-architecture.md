@@ -253,7 +253,7 @@ flowchart TD
     U["src/shell/uci.c<br/>uci_loop: parse, options, TT sizing"]
     B["src/shell/benchmark.c<br/>fixed FEN set, TT cleared each"]
     SG["engine/search/search.c + search_id.c<br/>search_go → iterative_deepening"]
-    AB["search_main.c + search_back.c<br/>search_node → search_run_back"]
+    AB["engine/search/search_main.c<br/>search_node: Steps 1-21"]
     QS["engine/search/search_qsearch.c<br/>qsearch_node: captures + stand-pat"]
     MP["engine/search/movepick.c<br/>staged picker + see_ge"]
     HI["engine/search/history.c<br/>the history block"]
