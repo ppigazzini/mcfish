@@ -50,14 +50,16 @@ typedef struct StateInfo {
 
     // RECOMPUTED by pos_do_move / set_check_info, NOT copied. `key` is the first of
     // these, so offsetof(StateInfo, key) is the copy boundary above.
+    // FIELD ORDER FROM HERE IS UPSTREAM'S, AND IT IS LOAD-BEARING. `key` and
+    // `previous` must share a cache line: the repetition walk steps
+    // `st = st->previous` and reads `st->key` at every step, and it runs on the
+    // order of a million times a search (pos_is_draw, pos_upcoming_repetition,
+    // pos_has_repeated). With `previous` moved to the end of the struct -- which is
+    // where it used to be -- each step of that walk touched TWO lines where
+    // upstream's touches one. Upstream: key 64, checkersBB 72, previous 80.
     Key key;
-    // Distance in plies back to the previous occurrence of this position:
-    // positive for the first repetition, NEGATIVE when that earlier occurrence
-    // was itself a repetition (i.e. this is the threefold), 0 when never
-    // repeated. The sign is the whole encoding — upstream position.cpp:1046.
-    int repetition;
-    Piece captured_piece;
-    Bitboard checkers;            // pieces of the side NOT to move giving check
+    Bitboard checkers;  // pieces of the side NOT to move giving check
+    struct StateInfo *previous;
     Bitboard blockers[COLOR_NB];  // own pieces whose move could expose our king
     Bitboard pinners[COLOR_NB];
     // Squares from which a piece of each type would check the enemy king, cached
@@ -65,7 +67,12 @@ typedef struct StateInfo {
     // per move by movepick scoring and search_gives_check instead of re-deriving
     // the slider rings from magic lookups on every move.
     Bitboard check_squares[PIECE_TYPE_NB];
-    struct StateInfo *previous;
+    Piece captured_piece;
+    // Distance in plies back to the previous occurrence of this position:
+    // positive for the first repetition, NEGATIVE when that earlier occurrence
+    // was itself a repetition (i.e. this is the threefold), 0 when never
+    // repeated. The sign is the whole encoding — upstream position.cpp:1046.
+    int repetition;
 } StateInfo;
 
 typedef struct Position {
