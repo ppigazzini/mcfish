@@ -30,6 +30,59 @@ void threats_init(void) {
 
 Bitboard ray_pass_bb(Square s1, Square s2) { return RayPassBB[s1][s2]; }
 
+#ifdef MCFISH_DIRTY_THREAT_VECTOR
+// Write every threat in MASK in one pass, as upstream's write_multiple_dirties does
+// (position.cpp:1157).
+//
+// The scalar loop this replaces is up to 16 iterations of pop_lsb -> board[sq] ->
+// pack -> append, each dependent on the last. Here the whole 64-square board is one
+// register (it is 64 bytes), `compress_epi8` turns the bitboard into the packed list
+// of squares in one instruction, `permutexvar_epi8` looks up all 16 pieces from the
+// board register with no memory access at all, and one ternarylogic ORs the constant
+// template together with both shifted fields.
+//
+// TEMPLATE carries the fields that do not vary across the mask; SQ_SHIFT and PC_SHIFT
+// place the two that do.
+//
+// The store is 64 bytes and UNMASKED, as upstream's is: DIRTY_THREAT_MAX is 96 with a
+// documented 16-slot tail precisely so this cannot run off the end (types.h).
+static inline void write_multiple_dirties(const Position *pos,
+                                          Bitboard mask,
+                                          uint32_t template_word,
+                                          int sq_shift,
+                                          int pc_shift,
+                                          DirtyThreats *dts) {
+    static_assert(sizeof(uint32_t) == 4, "a packed DirtyThreat is one 32-bit lane");
+
+    const int count = popcount_bb(mask);
+    if (count == 0)
+        return;
+
+    // Bytes 0..63, so compressing under the bitboard yields the square list.
+    const __m512i all_squares = _mm512_set_epi8(
+      63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41,
+      40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,
+      17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+
+    const __m512i board = _mm512_loadu_si512((const void *) pos->board);
+    const __m512i template_v = _mm512_set1_epi32((int) template_word);
+
+    __m512i squares = _mm512_maskz_compress_epi8((__mmask64) mask, all_squares);
+    squares = _mm512_cvtepi8_epi32(_mm512_castsi512_si128(squares));
+
+    // Index the board by those squares; the mask keeps the low byte of each lane.
+    __m512i pieces_v = _mm512_maskz_permutexvar_epi8(0x1111111111111111ULL, squares, board);
+
+    squares = _mm512_slli_epi32(squares, sq_shift);
+    pieces_v = _mm512_slli_epi32(pieces_v, pc_shift);
+
+    // 254 is A | B | C.
+    const __m512i dirties = _mm512_ternarylogic_epi32(template_v, squares, pieces_v, 254);
+    _mm512_storeu_si512((void *) &dts->list_values[dts->list_size], dirties);
+    dts->list_size += (size_t) count;
+}
+#endif
+
 static inline void add_dirty_threat(
   DirtyThreats *dts, bool put_piece, Piece pc, Piece threatened, Square s, Square threatened_sq) {
     dts->list_values[dts->list_size] =
@@ -153,6 +206,27 @@ __attribute__((always_inline)) static inline void threats_update_piece_impl(bool
         break;  // already masked by occupied_no_k
     }
 
+#ifdef MCFISH_DIRTY_THREAT_VECTOR
+    // Outgoing: PC on S threatens the piece on each square of `threatened`. The
+    // template fixes `add`, `pc` and `pc_sq`; the square and the threatened piece
+    // vary (upstream position.cpp:1269).
+    write_multiple_dirties(
+      pos, threatened, dirty_threat_make(put_piece, pc, NO_PIECE, s, (Square) 0),
+      DIRTY_THREAT_THREATENED_SQ_OFFSET, DIRTY_THREAT_THREATENED_PC_OFFSET, dts);
+
+    // Incoming: the piece on each square threatens PC on S. Upstream folds the
+    // direct sliders in HERE and then tells process_sliders not to emit them again,
+    // which is the control-flow half of this port -- the scalar path instead folds
+    // them in only on the !compute_ray branch (upstream position.cpp:1273, 1293).
+    const Bitboard all_attackers = direct_sliders | incoming;
+    write_multiple_dirties(pos, all_attackers,
+                           dirty_threat_make(put_piece, NO_PIECE, pc, (Square) 0, s),
+                           DIRTY_THREAT_PC_SQ_OFFSET, DIRTY_THREAT_PC_OFFSET, dts);
+
+    if (compute_ray)
+        process_sliders(pos, dts, sliders, s, pc, put_piece, no_rays, r_attacks, b_attacks,
+                        occupied_no_k, false);
+#else
     while (threatened != 0) {
         const Square tsq = pop_lsb(&threatened);
         add_dirty_threat(dts, put_piece, pc, pos->board[tsq], s, tsq);
@@ -169,6 +243,7 @@ __attribute__((always_inline)) static inline void threats_update_piece_impl(bool
         const Square src_sq = pop_lsb(&incoming);
         add_dirty_threat(dts, put_piece, pos->board[src_sq], pc, src_sq, s);
     }
+#endif
 }
 
 // The two instantiations upstream's template emits. Left inlinable: see threats.h.
