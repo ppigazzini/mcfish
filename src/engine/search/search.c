@@ -544,5 +544,19 @@ uint64_t perft(Position *pos, int depth, bool root) {
             Emit(line);
         }
     }
+
+    // Record the root total where `bench <tt> <threads> <depth> <fens> perft`
+    // reads it. Upstream's bench takes the figure from perft's return value
+    // (uci.cpp:274-275) where a searching bench takes it from the info listener;
+    // this port routes both through `search_last_nodes_searched`, and perft was
+    // the one producer that never wrote it -- so the perft bench summed zeros and
+    // reported a total of 0 against upstream's 3559544349.
+    //
+    // Written directly rather than through `OutputSetLastNodesSearched`: that seam
+    // is bound by install_seams, which only runs on the way into a search, so a
+    // perft-only run would publish into the discarding default.
+    if (root)
+        LastNodesSearched = total;
+
     return total;
 }
