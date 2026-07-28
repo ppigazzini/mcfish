@@ -294,7 +294,7 @@ typedef struct {
 // optimizer removes instead of a per-node call boundary. Force it: left to its
 // own heuristics clang still outlines one copy for the cut-node body and pays a
 // call plus both struct round-trips at that site.
-__attribute__((always_inline)) static inline TTProbe search_tt_probe(Key key) {
+static inline TTProbe search_tt_probe(Key key) {
     const TTProbeResult r = tt_probe(key);
 
     return (TTProbe) { .writer = r.writer,
