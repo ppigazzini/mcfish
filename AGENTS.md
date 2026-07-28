@@ -124,6 +124,13 @@ before re-deriving an idea.** Four rules that outrank intuition here:
   alone; `MCFISH_EVAL_MATERIAL=1` is the spine and search with the network gone.
   Comparing the same pair over both localises an effect to a zone in two commands.
   Attribution across two differently-inlined binaries is void by construction.
+- **Size an Elo run BEFORE you start it.** Speed converts at ~70 Elo per doubling,
+  so a 6% per-node change is ~6 Elo and needs ~10,000 games/cell to see; a
+  1000-game cell carries ±18. Two runs of the same binaries at the same TC here
+  differed by 21 Elo on the opening seed alone (−18.43 vs +2.78). A cell that
+  cannot resolve your effect does not return "no change", it returns a coin flip
+  with a sign — and cells that each carry ±18 must never be compared to each other.
+  For a few-percent change `tools/nps_ab.sh` is the STRONGER measurement.
 - **Gate on the clock, and validate any counter before believing it.** A change
   can be instruction-neutral, cache-better and branch-level and still cost 4% in
   cycles. And a counter opened by name is a hypothesis —
