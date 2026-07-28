@@ -4,7 +4,7 @@
 
 #include <stddef.h>
 
-#ifdef __BMI2__
+#if defined(__BMI2__) || defined(__AVX2__)
     #include <immintrin.h>
 #endif
 
@@ -31,6 +31,29 @@ static Bitboard BishopTable[0x1480];
 // longer fits, silently.
 static alignas(64) Magic Magics[SQUARE_NB][2];
 static_assert(2 * sizeof(Magic) == 64, "a square's bishop/rook Magic pair must be one cache line");
+
+#ifdef __AVX2__
+// Upstream's dual hyperbola quintessence (attacks.h:91, attacks.cpp:83). The four
+// masks MUST be the first 32 bytes and the struct 32-aligned: both_attacks_bb loads
+// them as a single __m256i.
+typedef struct {
+    // The four masks must be FIRST: both_attacks_bb loads them as one __m256i, and
+    // the array below is 64-aligned so every element is 32-aligned as that load needs.
+    Bitboard mask_file, mask_diag, mask_none, mask_antidiag;
+    Bitboard r, rr;  // 2 * square_bb(s), 2 * square_bb(63 - s)
+    const uint8_t *rank_attacks_lookup;
+    int shift;  // 8 * rank_of(s)
+} DualMagic;
+
+static alignas(64) DualMagic DualMagics[SQUARE_NB];
+static_assert(sizeof(DualMagic) == 64, "DualMagic must stay one cache line");
+
+// Sliding attacks within a rank, indexed by the slider's FILE and the 8-bit rank
+// occupancy, giving the 8-bit attack set on that rank. Rank attacks are the one
+// direction hyperbola quintessence cannot do with a byte reversal, because all eight
+// squares share a byte (upstream attacks.cpp:75).
+static uint8_t RankAttacks[FILE_NB][256];
+#endif
 
 static const Direction RookDirs[4] = { NORTH, EAST, SOUTH, WEST };
 static const Direction BishopDirs[4] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
@@ -109,6 +132,40 @@ static unsigned magic_index(const Magic *m, Bitboard occupied) {
 #endif
 }
 
+#ifdef __AVX2__
+// The ray through S along D1/D2, excluding S. Upstream's `line_mask`
+// (attacks.cpp:81).
+static Bitboard line_mask(Square sq, Direction d1, Direction d2) {
+    Bitboard mask = 0;
+    const Direction dirs[2] = { d1, d2 };
+    for (int i = 0; i < 2; ++i) {
+        Square s = sq;
+        while ((s = safe_step(s, dirs[i])) != SQ_NONE)
+            mask |= square_bb(s);
+    }
+    return mask;
+}
+
+static void init_dual_magics(void) {
+    for (int file = 0; file < FILE_NB; ++file)
+        for (int occ = 0; occ < 256; ++occ)
+            RankAttacks[file][occ] =
+              (uint8_t) sliding_attack(ROOK, (Square) file, (Bitboard) (unsigned) occ);
+
+    for (Square s = SQ_A1; s <= SQ_H8; ++s) {
+        DualMagic *const m = &DualMagics[s];
+        m->mask_file = line_mask(s, NORTH, SOUTH);
+        m->mask_diag = line_mask(s, NORTH_EAST, SOUTH_WEST);
+        m->mask_none = 0;
+        m->mask_antidiag = line_mask(s, NORTH_WEST, SOUTH_EAST);
+        m->r = square_bb(s) * 2;
+        m->rr = square_bb((Square) (63 - (int) s)) * 2;
+        m->rank_attacks_lookup = RankAttacks[file_of(s)];
+        m->shift = 8 * (int) rank_of(s);
+    }
+}
+#endif
+
 // Search a collision-free magic per square and fill its attack block.
 //
 // The `epoch` trick avoids clearing the table between candidates: a slot is stale
@@ -171,6 +228,44 @@ static void init_magics(PieceType pt, Bitboard *table) {
     }
 }
 
+DualAttacks both_attacks_bb(Square s, Bitboard occupied) {
+#ifdef __AVX2__
+    // Upstream attacks.h:108. One 256-bit load covers file/diag/unused/antidiag; the
+    // subtract-reverse-subtract-xor is hyperbola quintessence run on all three rays at
+    // once. The byte reversal is enough (not a full bit reversal) because every square
+    // of a file, diagonal or antidiagonal sits in a distinct byte -- which is exactly
+    // why the RANK cannot join them and comes from the 256-entry lookup instead.
+    const DualMagic *const m = &DualMagics[s];
+    const __m256i bswap_ctl = _mm256_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                              0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+    const __m256i mask = _mm256_load_si256((const __m256i *) (const void *) m);
+    const __m256i rs = _mm256_set1_epi64x((long long) m->r);
+    const __m256i rrs = _mm256_set1_epi64x((long long) m->rr);
+
+    const __m256i o = _mm256_and_si256(mask, _mm256_set1_epi64x((long long) occupied));
+    const __m256i fwd = _mm256_sub_epi64(o, rs);
+    const __m256i rev =
+      _mm256_shuffle_epi8(_mm256_sub_epi64(_mm256_shuffle_epi8(o, bswap_ctl), rrs), bswap_ctl);
+    const __m256i result = _mm256_and_si256(_mm256_xor_si256(fwd, rev), mask);
+
+    // Lane 0 carries the file rays, lane 1 the two diagonals.
+    const __m128i rook_bishop =
+      _mm_or_si128(_mm256_extracti128_si256(result, 1), _mm256_castsi256_si128(result));
+
+    const Bitboard rank_attacks = (Bitboard) m->rank_attacks_lookup[(occupied >> m->shift) & 0xff]
+                               << m->shift;
+
+    return (DualAttacks) {
+        .bishop = (Bitboard) _mm_extract_epi64(rook_bishop, 1),
+        .rook = (Bitboard) _mm_cvtsi128_si64(rook_bishop) + rank_attacks,
+    };
+#else
+    // Two magic lookups, which is what upstream's non-dual path does.
+    return (DualAttacks) { .bishop = attacks_bb(BISHOP, s, occupied),
+                           .rook = attacks_bb(ROOK, s, occupied) };
+#endif
+}
+
 Bitboard attacks_bb(PieceType pt, Square s, Bitboard occupied) {
     switch (pt) {
     case BISHOP :
@@ -186,6 +281,9 @@ Bitboard attacks_bb(PieceType pt, Square s, Bitboard occupied) {
 }
 
 void attacks_init(void) {
+#ifdef __AVX2__
+    init_dual_magics();
+#endif
     static const Direction KnightSteps[8] = { 17, 15, 10, 6, -6, -10, -15, -17 };
     static const Direction KingSteps[8] = { 9, 8, 7, 1, -1, -7, -8, -9 };
 

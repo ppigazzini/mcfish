@@ -47,6 +47,30 @@ extern Bitboard LineBB[SQUARE_NB][SQUARE_NB];     // the full line through both,
 // table; leapers read PseudoAttacks and ignore OCCUPIED.
 Bitboard attacks_bb(PieceType pt, Square s, Bitboard occupied);
 
+// Return BOTH slider attack sets for S in one call: `.bishop` and `.rook`.
+//
+// At AVX2 and above this is upstream's DUAL HYPERBOLA QUINTESSENCE (attacks.h:91,
+// `#elif defined(USE_AVX2)` at attacks.h:35): the file, diagonal and antidiagonal
+// masks sit in one 32-byte struct, one 256-bit load and a single subtract/reverse/xor
+// pass produces all three ray sets at once, and the rank comes from a 256-byte
+// lookup. Upstream does not even compile its magic tables in that configuration
+// (attacks.cpp:28) -- it is an algorithm REPLACEMENT above sse41, not an addition.
+//
+// mcfish ran magics at every tier, which is upstream's pre-AVX2 path. That is 841 KiB
+// of attack tables walked at random against upstream's 3 KiB of L1-resident structs,
+// on every sliding query -- and the five hottest board sites ask for both sets at
+// once. It is the reason the per-node deficit against the oracle tracked the tier:
+// near parity at sse41, where both engines use magics, and 8-14% above it.
+//
+// Below AVX2 this falls back to two magic lookups, which is exactly what upstream's
+// non-dual path does.
+typedef struct {
+    Bitboard bishop;
+    Bitboard rook;
+} DualAttacks;
+
+DualAttacks both_attacks_bb(Square s, Bitboard occupied);
+
 // Test whether S1, S2 and S3 are collinear. Used to keep a pinned piece on its
 // pin ray, which is the whole legality test for a non-king mover.
 static inline bool aligned(Square s1, Square s2, Square s3) {
