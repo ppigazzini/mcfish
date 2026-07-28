@@ -206,7 +206,7 @@ static void walk_roundtrip(Position *pos, int depth) {
 
         StateInfo st;
         pos_do_move(pos, it->move, &st, pos_gives_check(pos, it->move), &pos->scratch_dp,
-                    &pos->scratch_dts);
+                    &pos->scratch_dts, nullptr);
 
         // The incrementally-updated key must equal the key of the resulting
         // position computed from scratch — this is the real Zobrist test.
@@ -539,7 +539,7 @@ static void test_draw_detection(void) {
     int n = 0;
     for (size_t i = 0; i < sizeof shuffle / sizeof shuffle[0]; ++i)
         pos_do_move(&pos, move_from_uci(&pos, shuffle[i]), &chain[n++], false, &pos.scratch_dp,
-                    &pos.scratch_dts);
+                    &pos.scratch_dts, nullptr);
 
     CHECK(pos_is_draw(&pos, 8), "threefold repetition detected");
 
@@ -657,6 +657,15 @@ static size_t drain_picker(uint8_t pattern,
         frames[i].continuation_history = page;
     Stack *const ss = &frames[7];
 
+    // The picker scores through the CALLER's continuation array, as upstream's
+    // constructor takes it, so the array has to outlive the picker -- declare it
+    // in the same scope, which is what the node body does.
+    const SharedStat *const cont_hist[6] = {
+        (ss - 1)->continuation_history, (ss - 2)->continuation_history,
+        (ss - 3)->continuation_history, (ss - 4)->continuation_history,
+        (ss - 5)->continuation_history, (ss - 6)->continuation_history,
+    };
+
     MovePicker mp;
     memset(&mp, pattern, sizeof mp);
 
@@ -664,7 +673,7 @@ static size_t drain_picker(uint8_t pattern,
         movepick_init_probcut(&mp, pos, h, MOVE_NONE, 1);
         mp.stage = MP_PROBCUT_TT + 1;  // no usable TT move
     } else {
-        movepick_init(&mp, pos, h, pos->st->pawn_key, MOVE_NONE, depth, 2, ss);
+        movepick_init(&mp, pos, h, pos->st->pawn_key, MOVE_NONE, depth, 2, cont_hist);
         const int base = checkers(pos) != 0 ? MP_EVASION_TT
                        : depth > 0          ? MP_MAIN_TT
                                             : MP_QSEARCH_TT;
