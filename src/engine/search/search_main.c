@@ -378,7 +378,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     };
 
     MovePicker mp;
-    movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, depth, ss->ply, ss);
+    movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, depth, ss->ply, cont_hist);
     mp_set_main_stage(&mp, pos, tt_move, depth);
 
     Value value = best_value;

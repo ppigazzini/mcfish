@@ -153,8 +153,13 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
     // below declares its own, and stack coloring overlays the two instead of
     // stacking them -- the frame upstream's qsearch gets from the same shape.
     {
+        // One entry: quiescence scores evasions, and the evasion scorer reads
+        // slot 0 alone (upstream builds the same one-element array,
+        // search.cpp:1732).
+        const SharedStat *const cont_hist[1] = { (ss - 1)->continuation_history };
+
         MovePicker mp;
-        movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, DEPTH_QS, ss->ply, ss);
+        movepick_init(&mp, pos, h, pos->st->pawn_key, tt_move, DEPTH_QS, ss->ply, cont_hist);
         mp_set_main_stage(&mp, pos, tt_move, DEPTH_QS);
 
         Move move;
