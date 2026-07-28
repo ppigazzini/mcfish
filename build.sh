@@ -309,33 +309,45 @@ red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 info()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
 
-# Build when the binary is missing OR older than anything it is built from.
+# Rebuild when the binary does not match its INPUTS -- by content, not by timestamp.
 #
-# This used to be `[[ -x $BIN ]] || do_build`, which rebuilt only when the binary was
-# ABSENT -- so `./build.sh signature` after an edit asserted the anchor against the
-# previous binary and reported green over code it had never compiled. That is the one
-# thing a dependency-tracked build system gives for free, and the reason the perf
-# tooling carries a standing "run ./build.sh build explicitly first" warning.
+# The stamp hashes every source, every header, the full compile command and the
+# compiler's own version, and lands beside the binary. A gate rebuilds only when that
+# digest differs.
 #
-# `-nt` on each source is enough: the source set is fully enumerated, and headers are
-# covered by globbing src/ rather than by a dependency scanner. A false positive costs
-# one 7-second build; a false negative costs a gate that lies.
+# Timestamps were the obvious implementation and are wrong in both directions. They
+# rebuild for free on a `git checkout`, a `touch`, or an editor save that changed
+# nothing -- seven seconds each time. And they MISS the case that matters most here:
+# MCFISH_ARCH changes no file, so building at sse41 and then running a gate under
+# `MCFISH_ARCH=native` left the sse41 binary in place and gated it while reporting the
+# native tier. That is the same trap `perf-budget` documents, and it silently voids
+# any per-tier comparison.
+#
+# Before either, this rebuilt only when the binary was ABSENT, so a gate could assert
+# against code it had never compiled.
+build_stamp() {
+  {
+    printf '%s\0' "$CC" "$("$CC" -dumpversion 2> /dev/null)" \
+      "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" "${SOURCES[@]}"
+    cat "${SOURCES[@]}" $(find src -name '*.h' | sort)
+  } 2> /dev/null | sha256sum | cut -d' ' -f1
+}
+
 need_binary() {
-  [[ -x $BIN ]] || { do_build; return; }
-  local f
-  for f in "${SOURCES[@]}" $(find src -name '*.h' 2> /dev/null); do
-    if [[ $f -nt $BIN ]]; then
-      info "$BIN is older than $f -- rebuilding before the gate runs"
-      do_build
-      return
-    fi
-  done
+  local want
+  want=$(build_stamp)
+  if [[ -x $BIN && -f $BIN.stamp && $(cat "$BIN.stamp") == "$want" ]]; then
+    return
+  fi
+  info "$BIN does not match its sources or flags -- rebuilding before the gate runs"
+  do_build
 }
 
 do_build() {
   info "building $BIN (release)"
   mkdir -p build
   "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -o "$BIN" "${SOURCES[@]}" -lm -lpthread
+  build_stamp > "$BIN.stamp"
   green "built $BIN"
 }
 
@@ -398,6 +410,7 @@ do_pgo() {
     -fprofile-use="$profdir/merged.profdata" \
     -Wno-profile-instr-out-of-date -Wno-profile-instr-unprofiled \
     -o "$BIN" "${SOURCES[@]}" "${LIBS[@]}"
+  build_stamp > "$BIN.stamp"
   green "built $BIN (PGO)"
 
   # The profile steers layout only. Prove it did not move the anchor.
