@@ -160,9 +160,7 @@ static void init_common(MovePicker *mp, const Position *pos, Histories *h, Move 
     mp->pos = pos;
     mp->hist = h;
     mp->pawn_key = 0;
-    mp->ss = nullptr;
-    // Leave cont_hist unset: QUIET_INIT and EVASION_INIT fill every slot their
-    // scoring reads, and no other stage reads one.
+    mp->cont_hist = nullptr;
     mp->ply = 0;
     mp->tt_move = tt_move;
     mp->threshold = 0;
@@ -182,10 +180,10 @@ void movepick_init(MovePicker *mp,
                    Move tt_move,
                    int depth,
                    int ply,
-                   const Stack *ss) {
+                   const SharedStat *const *cont_hist) {
     init_common(mp, pos, h, tt_move);
     mp->pawn_key = pawn_key;
-    mp->ss = ss;
+    mp->cont_hist = cont_hist;
     mp->ply = ply;
     mp->depth = depth;
 }
@@ -302,17 +300,6 @@ Move movepick_next(MovePicker *mp) {
 
         case MP_QUIET_INIT : {
             if (!mp->skip_quiets) {
-                // Gather the five continuation pages quiet scoring reads -- (ss-1)
-                // through (ss-4) and (ss-6) -- only now that it will read them; a
-                // picker cut off before this stage never pays. Slot 4 is (ss-5),
-                // which upstream's contHist array also builds (search.cpp:1093) and
-                // which no scorer reads, so skip it and leave that frame untouched.
-                mp->cont_hist[0] = (mp->ss - 1)->continuation_history;
-                mp->cont_hist[1] = (mp->ss - 2)->continuation_history;
-                mp->cont_hist[2] = (mp->ss - 3)->continuation_history;
-                mp->cont_hist[3] = (mp->ss - 4)->continuation_history;
-                mp->cont_hist[5] = (mp->ss - 6)->continuation_history;
-
                 const size_t count = score_list(mp, KIND_QUIETS, mp->moves + mp->cur);
 
                 mp->end_cur = mp->cur + count;
@@ -354,8 +341,6 @@ Move movepick_next(MovePicker *mp) {
             return MOVE_NONE;
 
         case MP_EVASION_INIT : {
-            // Evasion scoring reads slot 0 alone.
-            mp->cont_hist[0] = (mp->ss - 1)->continuation_history;
             mp->cur = 0;
 
             const size_t count = score_list(mp, KIND_EVASIONS, mp->moves + mp->cur);
