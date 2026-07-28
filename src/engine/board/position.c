@@ -230,6 +230,15 @@ static void set_castling_right(Position *pos, Color c, Square rfrom) {
     pos->castling_rights_mask[kfrom] |= cr;
     pos->castling_rights_mask[rfrom] |= cr;
     pos->castling_rook_square[cr] = rfrom;
+
+    // Precompute the path this right needs clear, as upstream does when it sets the
+    // right (position.cpp:462). Both movers are excluded: in Chess960 either may
+    // already stand on a square the other must cross.
+    const Square kto = make_square(cr & (WHITE_OO | BLACK_OO) ? 6 : 2, rank_of(kfrom));
+    const Square rto = make_square(cr & (WHITE_OO | BLACK_OO) ? 5 : 3, rank_of(kfrom));
+    pos->castling_path[cr] =
+      (BetweenBB[rfrom][rto] | BetweenBB[kfrom][kto] | square_bb(kto) | square_bb(rto))
+      & ~(square_bb(kfrom) | square_bb(rfrom));
 }
 
 // Report WHY a FEN was rejected, in upstream's words.

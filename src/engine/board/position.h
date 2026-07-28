@@ -78,6 +78,13 @@ typedef struct Position {
     // Track the rook origin per castling right so Chess960 castling is a data
     // lookup, not a special case in movegen.
     Square castling_rook_square[16];
+
+    // The squares the king and rook must find EMPTY for each castling right, minus
+    // the two movers themselves. Precomputed with the right, as upstream's
+    // `castlingPath` is (position.cpp:462), so the test is one AND against the
+    // occupancy instead of two random BetweenBB lookups and five bitboard ops
+    // rebuilt at every castling generation.
+    Bitboard castling_path[16];
     uint8_t castling_rights_mask[SQUARE_NB];
     bool chess960;
     StateInfo *st;
