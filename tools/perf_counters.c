@@ -53,17 +53,34 @@ typedef struct {
     uint64_t cycles;
     uint64_t cache_misses;
     uint64_t branch_misses;
+    uint64_t ops;  // retired macro-ops; 0 when the host has no counter for them
     uint64_t nodes;
 } Counters;
+
+// AMD PMCx0C1 ex_ret_ops -- RETIRED MACRO-OPS, the unit the core actually schedules.
+//
+// WHY IT IS HERE. `instructions` counts x86 instructions, and x86 instructions are not a
+// unit of work: a folded load-op, a load-op-store, a 512-bit operation on a 256-bit
+// datapath and a rep-prefixed string op each retire as ONE instruction and dispatch as
+// two or more ops. So two binaries doing the SAME work can differ by several percent on
+// the instruction count with no difference in what the machine does -- and the engine
+// that "wins" on instructions can lose on time. Reading ops beside instructions is what
+// separates "did less work" from "spelled the same work in fewer instructions"; the
+// ops/instr column below is that test, and a gap there voids any instruction-ratio
+// conclusion.
+//
+// Zen-only (family 17h/19h/1Ah). PERF_TYPE_RAW config for event 0x0C1, umask 0. Absent
+// or refused on other vendors, where the column reads `-` and the tool still works.
+enum : uint64_t { AMD_EX_RET_OPS = 0xC1 };
 
 static double ipc_of(Counters c) {
     return c.cycles == 0 ? 0.0 : (double) c.instructions / (double) c.cycles;
 }
 
-static int open_counter(uint64_t config, pid_t pid) {
+static int open_counter_typed(uint32_t type, uint64_t config, pid_t pid) {
     struct perf_event_attr attr;
     memset(&attr, 0, sizeof attr);
-    attr.type = PERF_TYPE_HARDWARE;
+    attr.type = type;
     attr.size = sizeof attr;
     attr.config = config;
     attr.disabled = 1;
@@ -72,6 +89,10 @@ static int open_counter(uint64_t config, pid_t pid) {
     attr.inherit = 1;  // count the child's threads too (Lazy-SMP workers)
     long fd = syscall(SYS_perf_event_open, &attr, pid, -1, -1, 0UL);
     return (int) fd;
+}
+
+static int open_counter(uint64_t config, pid_t pid) {
+    return open_counter_typed(PERF_TYPE_HARDWARE, config, pid);
 }
 
 // Parse "Nodes searched  : N" out of the child's bench output. Without this the tool would
@@ -136,6 +157,7 @@ static Counters run_once(char *const argv[], int core) {
     int c_cyc = open_counter(PERF_COUNT_HW_CPU_CYCLES, pid);
     int c_cache = open_counter(PERF_COUNT_HW_CACHE_MISSES, pid);
     int c_branch = open_counter(PERF_COUNT_HW_BRANCH_MISSES, pid);
+    int c_ops = open_counter_typed(PERF_TYPE_RAW, AMD_EX_RET_OPS, pid);
     if (c_instr < 0 || c_cyc < 0) {
         fprintf(stderr,
                 "error: perf_event_open failed (need perf_event_paranoid <= 1 or CAP_PERFMON;\n"
@@ -143,8 +165,8 @@ static Counters run_once(char *const argv[], int core) {
         exit(2);
     }
 
-    int fds[4] = { c_instr, c_cyc, c_cache, c_branch };
-    for (int i = 0; i < 4; i++)
+    int fds[5] = { c_instr, c_cyc, c_cache, c_branch, c_ops };
+    for (int i = 0; i < 5; i++)
         if (fds[i] >= 0) {
             ioctl(fds[i], PERF_EVENT_IOC_RESET, 0);
             ioctl(fds[i], PERF_EVENT_IOC_ENABLE, 0);
@@ -169,7 +191,7 @@ static Counters run_once(char *const argv[], int core) {
     close(pipe_fds[0]);
     waitpid(pid, &status, 0);
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 5; i++)
         if (fds[i] >= 0)
             ioctl(fds[i], PERF_EVENT_IOC_DISABLE, 0);
 
@@ -181,8 +203,10 @@ static Counters run_once(char *const argv[], int core) {
         result.cache_misses = 0;
     if (c_branch >= 0 && read(c_branch, &result.branch_misses, 8) != 8)
         result.branch_misses = 0;
+    if (c_ops < 0 || read(c_ops, &result.ops, 8) != 8)
+        result.ops = 0;
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 5; i++)
         if (fds[i] >= 0)
             close(fds[i]);
 
@@ -276,6 +300,9 @@ int main(int argc, char **argv) {
     double *r_ipc = calloc(rounds, sizeof *r_ipc);
     double *r_cache = calloc(rounds, sizeof *r_cache);
     double *r_branch = calloc(rounds, sizeof *r_branch);
+    double *r_ops = calloc(rounds, sizeof *r_ops);
+    double *r_opi_a = calloc(rounds, sizeof *r_opi_a);
+    double *r_opi_b = calloc(rounds, sizeof *r_opi_b);
 
     for (size_t i = 0; i < rounds; i++) {
         Counters a = run_once(argv_a, 0);
@@ -305,9 +332,22 @@ int main(int argc, char **argv) {
         r_ipc[i] = ipc_of(b) > 0 ? ipc_of(a) / ipc_of(b) : 0;
         r_cache[i] = ratio(a.cache_misses, b.cache_misses);
         r_branch[i] = ratio(a.branch_misses, b.branch_misses);
+        r_ops[i] = ratio(a.ops, b.ops);
+        r_opi_a[i] = ratio(a.ops, a.instructions);
+        r_opi_b[i] = ratio(b.ops, b.instructions);
         printf("  %5zu %16lu %16lu %9.3f %8.3f %8.3f\n", i + 1,
                (unsigned long) a.instructions, (unsigned long) b.instructions, r_instr[i],
                ipc_of(a), ipc_of(b));
+        // Machine-readable absolutes, one line per round per side. Ratios cannot be
+        // startup-subtracted -- the delta of two ratios is not the ratio of two deltas --
+        // so the raw counts have to leave the tool for the caller to difference two
+        // workloads (a deep run minus a depth-1 run) into a search-only figure.
+        printf("#R %zu A %lu %lu %lu %lu %lu\n", i + 1, (unsigned long) a.instructions,
+               (unsigned long) a.cycles, (unsigned long) a.cache_misses,
+               (unsigned long) a.branch_misses, (unsigned long) a.ops);
+        printf("#R %zu B %lu %lu %lu %lu %lu\n", i + 1, (unsigned long) b.instructions,
+               (unsigned long) b.cycles, (unsigned long) b.cache_misses,
+               (unsigned long) b.branch_misses, (unsigned long) b.ops);
         fflush(stdout);
     }
 
@@ -318,6 +358,14 @@ int main(int argc, char **argv) {
            median(r_cyc, rounds));
     printf("#   IPC          : %.3f   <- the EFFICIENCY. <1 means A retires fewer instr/cycle.\n",
            median(r_ipc, rounds));
+    const double m_ops = median(r_ops, rounds);
+    if (m_ops > 0.0)
+        printf("#   macro-ops    : %.3f   <- the REAL work unit. Read this, not instructions,\n"
+               "#                             whenever the two disagree (A %.3f ops/instr,\n"
+               "#                             B %.3f) -- an instruction is not a unit of work.\n",
+               m_ops, median(r_opi_a, rounds), median(r_opi_b, rounds));
+    else
+        printf("#   macro-ops    : -       <- no retired-ops counter on this host (non-AMD?)\n");
     printf("#   cache misses : %.3f\n", median(r_cache, rounds));
     printf("#   branch misses: %.3f   <- the OTHER half of an IPC gap. ~15-20 cycles each,\n"
            "#                             and invisible to instructions AND to cache misses.\n",
