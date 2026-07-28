@@ -426,7 +426,32 @@ void search_update_sel_depth(SearchCtx *ctx, int ply) {
         ctx->sel_depth = ply + 1;
 }
 
+#ifdef MCFISH_EVAL_MATERIAL
+// Score the position by material alone, ignoring optimism and every network.
+//
+// MEASUREMENT HARNESS, off in every shipped build. It isolates the spine — move
+// generation, movepick, the histories, the TT and the pruning arithmetic — from
+// the NNUE, so a differential against an oracle patched with the SAME formula
+// measures the search and nothing else. The weights are written here rather than
+// read from either engine's tables precisely so the two sides cannot drift: the
+// trees must stay identical or the differential is void.
+static Value material_only_eval(const Position *pos) {
+    static const int weight[QUEEN + 1] = { 0, 100, 320, 330, 500, 900 };
+    const Color us = pos->side_to_move;
+    const Color them = flip_color(us);
+    int v = 0;
+    for (PieceType pt = PAWN; pt <= QUEEN; ++pt)
+        v += weight[pt]
+           * (popcount_bb(pieces_cp(pos, us, pt)) - popcount_bb(pieces_cp(pos, them, pt)));
+    return (Value) v;
+}
+#endif
+
 Value search_evaluate(SearchCtx *ctx, const Position *pos) {
+#ifdef MCFISH_EVAL_MATERIAL
+    (void) ctx;
+    return material_only_eval(pos);
+#else
     // Index optimism by the side to move at THIS node, not at the root: the
     // aspiration loop writes both colours and the sign has to follow the mover
     // down the tree (upstream search.cpp:1867).
@@ -437,6 +462,7 @@ Value search_evaluate(SearchCtx *ctx, const Position *pos) {
     if (ctx->eval_nnue_ready)
         return evaluate_nnue_with_optimism(ctx->eval_arena, pos, ctx->optimism[pos->side_to_move]);
     return evaluate_with_optimism(ctx->eval_arena, pos, ctx->optimism[pos->side_to_move]);
+#endif
 }
 
 // ---- history-update family (upstream search.cpp:1928-2030) --------------
