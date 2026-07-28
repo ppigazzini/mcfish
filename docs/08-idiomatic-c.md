@@ -549,6 +549,58 @@ the diff: the specialized node bodies shift under register-allocation changes, a
 an edit near the transposition table flips link-time inlining, so a local estimate
 answers a different question than the binary does.
 
+**But the instruction axis is where this port has been misled most, so bound what it
+can tell you.** Three checks, each of which has overturned a conclusion here:
+
+- **Subtract startup, by measurement.** `perf_counters` counts the whole process, and
+  startup is engine-dependent — mcfish parses the net in about half upstream's time.
+  Against the oracle on the spine, the instruction ratio reads 0.940 whole-process and
+  **1.002** once startup is subtracted: the entire apparent lead was the net load.
+  [`../tools/perf_delta.py`](../tools/perf_delta.py) does the subtraction on absolutes,
+  which is the only place it can be done — the difference of two ratios is not the
+  ratio of two differences.
+- **Read macro-ops beside instructions.** An x86 instruction is not a unit of work; a
+  folded load-op retires as one and dispatches as two. When the two columns disagree,
+  the instruction ratio is measuring spelling.
+- **An instruction win that buys no cycles is not a win.** It is the D8/D9 mirage, and
+  the converse now has its own record: a change can be instruction-neutral, cache-
+  better and branch-level and still cost 4% on the clock. Gate on the clock.
+
+**Ask `nps_ab.sh` first, and believe it over the counters.** It reads each engine's
+own bench clock, which starts after the `ucinewgame` clear and so contains no startup
+at all — nothing to subtract, nothing to get wrong. Three rules inside it, each of
+which cost a wrong published number:
+
+- **Alternate which engine runs first.** The second slot in a round runs on a hotter
+  core; with a fixed order that bias is systematic and a few-percent effect comes out
+  with the wrong sign.
+- **Sum over a position set; never median per-position times.** Search sizes vary by
+  orders of magnitude, so a median is decided by which positions land in the middle —
+  the same binaries read 1.091 at depth 12 and 0.906 at depth 14 that way.
+- **Measure the binaries that play the games.** Tier and build mode change the answer:
+  one deficit here doubled between sse41-plain and icl-PGO, and a conclusion drawn on
+  the first said nothing about the second.
+
+**Prefer removing a component over attributing one.** `perft` is the board zone with
+no TT, no histories, no move ordering and no evaluation; `MCFISH_EVAL_MATERIAL=1`
+leaves the spine and search running with the network gone. Comparing the same pair
+over both localises an effect to a zone in two commands, with no per-function
+attribution argument to get wrong. Attribution across two differently-inlined binaries
+is void by construction; removal is not.
+
+**Validate a counter before believing it.** A counter opened by name is a hypothesis.
+[`../tools/perf_counter_validate.c`](../tools/perf_counter_validate.c) runs two loops
+whose bottleneck is known — one dependency chain, one independent-ILP loop — and a
+counter that does not respond the way the bottleneck demands does not mean what its
+name says on this host. Two conclusions in this tree have died to this; see
+[09-tooling-ci.md](09-tooling-ci.md#a-counter-is-a-hypothesis-until-it-is-validated).
+
+**Run the call-count parity test FIRST.** `perf_fingerprint.py compare --calls` is
+inlining-immune and answers "do we run Stockfish's algorithm?". On the spine it comes
+back exact, symbol for symbol, which retires every "we must be doing extra work"
+hypothesis in one command — and it costs nothing to run before a day of profiling
+rather than after.
+
 **Take cycle and cache claims to an idle box, floored by an A/A run — and know that
 each axis has its OWN floor.** Measure the build against a byte-identical *copy* of
 itself, both orientations, reported as the geometric mean of the two so the position

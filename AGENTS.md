@@ -97,15 +97,43 @@ measurement discipline) and [docs/09-tooling-ci.md](docs/09-tooling-ci.md)
 (measurement tooling and its blind spots) before proposing any optimisation —
 they carry every rule this tree has paid to learn, and each perf commit carries
 its measured evidence in its body: **the commit log is the ledger; search it
-before re-deriving an idea.** Two rules that outrank intuition here:
+before re-deriving an idea.** Four rules that outrank intuition here:
 
-- Measure on the **instruction axis** (`tools/perf_counters.sh`, paired rounds):
-  deterministic and load-immune. It is **blind to `rep stosb` memsets** (one
-  retired instruction regardless of size) and to software prefetch — take those
-  to callgrind Ir and idle-box cycles.
-- Measure every edit **whole-binary**. The specialized node bodies swing under
-  register-allocation changes and tt.c micro-edits flip LTO inlining; instruction
-  arithmetic over a diff is a guess, never a measurement.
+- **Establish the effect with `tools/nps_ab.sh` BEFORE opening a counter.** It reads
+  the engines' own search clocks, so no startup is in it and nothing has to be
+  subtracted. Alternate the order, sum over a position set (bench's 4th argument
+  takes a FEN file), and measure the binaries that actually play — tier and PGO change
+  the answer, and one deficit here doubled between sse41-plain and icl-PGO.
+- **Run `perf_fingerprint.py compare --calls` SECOND.** It is inlining-immune and
+  answers "do we run Stockfish's algorithm?". On the spine it comes back exact,
+  symbol for symbol, which retires every "we must be doing extra work" theory in
+  one command. A call-count divergence is an algorithm bug and outranks every
+  cost finding.
+- **Subtract startup, by measurement, or the instruction axis will lie to you.**
+  `perf_counters.sh` counts the whole process and mcfish parses the net in about
+  half upstream's time. The spine instruction ratio reads 0.940 whole-process and
+  **1.002** startup-subtracted — the entire apparent lead was the net load, and
+  every standing taken before the correction carried it.
+  `tools/perf_delta.py` does the subtraction on absolutes, the only place it can
+  be done — **for instructions and macro-ops**. For CYCLES the same subtraction
+  removes a term whose error rivals the effect, and it reported a 4.3% search
+  deficit that direct measurement (bench's own `Total time`, which contains no
+  startup by construction) put at 1.004 and 1.018. Time the search, do not
+  subtract it.
+- **Isolate the component instead of attributing it.** `perft` is the board zone
+  alone; `MCFISH_EVAL_MATERIAL=1` is the spine and search with the network gone.
+  Comparing the same pair over both localises an effect to a zone in two commands.
+  Attribution across two differently-inlined binaries is void by construction.
+- **Gate on the clock, and validate any counter before believing it.** A change
+  can be instruction-neutral, cache-better and branch-level and still cost 4% in
+  cycles. And a counter opened by name is a hypothesis —
+  `tools/perf_counter_validate.c` checks it against two known bottlenecks; two
+  conclusions in this tree have died there. The instruction counter is also
+  **blind to `rep stosb`** and to software prefetch.
+
+Measure every edit **whole-binary**. The specialized node bodies swing under
+register-allocation changes and tt.c micro-edits flip LTO inlining; instruction
+arithmetic over a diff is a guess, never a measurement.
 
 ## Fleets and subagents
 

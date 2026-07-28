@@ -276,19 +276,37 @@ field added here is a field that can drift forever without a gate noticing.
 
 ## Local-only measurement tooling
 
-Five scripts in `tools/` that are **not** `./build.sh` steps and **not** gates.
+Eight tools in `tools/` that are **not** `./build.sh` steps and **not** gates.
 They measure the host they run on, and a shared, thermally-uncontrolled CI runner
 cannot carry a performance verdict — so they are deliberately kept out of
 `parity` and out of the workflows.
 
 | Tool | Answers |
 | --- | --- |
-| [`../tools/nps_ab.sh`](../tools/nps_ab.sh) | the headline speed ratio, interleaved and paired |
+| [`../tools/nps_ab.sh`](../tools/nps_ab.sh) | **the headline speed ratio** — each engine's own search clock, interleaved, paired, order-alternating. The number that predicts Elo |
 | [`../tools/perf_callgrind.sh`](../tools/perf_callgrind.sh) | deterministic instructions, D refs and cache misses — **sse41 only** |
 | [`../tools/perf_counters.sh`](../tools/perf_counters.sh) | instructions AND cycles/IPC/cache-misses/branch-misses, on **every** arch tier |
 | [`../tools/perf_sample.sh`](../tools/perf_sample.sh) | which SYMBOL burns the cycles — a `perf record` with no `perf`, every tier |
 | [`../tools/perf_fingerprint.py`](../tools/perf_fingerprint.py) | per-function attribution, and the call-count parity test |
+| [`../tools/perf_delta.py`](../tools/perf_delta.py) | startup-subtracted WORK counts (instructions, macro-ops) from `perf_counters` absolutes. Not for speed — see below |
+| [`../tools/perf_counter_validate.c`](../tools/perf_counter_validate.c) | whether a counter counts what its name says, against two known bottlenecks |
 | [`../tools/valgrind.sh`](../tools/valgrind.sh) | memcheck: invalid access, bad free, definite leak |
+
+**Order of use, and the first three before any hypothesis.**
+
+1. **`nps_ab.sh`** — is there a speed difference at all, and how big? It reads the
+   engines' own search clocks, so there is no startup to remove and no arithmetic to
+   get wrong. Ask this FIRST; a counter campaign that has not established the effect
+   exists is a campaign against noise.
+2. **`perf_fingerprint.py compare --calls`** — is it the algorithm? Call counts are
+   inlining-immune, and a divergence there outranks every cost finding.
+3. **an isolating workload** — `perft` for the board zone, `MCFISH_EVAL_MATERIAL=1`
+   for the spine. Which component owns it.
+4. **`perf_counters` + `perf_delta.py`** — only now, and only for the WORK axes.
+
+Going straight to the counters is how a session spends a day attributing a deficit
+that the first tool would have measured in five minutes — and, worse, how it reports
+parity while a 13% gap sits in front of it.
 
 `perf_counters.sh` drives both binaries interleaved over hardware counters
 (`perf_event_open`, so the absent `perf` CLI does not matter), pinned to one core,
@@ -297,8 +315,18 @@ that reads instructions on avx2 and native/vnni512 — where callgrind SIGILLs o
 AVX-512 EVEX prefix — and the only one that can *see* an IPC gap rather than infer
 one.
 
-An IPC gap is only ever two things, and the tool reports both so the split is read
-rather than guessed: **cache misses and branch misses**. A branch miss costs ~15–20
+It also reads **retired macro-ops** (AMD `ex_ret_ops`), which is the axis that says
+whether an instruction-count difference is a difference in WORK. An x86 instruction is
+not a unit of work — a folded load-op, a load-op-store and a wide vector op each retire
+as one instruction and dispatch as two or more — so when the instruction and macro-op
+columns disagree, the instruction ratio is measuring spelling and no conclusion drawn
+from it survives. (On this repo's spine pair they agree: 1.015 vs 1.024 ops/instr, so
+mcfish's instruction count really is its work.)
+
+An IPC gap is USUALLY two things, and the tool reports both so the split is read
+rather than guessed: **cache misses and branch misses**. When it is neither — as on
+the spine comparison above — the tool has no answer, and the honest response is to say
+so rather than to reach for a counter whose meaning has not been validated. A branch miss costs ~15–20
 cycles and is invisible to the instruction count *and* to the miss rate, so a cycle
 deficit that neither column explains is a prediction gap — and the only tool that can
 attribute one to a call site is callgrind `--branch-sim=yes`, at sse41. For a change gated behind `__AVX512F__`, A/B the 128- and 64-lane native
@@ -385,56 +413,150 @@ upstream's affine layers into `Network::evaluate` while mcfish keeps
 `nnue_affine_32` as a symbol, and upstream has two `do_move` overloads. A regex
 written against the wrong side reads a divergence that is not there.
 
-### Where the three engines stand, measured
+### Where the two engines stand on the SPINE, measured
 
-Whole-process instructions, deterministic callgrind, `bench 16 1 8`, both built at
-`x86-64-sse41-popcnt` through the LLVM backend, over the identical 161093-node
-tree:
+The numbers below are startup-subtracted and bias-cancelled. Both corrections are
+load-bearing and each one changed a published conclusion, so read the method before
+the table.
 
-| engine | instructions | vs Stockfish |
-| --- | --- | --- |
-| mcfish | 3.016e9 | **0.890x** |
-| Stockfish | 3.388e9 | 1.000 |
+**Subtract startup, by measurement and not by estimate.** `perf_counters` counts the
+whole process, and startup is engine-dependent: mcfish parses the ~95 MB net in
+roughly half upstream's time. On a bench short enough to iterate on that is a quarter
+of the run, and the credit lands in every ratio. It cannot be corrected on the tool's
+own output, because the difference of two ratios is not the ratio of two differences.
+Run the pair over a deep workload and again at depth 1, and subtract the absolutes:
+[`../tools/perf_delta.py`](../tools/perf_delta.py) reads the `#R` lines and does it.
 
-**Whole-process, mcfish executes fewer instructions than upstream** — and against
-the Zig port, [08-idiomatic-c.md](08-idiomatic-c.md)'s finding pays off: Clang
-auto-vectorizes the integer loops the Zig toolchain left scalar, so mcfish never
-carried zfish's deficit (REPORT-22 measured zfish ~1.14x upstream here). That is
-not hand-tuning; it is the idiom, plus the `history_clear` de-atomicisation above
-and the NNUE tile widenings below.
+**Run the pair both ways.** A paired ratio here carries a multiplicative position
+bias of a couple of percent; `sqrt(fwd/swp)` cancels it exactly, and the A/A control
+self-checks to 1.000.
 
-That table is **whole-process and shallow** — startup is a third of it, and
-startup is cheaper in mcfish. The **per-tier search** picture, once startup is
-amortized over a deep tree, is different and is what `perf_counters.sh` now reads
-directly on every tier (`bench 16 1 13`, the full depth-13 tree `./build.sh
-signature` reports, each side built and compared at its own ARCH through LLVM):
+Material-eval builds (`MCFISH_EVAL_MATERIAL=1` against an oracle patched with the
+same formula, so the network is out of the picture and both engines walk one tree),
+`x86-64-sse41-popcnt`, both through LLVM, `bench 16 1 13` minus `bench 16 1 1`:
 
-| tier | mcfish / Stockfish instructions | IPC (mcfish/SF), startup-clean |
-| --- | --- | --- |
-| sse41 | 1.115 | ~1.0 |
-| avx2 | 1.121 | ~1.0 |
-| native / vnni512 | 1.139 | ~1.0 |
+| axis | mcfish | Stockfish | mc/sf |
+| --- | ---: | ---: | ---: |
+| instructions | 11.952e9 | 11.933e9 | **1.002** |
+| macro-ops | 12.140e9 | 12.181e9 | **0.997** |
+| cache misses | 19.27M | 20.47M | 0.939 |
+| branch misses | 63.78M | 63.00M | 1.013 |
+| cycles | 6.382e9 | 6.033e9 | **1.043** |
+| IPC | | | **0.947** |
 
-**On real search work mcfish executes ~12–14% more instructions than upstream at every
-tier, and the gap widens monotonically with vector width** — the portable `simd.h`
-idiom lowers to more/wider zmm ops than upstream's per-ISA hand intrinsics
-(`apply_combined`/`nnue_affine_32` emit ~2× the oracle's zmm ops). The shallow
-"fewer instructions" of the whole-process table above does not carry to deep search:
-it is startup, which is cheaper in mcfish (see below).
+**The work is identical.** instructions 1.002 and macro-ops 0.997 retire the claim
+this page used to make in two different tables — that mcfish executes 12–14% more
+instructions per node (the per-tier table), or 11% fewer (the whole-process table).
+Both were startup, sized by whatever share of the run startup happened to be, which is
+why they disagreed in sign.
 
-**IPC is at PARITY once startup is removed** — not below 1. The earlier "IPC < 1 on
-every tier" reading was the net-load confound: mcfish loads the ~90 MB net in ~245 ms
-vs upstream's ~458 ms, and `perf_counters`/`nps_ab` arm counters before exec, so a
-whole-process shallow read credits mcfish with an IPC/cache "advantage" that is really
-cheaper startup. Startup-clean (the delta method, or a deep `bench 16 1 13/14`),
-mcfish's per-node IPC is ~1.0 at every depth and tier. **So the entire deficit is
-instruction count** — a flat ~+14% instructions/node = ~+18% cycles/node, the NNUE
-SIMD throughput residual — not an efficiency gap. Quote the instruction ratio
-(deterministic; per-round spread ~0.00002) as the headline, and **never quote a
-shallow-bench nps/IPC number for a per-node claim — it is startup-confounded.** When a
-change is gated on an ISA callgrind cannot reach, `perf_counters.sh` is the only
-deterministic read; A/B the two native binaries directly, since a lone cycles ratio
-against the oracle carries a thermal swing wider than the effect.
+**The cycles row above is NOT a result, and the IPC derived from it is not either.**
+It is left in the table because retracting it in silence is how it comes back. The
+subtraction that produces it is leveraged in a way the instruction row is not: the two
+deep runs differ by 1.5% while the startup quantities being removed differ by 67%
+(mcfish 0.685e9 cycles against upstream's 1.142e9), so a small absolute error in either
+startup term lands multiplied on the remainder — and cycles carry a 6–16% per-round
+spread on this host. Instructions, being deterministic, are immune to that leverage,
+which is exactly why the instruction row survives the method and the cycle row does not.
+
+Measured WITHOUT any subtraction, on bench's own `Total time` — which both engines
+start after the `ucinewgame` clear, and which therefore contains no startup by
+construction:
+
+| run | median mc/sf search time | spread |
+| --- | ---: | ---: |
+| depth 15, core 6, 14 rounds | **1.004** | 0.957–1.046 |
+| depth 16, core 2, 8 rounds | **1.018** | 1.002–1.072 |
+
+**mcfish IS slower per node, and the earlier parity claim on this page was wrong.**
+It was measured on the sse41 non-PGO pair with an unreliable estimator, while the
+games are played by the icl PGO pair. Measured properly — each engine's own `bench`
+clock summed over a position set, interleaved, alternating which engine runs first,
+9+ rounds, trees asserted identical:
+
+| build | position set | depth | mc/sf | spread |
+| --- | --- | ---: | ---: | --- |
+| sse41, plain LTO | UHO book | 13 | 1.056 | 0.977–1.124 |
+| icl, PGO | bench list | 13 | 1.097 | 1.061–1.119 |
+| icl, PGO | bench list | 15 | 1.069 | 1.013–1.097 |
+| icl, PGO | UHO book | 13 | 1.117 | 1.078–1.181 |
+| icl, PGO | UHO book | 15 | 1.119 | 1.077–1.147 |
+
+**7–13% slower per node at the shipping tier**, and the deficit roughly doubles from
+sse41 to icl+PGO. The spreads at icl never touch 1.000.
+
+Two protocol lessons, both of which produced a wrong published number here:
+
+- **Measure the binaries that play the games.** A conclusion drawn on sse41 without
+  PGO says nothing about icl with PGO; on this pair the deficit doubles between them.
+- **Sum over a position set; never take a median of per-position times.** Search
+  sizes across positions vary by orders of magnitude, so the median is dominated by
+  which positions happen to land in the middle. The same binaries measured that way
+  read 1.091 at depth 12 and 0.906 at depth 14 — a 20% swing between adjacent depths.
+  `bench <tt> <threads> <depth> <fen-file>` sums, which is why it is the estimator to
+  use, and it accepts a FEN file so any position set can be driven through it.
+
+**What the deficit is not.** At equal nodes the two engines are behaviourally
+identical — a 200-game fixed-node match returns Elo 0.00 ± 0.00 with Ptnml
+[0, 0, 100, 0, 0], every pair a perfect mirror. Call-count parity is exact, symbol
+for symbol. So the algorithm is right and the whole difference is the rate at which
+each engine converts time into nodes.
+
+**First 2% attributed.** `-fno-unroll-loops`, applied at the 512-bit tiers for NNUE
+I-cache reasons, costs the SPINE 2.0% (intra-engine, icl PGO, identical trees, median
+0.980 over 11 alternating rounds). Whether it still pays with the network on is a
+separate measurement; on a material-eval build it is pure cost.
+
+### A counter is a hypothesis until it is validated
+
+Two conclusions in this repository have been drawn from an event whose documented
+name did not describe its behaviour on this host. Both were wrong, and the second was
+reported as a finding before being checked.
+
+[`../tools/perf_counter_validate.c`](../tools/perf_counter_validate.c) is the check:
+two loops whose bottleneck is known from first principles — one serial dependency
+chain (latency-bound, IPC pins near 1) and four independent chains (throughput-bound,
+IPC 3+). If a counter does not move the way the bottleneck demands, it does not mean
+what its name says.
+
+Worked example, and the reason those two events are **not** in `perf_counters`:
+
+| loop | IPC | "front-end starved" | "back-end stalled" |
+| --- | ---: | ---: | ---: |
+| serial chain (latency-bound) | 1.00 | 8M | **1M** |
+| independent ILP (fast) | 3.30 | 57M | **1775M** |
+
+The textbook latency-bound loop reads essentially zero on the back-end column and the
+FAST loop reads 1775M, because the events count **dispatch** pressure rather than
+execution: in the chain each op dispatches at once and then waits in the scheduler,
+which is not a dispatch stall. A higher back-end number means the front end is running
+further ahead, which accompanies fast code as readily as slow. They were briefly wired
+into `perf_counters`, produced two wrong findings, and were removed rather than
+documented — a tool should not offer a foot-gun whose only record is self-harm.
+
+Two arithmetic checks would have caught it without the microbenchmark, and both are
+worth running on any new counter: do the parts sum to the whole (here the two deltas
+netted to +3M cycles against a measured +212M gap), and does the derived quantity have
+a sane magnitude (dispatched-ops + starved + stalled came to 3.56 slots/cycle for one
+engine and 3.69 for the other, on a 6-wide machine).
+
+### Isolate the component instead of attributing it
+
+Two workloads answer questions no profile of the full engine can, and neither needs an
+attribution argument because each simply removes what it is not measuring:
+
+- **`perft`** is the board zone — movegen, make/unmake, legality, threats — with no
+  TT, no histories, no move ordering and no evaluation. It reports its own node count,
+  so tree identity is checked for free.
+- **`MCFISH_EVAL_MATERIAL=1`** replaces the evaluation with a material sum, which
+  leaves the spine and the search running over a tree the network no longer shapes.
+  Patch the oracle with the same formula — the weights are written out in both, not
+  read from either engine's tables, precisely so the two cannot drift — and assert the
+  node counts match before believing anything. They do: 627773 at `bench 16 1 8`,
+  2284915 at `16 1 12`, 10104475 at `16 1 15`.
+
+Running the same comparison over both is what localised the IPC gap to the search
+rather than the board, in two commands and with no per-function attribution at all.
 
 ## CI
 
