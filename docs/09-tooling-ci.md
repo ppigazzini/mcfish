@@ -61,11 +61,20 @@ three-phase PGO build, per-tier determinism sweeps. Make is a poor workflow runn
 (the recipes are shell regardless), so a Makefile would wrap this script rather than
 replace it.
 
-**The one thing make gives free was worth taking, though.** `need_binary` used to
-rebuild only when the binary was ABSENT, so a gate run after an edit asserted against
-the previous binary and could report green over code it had never compiled. It now
-compares timestamps against every source and header. That was the real cost of having
-no dependency graph, and it is paid.
+**The one thing make gives free was worth taking, though**, and it is done better
+than make does it. `need_binary` used to rebuild only when the binary was ABSENT, so
+a gate run after an edit asserted against the previous binary and could report green
+over code it had never compiled.
+
+It now rebuilds when the binary does not match a **content hash** of every source,
+every header, the full compile command and the compiler's own version, stored beside
+the binary as `$BIN.stamp`. Timestamps — make's model — are wrong in both directions
+here: they rebuild for nothing on a `git checkout`, a `touch`, or a save that changed
+no bytes, and they MISS the case that matters most, because `MCFISH_ARCH` changes no
+file. Under timestamps, building at sse41 and then running a gate with
+`MCFISH_ARCH=native` left the sse41 binary in place and gated it while reporting the
+native tier — the same trap `perf-budget` documents, and one that silently voids any
+per-tier comparison. Hashing the flags closes it.
 
 ## The steps
 
