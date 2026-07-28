@@ -45,20 +45,26 @@ Bitboard ray_pass_bb(Square s1, Square s2);
 // removal, before the boards are updated; for a placement, after. That ordering is
 // what makes `occupied` correct for both directions.
 //
-// COMPUTE_RAY selects the discovered-threat scan. Pass true when the mover leaves
-// or fills a square on the board (remove/put/move), false for the in-place
-// swap-piece path, where the occupancy does not change and no ray can be
-// discovered — there `directSliders` are folded into the incoming list instead.
+// Two entry points, one per discovered-threat scan, as upstream instantiates
+// `update_piece_threats<true>` and `<false>` (position.cpp:1194) and names the
+// instantiation at each call site. `_ray` is the one the mover takes when it
+// leaves or fills a square on the board (remove/put/move); `_no_ray` is the
+// in-place swap-piece path, where the occupancy does not change and no ray can be
+// discovered -- there `directSliders` are folded into the incoming list instead.
+//
+// NEITHER IS `noinline`. Upstream's are ordinary functions its link-time optimizer
+// inlines into `put_piece`, `move_piece` and `do_move` at most call sites while
+// keeping both symbols for the rest; forbidding that here bought each variant its
+// own register allocation and charged a call plus the spills around it to every
+// piece touch in every make.
 //
 // NO_RAYS suppresses a discovered threat whose ray covers the whole given set:
 // pass `from | to` for the two halves of a piece move, so the piece's own vacated
 // and occupied squares do not register as a discovery, and all-ones otherwise.
-void threats_update_piece(bool compute_ray,
-                          const Position *pos,
-                          Piece pc,
-                          bool put_piece,
-                          Square s,
-                          DirtyThreats *dts,
-                          Bitboard no_rays);
+void threats_update_piece_ray(
+  const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays);
+
+void threats_update_piece_no_ray(
+  const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays);
 
 #endif  // MCFISH_THREATS_H
