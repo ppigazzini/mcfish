@@ -95,8 +95,11 @@ __attribute__((always_inline)) static inline void threats_update_piece_impl(bool
     const Bitboard occupied = pos->by_type[ALL_PIECES];
     const Bitboard rook_queens = pos->by_type[ROOK] | pos->by_type[QUEEN];
     const Bitboard bishop_queens = pos->by_type[BISHOP] | pos->by_type[QUEEN];
-    const Bitboard r_attacks = attacks_bb(ROOK, s, occupied);
-    const Bitboard b_attacks = attacks_bb(BISHOP, s, occupied);
+    // Both ray sets in one pass, as upstream's update_piece_threats does
+    // (position.cpp:1203, `both_attacks_bb(s, occupied)`).
+    const DualAttacks slider_attacks = both_attacks_bb(s, occupied);
+    const Bitboard r_attacks = slider_attacks.rook;
+    const Bitboard b_attacks = slider_attacks.bishop;
     const Bitboard occupied_no_k = occupied ^ pos->by_type[KING];
 
     const Bitboard sliders = (rook_queens & r_attacks) | (bishop_queens & b_attacks);

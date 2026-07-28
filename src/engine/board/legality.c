@@ -152,7 +152,9 @@ bool pos_gives_check(const Position *pos, Move m) {
         const Bitboard our = pieces_c(pos, us);
         const Bitboard our_qr = our & (pos->by_type[QUEEN] | pos->by_type[ROOK]);
         const Bitboard our_qb = our & (pos->by_type[QUEEN] | pos->by_type[BISHOP]);
-        return ((attacks_bb(ROOK, ksq, b) & our_qr) | (attacks_bb(BISHOP, ksq, b) & our_qb)) != 0;
+        // One pass for both, as upstream's gives_check does (position.cpp:796).
+        const DualAttacks ep = both_attacks_bb(ksq, b);
+        return ((ep.rook & our_qr) | (ep.bishop & our_qb)) != 0;
     }
     default : {  // CASTLING: only the rook's destination can give check
         const Square base = to > from ? SQ_F1 : SQ_D1;
@@ -232,8 +234,12 @@ bool see_ge(const Position *pos, Move m, int threshold) {
         } else if ((bb = stm_attackers & pos->by_type[QUEEN]) != 0) {
             swap = QUEEN_VALUE - swap;
             occupied ^= least_significant_bb(bb);
-            attackers |= (attacks_bb(BISHOP, to, occupied) & bishops_queens)
-                       | (attacks_bb(ROOK, to, occupied) & rooks_queens);
+            // Both ray sets in one pass, as upstream does here (position.cpp:1505).
+            // Only this branch needs both: the pawn/bishop branches uncover diagonals
+            // alone and the rook branch files alone, so they stay single-ray, exactly
+            // as upstream leaves them.
+            const DualAttacks qa = both_attacks_bb(to, occupied);
+            attackers |= (qa.bishop & bishops_queens) | (qa.rook & rooks_queens);
         } else {
             // Only the king is left: reverse the result if the opponent still has
             // an attacker, because capturing into check is not available.
