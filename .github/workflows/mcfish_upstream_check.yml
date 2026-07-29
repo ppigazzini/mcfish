@@ -1,21 +1,30 @@
-# Scheduled upstream-sync detection and map health.
+# Scheduled upstream-sync detection, map health, and node-level fidelity.
 #
-# Two halves, named as zfish names its equivalent lane. The GATING half clones the
-# golden at the pin and runs `./build.sh upstream-map` -- the declared-vs-derived
-# audit (ROT and DRIFT both fail) plus the uncovered-surface ratchet -- which the
-# parity workflow cannot run because a CI checkout of origin does not carry the
-# pinned upstream tree. The DETECTION half is judgment-free: count how many
-# commits upstream master is ahead of tools/upstream/UPSTREAM_BASE and preview
-# the per-owner worklist, so a divergence cannot silently bundle up between
-# sessions. Porting stays a deliberate, human-gated session -- this job only
-# detects, it never attempts a port.
+# Three jobs, the first two named as zfish names its equivalent lane. The GATING
+# half (`upstream-check`) clones the golden at the pin and runs
+# `./build.sh upstream-map` -- the declared-vs-derived audit (ROT and DRIFT both
+# fail) plus the uncovered-surface ratchet -- which the parity workflow cannot
+# run because a CI checkout of origin does not carry the pinned upstream tree.
+# The DETECTION half is judgment-free: count how many commits upstream master is
+# ahead of tools/upstream/UPSTREAM_BASE and preview the per-owner worklist, so a
+# divergence cannot silently bundle up between sessions. Porting stays a
+# deliberate, human-gated session -- this job only detects, it never attempts a
+# port.
+#
+# `upstream-nodes` is a different question from either: not "has upstream
+# moved" but "is mcfish still faithful to the pin it already claims to match."
+# tools/upstream_nodes.py's random-legal-move positions appear in no bench list,
+# no golden and no test, so this is the strongest fidelity probe this tree has
+# -- and until this job existed it only ran when someone remembered to run it
+# locally.
 name: mcfish upstream check
 
 on:
   schedule:
     # Weekly, Monday 06:00 UTC. Upstream master moves a few commits a week, and
     # weekly detection is cheap insurance against a bench or net change slipping
-    # through unnoticed.
+    # through unnoticed. The node differential moves at the same cadence: the
+    # pin it tests against only changes in a deliberate resync session.
     - cron: "0 6 * * 1"
   workflow_dispatch: {}
 
@@ -26,6 +35,10 @@ concurrency:
 # Least privilege: the job reads this repository and upstream history.
 permissions:
   contents: read
+
+env:
+  # Same pinned toolchain as the parity and fuzz workflows.
+  CLANG_VERSION: "22"
 
 jobs:
   upstream-check:
@@ -83,3 +96,51 @@ jobs:
             echo "Porting is human-gated: advance the pin in a normal session," \
                  "with tools/resync_worklist.py as the plan."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  upstream-nodes:
+    name: Node-for-node differential (random positions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install clang ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          "clang-$CLANG_VERSION" --version
+
+      # Same cache key as the parity and fuzz workflows -- a net bump busts it,
+      # nothing else does.
+      - name: Cache NNUE network
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
+
+      - name: Build mcfish
+        run: CC="clang-$CLANG_VERSION" ./build.sh build
+
+      # Full history: upstream_oracle.sh checks out an arbitrary pinned sha into
+      # a detached worktree, which a shallow clone cannot do.
+      - name: Clone the golden beside the workspace
+        run: git clone https://github.com/official-stockfish/Stockfish.git ../Stockfish
+
+      # Builds with the golden's OWN Makefile and default compiler -- deliberately
+      # not clang-22 -- at tools/upstream/UPSTREAM_BASE. See upstream_oracle.sh's
+      # own header for why pristine matters: a shared bug would otherwise cancel
+      # out on both sides and pass.
+      - name: Build the pristine upstream oracle at the pin
+        run: bash tools/upstream/upstream_oracle.sh
+
+      # Fresh positions every run, rather than the script's own fixed default
+      # seed (meant for reproducible LOCAL debugging) -- the same reason the
+      # nightly UCI fuzz job seeds from the wall clock. net_identity_or_die
+      # refuses the comparison outright if the net-fetch or oracle-build steps
+      # above produced a mismatch; a red run here names which side is wrong
+      # before printing a single node count.
+      - name: Node-for-node differential (random positions)
+        run: ./build.sh upstream-nodes --positions 40 --depth 10 --seed "$(date +%s)"
