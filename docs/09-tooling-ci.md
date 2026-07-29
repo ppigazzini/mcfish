@@ -91,7 +91,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism |
 | `tsan` | rebuilds `ENGINE_SOURCES` + the test binary under ThreadSanitizer and runs it | the thread pool: that spawning, dispatching a job, waiting on the condition variable and joining carry the happens-before edges they claim. **This is the only gate that can see a threading bug at all** — the single-threaded search never reaches that code, and a race does not have to fire to be there. Kept out of `parity`: it needs its own build of the engine and roughly triples the suite. Run it whenever `src/platform/thread*.c` changes |
 | `tsan-search [depth] [threads]` | builds the **whole engine** under ThreadSanitizer and drives one `go` through the UCI front end | races in the SEARCH, which `tsan` cannot see: that step links the test binary, so the only concurrent code it reaches is the thread-pool test. Now that the pool is driven it measures a genuinely multi-threaded search — see [04-multithreading.md](04-multithreading.md). It is the search-race gate the thread-pool `tsan` run cannot substitute for |
-| `signature` | runs `bench 8`, compares the node total to [`../tools/signature.golden`](../tools/signature.golden) | that no edit changed search behaviour unintentionally |
+| `signature` | runs the default `bench` (a bare `engine bench` — the full position list at depth 13, `Hash 16`, one `ucinewgame`), compares the node total to [`../tools/signature.golden`](../tools/signature.golden) | that no edit changed search behaviour unintentionally |
 | `perft` | drives every row of [`../tools/perft.table`](../tools/perft.table) through the UCI front end | move generation totality |
 | `golden` | diffs each `tools/cases/*.uci` transcript against its `.golden` | the observable UCI surface, byte for byte after normalization |
 | `tb-fetch` | downloads the 3-man Syzygy set (KPvK KNvK KBvK KRvK KQvK, WDL+DTZ) into `resources/syzygy/` | nothing — it *fetches*. It verifies each file's Syzygy magic (`.rtbw` `71 E8 23 5D`, `.rtbz` `D7 66 0C A5`) and deletes anything that fails, so a mirror's HTML error page cannot masquerade as a table |
@@ -126,11 +126,13 @@ would be fake parity. See [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROV
 
 ### A skipped gate is not a passing gate
 
-`fmt` exits 127 when `clang-format` is absent. `parity` treats that as *skipped*,
-keeps going, and then **names every skipped gate in its summary line** — because
-"parity passed" printed over a silently absent linter is exactly how a gate rots
-into decoration. It is the only gate here that can be skipped; every other one
-runs on a bare toolchain.
+`fmt` exits 127 when `clang-format` is absent, and `signature`/`simd-scalar` do the
+same when no NNUE net is reachable. `parity` treats each as *skipped*, keeps
+going, and then **names every skipped gate in its summary line** — because
+"parity passed" printed over a silently absent linter, or over an anchor nobody
+actually checked, is exactly how a gate rots into decoration. Those three are the
+gates here that can be skipped; every other one runs on a bare toolchain with no
+net.
 
 ## Regenerating a golden on a red gate launders a bug
 
@@ -397,12 +399,19 @@ Tool-shape traps, each paid for:
 - `perf_callgrind.sh` **prepends `bench` itself** — pass only the bench arguments.
   With `bench` passed twice the engine errors out after startup and the profile
   reads as a plausible startup-only run.
-- `perf-budget` measures the **existing** `build/mcfish`. Rebuild at the target
-  `MCFISH_ARCH` first, or the comparison crosses tiers and reads as a fake
-  regression.
-- Gates now rebuild when the binary is older than any source or header, so a stale
-  binary can no longer answer. `./build.sh build` before a measurement is still worth
-  running deliberately, because a rebuild inside a timed step leaves the machine hot.
+- `perf-budget` measures the **existing** `build/mcfish`. The content-hash rebuild
+  below now catches a stale `MCFISH_ARCH` automatically — `CFLAGS_ARCH` is part of
+  the hashed command, so switching tiers is a stamp mismatch and triggers a
+  rebuild before the measurement runs, closing the fake-regression trap this
+  bullet used to warn about by hand. What it does not save you from is a rebuild
+  landing *inside* the timed step and leaving the machine hot — run
+  `./build.sh build` deliberately beforehand for that reason alone.
+- Gates rebuild when the binary's stamp — a content hash of every source, header,
+  the full compile command and the compiler's own version — no longer matches
+  `$BIN.stamp`, not when the binary is merely older than a file. A touched-but-
+  unchanged header, or a clock skew, used to cause both a false-stale rebuild and a
+  false-fresh skip under a timestamp comparison; the hash has neither failure
+  mode.
 - The hardware instruction counter is **blind to `rep stosb`** (an erms memset
   retires as one instruction) and callgrind is blind to software prefetch —
   memset and prefetch work need callgrind Ir and idle-box cycles respectively.
@@ -697,9 +706,10 @@ rather than the board, in two commands and with no per-function attribution at a
 
 ## CI
 
-Two workflows in [`../.github/workflows/`](../.github/workflows). None of them
-does anything a developer cannot reproduce with `./build.sh`; anything that
-diverges is a bug in the workflow file.
+Four workflows in [`../.github/workflows/`](../.github/workflows). None of them
+does anything a developer cannot reproduce with `./build.sh` (or, for the
+upstream-check lane, `tools/upstream_map.py` directly); anything that diverges is
+a bug in the workflow file.
 
 ### `mcfish_parity.yml` — the blocking lane
 
@@ -737,3 +747,29 @@ capture several plies back, an under-promotion with check. Those live a few plie
 below where the fast gate stops. This lane spends the time, against published
 reference counts, on the six standard positions. Same rule as above — the counts
 are facts, so a mismatch is a movegen bug.
+
+### `mcfish_fuzz.yml` — nightly bounded UCI fuzzing
+
+The golden transcripts `golden` diffs against only exercise the well-formed
+subset of the UCI grammar. This lane instead drives the ASan+UBSan engine with
+seeded pseudo-random command streams — boundary values, truncated and mangled
+lines, binary junk, weighted toward almost-valid input, which is where a parser
+actually dies — via `tools/uci_fuzz.py`, which owns the contract: every stream
+must end with a clean exit and a silent sanitizer, including the
+`CRITICAL ERROR` exit-1 path. Scheduled daily; the first session of this harness
+found two real shell defects before it ever ran in CI (a worker-set leak on the
+critical-error exit path, and `bench 1 1 2` dying on an empty filename where the
+golden searches a nonzero node count).
+
+### `mcfish_upstream_check.yml` — weekly upstream-sync detection
+
+Two halves. The **gating** half clones the golden at the pinned SHA and runs
+`./build.sh upstream-map` — the declared-vs-derived citation audit (ROT and
+DRIFT both fail it) plus the uncovered-upstream-surface ratchet — which the
+parity workflow cannot run itself because a CI checkout carries no sibling
+`../Stockfish` at the pin. The **detection** half is judgment-free: it counts how
+many commits upstream `master` is ahead of
+[`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE) and
+previews the per-owner worklist, so drift cannot silently accumulate between
+sessions. Porting stays a deliberate, human-gated session — this job only
+detects, it never attempts a port. Runs weekly.
