@@ -26,7 +26,8 @@ everything here.
     [Late move reductions][cpw-lmr] · [Null-move pruning][cpw-null]
   - [Transposition table][cpw-tt] · [Zobrist hashing][cpw-zobrist]
   - [Lazy SMP][cpw-lazysmp] — the threading model. The pool is ported into
-  `src/platform/` and is not in the build; see [06-platform.md](06-platform.md).
+  `src/platform/`, in the build and driven by the search: `Threads` above 1 runs
+  that many workers over one root. See [04-multithreading.md](04-multithreading.md).
 - [UCI protocol specification][uci] — the wire protocol.
 - [Chess960 / Fischer Random][cpw-960] — the castling encoding the move format
   carries.
