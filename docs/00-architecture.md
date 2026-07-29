@@ -70,7 +70,7 @@ pointer, the host registers an implementation before the first search.
 | [`output_sink.h`](../src/engine/search/output_sink.h) | `search_set_output` | the `info` / `bestmove` line sink |
 | [`option_source.h`](../src/engine/search/option_source.h) | `search_set_option_source` | the live UCI option table |
 | [`time_source.h`](../src/engine/search/time_source.h) | `search_set_time_source` | the monotonic clock |
-| [`arena_source.h`](../src/engine/state/arena_source.h) | `search_set_arena_source` | the page allocator behind the TT, the history banks and each worker |
+| [`arena_source.h`](../src/engine/state/arena_source.h) | `search_set_arena_source` | the page allocator behind the TT, the history banks, each worker and the NNUE eval/accumulator arenas |
 | [`worker_set.h`](../src/engine/search/worker_set.h) | `worker_pool_install` | the Lazy-SMP worker set on real OS threads |
 
 **Three things have to hold together or a seam leaves its symbol in the link line**,
@@ -173,7 +173,6 @@ int main(int argc, char **argv) {
     attacks_init();
     threats_init();  // build RayPassBB, which reads the attack tables
     position_init();
-    eval_nnue_init();
 
     uci_loop(argc, argv);
     search_shutdown();
@@ -199,15 +198,21 @@ int main(int argc, char **argv) {
    attack tables step 2 just filled.
 4. `position_init()` fills the Zobrist tables in
    [`src/engine/board/position.c`](../src/engine/board/position.c) from a
-   fixed-seed generator.
-5. `eval_nnue_init()` builds the NNUE feature index tables and allocates the two
-   accumulator arenas. Those tables are **zero, not garbage**, beforehand, so a
-   missing call is a silent all-zero feature set rather than a crash — the same
-   failure shape as step 2, one zone over. The net itself is *not* loaded here: it
-   is a runtime input the UCI layer loads, because the UCI layer owns the
-   `EvalFile` option. See [03-engine-eval.md](03-engine-eval.md).
-6. Only then may any `Position` exist. `pos_set` calls `set_check_info`, which
-   reads `PseudoAttacks` and `BetweenBB`.
+   fixed-seed generator. Only after this may any `Position` exist. `pos_set` calls
+   `set_check_info`, which reads `PseudoAttacks` and `BetweenBB`.
+
+`main` does **not** call `eval_nnue_init()`. It runs later, inside `engine_init`
+(called from `uci_loop`), immediately after `search_set_arena_source` registers
+the host's arena pair — calling it any earlier would allocate the eval arena
+through the engine's malloc fallback and then free it through the host's
+`page_free` once `engine_init` rewires `ArenaFree`, corrupting the free. It
+builds the NNUE feature index tables and allocates the two accumulator arenas;
+those tables are **zero, not garbage**, beforehand, so a missing call is a
+silent all-zero feature set rather than a crash. The net itself is *not* loaded
+there either: it is a runtime input the UCI layer loads later in `engine_init`,
+because the UCI layer owns the `EvalFile` option. See
+[03-engine-eval.md](03-engine-eval.md) and [07-shell.md](07-shell.md) for
+`engine_init`'s full seam-and-state sequence.
 
 `main` pairs the init with `search_shutdown()` and `eval_nnue_shutdown()` after
 `uci_loop` returns.
