@@ -377,7 +377,7 @@ compiles to a single move and is correct at any alignment:
 | `_mm256_setzero_si256` | `(V) { 0 }` |
 | `_mm512_set1_epi8` / `_epi16` / `_epi32` | `(V) { 0 } + x` — the lane type comes from `V` |
 | `_mm256_castsi256_ps`, `_mm256_castsi256_si512` | `(Dst) v`, a cast between equal-width vector types |
-| `_mm256_extracti128_si256`, `_mm512_inserti64x4` | `__builtin_shufflevector` with constant indices — **no use in the tree today**; the kernels that would need it keep their intrinsics |
+| `_mm256_extracti128_si256`, `_mm512_inserti64x4` | `__builtin_shufflevector` with constant indices — used in [`simd.h`](../src/engine/eval/nnue/simd.h) to split/reorder lanes with no separate mask register |
 
 **Arithmetic.** The plain C operators are lane-wise on a vector type:
 
@@ -386,17 +386,29 @@ compiles to a single move and is correct at any alignment:
 | `_mm256_add_epi16` / `_epi32`, `_mm256_sub_epi16` / `_epi32` | `a + b`, `a - b` |
 | `_mm256_mullo_epi16` | `a * b` |
 | `_mm_min_epi16` + `_mm_max_epi16` (ClippedReLU) | `NNUE_VEC_MIN` / `NNUE_VEC_MAX` |
-| `_mm_madd_epi16`, `_mm_maddubs_epi16`, `_mm512_dpbusd_epi32` | `nnue_dot_step` — the one place mcfish keeps per-ISA intrinsics |
+| `_mm_madd_epi16`, `_mm_maddubs_epi16`, `_mm512_dpbusd_epi32` | `nnue_dot_step` — see below for where mcfish keeps per-ISA intrinsics rather than the portable vocabulary |
 
 **There are no saturating operators.** C has no `+|`, and the vector extensions
 add none. Upstream's `_mm_adds_epi8` and the `_mm_packs_*` family saturate in
 hardware; mcfish reaches the same values by clamping with `NNUE_VEC_MIN`/`MAX`
 before a narrowing `__builtin_convertvector`. Writing the plain `+` where
 upstream saturates is a **silent correctness change**, not a slow path — and the
-one place it genuinely matters is `nnue_dot_step`, where `pmaddubsw` saturates
+place it genuinely matters most is `nnue_dot_step`, where `pmaddubsw` saturates
 its int16 intermediate and the scalar body cannot. That the two agree is an
 argument (activations are capped at 127, weights are int8, so the pair sum peaks
 at 32512), and `simd-scalar` is what checks the argument.
+
+`nnue_dot_step` is not the only place raw per-ISA intrinsics survive, just the
+first. The transform's 512-bit packus/pack step (`nnue_accumulator.c`,
+`TRANSFORM_PACKUS_BITS == 512`) and the AVX-512 non-zero-index expansion
+(`nnue_affine.c`'s `affine_nnz_expand`) both stay outside the portable
+vocabulary for the same class of reason — genuine saturation or genuine lane
+reordering the portable form cannot express — and both are proven equivalent to
+the scalar path the same way: a written correctness argument plus
+`simd-scalar`/`arch-determinism`, not a shared C expression. Treat any kernel
+this section doesn't name as the default (portable `simd.h` vocabulary); these
+three are the named exceptions, not a closed set — grep for raw `_mm`/`__m512`
+symbols under `src/engine/eval/nnue/` before assuming there are no others.
 
 **Comparison produces an integer mask, not a bool vector.** This is the sharpest
 difference from upstream's intrinsics and from any language with a real mask
@@ -430,7 +442,7 @@ is why the two paths agree:
 | `_mm_cvtepi8_epi16` (sign-extend widen) | `__builtin_convertvector` to a wider signed lane |
 | `_mm_packs_epi16` / `_mm_packs_epi32` (signed saturate) | clamp with `NNUE_VEC_MIN`/`MAX`, then `__builtin_convertvector` |
 | `_mm_packus_epi16` (unsigned saturate) | the same, clamped to the unsigned range |
-| `_mm_unpacklo_epi8`, `_mm_shuffle_epi32` | `__builtin_shufflevector` — **no use in the tree today**, same reason |
+| `_mm_unpacklo_epi8`, `_mm_shuffle_epi32` | `__builtin_shufflevector`, same as above |
 
 **Shifts.** `v << s` and `v >> s` take a scalar count. Signedness of the LANE
 picks the instruction — `>>` on a signed lane is arithmetic (`_mm_srai_epi16`),
@@ -527,13 +539,27 @@ a micro-optimisation left on the table; it was the single largest divergence thi
 tree has had, and it hid behind every behavioural gate for the port's whole life,
 because a different algorithm producing the same attack set produces the same tree.
 
-The ones that exist, all now ported, with the gate each is under here:
+The board/search-side ones found so far, all now ported, with the gate each is
+under here — **this table is not a closed set**, it is the record of instances
+found by grepping upstream's gates, and the NNUE zone has already produced two
+more of the same class (below the table):
 
 | upstream | gate | what it replaces |
 | --- | --- | --- |
 | dual hyperbola quintessence (`attacks.h:91`) | `__AVX2__` | magic bitboards — 841 KiB of random-access tables becomes 3 KiB of L1-resident structs, and both ray sets come out of one pass |
 | `MoveSorter` (`movepick.cpp:66`) | `__AVX512F__` | the scalar insertion sort's leading run |
 | `write_multiple_dirties` (`position.cpp:1157`) | `__AVX512VBMI__` + `VBMI2` | the scalar dirty-threat loop, in the hottest board function there is |
+
+Two NNUE ports fit the identical pattern — upstream reaches a narrower-tier body
+from a generic `#else` arm, and a naive port ships that body at every tier:
+
+| upstream | gate | what it replaces |
+| --- | --- | --- |
+| `FeatureTransformer::transform`'s packus body (reached by the generic arm at every x86 tier) | `__AVX512BW__` | the portable widening step the two 512-bit tiers were otherwise left on, in `nnue_accumulator.c`'s `TRANSFORM_PACKUS_BITS == 512` arm |
+| the NNZ index list (upstream never builds a bitset at `USE_AVX512`) | `__AVX512F__` (+ `__AVX512VBMI2__` for the wide compress) | the bitset walk every other tier correctly uses, replaced by `nnue_affine.c`'s `affine_nnz_expand` |
+
+A contributor porting more NNUE code should grep it for this bug class too — it
+is not board/search-exclusive, just where it was found first.
 
 Three rules, each paid for:
 
