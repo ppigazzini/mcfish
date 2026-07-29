@@ -749,23 +749,28 @@ below where the fast gate stops. This lane spends the time, against published
 reference counts, on the six standard positions. Same rule as above — the counts
 are facts, so a mismatch is a movegen bug.
 
-### `mcfish_fuzz.yml` — nightly bounded UCI fuzzing
+### `mcfish_fuzz.yml` — nightly bounded fuzzing, two jobs
 
-The golden transcripts `golden` diffs against only exercise the well-formed
-subset of the UCI grammar. This lane instead drives the ASan+UBSan engine with
-seeded pseudo-random command streams — boundary values, truncated and mangled
-lines, binary junk, weighted toward almost-valid input, which is where a parser
-actually dies — via `tools/uci_fuzz.py`, which owns the contract: every stream
-must end with a clean exit and a silent sanitizer, including the
-`CRITICAL ERROR` exit-1 path. Scheduled daily; the first session of this harness
-found two real shell defects before it ever ran in CI (a worker-set leak on the
-critical-error exit path, and `bench 1 1 2` dying on an empty filename where the
-golden searches a nonzero node count).
+**`fuzz`.** The golden transcripts `golden` diffs against only exercise the
+well-formed subset of the UCI grammar. This job drives the ASan+UBSan engine
+with seeded pseudo-random command streams — boundary values, truncated and
+mangled lines, binary junk, weighted toward almost-valid input, which is where
+a parser actually dies — via `tools/uci_fuzz.py`, which owns the contract:
+every stream must end with a clean exit and a silent sanitizer, including the
+`CRITICAL ERROR` exit-1 path. The first session of this harness found two real
+shell defects before it ever ran in CI (a worker-set leak on the
+critical-error exit path, and `bench 1 1 2` dying on an empty filename where
+the golden searches a nonzero node count).
 
-`./build.sh fuzz-search` is the in-process complement — the real search under
-libFuzzer with no shell and no UCI text in the way, see the `test` table above
-and [00-architecture.md](00-architecture.md#what-the-library-boundary-buys) —
-and is **not** wired into this or any workflow yet. Run it by hand.
+**`fuzz-search`.** The in-process complement: `./build.sh fuzz-search 600`
+under libFuzzer+ASan+UBSan, real search with no shell and no UCI text in the
+way — see the `test` table above and
+[00-architecture.md](00-architecture.md#what-the-library-boundary-buys). It
+covers movegen, the move picker, the TT, pruning, qsearch and the NNUE
+accumulator push/pop, none of which `fuzz` reaches once a mutation is a
+well-formed command; neither job subsumes the other.
+
+Both scheduled daily, 04:31 UTC.
 
 ### `mcfish_upstream_check.yml` — weekly upstream-sync detection
 

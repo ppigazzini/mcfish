@@ -1,7 +1,7 @@
-# Nightly bounded UCI fuzzing.
+# Nightly bounded fuzzing: the UCI protocol AND the search itself.
 #
 # The parity workflow's golden transcripts exercise the WELL-FORMED subset of the
-# UCI grammar; this job drives the ASan+UBSan engine with seeded pseudo-random
+# UCI grammar; the `fuzz` job drives the ASan+UBSan engine with seeded pseudo-random
 # command streams -- boundary values, truncated and mangled lines, binary junk --
 # weighted toward almost-valid input, which is where a parser actually dies. Every
 # stream must end with a clean exit and a silent sanitizer (tools/uci_fuzz.py owns
@@ -9,6 +9,14 @@
 # this harness found two real shell defects before this lane ever ran in CI: the
 # critical-error exit leaked the worker set, and `bench 1 1 2` died on an empty
 # filename where the golden searches 9009 nodes.
+#
+# `fuzz` never reaches the search below the parser -- a mutation that gets past
+# `position`/`go` parsing is already a well-formed command. The `fuzz-search` job
+# is the complement: no shell, no UCI text, tools/fuzz_search.c calls search_go
+# directly under libFuzzer, so a mutation's whole budget goes at movegen, the move
+# picker, the TT, pruning, qsearch and the NNUE accumulator push/pop. See
+# docs/00-architecture.md#what-the-library-boundary-buys for why linking the
+# engine with no shell object makes this possible at all.
 name: mcfish fuzz (nightly)
 
 on:
@@ -79,3 +87,39 @@ jobs:
           set -euo pipefail
           cd resources
           python3 ../tools/uci_fuzz.py --seconds 900
+
+  fuzz-search:
+    name: In-process search fuzz (libFuzzer+ASan+UBSan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Same forcing as the `fuzz` job above; libFuzzer's own crash report is
+      # separate from these but both sanitizers are linked in alongside it.
+      ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
+      UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install clang ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          "clang-$CLANG_VERSION" --version
+
+      # Best-effort: eval_nnue_load leaves the classical fallback in place when
+      # this is absent, so a cache miss degrades coverage rather than failing the
+      # job. Same cache key as the `fuzz` job and the parity workflow.
+      - name: Cache NNUE network
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: resources/nn-*.nnue
+          key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
+      - name: Fetch the NNUE net
+        run: ./build.sh net-fetch
+
+      # tools/fuzz_search.c reads resources/ as a path relative to the repo root
+      # (the same literal tests/test_main.c uses), so this runs from the
+      # checkout root, unlike the `fuzz` job's `cd resources`.
+      - name: Fuzz the search (bounded, 10 min)
+        run: CC="clang-$CLANG_VERSION" ./build.sh fuzz-search 600
