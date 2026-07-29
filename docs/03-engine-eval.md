@@ -40,6 +40,7 @@ gate battery cover them.
 | [`nnue_ft.c`](../src/engine/eval/nnue/nnue_ft.c) | the feature-transformer blob layout and its typed accessors |
 | [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c), [`nnue_feature_bb.c`](../src/engine/eval/nnue/nnue_feature_bb.c) | the `HalfKAv2_hm`, `full_threats` and `pp_3wide` index producers |
 | [`nnue_accumulator.c`](../src/engine/eval/nnue/nnue_accumulator.c) | the per-ply accumulator stack, the refresh cache, the transform to the first layer's input |
+| [`nnue_acc_rowops.c`](../src/engine/eval/nnue/nnue_acc_rowops.c) | the weight-row add/sub SIMD kernels the accumulator's delta/refresh/PSQT paths call, split out because they carry no arena knowledge |
 | [`nnue_affine.c`](../src/engine/eval/nnue/nnue_affine.c) | the affine kernel and the two activations |
 | [`nnue_inference.c`](../src/engine/eval/nnue/nnue_inference.c) | the per-bucket forward pass |
 | [`simd.h`](../src/engine/eval/nnue/simd.h) | the vector vocabulary, in two implementations |
@@ -51,12 +52,17 @@ Upstream's `nnue/` sources are the golden.
 
 Three things happen in three different places, and the split is deliberate.
 
-**`eval_nnue_init()` runs from [`../src/shell/main.c`](../src/shell/main.c)**, in
-the same phase as `bitboards_init` and `attacks_init`. It builds the feature index
-tables and allocates the two arenas. The ordering is load-bearing for the same
-reason as the attack tables: **the feature tables are zero, not garbage, before the
-call**, so a missing `nnue_feature_init` is a silent all-zero feature set rather
-than a crash.
+**`eval_nnue_init()` runs from `engine_init` in
+[`../src/shell/engine.c`](../src/shell/engine.c)**, not from `main.c` — it is
+sequenced immediately after `search_set_arena_source` registers the host's arena
+pair, because it allocates the eval arena through that seam and calling it any
+earlier would hand the block to the engine's malloc fallback and then free it
+through the host's `page_free`, corrupting the free. It builds the feature index
+tables and allocates the two arenas. The zero-vs-garbage ordering constraint is
+the same as the attack tables': **the feature tables are zero, not garbage, before
+the call**, so a missing `nnue_feature_init` is a silent all-zero feature set
+rather than a crash. See [00-architecture.md](00-architecture.md) and
+[07-shell.md](07-shell.md) for `engine_init`'s full sequence.
 
 **The net is loaded by the shell**, because the shell owns the `EvalFile` option.
 `eval_nnue_load` searches `"<internal>"`, the working directory, then the root
@@ -74,11 +80,16 @@ and prints the download command. It deliberately does **not** fetch: the net is 
 a build product, and a build step that downloads it makes every clean build a
 network dependency.
 
-**A failed load is not fatal, and that is a deliberate divergence from upstream.**
-Upstream's `Network::verify` calls `exit(EXIT_FAILURE)` on a net it could not load.
-mcfish reports the failure, leaves `NetLoaded` false, and keeps playing on the
-classical fallback. That choice is why `evaluate` needs the branch at all, and it is
-why the status line matters:
+**A failed load is not fatal at `eval_nnue_load` itself** — it leaves `NetLoaded`
+false and returns, rather than exiting on the spot. But `go`, `perft` and `eval`
+each call `engine_nnue_verify()` right after reporting the status line, and that
+call **does** terminate the process with upstream's five error lines when no
+usable net is loaded (`nnue/network.cpp:165-187`; see
+[07-shell.md](07-shell.md)) — so those three commands are not a divergence from
+upstream at all. `bench` is the one live UCI path that does not verify, which
+combined with headless callers that link the engine zone with no shell (the unit
+tests, `zone-check`) is why `evaluate`'s classical branch is reachable through the
+shipped binary at all, and why the status line matters:
 
 ```c
 const char *eval_nnue_status(void);
@@ -162,14 +173,20 @@ mode:
 
 - **The scalar path must be bit-identical to the vector path.** `simd.h` provides
   one vocabulary in two implementations: compiler vector extensions
-  (`vector_size`) and a lane-loop fallback. Every operation in it is element-wise
-  and total — lane `i` of the result depends only on lane `i` of the operands, by
-  the same per-lane C expression in both bodies, which sit adjacent under a single
-  `#if` so they are read together. Nothing there reduces, reassociates, rounds,
-  saturates or reorders lanes; the only horizontal step any kernel takes is ordinary
-  scalar C outside the header and is shared verbatim. **A machine without the ISA
-  must produce the same node count**, which is exactly what the gcc lane in
-  [09-tooling-ci.md](09-tooling-ci.md) exists to catch.
+  (`vector_size`) and a lane-loop fallback. Every operation IN THAT VOCABULARY is
+  element-wise and total — lane `i` of the result depends only on lane `i` of the
+  operands, by the same per-lane C expression in both bodies, which sit adjacent
+  under a single `#if` so they are read together, and nothing there reduces,
+  reassociates, rounds, saturates or reorders lanes. That invariant is scoped to
+  `simd.h` itself; it does not extend to every ISA-gated kernel outside it. The
+  512-bit arm of the transform's packus/pack step (`nnue_accumulator.c`) and the
+  AVX-512 non-zero-index expansion (`nnue_affine.c`) are named, deliberate
+  exceptions that genuinely saturate and reorder lanes, proven equivalent to the
+  scalar path by a written correctness argument rather than by sharing one C
+  expression — see [08-idiomatic-c.md](08-idiomatic-c.md)'s ISA-gated-paths
+  section. **A machine without the ISA must still produce the same node count**,
+  which is exactly what the gcc lane in [09-tooling-ci.md](09-tooling-ci.md) and
+  `./build.sh simd-scalar`/`arch-determinism` exist to catch, exceptions included.
 - **The affine accumulation is exact int32 with no rounding and no overflow**,
   because inputs are bounded by 127 and weights by 128. Integer addition therefore
   commutes, which is what lets the kernel accumulate in the interleaved `OUT*4`
