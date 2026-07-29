@@ -215,6 +215,12 @@ void engine_init(const char *argv0) {
     search_set_arena_source(page_alloc, page_free);
     search_set_time_source(shell_now_ms);
 
+    // Build the NNUE feature tables and the eval arena now that the arena source
+    // above is live, so the arena is allocated and freed through the same pair. The
+    // net itself is loaded below, by engine_nnue_reload, which owns the EvalFile
+    // option.
+    eval_nnue_init();
+
     // Hand the engine a worker set backed by real OS threads. Without this it runs on
     // the one-worker set compiled into the engine zone, which searches the same tree
     // but cannot honour `Threads` above 1.
