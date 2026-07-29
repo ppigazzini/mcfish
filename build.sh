@@ -1021,6 +1021,40 @@ do_test() {
   ./build/mcfish-test
 }
 
+# Coverage-guided, in-process fuzzing of the real search -- the gap
+# tools/uci_fuzz.py cannot close, because that lane drives the shipped binary's
+# stdin over a pipe, so a mutation spends most of its budget on the UCI parser
+# rather than the search. tools/fuzz_search.c links ENGINE_SOURCES against
+# libFuzzer's driver instead of a stub main; see that file's header for what one
+# iteration does (a random-legal-move walk from the start position, then a
+# shallow search_go).
+#
+# clang-only: libFuzzer has no gcc equivalent, unlike every sanitizer flag used
+# elsewhere in this file.
+#
+# Kept OUT of `parity`, same reason as tsan: its own build and a real time
+# budget, and a clean run only means "no crash was FOUND in that budget," not
+# "there is none." Run it by hand, seconds argument optional (default 30).
+do_fuzz_search() {
+  local seconds=${1:-30}
+  info "in-process search fuzzing: ${seconds}s"
+  mkdir -p build
+
+  local name
+  name=$(grep -oE 'nn-[0-9a-f]+\.nnue' src/engine/eval/nnue/network.h | head -1)
+  if [[ -n $name && -f "$RESOURCES_DIR/$name" ]]; then
+    info "net found in $RESOURCES_DIR/: covers the NNUE accumulator path too"
+  else
+    info "no net in $RESOURCES_DIR/: covers the classical fallback only (see ./build.sh net)"
+  fi
+
+  "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=fuzzer,address,undefined \
+    -o build/mcfish-fuzz-search "${ENGINE_SOURCES[@]}" tools/fuzz_search.c -lm -lpthread
+
+  ./build/mcfish-fuzz-search -max_total_time="$seconds" -print_final_stats=1
+  green "fuzz-search clean: ${seconds}s, no crash found"
+}
+
 # Re-run the suite under ThreadSanitizer.
 #
 # This is the gate the threading zone actually needs. The pool spawns real OS threads,
@@ -1656,6 +1690,7 @@ usage: ./build.sh <step> [args]
   pgo                profile-guided build (instrument, bench, rebuild) -> build/mcfish
   debug              compile with asan+ubsan             -> build/mcfish-debug
   test               build and run the unit/property suite (asan+ubsan)
+  fuzz-search [s]    in-process libFuzzer over search_go, s seconds (default 30)
   tsan               re-run the suite under ThreadSanitizer (the thread-pool gate)
   tsan-search [d] [t] run a real search under ThreadSanitizer (the search-race baseline)
   bench [depth]      run the benchmark (default depth 13)
@@ -1699,6 +1734,7 @@ case "${1:-build}" in
   pgo)              do_pgo ;;
   debug)            do_debug ;;
   test)             do_test ;;
+  fuzz-search)      shift; do_fuzz_search "$@" ;;
   tsan)             do_tsan ;;
   tsan-search)      shift; do_tsan_search "$@" ;;
   bench)            do_bench "${2:-}" ;;
