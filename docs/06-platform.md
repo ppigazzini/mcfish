@@ -24,7 +24,9 @@ Every module is in the build.
 | [`thread_runtime.c`](../src/platform/thread_runtime.c) | **yes** | **yes** | the mutex / condition-variable / atomic primitives |
 | [`thread.c`](../src/platform/thread.c) | **yes** | **yes** | one OS thread and its idle-loop handshake |
 | [`thread_pool.c`](../src/platform/thread_pool.c) | **yes** | **yes** | the Lazy-SMP worker pool, the shared stop flag, the NUMA binding plan |
-| [`numa.c`](../src/platform/numa.c) | **yes** | **yes** | the NUMA topology model and the replication registry |
+| [`numa.c`](../src/platform/numa.c) | **yes** | **yes** | the NUMA topology model: `NumaConfig`, `from_system`, the L3-aware partition |
+| [`numa_replication.c`](../src/platform/numa_replication.c) | **yes** | **yes** | the `NumaReplicationContext` registry: `numa_context_init/attach/detach/set_config/execute_on_node/distribute_threads_among_nodes` |
+| [`worker_pool.c`](../src/platform/worker_pool.c) | **yes** | **yes** | constructs the pool; `Threads` above 1 runs that many workers over one root |
 | [`tablebase.c`](../src/platform/tablebase.c) | **yes** | **yes** | the Syzygy facade the engine and shell call |
 | [`syzygy/`](../src/platform/syzygy) | **yes** | **yes** | the prober: `tables.c`, `encode.c`, `decode.c`, `registry.c`, `wdl.c`, `probe.c` |
 
@@ -55,10 +57,16 @@ alignment is load-bearing: the NNUE accumulator reads it as a precondition. The
 contents are **not** initialised, exactly as upstream leaves them
 (`memory.cpp:129`). An allocator that zeroes looks harmless and is not — it lets a
 constructor that forgets a field read 0 and look correct, so the field is right only
-because the allocator hid the omission. `worker_construct_full` zeroes its own block
-and then writes every field it does not otherwise clear, including the tablebase
-config that upstream initialises through `Tablebases::Config`'s own member defaults
-(`syzygy/tbprobe.h:41`).
+because the allocator hid the omission. `worker_create`
+([`src/engine/state/worker_construct.c`](../src/engine/state/worker_construct.c))
+takes its block from the page allocator precisely because it arrives zeroed, then
+calls `worker_clear` to write every field a fresh worker needs (histories, the
+NNUE arena, the manager on thread 0 only). Tablebase config is not among them:
+`tb_config` is not part of worker construction at all — it is assigned per-`go`,
+copied from the root-move build's result, in
+[`search_setup.c`](../src/engine/search/search_setup.c)'s `search_ctx_init`,
+which is upstream's shape (`Tablebases::Config` is a per-search value, not
+per-thread state).
 
 `page_alloc` is the exception and says so: it is backed by an anonymous mapping,
 which the kernel is required to hand over zeroed.
@@ -141,10 +149,13 @@ reverse cpu→node index. The invariant: **a CPU belongs to at most one node**, 
 CPU, because a topology where one CPU appears twice makes every thread-distribution
 answer arbitrary.
 
-A `NumaReplicationContext` owns one config and a registry of replicated objects — the
-NNUE network is the live one. **Replacing the config notifies every registered object
-to re-replicate**, and that notification is the whole point of the registry; skipping
-it is how a `NumaPolicy` change becomes a silent no-op.
+A `NumaReplicationContext`, implemented whole in
+[`numa_replication.c`](../src/platform/numa_replication.c) (a separate
+translation unit from `numa.c`, which owns the topology model only), holds one
+config and a registry of replicated objects — the NNUE network is the live one.
+**Replacing the config notifies every registered object to re-replicate**, and
+that notification is the whole point of the registry; skipping it is how a
+`NumaPolicy` change becomes a silent no-op.
 
 The topology is read from `/sys` rather than by linking libnuma, so the build keeps
 its no-dependencies property. It fails soft everywhere: no `/sys`, no nodes or a
