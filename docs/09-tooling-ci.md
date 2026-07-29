@@ -89,6 +89,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `zone-check` | links `ENGINE_SOURCES` plus a stub `main`, with no shell object | that no **listed** `engine/` file calls into `shell/`. It **links**, so a forbidden call is an undefined symbol rather than a clean compile. It cannot see the engine→platform edge — all of `platform/` is inside the array — which is what `engine-standalone` is for |
 | `engine-standalone` | compiles every `src/engine/*.c` alone and links them with **no** platform object | the engine→platform edge, as a count rather than a claim. Ratchets the undefined symbols against [`../tools/engine_platform.baseline`](../tools/engine_platform.baseline): a new one fails (fix it with a seam, not a baseline edit), and a stale one fails too, so the list cannot outlive what it measures. See [00-architecture.md](00-architecture.md) |
 | `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism |
+| `fuzz-search [seconds]` | builds `ENGINE_SOURCES` + [`../tools/fuzz_search.c`](../tools/fuzz_search.c) under libFuzzer+ASan+UBSan and runs it for the given budget (default 30s) | the real search **in-process**: a fuzzer-selected random-legal-move walk from the start position, then `search_go` at a shallow depth, with no shell and no UCI text in the way. clang-only (libFuzzer has no gcc lane). Kept out of `parity`, same reason as `tsan`: its own build and a real time budget, and a clean run means "no crash in that budget," not "there is none." See [00-architecture.md](00-architecture.md#what-the-library-boundary-buys) |
 | `tsan` | rebuilds `ENGINE_SOURCES` + the test binary under ThreadSanitizer and runs it | the thread pool: that spawning, dispatching a job, waiting on the condition variable and joining carry the happens-before edges they claim. **This is the only gate that can see a threading bug at all** — the single-threaded search never reaches that code, and a race does not have to fire to be there. Kept out of `parity`: it needs its own build of the engine and roughly triples the suite. Run it whenever `src/platform/thread*.c` changes |
 | `tsan-search [depth] [threads]` | builds the **whole engine** under ThreadSanitizer and drives one `go` through the UCI front end | races in the SEARCH, which `tsan` cannot see: that step links the test binary, so the only concurrent code it reaches is the thread-pool test. Now that the pool is driven it measures a genuinely multi-threaded search — see [04-multithreading.md](04-multithreading.md). It is the search-race gate the thread-pool `tsan` run cannot substitute for |
 | `signature` | runs the default `bench` (a bare `engine bench` — the full position list at depth 13, `Hash 16`, one `ucinewgame`), compares the node total to [`../tools/signature.golden`](../tools/signature.golden) | that no edit changed search behaviour unintentionally |
@@ -760,6 +761,11 @@ must end with a clean exit and a silent sanitizer, including the
 found two real shell defects before it ever ran in CI (a worker-set leak on the
 critical-error exit path, and `bench 1 1 2` dying on an empty filename where the
 golden searches a nonzero node count).
+
+`./build.sh fuzz-search` is the in-process complement — the real search under
+libFuzzer with no shell and no UCI text in the way, see the `test` table above
+and [00-architecture.md](00-architecture.md#what-the-library-boundary-buys) —
+and is **not** wired into this or any workflow yet. Run it by hand.
 
 ### `mcfish_upstream_check.yml` — weekly upstream-sync detection
 
