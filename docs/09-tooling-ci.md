@@ -277,7 +277,10 @@ the others cannot:
 
 - the **anchor** catches a divergence that fires on the bench positions;
 - **`upstream-nodes`** drives random-legal positions and catches one that never
-  fires on any fixed list;
+  fires on any fixed list. It refuses to run at all — `net_identity_or_die` —
+  if the two engines it drives loaded different nets (or one loaded none):
+  that failure mode reads identically to a catastrophic search bug otherwise,
+  and reporting node diffs under it would be worse than not running;
 - a **node-limited suite run** (`bench <tt> 1 <N> default nodes` against the
   oracle's total) catches *cross-position warm-state* bugs — both engines
   bit-exact on every position in isolation while shared state (a TT generation
@@ -772,15 +775,29 @@ well-formed command; neither job subsumes the other.
 
 Both scheduled daily, 04:31 UTC.
 
-### `mcfish_upstream_check.yml` — weekly upstream-sync detection
+### `mcfish_upstream_check.yml` — weekly upstream-sync detection, three jobs
 
-Two halves. The **gating** half clones the golden at the pinned SHA and runs
-`./build.sh upstream-map` — the declared-vs-derived citation audit (ROT and
-DRIFT both fail it) plus the uncovered-upstream-surface ratchet — which the
-parity workflow cannot run itself because a CI checkout carries no sibling
-`../Stockfish` at the pin. The **detection** half is judgment-free: it counts how
-many commits upstream `master` is ahead of
+**`upstream-check`**, two halves. The **gating** half clones the golden at the
+pinned SHA and runs `./build.sh upstream-map` — the declared-vs-derived
+citation audit (ROT and DRIFT both fail it) plus the uncovered-upstream-surface
+ratchet — which the parity workflow cannot run itself because a CI checkout
+carries no sibling `../Stockfish` at the pin. The **detection** half is
+judgment-free: it counts how many commits upstream `master` is ahead of
 [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE) and
 previews the per-owner worklist, so drift cannot silently accumulate between
 sessions. Porting stays a deliberate, human-gated session — this job only
-detects, it never attempts a port. Runs weekly.
+detects, it never attempts a port.
+
+**`upstream-nodes`** asks a different question: not whether upstream has
+moved, but whether mcfish is still faithful to the pin it already claims to
+match. It builds mcfish, clones the golden, builds the pristine oracle at
+[`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE) via
+[`../tools/upstream/upstream_oracle.sh`](../tools/upstream/upstream_oracle.sh),
+then runs `./build.sh upstream-nodes` with a fresh wall-clock seed each time —
+the same reason the nightly UCI fuzz job seeds that way, so coverage broadens
+over time instead of re-testing the same positions every run.
+`net_identity_or_die` (see *Three fidelity probes* above) refuses the
+comparison outright, naming which side is wrong, if the net-fetch or
+oracle-build steps produced two engines running different nets.
+
+Every job in this file runs weekly.
