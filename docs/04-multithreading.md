@@ -166,6 +166,10 @@ A `NumaConfig` is a list of nodes, each an ascending duplicate-free CPU set, plu
 the reverse cpu→node index. The invariant: **a CPU belongs to at most one node**,
 and adding it twice is refused rather than silently moving it, because a topology
 where one CPU appears twice makes every distribution answer arbitrary.
+`node_insert_sorted` takes an ascending-append fast path when the CPU is greater
+than the node's current tail, and falls back to a binary search otherwise, so
+insertion is `O(log n)` rather than a linear scan from zero — closing a
+quadratic-DoS surface reachable through a crafted `NumaPolicy` string.
 
 The topology is read from `/sys` rather than by linking libnuma, so the build
 keeps its no-dependencies property. It fails soft everywhere: no `/sys`, no
@@ -186,6 +190,18 @@ different bind decision for the same `Threads`.
 `hardware` differs from `system` in exactly one way: it reads the topology
 *without* the process affinity mask, so a run pinned to half the box reports the
 whole box.
+
+**`Available processors: …` and the per-node thread-binding line are wired.**
+`worker_pool_numa_config_string` (`worker_pool.c`, backed by
+`numa_config_to_string` in `numa.c`) renders the installed topology, and
+`worker_pool_thread_binding_string` renders the `"placed/cpus"`-per-node split
+joined by `:`, returning `nullptr` when nothing is bound. `src/shell/engine.c`'s
+`engine_report_threads` prints both before every `go` (skipped for `go perft`),
+and `engine_options.c`'s `on_numa_policy`/`thread_allocation_string` print the
+same pair from the `NumaPolicy`/`Threads` `setoption` callbacks — see
+[07-shell.md](07-shell.md). An invalid `NumaPolicy` value is refused with
+upstream's wording verbatim (`"NumaPolicy: invalid value '%s', keeping previous
+config."`), and the previous topology stays installed.
 
 `numa_execute_on_node` runs its callback on a **throwaway thread** and joins it.
 The binding is the point of the call and must not survive it — binding the caller
@@ -208,9 +224,11 @@ a wider accumulator would move the ties and hand a different node to a thread.
   change re-partitions the threads without re-replicating any weights. On a
   single-node host that is the whole of the difference; on a multi-node one every
   worker reads the net from the node that loaded it.
-- **`numa_config_string` has no caller.** It is the function that would produce
-  upstream's `info string Available processors: …`, which the golden harness
-  currently filters out as a declared gap.
+- **`numa_config_string` has no caller.** It renders the process affinity mask
+  rather than the bound topology — the shape `Available processors: …` used to
+  report before the fix that wired `numa_config_to_string`/
+  `worker_pool_numa_config_string` in above. It is dead code now, superseded
+  rather than merely unwired; nothing should come to call it.
 - **`memory.c` has no unit test**, including its `page_alloc_set` seam.
 - **No test constructs a `SearchWorker`.** The pool churn test covers
   `thread.c` / `thread_pool.c` / `thread_runtime.c`; the worker set, the shared
