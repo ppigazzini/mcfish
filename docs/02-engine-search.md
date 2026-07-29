@@ -32,7 +32,9 @@ contract rather than an optimisation.
 [`history.c`](../src/engine/search/history.c),
 [`timeman.c`](../src/engine/search/timeman.c),
 [`tt.c`](../src/engine/search/tt.c),
-[`worker_set.c`](../src/engine/search/worker_set.c), plus the injection seams
+[`worker_set.c`](../src/engine/search/worker_set.c),
+[`syzygy_pv.c`](../src/engine/search/syzygy_pv.c) (the PV extension; see
+[05-tablebases.md](05-tablebases.md)), plus the injection seams
 [`pool_source.h`](../src/engine/search/pool_source.h),
 [`output_sink.h`](../src/engine/search/output_sink.h),
 [`option_source.h`](../src/engine/search/option_source.h),
@@ -61,8 +63,10 @@ holding that worker's history tables, its NNUE arena and, on thread 0 only, the
 **`SearchCtx`'s per-node fields are contiguous, and adding to it has a rule.**
 Everything a node reads — `hist`, `eval_arena`, the counters, `optimism`,
 `root_depth`, `root_delta`, `reductions`, `stop`, `is_main`, `eval_nnue_ready`,
-`time_state` — sits inside the first 192 bytes. Anything read once per `go`, and the
-big arrays (`last_iter_pv`, `limits`), go **after** them. The rule exists because
+`time_state`, `tb_config` — sits inside the first 216 bytes (`offsetof(SearchCtx,
+limits)`; verify with `offsetof` rather than trusting this number after the next
+field is added). Anything read once per `go`, and the big arrays (`limits`,
+`last_iter_pv`), go **after** them. The rule exists because
 `last_iter_pv` was once declared in the middle of the block, which pushed `stop`,
 `is_main` and `time_state` out to offsets 584, 592 and 744 and made every node reach
 three further cache lines of context. Upstream's `Worker` keeps its per-node scalars
@@ -409,9 +413,21 @@ on a probe hitting: correct play must survive the table being empty. `test_searc
 in [`../tests/test_main.c`](../tests/test_main.c) asserts one instance of this by
 clearing the table and re-finding a mate in one.
 
-Reads and writes are non-atomic and may race once M4 lands. A `TTData` copy may
-therefore be self-inconsistent — but it is a *copy*, and it does not change under
-the caller once taken. That is the property `tt_probe` is built to give.
+M4 (multithreading) has landed, and every `TTEntry` field is a relaxed `_Atomic`
+(`tt.h`), accessed only through the `TT_LOAD`/`TT_STORE` macros — a plain access
+on an `_Atomic` member is seq_cst in C, which is not upstream's `RelaxedAtomic`,
+so the macros exist to keep every access relaxed rather than accidentally
+lock-prefixed. Relaxed suffices because there is no ordering to establish
+between fields: the entry is validated by `key16` after the read, and each field
+is read and written indivisibly, so a torn or rematerialised half-value never
+reaches the search. What relaxed atomicity does **not** give is cross-field
+consistency: nothing stops one worker reading `depth8` from one store and
+`move16` from a different, concurrent one, so a `TTData` copy assembled from
+several field reads may be self-inconsistent as a whole — but it is a *copy*,
+and it does not change under the caller once taken. That is the property
+`tt_probe` is built to give. This is what killed the 10185 TSan reports a
+plain-member `TTEntry` produced on an 8-thread depth-14 search before the fields
+were made atomic.
 
 ### depth8, the occupancy test, and DEPTH_ENTRY_OFFSET
 
