@@ -62,7 +62,7 @@ with nothing else, and fails on any undefined symbol —
 so the next host dependency added to `engine/` fails the gate rather than joining
 a list.
 
-**Five seams carry it**, each the same shape: the engine declares a function
+**Six seams carry it**, each the same shape: the engine declares a function
 pointer, the host registers an implementation before the first search.
 
 | seam | registered by | supplies |
@@ -71,7 +71,8 @@ pointer, the host registers an implementation before the first search.
 | [`option_source.h`](../src/engine/search/option_source.h) | `search_set_option_source` | the live UCI option table |
 | [`time_source.h`](../src/engine/search/time_source.h) | `search_set_time_source` | the monotonic clock |
 | [`arena_source.h`](../src/engine/state/arena_source.h) | `search_set_arena_source` | the page allocator behind the TT, the history banks, each worker and the NNUE eval/accumulator arenas |
-| [`worker_set.h`](../src/engine/search/worker_set.h) | `worker_pool_install` | the Lazy-SMP worker set on real OS threads |
+| [`worker_set.h`](../src/engine/search/worker_set.h) / [`pool_source.h`](../src/engine/search/pool_source.h) | `worker_pool_install` | the Lazy-SMP worker set on real OS threads, and the pool-summed counters `check_time`, `output_pv` and the best-move-change collection read |
+| [`tb_source.h`](../src/engine/search/tb_source.h) | `syzygy_option_install` | the Syzygy WDL probe and the loaded cardinality |
 
 **Three things have to hold together or a seam leaves its symbol in the link line**,
 and the middle one is the one that gets missed:
@@ -80,9 +81,11 @@ and the middle one is the one that gets missed:
 - **every** reader in the zone goes through it. `timeman.c` reads `TimeNowMs`, not
   `now_ms`. One direct call anywhere in `engine/` keeps the dependency whole,
   however complete the seam looks;
-- the **host** registers the implementation. `engine_init` does all five, and the
-  arena pair goes in FIRST — a block taken from the engine's fallback allocator and
-  released by the host's is heap corruption with no diagnostic.
+- the **host** registers the implementation. `uci_loop` registers the output
+  sink first (`engine_set_output`), then `engine_init` registers the other
+  five — arena pair FIRST, before anything that allocates or reads a clock: a
+  block taken from the engine's fallback allocator and released by the host's
+  is heap corruption with no diagnostic.
 
 Each seam's default is a working implementation rather than a stub, which is what
 lets `engine/` search on its own: the test binary links no platform object and runs
@@ -90,6 +93,91 @@ the one-worker set in
 [`worker_set.c`](../src/engine/search/worker_set.c) over a malloc-backed arena.
 What it cannot do is spawn a second thread, and `resize` says so by refusing a
 count above one instead of quietly searching with fewer workers than asked for.
+
+## What the library boundary buys
+
+The zone rule is not tidiness — it is what lets `engine/` be *driven* with no
+process around it. Upstream is a UCI binary and does not claim otherwise:
+`Search::Worker` holds `const OptionsMap&` and `ThreadPool&` as members
+(upstream `search.h`) and `evaluate.cpp` includes `uci.h`, so linking its
+search means linking the frontend and the thread pool. Here the same
+dependencies are the six seams above, each self-defaulting to a working
+headless implementation, and `./build.sh zone-check` /
+`./build.sh engine-standalone` prove the boundary at the linker rather than
+by inspection.
+
+**In use today:**
+
+| Use | Owner | What the boundary supplies |
+| --- | --- | --- |
+| Compile and link-test the whole engine with no shell, and engine alone with no platform either | `./build.sh zone-check`, `./build.sh engine-standalone` | `ENGINE_SOURCES` (or, for `engine-standalone`, `engine/` alone) linked with a stub `main` and zero shell/platform symbols on the command line |
+| Gates that test the algorithm rather than the protocol | [`tests/test_main.c`](../tests/test_main.c) | The unit suite calls `search_go`/`perft` directly — no UCI text, no subprocess — so a search regression is caught with the command loop entirely out of the way |
+| A reproducible search under a substituted platform | the seams' headless defaults in [`search_common.c`](../src/engine/search/search_common.c) | `search_go` in the unit tests runs with nothing installed: `option_zero_by_name`, `time_default_now`, `tb_unavailable`/`tb_unavailable_pos` and the one-worker `worker_set.c` are the whole platform it gets |
+| Porting to a new OS | [`src/platform/`](../src/platform) | The engine issues no OS call directly, so a new target is a platform-zone change; [`simd.h`](../src/engine/eval/nnue/simd.h)'s vector kernels lower to NEON with no source change either |
+
+**What the boundary makes possible and nobody has built.** These are
+capabilities the invariant preserves, not features of this tree — describe
+them that way when quoting one, and re-check before quoting: this list is
+findings, not a permanent state.
+
+- **Coverage-guided, in-process fuzzing of the real search tree.**
+  [`tools/uci_fuzz.py`](../tools/uci_fuzz.py) (run nightly by
+  `mcfish_fuzz.yml`) fuzzes the UCI **text protocol** against the shipped
+  binary over a pipe — real, and it has already found real shell defects —
+  but it is a subprocess driving stdin, not a fuzzer calling `search_go`
+  in-process the way `zone-check`'s own link proves is possible. Nothing here
+  stands up a libFuzzer/AFL harness that mutates a position and calls the
+  search directly under ASan.
+- **Embedding the engine.** An analysis backend, an NNUE training-data
+  generator, or a WASM build could link `engine/` with no threading runtime
+  and no OS services. Nothing in this repo does.
+- **An in-process parameter search.** `search_go` is already the entry an
+  SPSA or sweep harness would drive; nothing here drives it without a UCI
+  round trip per evaluation.
+
+[`tools/upstream_nodes.py`](../tools/upstream_nodes.py)'s random-walk
+differential driver — start position, random legal moves, node counts diffed
+against the oracle at every depth — already exists and is **not** on the
+list above: it drives two separate UCI subprocesses, so it needs no library
+boundary at all. See [09-tooling-ci.md](09-tooling-ci.md).
+
+### Does the seam layer cost performance?
+
+Not measurably, on the workload the gates cover — but read the limit below
+before quoting that as settled. The seams are function pointers, not
+compilation-unit boundaries, and the release build is `-flto`
+(`CFLAGS_RELEASE`), so what follows is **observations**, not an A/B
+ablation:
+
+- Grepping every per-node file (`search_main.c`, `search_qsearch.c`,
+  `movepick.c`, `history.c`, `tt.c`) for a seam symbol finds exactly one call
+  site: `TbProbeWdlPos`, in `search_main.c`'s Step 6, gated on
+  `tb_config.cardinality != 0`.
+- `TimeNowMs` and `PoolCounters` are reached from the per-node path only
+  through `check_time` (`search_control.c`), which decrements a counter and
+  returns immediately on every call but one in at most 512 — the per-node
+  cost on the throttled calls is a decrement and a well-predicted branch, not
+  an indirect call.
+- `option_source.h`'s readers and `output_sink.h` are read at `go`-setup and
+  info-line cadence; grepping the per-node files above for either finds no
+  call site.
+
+So on `bench` the seam layer costs **startup wiring**, not nps. It would cost
+the search if a seam sat on the per-node path unthrottled.
+
+**The limit — one seam does sit there, and no gate can see it.**
+`TbProbeWdlPos` is real per-node cost only when `tb_config.cardinality != 0`,
+which requires a `SyzygyPath` — and `bench`, the signature anchor, and every
+golden run all run with **no** `SyzygyPath`, so `cardinality` is 0 by
+construction and the call never fires. The coverage is a property of the
+*workload*, not of the seam: with tablebases loaded, Step 6 becomes a live
+per-node indirect call where upstream makes a direct one, and nothing in
+this tree has measured that case. Treat "the seam layer is free" as unproven
+for a Syzygy-loaded search until an ablation says otherwise. It is also
+worth stating plainly that no instruction-ratio comparison in this tree
+isolates the seams from anything else — the aggregate bounds all structural
+overhead together, the same way it does for every other claim in
+[08-idiomatic-c.md](08-idiomatic-c.md)'s measurement-discipline section.
 
 ## What is actually in the binary
 
