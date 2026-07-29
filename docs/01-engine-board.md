@@ -435,6 +435,15 @@ copied. A caller with no accumulator passes `&pos->scratch_dp` and
 only between `pos_do_move` and the read of them; `pos_undo_move` does not restore
 them.
 
+`pos_do_move` also takes a `Histories *history` parameter (`nullptr` where none is
+available). When non-null, the make uses it to prefetch the child position's TT
+cluster and correction-history bundles from inside the make itself, the same point
+upstream issues its prefetch, rather than as a separate step the caller has to
+remember. `pos_adjust_key50_of` (`position.h`) is the piece that makes the
+prefetch address computable before the move is fully applied: it folds the
+halfmove clock into the key past move 14, the same rule TT lookups apply, so the
+prefetched cluster is the one the search will actually probe.
+
 `pos_do_null_move` fills both with the empty delta rather than leaving them alone,
 so the incremental accumulator step is a no-op instead of a read of a stale ply's
 diff.
