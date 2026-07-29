@@ -106,6 +106,28 @@ would let a `.rtbz` map block an unrelated `.rtbw`. mcfish's `AtomicBool` is
 seq_cst where upstream is acquire/release — strictly stronger, so upstream's
 guarantee holds, at the cost of a fence on a path taken once per table per game.
 
+## The compressed format, as implemented
+
+`registry_init`'s parse fills one `PairsData` per `(side, file)`, and what it
+fills is exactly the layers [`decode.c`](../src/platform/syzygy/decode.c) and
+[`tables.h`](../src/platform/syzygy/tables.h) implement:
+
+| Layer | What the code does |
+| --- | --- |
+| Symbols / btree | `LR` (`tables.h`) is a 3-byte entry packing two 12-bit symbols — `lr_left`/`lr_right` unpack them. `lr_right(e) == 0xFFF` marks a leaf, whose `lr_left(e)` is the stored value. Golden: upstream `SparseEntry` `tbprobe.cpp:192`, `LR` `:201`. |
+| Symbol lengths | `set_sym_len`, called from `decode_set_sizes` for every unvisited symbol, fills `d->symlen` by recursive descent over the btree: a leaf is 0, an internal symbol is `symlen[left] + symlen[right] + 1` — the count of values that symbol represents, minus one. Golden: `set_symlen` `tbprobe.cpp:1061`. |
+| Canonical Huffman | `decode_set_sizes` builds `d->base64` from `d->lowest_sym`, right-padded so `base64[i] >= base64[i+1]`, and records `min_sym_len`/`max_sym_len`. Golden: `set_sizes` `tbprobe.cpp:1080-1137`, the `base64` comment at `:366`. |
+| Indices | `SparseEntry` (`tables.h`) is 6 bytes (`block[4]`, `offset[2]`). `sparse_index_size` and `block_length_size` are computed in the registry parse from the table's `span`/`blocks_num` (`registry.c`). |
+| Pairs data | `decode_pairs` locates the block through the sparse index, walks `block_length[]` to the exact block, reads that block's bitstream in **big-endian** 64-bit windows, decodes the symbol against `base64`, then descends the `LR` btree to the leaf value. Golden: `decompress_pairs` `tbprobe.cpp:602`. |
+| Single value | When `TB_FLAG_SINGLE_VALUE` is set, the table stores one value and `decode_pairs` returns it for every index without touching the bitstream at all. |
+
+The six [`decode.h`](../src/platform/syzygy/decode.h) flags —
+`TB_FLAG_STM`, `TB_FLAG_MAPPED`, `TB_FLAG_WIN_PLIES`, `TB_FLAG_LOSS_PLIES`,
+`TB_FLAG_WIDE`, `TB_FLAG_SINGLE_VALUE` — gate the handful of format variants
+`decode.c` and [`wdl.c`](../src/platform/syzygy/wdl.c) branch on: `TB_FLAG_WIDE`
+doubles the remap-table element width, `TB_FLAG_MAPPED` says the raw decoded
+value needs a per-WDL-class remap before it means anything.
+
 ## Probing
 
 ### The WDL probe
@@ -142,6 +164,48 @@ that are upstream's and easy to get wrong:
 The root path reaches the tables by serialising the position to FEN and calling
 `TbProbeFen`, not through the live-position seam — the ranking replays each root
 move on a scratch board.
+
+### TB score values
+
+[`score.h`](../src/engine/board/score.h) places the tablebase band directly
+below the mate band, an invariant it states as one fact written twice:
+
+| Constant | Value | Meaning |
+| --- | --- | --- |
+| `VALUE_TB` | `VALUE_MATE_IN_MAX_PLY - 1` | the top of the TB band, one below where a score reads as mate |
+| `VALUE_TB_WIN_IN_MAX_PLY` | `VALUE_TB - MAX_PLY` | the threshold above which a score's magnitude reads as tablebase-decisive |
+| `VALUE_TB_LOSS_IN_MAX_PLY` | `-VALUE_TB_WIN_IN_MAX_PLY` | the loss-side mirror |
+| `MAX_DTZ` | `1 << 18` (`root_move_build.c`) | the root-ranking scale `WdlToRank`/`WdlToValue` are built from |
+
+`score_classify` (`score.h`/`score.c`) is the pure classifier every UCI-facing
+score passes through: `SCORE_NON_DECISIVE` below `VALUE_TB_WIN_IN_MAX_PLY`,
+`SCORE_TABLEBASE` between there and `VALUE_TB` (carrying the signed distance to
+the outcome and which side wins), `SCORE_MATE` above it. `search_emit.c` calls
+it with these four thresholds live, never re-derived — the classifier takes
+them as arguments precisely so it stays a pure function nothing can drift from
+the search's own definitions.
+
+### UCI reporting
+
+Two things a tablebase result changes about what `go` prints, both in
+[`search_emit.c`](../src/engine/search/search_emit.c):
+
+- **The score.** `uci_format_score`
+  ([`uci_wdl.c`](../src/engine/search/uci_wdl.c)) renders `SCORE_TABLEBASE` as
+  `cp ±20000 - value` — a large but non-mate centipawn score, upstream's own
+  convention for "decisive but not a forced mate the PV proves out." When the
+  root move came from the tablebase ranking (`tb_config.root_in_tb`) and the
+  score is not a genuine mate, `search_emit.c` substitutes the root move's
+  `tb_score` for the searched value before formatting it, and reports that
+  substituted score as an exact bound.
+- **`tbhits`.** Reported as the pool's summed in-search hits
+  (`pool_tb_hits`, through the same `PoolCounters` seam
+  [04-multithreading.md](04-multithreading.md) describes) **plus**
+  `root_moves_count` whenever `root_in_tb` — the root-ranking probes count
+  too, not only the in-tree Step 6 ones.
+
+`d`'s `Tablebases WDL:`/`DTZ:` lines are the shell's, not this zone's — see
+[07-shell.md](07-shell.md).
 
 ### The seam
 
