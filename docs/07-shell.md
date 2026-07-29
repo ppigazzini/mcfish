@@ -54,7 +54,6 @@ int main(int argc, char **argv) {
     attacks_init();
     threats_init();  // build RayPassBB, which reads the attack tables
     position_init();
-    eval_nnue_init();
 
     uci_loop(argc, argv);
     search_shutdown();
@@ -63,6 +62,13 @@ int main(int argc, char **argv) {
 }
 ```
 
+`eval_nnue_init()` is deliberately **not** called here. It allocates the eval
+arena, and the host's arena source is not registered until `engine_init` runs,
+inside `uci_loop` — calling it any earlier hands the arena to the plain-malloc
+fallback and then frees it through `page_free` once `engine_init` rewires
+`ArenaFree`, corrupting the free. `engine_init` calls it itself, right after the
+arena source goes in.
+
 It is the only file permitted to include across every zone, and nothing includes it.
 The ordering constraint — and its silent failure mode — is spelled out in
 [00-architecture.md](00-architecture.md); the short version is that a `Position`
@@ -70,11 +76,19 @@ built before `attacks_init` reads zeroed attack tables and generates no piece
 moves, which presents as a search bug.
 
 `uci_loop` announces the engine, installs the transport sinks with
-`engine_set_output`, and hands the rest of the wiring to `engine_init`, which owns
-the state the wiring targets: it builds the state chain, registers the option table,
-clears the search state, points the search at that table, sizes the transposition
-table, establishes the start position, resolves the root directory from `argv[0]`,
-and loads the net.
+`engine_set_output`, and hands the rest of the wiring to `engine_init`. Its own
+first act is installing the host's seams — `search_set_arena_source`,
+`search_set_time_source` — **before anything that allocates or reads a clock**;
+only then does it build the NNUE feature tables and eval arena
+(`eval_nnue_init`), hand the engine a real OS-thread worker set
+(`worker_pool_install`), build the state chain, bind the tablebase seams,
+register the option table, clear the search state, point the search at that
+table, size the transposition table, establish the start position, resolve the
+root directory from `argv[0]`, and load the net. Getting the seam order wrong is
+the exact class of bug `worker_pool_install` and `eval_nnue_init`'s ordering
+comment call out: a block obtained from one allocator and released through
+another. See [00-architecture.md](00-architecture.md) and
+[06-platform.md](06-platform.md) for what each seam supplies.
 
 Establishing a position before any command matters more than it looks: a `go` or
 `d` arriving before any `position` command must operate on the start position, not
@@ -94,9 +108,12 @@ concatenation inserts none.
 `engine_nnue_report()` prints `eval_nnue_status()` through `info string` before every
 `go`, `perft` and `eval`, and `engine_nnue_verify()` **terminates** the process
 right after when no usable net is loaded — upstream's five error lines verbatim, from
-the same three sites (nnue/network.cpp:165-187). Refusing to run is the honest
-answer: a placeholder eval that plays legal moves reads as a strength regression, not
-as a missing file. See [03-engine-eval.md](03-engine-eval.md).
+the same three sites (nnue/network.cpp:165-187). Those five lines go through the same
+`info`-prefixing sink as every option-message callback (installed by
+`engine_nnue_set_info`, wired from `engine_set_output`), landing on stdout, not raw
+stderr. Refusing to run is the honest answer: a placeholder eval that plays legal
+moves reads as a strength regression, not as a missing file. See
+[03-engine-eval.md](03-engine-eval.md).
 
 ## The output sink
 
@@ -165,11 +182,12 @@ is why `strtok` is usable at all.
 | `isready` | Print `readyok`. |
 | `ucinewgame` | Clear the transposition table and reset to the start position. |
 | `position` | `startpos` or `fen <6 fields>`, optionally followed by `moves ...`. |
-| `go` | Parse limits, hand the search to worker 0's thread, and return; the search emits its own `info` and `bestmove` lines through the sink. `go perft N` short-circuits to a perft divide. |
+| `go` | Emit the processor/thread `info string` lines and the net-status line, parse limits, hand the search to worker 0's thread, and return; the search emits its own `info` and `bestmove` lines through the sink. `go perft N` short-circuits to a perft divide and skips the processor/thread/net lines. |
 | `setoption` | `setoption name <NAME> [value <VALUE>]`; see the table below. |
 | `stop` | Raise the stop flag and return; the search thread ends and emits its `bestmove`. |
 | `quit` | End the search (stop it if unbounded, else wait it out), leave the loop; `uci_loop` frees the table. |
-| `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`. |
+| `flip` | Mirror the position color-flipped, via `engine_flip`. |
+| `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`, then the `Tablebases WDL:`/`DTZ:` lines when the position is small enough and has no castling rights. See [05-tablebases.md](05-tablebases.md). |
 | `bench` | Run the benchmark at the given depth, default 8. |
 | `eval` | Print the evaluation trace via `evaluate_trace`. |
 | `compiler` | Print the clang or gcc version and `__STDC_VERSION__` the binary was built with. |
@@ -238,6 +256,14 @@ truncation of the game.
 
 ### go
 
+Before parsing limits, `cmd_go` (unless it is `go perft N`) calls
+`engine_report_threads()` then `engine_report_net()`, emitting two or three
+`info string` lines: `Available processors: <topology>` (from
+`worker_pool_numa_config_string`), `Using N thread(s)`, optionally suffixed
+` with NUMA node thread binding: <split>` when `worker_pool_thread_binding_string`
+reports binding in effect, and then the net-status line. `go perft N` prints none
+of this — it short-circuits straight to the divide.
+
 Limits parsed: `depth`, `movetime`, `wtime`, `btime`, `winc`, `binc`, `movestogo`,
 `nodes`, `infinite`, `ponder`, and `perft`. How they become a deadline is in
 [02-engine-search.md](02-engine-search.md).
@@ -304,6 +330,15 @@ NUMA node it will run on — which drops every history table, exactly as upstrea
 under, and re-applies the current thread count so the change takes effect at once.
 Golden: upstream `thread.cpp`, `numa.h`.
 
+Both callbacks report through the same two strings `go` itself prints (see
+*go* above): `worker_pool_numa_config_string()` renders `Available processors:
+<topology>`, and `worker_pool_thread_binding_string()` renders the conditional
+` with NUMA node thread binding: <split>` suffix on `Using N thread(s)`
+(`thread_allocation_string` in `engine_options.c`). An invalid `NumaPolicy`
+value is refused with upstream's wording verbatim: `NumaPolicy: invalid value
+'<v>', keeping previous config.` — the previous topology stays installed rather
+than the engine degrading to no topology.
+
 **The four Syzygy options are live.** `syzygy_option_install` binds the
 `TbMaxCardinality` / `TbProbeFen` / `TbProbeWdlPos` seams in
 [`../src/engine/search/tb_source.h`](../src/engine/search/tb_source.h) and the three
@@ -363,13 +398,17 @@ option table [`ucioption.c`](../src/shell/ucioption.c) owns and emitted **before
 ## bench and the signature
 
 [`benchmark.c`](../src/shell/benchmark.c) runs a **fixed** set of upstream
-Stockfish's bench positions, kept verbatim, at a fixed depth, with the
-transposition table **cleared between positions**, and returns the node total.
+Stockfish's bench positions, kept verbatim, at a fixed depth, and returns the node
+total. The transposition table, the history block and the per-game manager scalars
+are cleared **once**, by a single `ucinewgame` before the first position, and then
+CARRY across every position in the run — clearing per position would be a
+different search and a different number. Golden: `Stockfish/src/benchmark.cpp:430`
+(`setup_bench`) and `Stockfish/src/uci.cpp:243` (`UCIEngine::bench`).
 
-Clearing between positions is what makes the total a property of the engine rather
-than of the run: carried-over entries would make the result depend on the position
-order and on the `Hash` setting, and the anchor would move whenever anyone changed
-either.
+That single clear is still what makes the total a property of the engine rather
+than of the run: it is the same script every time, so the same TT/history state
+enters position 1 on every run, and the anchor moves only when a search change
+would move it — never because of run-to-run carry-over noise.
 
 Output goes to **stderr**: the per-position banner, and the summary block with
 `Total time (ms)`, `Nodes searched`, and `Nodes/second`. That matches upstream's
