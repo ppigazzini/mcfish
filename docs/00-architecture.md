@@ -114,26 +114,26 @@ by inspection.
 | Gates that test the algorithm rather than the protocol | [`tests/test_main.c`](../tests/test_main.c) | The unit suite calls `search_go`/`perft` directly — no UCI text, no subprocess — so a search regression is caught with the command loop entirely out of the way |
 | A reproducible search under a substituted platform | the seams' headless defaults in [`search_common.c`](../src/engine/search/search_common.c) | `search_go` in the unit tests runs with nothing installed: `option_zero_by_name`, `time_default_now`, `tb_unavailable`/`tb_unavailable_pos` and the one-worker `worker_set.c` are the whole platform it gets |
 | Porting to a new OS | [`src/platform/`](../src/platform) | The engine issues no OS call directly, so a new target is a platform-zone change; [`simd.h`](../src/engine/eval/nnue/simd.h)'s vector kernels lower to NEON with no source change either |
+| Coverage-guided, in-process fuzzing of the real search tree | [`tools/fuzz_search.c`](../tools/fuzz_search.c), `./build.sh fuzz-search` | Links `ENGINE_SOURCES` against libFuzzer's driver instead of a stub `main`. One iteration plays a fuzzer-selected random-legal-move walk from the start position, then calls `search_go` directly at a shallow depth under ASan+UBSan — no shell, no subprocess, no UCI text, unlike [`tools/uci_fuzz.py`](../tools/uci_fuzz.py) (below) |
 
 **What the boundary makes possible and nobody has built.** These are
 capabilities the invariant preserves, not features of this tree — describe
 them that way when quoting one, and re-check before quoting: this list is
 findings, not a permanent state.
 
-- **Coverage-guided, in-process fuzzing of the real search tree.**
-  [`tools/uci_fuzz.py`](../tools/uci_fuzz.py) (run nightly by
-  `mcfish_fuzz.yml`) fuzzes the UCI **text protocol** against the shipped
-  binary over a pipe — real, and it has already found real shell defects —
-  but it is a subprocess driving stdin, not a fuzzer calling `search_go`
-  in-process the way `zone-check`'s own link proves is possible. Nothing here
-  stands up a libFuzzer/AFL harness that mutates a position and calls the
-  search directly under ASan.
 - **Embedding the engine.** An analysis backend, an NNUE training-data
   generator, or a WASM build could link `engine/` with no threading runtime
   and no OS services. Nothing in this repo does.
 - **An in-process parameter search.** `search_go` is already the entry an
   SPSA or sweep harness would drive; nothing here drives it without a UCI
   round trip per evaluation.
+
+[`tools/uci_fuzz.py`](../tools/uci_fuzz.py) (run nightly by `mcfish_fuzz.yml`)
+is a different, still-valuable thing, not a weaker version of
+`fuzz_search.c`: it fuzzes the UCI **text protocol** against the shipped
+binary over a pipe, so it covers the parser and the command loop
+`fuzz_search.c` never reaches (`fuzz_search.c` never runs a byte through
+`uci.c`). Run both; neither subsumes the other.
 
 [`tools/upstream_nodes.py`](../tools/upstream_nodes.py)'s random-walk
 differential driver — start position, random legal moves, node counts diffed
