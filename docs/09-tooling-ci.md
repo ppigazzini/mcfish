@@ -765,6 +765,17 @@ shell defects before it ever ran in CI (a worker-set leak on the
 critical-error exit path, and `bench 1 1 2` dying on an empty filename where
 the golden searches a nonzero node count).
 
+`Hash` and `Threads` are the two options whose value becomes an allocation, so
+they are generated from bounded pools and emitted unmangled — a truncating
+mangle rewrites a value `accepts` refuses into one it honours, and the
+resulting table is mapped and then touched page by page by the resize clear.
+That exhausts the machine rather than the process, so the OOM kill takes the
+harness too and CI sees a dead runner with no stream to read. `unbounded_request`
+re-checks every payload before it is fed to the engine, so an edit to the pools
+fails loudly instead of silently. The pools still reach the refusal paths: the
+advertised `Hash` maximum is in range, so it reaches the allocator, but no box
+can back it, so the mapping is refused without a page being touched.
+
 **`fuzz-search`.** The in-process complement: `./build.sh fuzz-search 600`
 under libFuzzer+ASan+UBSan, real search with no shell and no UCI text in the
 way — see the `test` table above and
