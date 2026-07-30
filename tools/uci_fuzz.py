@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import re
 import subprocess
 import sys
 import time
@@ -32,8 +33,6 @@ FENS = [
     "fen invalid/board/here w KQkq - 0 1",
 ]
 OPTIONS = [
-    "Hash",
-    "Threads",
     "MultiPV",
     "SyzygyPath",
     "Ponder",
@@ -41,7 +40,63 @@ OPTIONS = [
     "NoSuchOption",
     "",
 ]
+OPTION_VALUES = ["1", "0", "-1", "99999999", "true", "x" * 300, ""]
+
+# Hash and Threads are the only two options whose value the engine turns straight
+# into an allocation, so they are the only ones whose fuzzed value can exhaust the
+# MACHINE rather than the process -- and that kill takes this harness with it,
+# leaving a dead runner and no stream to read. Draw their values from a bounded
+# pool and emit the line VERBATIM, for the same reason the go lines below stay
+# whole: mangling defeats a bound. Truncation is the specific defeat, since it
+# rewrites a value `accepts` refuses into one it honours (ucioption.c
+# value_in_range rejects an out-of-range spin rather than clamping it, and rejects
+# a trailing-junk insertion outright, so truncation is the only mangle that gets
+# through) -- `Hash value 99999999` becomes `Hash value 9999`, a 9.7 GiB table
+# that tt_resize maps and the load-bearing tt_clear then touches page by page, and
+# `Threads value 99999999` becomes 999 worker blocks of 2.89 MB apiece.
+# Bound each of the two in its own units -- megabytes of table against counts of
+# worker, so one shared pool would read 16 as both. The below-min and non-numeric
+# values take the same reject branch an over-max value would, allocating on no
+# path. 33554432 is Hash's exact advertised max (engine_options.c max_hash_mb): in
+# range, so it reaches ArenaAlloc and exercises on_hash's refusal report, yet 32
+# TiB, so the mapping is refused without a page being touched; Threads refuses it
+# as out of range on any real box. No value here lands in the band that is both in
+# range and backable -- the band where the mapping succeeds and the clear that
+# follows OOMs the box.
+MEM_VALUES = {
+    "Hash": ["1", "2", "16", "0", "-1", "true", "", "33554432"],
+    "Threads": ["1", "2", "4", "0", "-1", "true", "", "33554432"],
+}
+MEM_OPTIONS = list(MEM_VALUES)
 MOVES = ["e2e4", "e7e5", "g1f3", "e1g1", "e7e8q", "a2a1n", "0000", "zzzz", "e2e9"]
+
+# A memory request the box CAN back is the dangerous one: it succeeds, the clear
+# that follows touches every page, and the OOM kill takes the machine -- and this
+# harness with it, so the stream that caused it is never reported. Check the
+# payload rather than trust the generator, so a later edit to the pools above
+# fails loudly here instead of silently killing a runner.
+MEM_REQUEST = re.compile(
+    r"^setoption[ \t]+name[ \t]+(Hash|Threads)[ \t]+value[ \t]+(\d+)[ \t]*$", re.M | re.I
+)
+SAFE_HASH_MB = 64
+SAFE_THREADS = 4
+# Past these the mapping is refused outright, without a page being touched: a
+# reported failure, not a kill. Between them and the safe caps lies the band that
+# OOMs the box.
+UNBACKABLE_HASH_MB = 1 << 20
+UNBACKABLE_THREADS = 100_000
+
+
+def unbounded_request(payload: str) -> str | None:
+    """Return the offending line if a payload asks for memory the box may back."""
+    for match in MEM_REQUEST.finditer(payload):
+        option = match.group(1).lower()
+        size = int(match.group(2))
+        if option == "hash" and not (size <= SAFE_HASH_MB or size >= UNBACKABLE_HASH_MB):
+            return match.group(0)
+        if option == "threads" and not (size <= SAFE_THREADS or size >= UNBACKABLE_THREADS):
+            return match.group(0)
+    return None
 
 
 def mangle(rng: random.Random, line: str) -> str:
@@ -69,13 +124,22 @@ def stream(rng: random.Random) -> str:
                 (f"position {rng.choice(FENS)}" + (f" moves {moves}" if moves else ""), True)
             )
         elif kind < 0.45:
-            lines.append(
-                (
-                    f"setoption name {rng.choice(OPTIONS)} value "
-                    + rng.choice(["1", "0", "-1", "99999999", "true", "x" * 300, ""]),
-                    True,
+            if rng.random() < 0.5:
+                # Memory-shaped option: bounded value, unmangled (see MEM_VALUES).
+                option = rng.choice(MEM_OPTIONS)
+                lines.append(
+                    (
+                        f"setoption name {option} value " + rng.choice(MEM_VALUES[option]),
+                        False,
+                    )
                 )
-            )
+            else:
+                lines.append(
+                    (
+                        f"setoption name {rng.choice(OPTIONS)} value " + rng.choice(OPTION_VALUES),
+                        True,
+                    )
+                )
         elif kind < 0.70:
             # Emit any go form, bounded or not. The asynchronous go has landed
             # (docs/07-shell.md): the search runs off the UCI thread, so the
@@ -143,6 +207,14 @@ def main() -> None:
 
     while time.monotonic() < deadline:
         payload = stream(rng)
+        offender = unbounded_request(payload)
+        if offender is not None:
+            sys.stderr.write(
+                f"HARNESS BUG at run {runs} (seed {args.seed}): generated a memory "
+                f"request the box may back and then clear, which would OOM the machine "
+                f"and take this harness with it: {offender!r}\n"
+            )
+            sys.exit(1)
         try:
             proc = subprocess.run(
                 [args.binary],
@@ -163,6 +235,10 @@ def main() -> None:
         # an unusable position command terminates the process with exit(1) after
         # announcing itself (uci.c terminate_on_critical_error, upstream uci.cpp:684).
         # The sanitizer must stay silent on BOTH paths.
+        # A refused `setoption name Hash` is neither: on_hash reports the size it
+        # could not allocate through `info string` and leaves the one-cluster
+        # fallback installed, so the session continues and still exits 0. Only the
+        # STARTUP resize is fatal (engine.c), and the default 16 MB gets there.
         ok_exit = proc.returncode == 0 or (proc.returncode == 1 and "CRITICAL ERROR" in out)
         bad = not ok_exit or "Sanitizer" in err or "runtime error" in err
         if bad:
