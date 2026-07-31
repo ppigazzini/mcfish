@@ -1058,22 +1058,30 @@ do_fuzz_search() {
   green "fuzz-search clean: ${seconds}s, no crash found"
 }
 
-# Coverage-guided fuzzing of the Syzygy table parse and the RE-PAIR decoder.
+# Coverage-guided fuzzing of the Syzygy table parse, in two lanes.
 #
 # The complement to `fuzz-search` on the other untrusted input: SyzygyPath names
 # a BINARY file the engine did not write, and every offset the parse advances
-# comes out of that file. tools/fuzz_tb_parse.c owns what one iteration does and
-# why it carves the regions the way registry.c does.
+# comes out of that file.
 #
-# Links three files, not ENGINE_SOURCES: the decoder cluster depends on nothing
-# but libc. -timeout: a corrupt btree used to be able to make the descent run
-# forever, so a hang is a finding here and libFuzzer must be told to call it one
-# rather than sit on it.
+#   parse  tools/fuzz_tb_parse.c -- decode_set_sizes and decode_pairs called
+#          directly, linking three files rather than ENGINE_SOURCES because the
+#          decoder cluster depends on nothing but libc. Hundreds of thousands of
+#          iterations a second, and the only lane fast enough to explore header
+#          SHAPES, but it reaches the decoder by reimplementing registry.c's
+#          carve -- which is a claim about the code under test.
+#   file   tools/fuzz_tb_file.c -- a real file, tablebase_init over a real
+#          SyzygyPath, a real probe. Thousands of times slower and worth it:
+#          it is the only lane that runs `set`, `set_groups`, `set_dtz_map` and
+#          map_file at all, and it tests the carve instead of asserting it.
+#
+# Neither subsumes the other, so both run and both must be clean. -timeout: a
+# corrupt btree used to be able to make the descent run forever, so a hang is a
+# finding here and libFuzzer must be told to call it one rather than sit on it.
 #
 # clang-only and kept OUT of `parity`, for the same reasons as `fuzz-search`.
 do_fuzz_tb() {
   local seconds=${1:-30}
-  info "Syzygy parse fuzzing: ${seconds}s"
   mkdir -p build
 
   "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=fuzzer,address,undefined \
@@ -1082,13 +1090,54 @@ do_fuzz_tb() {
     src/platform/syzygy/decode.c src/platform/syzygy/tables.c \
     src/platform/syzygy/encode.c tools/fuzz_tb_parse.c
 
+  "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=fuzzer,address,undefined \
+    -fno-sanitize-recover=undefined \
+    -o build/mcfish-fuzz-tb-file "${ENGINE_SOURCES[@]}" tools/fuzz_tb_file.c \
+    -lm -lpthread
+
   # -print_funcs=0: libFuzzer symbolizes every newly-covered function to name it
   # in the log, and llvm-symbolizer costs SECONDS per call here. Left on, a 45s
   # budget took 90s of wall clock and executed 41 inputs; off, the same budget
   # runs 9 million. The names buy nothing a crash report does not already print.
+  info "Syzygy parse fuzzing, decoder lane: ${seconds}s"
   ./build/mcfish-fuzz-tb \
     -max_total_time="$seconds" -timeout=8 -print_funcs=0 -print_final_stats=1
-  green "fuzz-tb clean: ${seconds}s, no crash, no hang"
+
+  # Seed the whole-file lane from the real 3-man tables when they are present.
+  # Mutating a table that PARSES is worth far more than mutating noise -- the
+  # same principle tools/uci_fuzz.py applies to almost-valid commands -- and a
+  # 3-man file already satisfies the length rule, so `[stem][len][bodies]`
+  # reconstructs both files byte for byte. Without the tables the lane still runs
+  # unseeded, and says so rather than implying it was seeded. The directory is
+  # libFuzzer's output corpus too, so it accumulates across runs -- which is why
+  # the message is about the SEED and not about the corpus being empty.
+  local corpus=build/fuzz-tb-corpus
+  mkdir -p "$corpus"
+  local seeded=0 stem sel w z wlen
+  for sel in 0 1; do
+    stem=$([[ $sel -eq 0 ]] && echo KQvK || echo KPvK)
+    w="$TB_DIR/$stem.rtbw"
+    z="$TB_DIR/$stem.rtbz"
+    [[ -s $w && -s $z ]] || continue
+    wlen=$(($(stat -c%s "$w") - 4))
+    printf "$(printf '\\%03o' "$sel")$(printf '\\%03o' $(((wlen >> 16) & 0xFF)))$(printf '\\%03o' $(((wlen >> 8) & 0xFF)))$(printf '\\%03o' $((wlen & 0xFF)))" \
+      > "$corpus/seed-$stem"
+    tail -c +5 "$w" >> "$corpus/seed-$stem"
+    tail -c +5 "$z" >> "$corpus/seed-$stem"
+    seeded=$((seeded + 1))
+  done
+  if [[ $seeded -eq 0 ]]; then
+    red "no tables in $TB_DIR: the whole-file lane runs UNSEEDED"
+    red "  (./build.sh tb-fetch gives it tables that parse to mutate from)"
+  else
+    info "seeded the whole-file lane from $seeded real table pair(s)"
+  fi
+
+  info "Syzygy parse fuzzing, whole-file lane: ${seconds}s"
+  ./build/mcfish-fuzz-tb-file \
+    -max_total_time="$seconds" -timeout=8 -print_funcs=0 -print_final_stats=1 "$corpus"
+
+  green "fuzz-tb clean: ${seconds}s per lane, no crash, no hang"
 }
 
 # Re-run the suite under ThreadSanitizer.
