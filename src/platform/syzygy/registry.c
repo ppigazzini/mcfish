@@ -492,11 +492,19 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
         return false;
     }
 
+    // Carve the three file-backed regions. Each width is a promise the file makes
+    // about itself, and two of them are a file-stated count times a file-stated
+    // element size, so the MULTIPLICATION can wrap before `need` ever sees it — and
+    // a wrapped width is small, which is exactly the direction that turns an absurd
+    // promise into a satisfiable one. Refuse the width the arithmetic cannot
+    // represent. The block-length width needs no such check: its count is 32-bit
+    // and doubling it cannot leave a 64-bit size_t.
     for (size_t f = 0; f <= max_file; ++f) {
         for (size_t i = 0; i < sides; ++i) {
             PairsData *d = tbtable_get(t, dtz, i, f);
-            const size_t span = d->sparse_index_size * sizeof(SparseEntry);
-            if (!need(pos, span, buf_len)) {
+            size_t span;
+            if (__builtin_mul_overflow(d->sparse_index_size, sizeof(SparseEntry), &span)
+                || !need(pos, span, buf_len)) {
                 return false;
             }
             d->sparse_index = buf + pos;
@@ -518,8 +526,9 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
         for (size_t i = 0; i < sides; ++i) {
             pos = (pos + 0x3F) & ~(size_t) 0x3F;  // 64-byte alignment
             PairsData *d = tbtable_get(t, dtz, i, f);
-            const size_t span = (size_t) d->blocks_num * d->sizeof_block;
-            if (!need(pos, span, buf_len)) {
+            size_t span;
+            if (__builtin_mul_overflow((size_t) d->blocks_num, d->sizeof_block, &span)
+                || !need(pos, span, buf_len)) {
                 return false;
             }
             d->data = buf + pos;
