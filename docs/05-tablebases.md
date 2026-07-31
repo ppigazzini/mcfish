@@ -288,11 +288,18 @@ Both of those gates drive **well-formed** tables, which is the wrong shape for
 the question the parse actually has to answer. A table is untrusted input:
 `SyzygyPath` names a file the engine did not write, and every offset the parse
 advances is a value read out of that same file. `./build.sh fuzz-tb` is the gate
-for that half — libFuzzer over `decode_set_sizes` and `decode_pairs`, carving
-the file-backed regions exactly as `set` does so a reported crash is one a real
-`.rtbw` could cause. Treat the bounds in `decode.c` and `registry.c` as load
-bearing: the three bugs that gate found on its first run had survived a
-hand-written bounds pass that reads as complete.
+for that half, in two lanes. One calls `decode_set_sizes` and `decode_pairs`
+directly, carving the file-backed regions exactly as `set` does so a reported
+crash is one a real `.rtbw` could cause; it is fast enough to explore header
+shapes, and it is the lane that found the three decoder bugs. The other writes
+real files, points a real `SyzygyPath` at them and probes — a thousand times
+slower, and the only one that runs `set`, `set_groups`, `set_dtz_map` and
+`map_file` rather than a model of them. It is seeded from the 3-man set when
+`./build.sh tb-fetch` has been run, so mutation starts from a table that parses.
+
+Treat the bounds in `decode.c` and `registry.c` as load bearing: the three bugs
+that gate found on its first run had survived a hand-written bounds pass that
+reads as complete.
 
 ## Gaps
 

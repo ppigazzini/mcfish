@@ -127,7 +127,8 @@ jobs:
   fuzz-tb:
     name: Syzygy parse fuzz (libFuzzer+ASan+UBSan)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Two lanes at 10 minutes each, plus two sanitizer builds of the engine.
+    timeout-minutes: 40
     env:
       # Same forcing as the two jobs above.
       ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
@@ -142,9 +143,19 @@ jobs:
           sudo /tmp/llvm.sh "$CLANG_VERSION"
           "clang-$CLANG_VERSION" --version
 
-      # No net and no tables to fetch: tools/fuzz_tb_parse.c links three decoder
-      # files and builds every table it parses out of the fuzzer's own bytes, so
-      # this job needs nothing from the network. A real .rtbw would be the WRONG
-      # seed anyway -- the target is the shapes a valid file never takes.
-      - name: Fuzz the Syzygy parse (bounded, 10 min)
+      # Best-effort, and it seeds only the whole-file lane: with the 3-man set
+      # present that lane mutates tables that PARSE, which is where a parser
+      # dies; without it the lane still runs, from an empty corpus, and says so
+      # in red. A mirror outage must not fail a fuzz job, so this never gates.
+      # The decoder lane needs nothing either way -- it builds every table it
+      # parses out of the fuzzer's own bytes.
+      - name: Fetch the 3-man tables to seed the whole-file lane
+        continue-on-error: true
+        run: ./build.sh tb-fetch
+
+      # Both lanes, 10 minutes EACH: they cover different code (the decoder
+      # directly vs. registry.c set, set_groups, set_dtz_map and map_file) at
+      # throughputs three orders of magnitude apart, so one budget for both would
+      # be a budget for the fast one.
+      - name: Fuzz the Syzygy parse (bounded, 10 min per lane)
         run: CC="clang-$CLANG_VERSION" ./build.sh fuzz-tb 600
