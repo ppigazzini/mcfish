@@ -173,6 +173,16 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
     const int32_t diff = (int32_t) ((idx % d->span) - (d->span / 2));
     offset += diff;
 
+    // `block` is a raw 32-bit field of the compressed payload, so nothing the
+    // header stated bounds it. Refuse it here, before either walk: the backward
+    // one only ever decrements, so one test covers every index it reads, and the
+    // forward one keeps its own because it increments. A well-formed table always
+    // satisfies this — block_length_size is blocks_num plus the padding.
+    if (block >= d->block_length_size) {
+        *ok = false;
+        return 0;
+    }
+
     const uint8_t *const bl = d->block_length;
     while (offset < 0) {
         if (block == 0) {
@@ -242,6 +252,15 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
         buf64_size -= len;
         if (buf64_size <= 32) {
             buf64_size += 32;
+            // Refuse a window the symbol lengths have driven out of range. A valid
+            // table never consumes more bits than the window holds, so this stays
+            // above zero; a corrupt one can decode symbols long enough to walk it
+            // negative, and the refill shift below would then be 64 or more —
+            // undefined for a 64-bit type in C.
+            if (buf64_size <= 0) {
+                *ok = false;
+                return 0;
+            }
             if ((size_t) (end - ptr) < 4) {
                 *ok = false;
                 return 0;
@@ -257,21 +276,34 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
             *ok = false;
             return 0;
         }
+        const uint8_t here = d->symlen[sym];
         const Sym left = lr_left(d->btree[sym]);
         if ((size_t) left >= d->symlen_size) {
             *ok = false;
             return 0;
         }
+        Sym next;
         if (offset < (int32_t) d->symlen[left] + 1) {
-            sym = left;
+            next = left;
         } else {
             offset -= (int32_t) d->symlen[left] + 1;
-            sym = lr_right(d->btree[sym]);
-            if ((size_t) sym >= d->symlen_size) {
+            next = lr_right(d->btree[sym]);
+            if ((size_t) next >= d->symlen_size) {
                 *ok = false;
                 return 0;
             }
         }
+        // Descend only while the symbol shrinks. `set_sym_len` gives a well-formed
+        // btree symlen[s] == symlen[left] + symlen[right] + 1, so every step of a
+        // valid table already strictly decreases this and the test never fires. A
+        // corrupt btree can name a child that does not — including the node itself
+        // — and the walk would then never terminate: the tree is acyclic only
+        // because a valid file says so, and nothing here re-derives it.
+        if (d->symlen[next] >= here) {
+            *ok = false;
+            return 0;
+        }
+        sym = next;
     }
     if ((size_t) sym >= d->btree_size) {
         *ok = false;
