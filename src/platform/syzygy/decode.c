@@ -54,7 +54,13 @@ bool decode_set_sizes(
     p += 1;
     d->blocks_num = rd_u32le(buf + p);
     p += 4;
-    d->block_length_size = d->blocks_num + padding;
+    // Both terms are file bytes and the sum is 32-bit, so it can wrap — to a bound
+    // SMALLER than blocks_num, which the block walk would then read as a table with
+    // fewer block lengths than blocks. Saturate: a table claiming more blocks than
+    // the count can hold is corrupt either way, and the later width check refuses
+    // it on its own terms.
+    d->block_length_size =
+      d->blocks_num > UINT32_MAX - padding ? UINT32_MAX : d->blocks_num + padding;
     d->max_sym_len = buf[p];
     p += 1;
     d->min_sym_len = buf[p];
