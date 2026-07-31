@@ -1021,6 +1021,38 @@ do_test() {
   ./build/mcfish-test
 }
 
+# Assert a fuzz lane EXECUTED, rather than merely exiting 0.
+#
+# A libFuzzer lane that stalls still exits 0. That is not hypothetical here:
+# `fuzz-search` spent months green while executing three inputs per ninety
+# seconds, because llvm-symbolizer was serialising the run (see -print_funcs
+# below). The exit code cannot tell "found nothing" from "fuzzed nothing", and
+# only the first is worth reporting. zfish hit the same blind spot from the other
+# side -- its fuzzer prints no total at all, so it decodes the coverage file's
+# header instead (zfish b9aa6d03).
+#
+# libFuzzer does print the total, under -print_final_stats, so read that. The
+# floor is a RATE times the budget, set at roughly 1-2% of what each lane clears
+# locally: low enough that a slow runner passes, high enough that a stalled lane
+# cannot. A missing count is a failure too -- it means the run never reached its
+# own summary.
+assert_fuzz_executed() {
+  local label=$1 log=$2 per_sec=$3 seconds=$4
+  local n floor
+  n=$(grep -oE 'stat::number_of_executed_units: *[0-9]+' "$log" | grep -oE '[0-9]+$' | tail -1)
+  floor=$((per_sec * seconds))
+  [[ $floor -lt 1 ]] && floor=1
+  if [[ -z $n ]]; then
+    red "$label: no execution count in the run — the lane never reached its summary"
+    return 1
+  fi
+  if [[ $n -lt $floor ]]; then
+    red "$label: executed $n inputs, floor $floor — the lane ran but fuzzed nothing"
+    return 1
+  fi
+  info "$label executed $n inputs (floor $floor)"
+}
+
 # Coverage-guided, in-process fuzzing of the real search -- the gap
 # tools/uci_fuzz.py cannot close, because that lane drives the shipped binary's
 # stdin over a pipe, so a mutation spends most of its budget on the UCI parser
@@ -1054,7 +1086,11 @@ do_fuzz_search() {
   # -print_funcs=0: see do_fuzz_tb. This lane is where it actually mattered --
   # the engine has enough functions that the symbolizer never stopped: 30s of
   # budget executed THREE inputs, and the nightly 600s job was fuzzing nothing.
-  ./build/mcfish-fuzz-search -max_total_time="$seconds" -print_funcs=0 -print_final_stats=1
+  # `set -o pipefail` is on, so the tee does not mask the fuzzer's exit code —
+  # the trap CONTRIBUTING.md warns about needs a pipeline without it.
+  ./build/mcfish-fuzz-search -max_total_time="$seconds" -print_funcs=0 -print_final_stats=1 \
+    2>&1 | tee build/fuzz-search.log
+  assert_fuzz_executed "fuzz-search" build/fuzz-search.log 2 "$seconds"
   green "fuzz-search clean: ${seconds}s, no crash found"
 }
 
@@ -1101,7 +1137,9 @@ do_fuzz_tb() {
   # runs 9 million. The names buy nothing a crash report does not already print.
   info "Syzygy parse fuzzing, decoder lane: ${seconds}s"
   ./build/mcfish-fuzz-tb \
-    -max_total_time="$seconds" -timeout=8 -print_funcs=0 -print_final_stats=1
+    -max_total_time="$seconds" -timeout=8 -print_funcs=0 -print_final_stats=1 \
+    2>&1 | tee build/fuzz-tb.log
+  assert_fuzz_executed "fuzz-tb decoder lane" build/fuzz-tb.log 2000 "$seconds"
 
   # Seed the whole-file lane from the real 3-man tables when they are present.
   # Mutating a table that PARSES is worth far more than mutating noise -- the
@@ -1135,7 +1173,9 @@ do_fuzz_tb() {
 
   info "Syzygy parse fuzzing, whole-file lane: ${seconds}s"
   ./build/mcfish-fuzz-tb-file \
-    -max_total_time="$seconds" -timeout=8 -print_funcs=0 -print_final_stats=1 "$corpus"
+    -max_total_time="$seconds" -timeout=8 -print_funcs=0 -print_final_stats=1 "$corpus" \
+    2>&1 | tee build/fuzz-tb-file.log
+  assert_fuzz_executed "fuzz-tb whole-file lane" build/fuzz-tb-file.log 2 "$seconds"
 
   green "fuzz-tb clean: ${seconds}s per lane, no crash, no hang"
 }
