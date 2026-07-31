@@ -397,6 +397,15 @@ static bool need(size_t pos, size_t bytes, size_t len) {
 // upstream.
 static bool
 set_dtz_map(TBTable *t, const uint8_t *buf, size_t buf_len, size_t *pos, size_t max_file) {
+    // Test the cursor before subtracting from it. `decode_set_sizes` word-aligns
+    // past the btree, so it can leave *pos exactly one byte beyond the file, and
+    // `buf_len - *pos` would then wrap to SIZE_MAX — a map the size of the address
+    // space, handed to the bounds checks in wdl.c as their limit. Every path out of
+    // this function happens to reject such a table anyway; that is a coincidence of
+    // the current control flow, not a property worth resting the bound on.
+    if (*pos > buf_len) {
+        return false;
+    }
     t->dtz_map = buf + *pos;
     t->dtz_map_size = buf_len - *pos;
     const size_t map_base = *pos;
