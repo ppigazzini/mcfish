@@ -1051,7 +1051,10 @@ do_fuzz_search() {
   "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=fuzzer,address,undefined \
     -o build/mcfish-fuzz-search "${ENGINE_SOURCES[@]}" tools/fuzz_search.c -lm -lpthread
 
-  ./build/mcfish-fuzz-search -max_total_time="$seconds" -print_final_stats=1
+  # -print_funcs=0: see do_fuzz_tb. This lane is where it actually mattered --
+  # the engine has enough functions that the symbolizer never stopped: 30s of
+  # budget executed THREE inputs, and the nightly 600s job was fuzzing nothing.
+  ./build/mcfish-fuzz-search -max_total_time="$seconds" -print_funcs=0 -print_final_stats=1
   green "fuzz-search clean: ${seconds}s, no crash found"
 }
 
