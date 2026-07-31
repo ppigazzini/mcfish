@@ -90,6 +90,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `engine-standalone` | compiles every `src/engine/*.c` alone and links them with **no** platform object | the engine→platform edge, as a count rather than a claim. Ratchets the undefined symbols against [`../tools/engine_platform.baseline`](../tools/engine_platform.baseline): a new one fails (fix it with a seam, not a baseline edit), and a stale one fails too, so the list cannot outlive what it measures. See [00-architecture.md](00-architecture.md) |
 | `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism |
 | `fuzz-search [seconds]` | builds `ENGINE_SOURCES` + [`../tools/fuzz_search.c`](../tools/fuzz_search.c) under libFuzzer+ASan+UBSan and runs it for the given budget (default 30s) | the real search **in-process**: a fuzzer-selected random-legal-move walk from the start position, then `search_go` at a shallow depth, with no shell and no UCI text in the way. clang-only (libFuzzer has no gcc lane). Kept out of `parity`, same reason as `tsan`: its own build and a real time budget, and a clean run means "no crash in that budget," not "there is none." See [00-architecture.md](00-architecture.md#what-the-library-boundary-buys) |
+| `fuzz-tb [seconds]` | builds the three Syzygy decoder files + [`../tools/fuzz_tb_parse.c`](../tools/fuzz_tb_parse.c) under libFuzzer+ASan+UBSan and runs it for the given budget (default 30s) | the Syzygy header parse and the RE-PAIR decoder over arbitrary bytes — the other untrusted input, since `SyzygyPath` names a **binary** file the engine did not write and every offset the parse advances is read out of it. It carves the file-backed regions exactly as `registry.c set` does, so a crash it reports is reachable; the file sits in an exact-size heap allocation, which is stricter than the shipped mmap, whose page padding hides a read just past the end. Passes `-timeout` because a corrupt btree could once make the descent run forever, so a hang is a finding. Standing it up found three bugs the hand-written bounds had missed. clang-only, out of `parity`, same reasons as `fuzz-search` |
 | `tsan` | rebuilds `ENGINE_SOURCES` + the test binary under ThreadSanitizer and runs it | the thread pool: that spawning, dispatching a job, waiting on the condition variable and joining carry the happens-before edges they claim. **This is the only gate that can see a threading bug at all** — the single-threaded search never reaches that code, and a race does not have to fire to be there. Kept out of `parity`: it needs its own build of the engine and roughly triples the suite. Run it whenever `src/platform/thread*.c` changes |
 | `tsan-search [depth] [threads]` | builds the **whole engine** under ThreadSanitizer and drives one `go` through the UCI front end | races in the SEARCH, which `tsan` cannot see: that step links the test binary, so the only concurrent code it reaches is the thread-pool test. Now that the pool is driven it measures a genuinely multi-threaded search — see [04-multithreading.md](04-multithreading.md). It is the search-race gate the thread-pool `tsan` run cannot substitute for |
 | `signature` | runs the default `bench` (a bare `engine bench` — the full position list at depth 13, `Hash 16`, one `ucinewgame`), compares the node total to [`../tools/signature.golden`](../tools/signature.golden) | that no edit changed search behaviour unintentionally |
@@ -752,7 +753,7 @@ below where the fast gate stops. This lane spends the time, against published
 reference counts, on the six standard positions. Same rule as above — the counts
 are facts, so a mismatch is a movegen bug.
 
-### `mcfish_fuzz.yml` — nightly bounded fuzzing, two jobs
+### `mcfish_fuzz.yml` — nightly bounded fuzzing, three jobs
 
 **`fuzz`.** The golden transcripts `golden` diffs against only exercise the
 well-formed subset of the UCI grammar. This job drives the ASan+UBSan engine
@@ -784,7 +785,17 @@ covers movegen, the move picker, the TT, pruning, qsearch and the NNUE
 accumulator push/pop, none of which `fuzz` reaches once a mutation is a
 well-formed command; neither job subsumes the other.
 
-Both scheduled daily, 04:31 UTC.
+**`fuzz-tb`.** The third input surface, and the only **binary** one besides the
+net: a `.rtbw`/`.rtbz` the engine did not write, reached by pointing
+`SyzygyPath` at it. Neither of the other two jobs can get there — the UCI
+fuzzer mutates text, and `fuzz-search` never loads a table — so the bounds in
+`decode.c` and `registry.c` had no fuzzer behind them at all until this job,
+which is to say they were a claim rather than a gate. Standing it up found
+three bugs, two of them in the decoder that runs inside the search: an
+out-of-bounds read through the backward block walk, a btree descent that a
+cyclic tree made non-terminating, and a shift of 64. `./build.sh fuzz-tb 600`.
+
+All three scheduled daily, 04:31 UTC.
 
 ### `mcfish_upstream_check.yml` — weekly upstream-sync detection, three jobs
 

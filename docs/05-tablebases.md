@@ -284,6 +284,16 @@ never committed.
 oracle** and refuses without the full set. There is no mcfish-derived path to
 that golden at all — see [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md).
 
+Both of those gates drive **well-formed** tables, which is the wrong shape for
+the question the parse actually has to answer. A table is untrusted input:
+`SyzygyPath` names a file the engine did not write, and every offset the parse
+advances is a value read out of that same file. `./build.sh fuzz-tb` is the gate
+for that half — libFuzzer over `decode_set_sizes` and `decode_pairs`, carving
+the file-backed regions exactly as `set` does so a reported crash is one a real
+`.rtbw` could cause. Treat the bounds in `decode.c` and `registry.c` as load
+bearing: the three bugs that gate found on its first run had survived a
+hand-written bounds pass that reads as complete.
+
 ## Gaps
 
 - **The `tb` gate is 3-man only** — but the cursed-win / blessed-loss branches of

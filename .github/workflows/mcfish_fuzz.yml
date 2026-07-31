@@ -123,3 +123,28 @@ jobs:
       # checkout root, unlike the `fuzz` job's `cd resources`.
       - name: Fuzz the search (bounded, 10 min)
         run: CC="clang-$CLANG_VERSION" ./build.sh fuzz-search 600
+
+  fuzz-tb:
+    name: Syzygy parse fuzz (libFuzzer+ASan+UBSan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Same forcing as the two jobs above.
+      ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
+      UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install clang ${{ env.CLANG_VERSION }}
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          "clang-$CLANG_VERSION" --version
+
+      # No net and no tables to fetch: tools/fuzz_tb_parse.c links three decoder
+      # files and builds every table it parses out of the fuzzer's own bytes, so
+      # this job needs nothing from the network. A real .rtbw would be the WRONG
+      # seed anyway -- the target is the shapes a valid file never takes.
+      - name: Fuzz the Syzygy parse (bounded, 10 min)
+        run: CC="clang-$CLANG_VERSION" ./build.sh fuzz-tb 600
