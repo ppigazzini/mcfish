@@ -785,6 +785,12 @@ covers movegen, the move picker, the TT, pruning, qsearch and the NNUE
 accumulator push/pop, none of which `fuzz` reaches once a mutation is a
 well-formed command; neither job subsumes the other.
 
+Both libFuzzer lanes pass `-print_funcs=0`, and it is not cosmetic: symbolizing
+each newly-covered function costs seconds per call, and this job had been
+executing **three inputs** per 30 seconds of budget — a nightly ten-minute run
+that fuzzed nothing while reporting a clean pass. Read a libFuzzer lane's
+`Done N runs` line, not its exit code.
+
 **`fuzz-tb`.** The third input surface, and the only **binary** one besides the
 net: a `.rtbw`/`.rtbz` the engine did not write, reached by pointing
 `SyzygyPath` at it. Neither of the other two jobs can get there — the UCI
