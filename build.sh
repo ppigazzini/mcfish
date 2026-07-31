@@ -1055,6 +1055,39 @@ do_fuzz_search() {
   green "fuzz-search clean: ${seconds}s, no crash found"
 }
 
+# Coverage-guided fuzzing of the Syzygy table parse and the RE-PAIR decoder.
+#
+# The complement to `fuzz-search` on the other untrusted input: SyzygyPath names
+# a BINARY file the engine did not write, and every offset the parse advances
+# comes out of that file. tools/fuzz_tb_parse.c owns what one iteration does and
+# why it carves the regions the way registry.c does.
+#
+# Links three files, not ENGINE_SOURCES: the decoder cluster depends on nothing
+# but libc. -timeout: a corrupt btree used to be able to make the descent run
+# forever, so a hang is a finding here and libFuzzer must be told to call it one
+# rather than sit on it.
+#
+# clang-only and kept OUT of `parity`, for the same reasons as `fuzz-search`.
+do_fuzz_tb() {
+  local seconds=${1:-30}
+  info "Syzygy parse fuzzing: ${seconds}s"
+  mkdir -p build
+
+  "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=fuzzer,address,undefined \
+    -fno-sanitize-recover=undefined \
+    -o build/mcfish-fuzz-tb \
+    src/platform/syzygy/decode.c src/platform/syzygy/tables.c \
+    src/platform/syzygy/encode.c tools/fuzz_tb_parse.c
+
+  # -print_funcs=0: libFuzzer symbolizes every newly-covered function to name it
+  # in the log, and llvm-symbolizer costs SECONDS per call here. Left on, a 45s
+  # budget took 90s of wall clock and executed 41 inputs; off, the same budget
+  # runs 9 million. The names buy nothing a crash report does not already print.
+  ./build/mcfish-fuzz-tb \
+    -max_total_time="$seconds" -timeout=8 -print_funcs=0 -print_final_stats=1
+  green "fuzz-tb clean: ${seconds}s, no crash, no hang"
+}
+
 # Re-run the suite under ThreadSanitizer.
 #
 # This is the gate the threading zone actually needs. The pool spawns real OS threads,
@@ -1691,6 +1724,7 @@ usage: ./build.sh <step> [args]
   debug              compile with asan+ubsan             -> build/mcfish-debug
   test               build and run the unit/property suite (asan+ubsan)
   fuzz-search [s]    in-process libFuzzer over search_go, s seconds (default 30)
+  fuzz-tb [s]        in-process libFuzzer over the Syzygy parse, s seconds (default 30)
   tsan               re-run the suite under ThreadSanitizer (the thread-pool gate)
   tsan-search [d] [t] run a real search under ThreadSanitizer (the search-race baseline)
   bench [depth]      run the benchmark (default depth 13)
@@ -1735,6 +1769,7 @@ case "${1:-build}" in
   debug)            do_debug ;;
   test)             do_test ;;
   fuzz-search)      shift; do_fuzz_search "$@" ;;
+  fuzz-tb)          shift; do_fuzz_tb "$@" ;;
   tsan)             do_tsan ;;
   tsan-search)      shift; do_tsan_search "$@" ;;
   bench)            do_bench "${2:-}" ;;
