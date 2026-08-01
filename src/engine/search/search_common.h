@@ -144,6 +144,11 @@ int prior_pawnhist_scale(int scaled_bonus);
 
 int correction_history_bonus(int eval_delta, int depth, bool has_best_move);
 
+// Return the correction bonus a multi-cut carries: the singular search already
+// proved the node fails high above beta, so the amount by which its value beat the
+// static eval is evidence the correction tables are reading the position low.
+int multicut_correction_bonus(int eval_delta, int singular_depth);
+
 // Blend the six correction reads. The caller resolves the table lookups; only the
 // tuned weights live here.
 int correction_value_blend(int pcv, int micv, int wnpcv, int bnpcv, int cch2, int cch4, bool m_ok);

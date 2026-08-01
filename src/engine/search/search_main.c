@@ -486,6 +486,20 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 depth += 1;
             } else if (value >= beta && !value_is_decisive(value)) {
                 tt_move_history_update(h, tt_move_history_depth_bonus(depth));
+
+                if (!ss->in_check && value > ss->static_eval) {
+                    const CorrectionKeys keys = {
+                        .pawn = pos->st->pawn_key,
+                        .minor = pos->st->minor_piece_key,
+                        .non_pawn = { pos->st->non_pawn_key[WHITE], pos->st->non_pawn_key[BLACK] },
+                    };
+                    history_update_correction(
+                      h, pos, pos->side_to_move, &keys, ss1->current_move,
+                      (ss - 2)->continuation_correction_history,
+                      (ss - 4)->continuation_correction_history,
+                      multicut_correction_bonus(value - ss->static_eval, singular_depth));
+                }
+
                 return value;
             } else if (tt_value >= beta) {
                 extension = -3;
