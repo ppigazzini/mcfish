@@ -213,7 +213,7 @@ by whoever writes them first, and inserting every node's bank from the calling
 thread puts them all on one node — precisely the cost per-node banks exist to
 avoid.
 
-Thread distribution keeps its fill ratio in **`float`**, as the port source does:
+Thread distribution keeps its fill ratio in **`float`**, as upstream does:
 a wider accumulator would move the ties and hand a different node to a thread.
 
 ## What is missing, precisely
