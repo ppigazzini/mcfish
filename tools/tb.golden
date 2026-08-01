@@ -4,10 +4,10 @@ KQvK-win-w score cp 20000 tbhits 18 pv d1d5 e3f4 e1f2 f4g4 d5e5 g4h4 f2f3 h4h3 e
 KQvK-loss-b score cp -20000 tbhits 4 pv d3e4 d1d6 e4f5 d6e7 f5g6 e1e2 g6f5 e2f3 f5g6 f3g4 g6h6 g4f5 h6h5 e7g5 
 KRvK-win-w score cp 20000 tbhits 11 pv d1d5 e3f4 e1e2 f4e4 d5h5 e4f4 e2d3 f4g4 h5a5 g4f4 a5b5 f4f3 b5b4 f3f2 b4f4 f2g3 d3e3 g3g2 f4f3 g2g1 f3f2 g1h1 e3f3 h1g1 f3g3 g1h1 f2f1 
 KRvK-far-w score cp 20000 tbhits 15 pv a1a5 e4d4 e1d2 d4e4 d2c3 e4e3 a5a4 e3e2 a4e4 e2f3 c3d3 f3f2 e4e3 f2f1 e3e2 f1g1 e2a2 g1f1 d3e3 f1g1 e3f3 g1h1 f3g3 h1g1 a2a1 
-KRvK-black-stronger score cp 20000 tbhits 14 pv e8e7 e1f2 e7e6 f2e2 e6f5 e2e3 d8d5 e3f3 d5e5 f3g3 e5e3 g3f2 f5f4 f2g2 e3f3 g2h2 f3g3 h2h1 f4e3 h1h2 e3f2 h2h1 g3h3 
-KQvK-black-stronger score cp 20000 tbhits 21 pv e8e7 e1f2 d8d3 f2e1 d3c2 e1f1 e7d6 f1e1 d6d5 e1f1 d5e4 f1e1 e4e3 e1f1 c2f2 
-KBvK-draw-w score cp 0 tbhits 8 pv d1e2 
-KNvK-draw-w score cp 0 tbhits 8 pv d1b2 
-KPvK-draw-w score cp 0 tbhits 2 pv e1f1 
+KRvK-black-stronger score cp 20000 tbhits 14 pv e8f7 e1f2 d8e8 f2g3 f7f6 g3f4 e8e5 f4g4 e5f5 g4h4 f5g5 h4h3 g5g6 h3h4 f6f5 h4h3 f5f4 h3h2 f4f3 h2h1 f3f2 h1h2 g6h6 
+KQvK-black-stronger score cp 20000 tbhits 21 pv d8d4 e1e2 e8e7 e2f3 d4d2 f3g4 d2e3 g4f5 e7f7 f5g4 f7g6 g4h4 g6f5 h4h5 e3h3 
+KBvK-draw-w score cp 0 tbhits 8 pv e1f1 
+KNvK-draw-w score cp 0 tbhits 8 pv e1e2 
+KPvK-draw-w score cp 0 tbhits 2 pv e1d1 
 KPvK-draw-b score cp 0 tbhits 3 pv e3d4 
-KPvK-black-pawn score cp 20000 tbhits 6 pv e8f7 e1d1 f7e6 d1e1 e6d5 e1d2 d5d4 d2c2 e7e6 c2c1 d4d3 c1d1 e6e5 d1c1 e5e4 c1d1 e4e3 d1c1 e3e2 c1b2 e2e1q b2b3 e1b1 b3a4 d3c4 a4a3 b1a1 
+KPvK-black-pawn score cp 20000 tbhits 6 pv e8d7 e1d1 d7d6 d1c1 d6c5 c1b2 c5c4 b2c2 e7e6 c2d2 c4d4 d2e2 d4e4 e2d2 e4f3 d2d3 e6e5 d3d2 e5e4 d2e1 f3e3 e1d1 e3f2 d1d2 e4e3 d2d1 e3e2 d1d2 e2e1q d2c2 f2e2 c2b3 e2d3 b3b2 e1b4 b2c1 b4b5 c1d1 b5b1 

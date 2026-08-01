@@ -45,7 +45,7 @@ Checkers:
 Fen: qbrnnkrb/pppppppp/8/8/8/8/PPPPPPPP/QBRNNRKB b gc - 1 1
 Key: FF9EAE48F14D1BAC
 Checkers: 
-info string NNUE evaluation using nn-89cb98a217f7.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
 a2a3: 9209
 b2b3: 12179
 c2c3: 11588
