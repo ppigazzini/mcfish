@@ -15,30 +15,56 @@ generated from mcfish and both pinned real divergences for as long as they exist
 
 Both gates were green throughout.
 
-## Provenance
+## The audit, not this table, is the claim
 
-| golden | derived from | meaning |
-| --- | --- | --- |
-| `board` | **oracle** | byte-for-byte upstream |
-| `chess960` | **oracle** | byte-for-byte upstream |
-| `errors` | **oracle** | byte-for-byte upstream, including `exit=1` |
-| `perft` | **oracle** | byte-for-byte upstream |
-| `eval` | **oracle** | byte-for-byte upstream |
-| `netswap` | **oracle** | byte-for-byte upstream — a net swap must drop the search state |
-| `handshake` | **oracle**, one line substituted | byte-for-byte upstream except `id name` |
-| `search` | **oracle** | byte-for-byte upstream |
+This page used to end with a table asserting each golden's provenance, and that
+table was **a claim no tool checked**. `./build.sh golden-update` drives mcfish, so
+every resync quietly converted oracle-derived goldens back into self-photographs
+while the table went on saying otherwise. It did exactly that during the c5aef2bf1
+sync, to six of the eight.
 
-Regenerate an oracle-derived golden from the oracle. Never from mcfish: that
-converts a red gate into a recorded bug. `tb` has its own regenerator,
-`./build.sh tb-update`, which runs the oracle and refuses to run without the full
-3-man set — there is no mcfish-derived path to that golden at all.
+`./build.sh golden-audit` ([`upstream_golden_audit.sh`](upstream_golden_audit.sh))
+is the check. It drives the same `cases/*.uci` scripts through a **pristine upstream
+build** and diffs the result against the committed golden, so the provenance is
+re-derived on demand instead of remembered:
+
+```
+./build.sh golden-audit
+  golden-audit: 8 agree, 0 differ, 0 missing
+  golden-audit: every golden matches what upstream itself produces
+```
+
+**Every golden in this directory is upstream's own bytes**, `handshake` excepted on
+one line (below). Standing the audit up found a real divergence on its first run:
+mcfish emitted the `go` line's processor and thread info strings only on the search
+path, because the perft arm returned from inside the argument loop — so `go perft`
+was missing two lines upstream prints. `chess960` and `perft` were green over that
+for as long as it existed, because both were photographs.
+
+**LOCAL**: the audit needs the pinned upstream tree and a built oracle, which a CI
+clone of this repo alone does not carry. The weekly `mcfish upstream check` workflow
+runs it, since that lane already clones the golden and builds the oracle.
+
+## Regenerating one
+
+Use `./build.sh golden-audit --write`. It writes what upstream produced, so the
+golden it leaves behind is adjudicated by construction:
 
 ```sh
-NORM=$(sed -n '/^normalize()/,/^}/p' build.sh)
-cd ../.mcfish-upstream-oracle/src && eval "$NORM"
-{ ./stockfish < /home/usr00/_git/mcfish/tools/cases/<case>.uci 2>&1; printf 'exit=%d\n' "$?"; } \
-  | normalize > /home/usr00/_git/mcfish/tools/<case>.golden
+./build.sh golden-audit --write        # every case that differs
+./build.sh golden-audit --write perft  # just this one
 ```
+
+Then run `./build.sh golden` and read what it says: a golden re-derived from the
+oracle turns red exactly where mcfish still has to change to match, which is the
+information the regeneration exists to produce.
+
+`./build.sh golden-update` still exists and still drives **mcfish**. It is for a
+case upstream cannot be driven through, and there are none today. Reaching for it
+in a resync is what put six self-photographs in this directory.
+
+`tb.golden` has its own regenerator, `./build.sh tb-update`, which runs the oracle
+and refuses without the full 3-man set — there is no mcfish-derived path to it.
 
 ## `handshake`: the one legitimate substitution
 
@@ -46,66 +72,37 @@ cd ../.mcfish-upstream-oracle/src && eval "$NORM"
 because exactly one line cannot be compared: mcfish is not named Stockfish, and
 `normalize` rewrites the *banner* but not `id name`. Every other line — the option
 order, every type, default and bound, the blank line upstream emits before the
-first option — is upstream's own bytes.
-
-```sh
-W=$PWD
-NORM=$(sed -n '/^normalize()/,/^}/p' build.sh)
-CC_ID=$(printf 'uci\nquit\n' | ./build/mcfish | grep '^id name ')
-( cd ../.mcfish-upstream-oracle/src && eval "$NORM"
-  { ./stockfish < "$W/tools/cases/handshake.uci" 2>&1; printf 'exit=%d\n' "$?"; } | normalize ) \
-  | sed "s|^id name Stockfish .*|$CC_ID|" > tools/handshake.golden
-```
+first option — is upstream's own bytes. The audit performs the same substitution.
 
 The substitution is the whole exception, and it must stay one `sed` on one
 anchored line. Widen it and the gate stops comparing the option table, which is
-the only thing it exists to compare.
-
-## Moving a self-photograph to the oracle
-
-Each remaining self-generated golden is so because of a *named* gap, not because
-upstream cannot be reached. When the gap closes, re-derive it from the oracle and
-let the gate tell you whether it really closed. To see how far one currently is --
-hold the worktree path in `W` first, because `$PWD` inside the subshell is already
-the oracle's directory, not this tree's:
-
-```sh
-W=$PWD; NORM=$(sed -n '/^normalize()/,/^}/p' build.sh); eval "$NORM"
-diff <(./build/mcfish < tools/cases/search.uci 2>&1 | normalize) \
-     <(cd ../.mcfish-upstream-oracle/src && ./stockfish < "$W/tools/cases/search.uci" 2>&1 | normalize)
-```
-
-`handshake` reaches zero on every line but `id name`, which is why it is
-oracle-derived with that one line substituted rather than self-generated.
+the only thing it exists to compare. It is a **substitution and not a drop** on
+purpose: the line's absence is still a diff.
 
 ## What `normalize` hides, and why that is dangerous
 
 `normalize` elides volatile fields (time, nps) and **drops** upstream lines mcfish
-does not yet emit because the subsystem is unwired — the thread-pool and
-shared-memory `info string`s. Those drops are the only thing keeping a gap out of
-the goldens, so when the subsystem lands, delete its line from `normalize` FIRST
-and let the gate go red. A filter that outlives its gap silently stops comparing
-real output.
+does not yet emit because the subsystem is unwired — the NUMA network-replica
+`info string`. Those drops are the only thing keeping a gap out of the goldens, so
+when the subsystem lands, delete its line from `normalize` FIRST and let the gate go
+red. A filter that outlives its gap silently stops comparing real output.
+
+The audit shares `normalize` with the gate rather than restating it, by extracting
+the function from `build.sh`. A second copy would drift from the first exactly when
+it matters — when a gap closes and its line must stop being dropped.
 
 ## Driving the oracle: a case containing `go` needs pauses
 
-The regeneration command above pipes the script straight in. That is correct for
-`d`, `eval`, `go perft` and `position`, which are synchronous — and WRONG for
-`go`, which upstream runs on another thread. A piped `go` is cut short by the next
-command and yields a depth-1 stub, so the golden records a truncated search.
+The audit feeds each script to the oracle **line by line, with a settle after every
+`go`**, and that is not incidental. mcfish's `go` is synchronous, so the gate itself
+may pipe a whole script in at once; upstream searches on another thread, and a piped
+`go` is cut short by the next command and yields a depth-1 stub — so the comparison
+records a truncated search on upstream's side and reads as a divergence.
 
-This produced a false result here: `search` appeared to differ from the oracle by
-two lines and was recorded as a self-photograph, when driving the oracle properly
-shows it is byte-identical. Use:
+This produced a false result here once already: `search` appeared to differ from the
+oracle by two lines and was recorded as a self-photograph, when driving the oracle
+properly shows it is byte-identical.
 
-```sh
-drive_oracle() {
-  { while IFS= read -r l; do printf '%s\n' "$l"; case "$l" in go*) sleep 5;; esac; done < "$1"
-    sleep 1; } | (cd ../.mcfish-upstream-oracle/src && ./stockfish) 2>&1
-}
-{ drive_oracle tools/cases/<case>.uci; printf 'exit=0\n'; } | normalize \
-  | sed -E 's/^(mcfish|Stockfish) [^ ]+ by .*/<engine banner>/' > tools/<case>.golden
-```
-
-mcfish's own `go` is synchronous, so the gate itself may pipe — only the oracle
-side needs this.
+The other rig detail is **cwd**. Every gate runs the engine from `resources/`, where
+the net lives; run the oracle from its own worktree instead and it loads no net, and
+every evaluation-bearing case differs for a reason that is not a divergence.
