@@ -197,6 +197,14 @@ passing is often genuinely the best move available, so the "if I do nothing and
 still fail high" reasoning is invalid. The verification search past `nmp_min_ply`
 is what stops a null-move-only line from proving a cutoff it cannot deliver.
 
+The reduction is `7 + depth / 3 + max((static_eval - beta) / 256, 0)`: the further
+the side to move is already ahead of beta, the less of the tree the null move has to
+see to make its point. The guard beside it is `beta >= -2000`, a plain bound rather
+than the mate-range predicate `value_is_loss` that reads more naturally there. That
+is deliberate and upstream's own: the reduction term costs mate finds when beta sits
+in decisive range, and the stricter numeric margin is what an earlier version of the
+patch was reverted for lacking. Do not "tidy" it back into `value_is_loss`.
+
 The null move **publishes sentinel history pages** before recursing:
 `ss->current_move` becomes `MOVE_NULL` and both continuation pointers become the
 base pages. Without that, the six-ply continuation walk would score a phantom move
@@ -222,6 +230,23 @@ fills from `piece_on(from)` ahead of the move. For a promotion that is the pawn,
 the piece standing on `to` afterwards. Reading it post-move is a divergence that
 only shows up in promotion-heavy positions, which is exactly where it is hardest to
 notice.
+
+### What the singular search returns when it does not extend
+
+Step 15's search on the tt move excluded has three outcomes besides the extension.
+Two are worth stating because neither is about the tt move at all:
+
+- **Multi-cut.** The excluded search failed high over beta, so some *other* move
+  already refutes the node and the search returns that value immediately. Before it
+  does, it feeds the correction histories: the excluded search proved the node is
+  worth more than the static eval said, and by how much, which is exactly the signal
+  those tables exist to absorb. The bonus is
+  `clamp(delta * singular_depth * 177 / 1024, ±CORRECTION_HISTORY_LIMIT / 4)` and it
+  runs only out of check and only when the value beat the static eval.
+- **Negative extension.** When the search neither proves the tt move singular nor
+  multi-cuts, the tt move is reduced instead of extended — by 3, in the two cases
+  where the tt move is assumed to fail high over beta and where the node is a cut
+  node. These were separately 3 and 2 until upstream collapsed them.
 
 ### Reductions and margins
 
