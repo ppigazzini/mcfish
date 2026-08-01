@@ -755,6 +755,13 @@ attribution argument because each simply removes what it is not measuring:
 - **`perft`** is the board zone — movegen, make/unmake, legality, threats — with no
   TT, no histories, no move ordering and no evaluation. It reports its own node count,
   so tree identity is checked for free.
+Read the PER-NODE columns beside every ratio, not the ratio alone. A ratio with no
+base cannot say whether it matters: this session's whole-engine `cache misses 1.007`
+reads like a finding until the absolutes turn out to be 57.0 against 57.4 per node,
+which is nothing. Per NODE rather than per run is what also makes two transcripts
+over DIFFERENT trees roughly comparable — a material-eval spine run against a
+full-engine one — which they are not on absolutes.
+
 - **`MCFISH_EVAL_MATERIAL=1`** replaces the evaluation with a material sum, which
   leaves the spine and the search running over a tree the network no longer shapes.
   Patch the oracle with the same formula — the weights are written out in both, not
