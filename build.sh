@@ -1013,10 +1013,18 @@ do_golden_update() {
   red "before committing, and say in the body what behaviour changed and why."
 }
 
+# -DMCFISH_ACC_STATS is passed HERE and to `tsan`, and to no other build.
+#
+# It compiles the accumulator's path counters in. The four ways up to the top slot
+# agree on every value they produce, so a step that stops running is answered
+# correctly by its own fallback and passes the anchor, the goldens and the
+# differential alike. The suite asserts each path was TAKEN as well as that it
+# agreed, and it cannot do that without a counter. The release binary keeps none:
+# the increment would sit in the hottest function in the engine.
 do_test() {
   info "unit + property tests"
   mkdir -p build
-  "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=address,undefined \
+  "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=address,undefined -DMCFISH_ACC_STATS \
     -o build/mcfish-test "${ENGINE_SOURCES[@]}" tests/test_main.c -lm -lpthread
   ./build/mcfish-test
 }
@@ -1194,7 +1202,7 @@ do_tsan() {
   info "unit + property tests under ThreadSanitizer"
   mkdir -p build
   "$CC" "$STD_FLAG" -Wall -Wextra -Isrc -D_POSIX_C_SOURCE=200809L -O1 -g \
-    -fsanitize=thread \
+    -fsanitize=thread -DMCFISH_ACC_STATS \
     -o build/mcfish-tsan "${ENGINE_SOURCES[@]}" tests/test_main.c -lm -lpthread
   ./build/mcfish-tsan
   green "tsan clean"

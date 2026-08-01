@@ -5,10 +5,22 @@
 // THE INVARIANT IS THAT THE ACCUMULATOR IS INCREMENTAL. Slot `i` of the stack holds the
 // accumulator after `i` plies AND the diff that produced it; `nnue_acc_evaluate` walks
 // from the nearest computed slot to the top, applying diffs, and only falls back to a
-// refresh when a king move invalidated the bucketed features. So the diffs are not
-// optional bookkeeping: EVERY make/unmake must push and pop, and every make must fill the
-// records `nnue_acc_stack_push` hands back, or the accumulator silently describes a
-// different position than the board does.
+// refresh when a king move invalidated features no cheaper step can carry. So the diffs
+// are not optional bookkeeping: EVERY make/unmake must push and pop, and every make must
+// fill the records `nnue_acc_stack_push` hands back, or the accumulator silently
+// describes a different position than the board does.
+//
+// `nnue_acc_evaluate` picks one of four ways up to the top slot. Which one it picks
+// changes no value, only the work:
+//
+//   shared walk    neither perspective needs a refresh: one forward pass takes both,
+//                  reading each ply's diff once (upstream forward_update_incremental_both)
+//   split walk     otherwise, one pass per perspective (upstream evaluate_side)
+//   hybrid         PERSPECTIVE's own king moved but stayed on its half of the board, so
+//                  the threat/pair accumulation carries over and only the HalfKA half is
+//                  swapped between the two king squares' cache entries
+//                  (upstream update_accumulator_hybrid)
+//   refresh        every remaining case: rebuild the top slot from the board
 //
 // Both arenas are raw byte buffers the CALLER owns and allocates, 64-byte aligned, sized
 // by `nnue_accumulator_stack_bytes` / `nnue_refresh_cache_bytes`. They are opaque
@@ -95,6 +107,30 @@ void nnue_acc_evaluate(NnueAccumulatorStack *stack,
                        const Position *pos,
                        const NnueFeatureTransformer *ft,
                        NnueRefreshCache *cache);
+
+#ifdef MCFISH_ACC_STATS
+// Count how many times each of the four ways up to the top slot was taken.
+//
+// This exists because the four agree on every value they produce, which is exactly
+// what makes a broken one hard to see: a step that never runs passes every gate this
+// tree has, including the bench anchor, because the fallback answers correctly in its
+// place. The suite asserts each path was TAKEN and that it agreed with a refresh, and
+// those are two different claims.
+//
+// Compiled into the test and tsan binaries only (build.sh passes -DMCFISH_ACC_STATS
+// there and nowhere else), so the release binary carries no counter in its hottest
+// function. Not thread-safe, and not meant to be: the suite drives one worker.
+typedef struct NnueAccStats {
+    uint64_t shared_walk;  // nnue_acc_evaluate took the both-perspectives forward pass
+    uint64_t shared_step;  // plies taken by that pass's shared suffix
+    uint64_t split_walk;   // nnue_acc_evaluate fell back to one pass per perspective
+    uint64_t hybrid;       // same-half king moves taken incrementally
+    uint64_t refresh;      // top slots rebuilt from the board
+} NnueAccStats;
+
+const NnueAccStats *nnue_acc_stats(void);
+void nnue_acc_stats_reset(void);
+#endif
 
 // Bring the accumulator up to date, then write the layer-0 input.
 //
