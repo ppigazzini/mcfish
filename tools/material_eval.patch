@@ -13,18 +13,21 @@ be a divergence, and the node counts would stop matching -- which is exactly how
 find out you got it wrong. ASSERT THE NODE COUNTS MATCH BEFORE BELIEVING ANYTHING
 the resulting pair measures.
 
-Apply inside the oracle worktree, measure, then restore it -- a dirty oracle
-silently corrupts upstream-parity, golden-audit and tb-update:
+DO NOT APPLY THIS BY HAND. `./build.sh material-eval [arch]` does the whole
+sequence, and it exists for the RESTORE rather than the apply.
 
-    O=../.mcfish-upstream-oracle
-    git -C $O apply /path/to/tools/material_eval.patch
-    make -C $O/src -j build ARCH=x86-64-sse41-popcnt
-    cp $O/src/stockfish /tmp/sf_material
-    git -C $O checkout -- src/evaluate.cpp
-    tools/upstream/upstream_oracle.sh "$(cat tools/upstream/UPSTREAM_BASE)" --verify
+Reverting the source is NOT enough. The last thing built is the STUBBED oracle and
+it stays on disk; every in-repo consumer routes through upstream_oracle.sh, which
+would rebuild -- except the `.built-sha` stamp still matches the pin, so it sees a
+current build and does nothing, and anyone running the oracle binary directly then
+measures a stub. That happened here during the c5aef2bf1 spine run: the restore ran
+from the wrong directory, exited 127, and the oracle benched 4186134 instead of the
+anchor until it was caught by hand. The script's EXIT trap deletes the binary AND
+the stamp as well as reverting the source, so a missing oracle fails loudly on the
+next use where a stubbed one would not.
 
-and build this side with `MCFISH_EVAL_MATERIAL=1 MCFISH_ARCH=sse41 ./build.sh build`.
-Both sides must be the same tier or the comparison measures the ISA.
+It also asserts the two trees match at two depths before handing the pair over,
+which is the only thing that can catch the two formulas drifting apart.
 
 --- a/src/evaluate.cpp
 +++ b/src/evaluate.cpp
