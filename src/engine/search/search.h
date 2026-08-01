@@ -21,6 +21,19 @@ typedef struct {
     uint64_t nodes;  // node limit, 0 for none
     bool infinite;
     bool ponder;
+    // Root moves the caller restricted the search to, IN THE ORDER GIVEN. Upstream
+    // builds its root list straight from `limits.searchmoves` and falls back to the
+    // generator only when that list is empty (thread.cpp:301-314), so the order is
+    // observable: it decides which move is searched first at depth one. Filtering the
+    // generator instead would silently re-impose generation order.
+    //
+    // Already converted to Moves by the shell, which is where the position and the
+    // UCI string parser both are; upstream carries the strings and converts in
+    // start_thinking, against the same position. An unconvertible or illegal move
+    // converts to MOVE_NONE and is dropped, which is upstream's `to_move` returning
+    // none -- and is why upstream needs no separate legality filter here.
+    Move searchmoves[MAX_MOVES];
+    size_t searchmoves_count;
     // Wall clock stamped when the `go` line was parsed, as early as possible
     // (upstream uci.cpp:190). 0 means unset, and search_go stamps its own entry
     // instead -- the path bench and the tests take, where elapsed time is not scored.

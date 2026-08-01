@@ -27,11 +27,22 @@ static char MessageBuf[256];
 // upstream's std::optional<std::string> OnChange.
 // ---------------------------------------------------------------------------
 
+// A table this size cannot be allocated, so there is no engine left to run: upstream
+// prints ONE line on stderr and exits 1 from inside TranspositionTable::resize
+// (tt.cpp:179-183), and it does so wherever the resize was reached from -- startup or
+// a mid-session `setoption`.
+//
+// mcfish reported it as an `info string` on the option sink and CARRIED ON, which is
+// worse than it looks: tt_resize leaves the table at its previous size on failure, so
+// the engine kept playing on a table the user did not ask for while a GUI that read
+// the info string had no reason to think the option had been refused. The startup path
+// (engine.c) already exited; only this one did not, so the two disagreed about how
+// fatal the same failure was.
 static const char *on_hash(const UciOption *o) {
     const size_t mb = (size_t) strtoul(o->current_value, nullptr, 10);
     if (!tt_resize(mb)) {
-        snprintf(MessageBuf, sizeof MessageBuf, "failed to allocate %zu MB hash", mb);
-        return MessageBuf;
+        fprintf(stderr, "Failed to allocate %zuMB for transposition table.\n", mb);
+        exit(EXIT_FAILURE);
     }
     return nullptr;
 }

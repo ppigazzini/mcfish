@@ -1,0 +1,14 @@
+<engine banner>
+info string Available processors: <cpus>
+info string Using 1 thread
+info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info depth 1 seldepth 2 multipv 1 score cp 1 nodes 2 hashfull 0 tbhits 0 pv d2d4
+info depth 2 seldepth 3 multipv 1 score cp 18 nodes 11 hashfull 0 tbhits 0 pv d2d4
+bestmove d2d4
+info string Available processors: <cpus>
+info string Using 1 thread
+info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info depth 1 seldepth 2 multipv 1 score cp 18 nodes 20 hashfull 0 tbhits 0 pv d2d4
+info depth 2 seldepth 3 multipv 1 score cp 27 nodes 51 hashfull 0 tbhits 0 pv d2d4
+bestmove d2d4
+exit=0
