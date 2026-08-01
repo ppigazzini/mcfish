@@ -501,10 +501,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 }
 
                 return value;
-            } else if (tt_value >= beta) {
+            } else if (tt_value >= beta || cut_node) {
                 extension = -3;
-            } else if (cut_node) {
-                extension = -2;
             }
         }
 
