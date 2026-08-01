@@ -36,7 +36,7 @@ src/nnue/layers/clipped_relu.h	src/engine/eval/nnue/nnue_affine.c
 src/nnue/layers/sqr_clipped_relu.h	src/engine/eval/nnue/nnue_affine.c
 src/nnue/network.cpp	src/engine/eval/evaluate.c,src/engine/eval/nnue/network.h,src/engine/eval/nnue/nnue_hash.h,src/engine/eval/nnue/nnue_inference.c,src/engine/eval/nnue/nnue_inference.h,src/engine/eval/nnue/nnue_weight_storage.h,src/shell/engine_nnue.c,src/shell/engine_nnue.h,src/engine/eval/nnue/network.c
 src/nnue/network.h	src/engine/eval/nnue/network.h
-src/nnue/nnue_accumulator.cpp	src/engine/eval/nnue/nnue_accumulator.c,src/engine/eval/nnue/nnue_acc_rowops.c,src/engine/eval/nnue/nnue_accumulator.h
+src/nnue/nnue_accumulator.cpp	src/engine/eval/nnue/nnue_accumulator.c,src/engine/eval/nnue/nnue_acc_rowops.c,src/engine/eval/nnue/nnue_accumulator.h,src/engine/eval/nnue/nnue_acc_rowops.h
 src/nnue/nnue_accumulator.h	src/engine/eval/nnue/nnue_accumulator.h
 src/nnue/nnue_architecture.h	src/engine/eval/nnue/nnue_architecture.h
 src/nnue/nnue_common.h	src/engine/eval/nnue/nnue_common.h
