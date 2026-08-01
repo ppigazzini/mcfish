@@ -1357,21 +1357,27 @@ do_upstream_nodes() {
   python3 tools/upstream_nodes.py "$@"
 }
 
-# Report the drift between the pinned SHAs and the tracked repositories.
+# Report the drift between the pinned SHA and the golden checkout.
 #
-# The three files under tools/upstream/ record which commit of each tracked
-# project this tree has been ported UP TO. Nothing read them before this step
-# existed, so ZFISH_BASE sat five commits stale while reading as authoritative --
-# a pin nobody checks is worse than no pin, because it is a false record rather
-# than an absent one.
+# ONE tracked project, and that is the point. The files under tools/upstream/
+# record which Stockfish commit this tree is a clone of; nothing read them before
+# this step existed, so a pin sat five commits stale while reading as
+# authoritative -- a pin nobody checks is worse than no pin, because it is a false
+# record rather than an absent one.
+#
+# ../zfish is deliberately NOT here. It is a SIBLING port of the same golden, not
+# a source this tree owes a debt to, so there is no commit range to be "behind"
+# and nothing to gate: most of its log is Zig work that will never have a
+# counterpart, and a status line calling that a 78-commit deficit is a false alarm
+# by construction. It also does not reciprocate -- zfish pins Stockfish and
+# nothing else. See tools/upstream/README.md for how the two relate now.
 #
 # This does not gate. A tracked repository moving is normal and is not a defect
 # here; the failure it catches is not NOTICING that it moved.
 do_sync_status() {
   local name dir pin head ahead behind
   local rc=0
-  for pair in "Stockfish:../Stockfish:tools/upstream/UPSTREAM_BASE" \
-              "zfish:../zfish:tools/upstream/ZFISH_BASE"; do
+  for pair in "Stockfish:../Stockfish:tools/upstream/UPSTREAM_BASE"; do
     name=${pair%%:*}; dir=$(echo "$pair" | cut -d: -f2); pinfile=$(echo "$pair" | cut -d: -f3)
 
     if [[ ! -d $dir/.git ]]; then
