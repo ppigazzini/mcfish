@@ -1,0 +1,6 @@
+<engine banner>
+info string Available processors: <cpus>
+info string Using 1 thread
+info string CRITICAL ERROR: Command `go depth` failed. Reason: Invalid argument for 'depth'
+
+exit=1

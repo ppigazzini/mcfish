@@ -144,30 +144,63 @@ static void go_line(char *args, bool announce) {
             continue;
         }
 
-        // Every keyword below takes exactly one argument; read it only now, with the
-        // keyword already in hand (uci.cpp:192-225).
-        char *value = strtok(nullptr, " \t\n");
-        if (!value)
-            break;
-
-        const long v = strtol(value, nullptr, 10);
+        // RECOGNISE THE KEYWORD BEFORE READING A VALUE, which is the order upstream's
+        // parse_limits works in and the reason it can reject a bad argument at all: it
+        // extracts only for a keyword it knows, then tests `is.fail()` (uci.cpp:192-231).
+        // Reading the lookahead first — as this did — swallows the next token for an
+        // unknown keyword, and leaves nothing to complain about when the value is
+        // missing or is not a number.
+        //
+        // `mate` and `searchmoves` are deliberately absent: mcfish implements neither,
+        // so they fall through as unknown tokens. That is a pre-existing gap in the go
+        // grammar, not something this validation should paper over.
+        int *slot = nullptr;
+        bool wants_nodes = false;
+        bool wants_perft = false;
         if (strcmp(token, "depth") == 0)
-            limits.depth = (int) v;
+            slot = &limits.depth;
         else if (strcmp(token, "movetime") == 0)
-            limits.movetime_ms = (int) v;
+            slot = &limits.movetime_ms;
         else if (strcmp(token, "wtime") == 0)
-            limits.time_ms[WHITE] = (int) v;
+            slot = &limits.time_ms[WHITE];
         else if (strcmp(token, "btime") == 0)
-            limits.time_ms[BLACK] = (int) v;
+            slot = &limits.time_ms[BLACK];
         else if (strcmp(token, "winc") == 0)
-            limits.inc_ms[WHITE] = (int) v;
+            slot = &limits.inc_ms[WHITE];
         else if (strcmp(token, "binc") == 0)
-            limits.inc_ms[BLACK] = (int) v;
+            slot = &limits.inc_ms[BLACK];
         else if (strcmp(token, "movestogo") == 0)
-            limits.moves_to_go = (int) v;
+            slot = &limits.moves_to_go;
         else if (strcmp(token, "nodes") == 0)
+            wants_nodes = true;
+        else if (strcmp(token, "perft") == 0)
+            wants_perft = true;
+        else
+            continue;  // Unknown token: upstream extracts nothing and ignores it.
+
+        // A recognised keyword MUST be followed by a usable number. Upstream's
+        // `is >> field` sets failbit when the value is absent or unparseable, and the
+        // very next line terminates the process; mcfish took `strtol("abc")` == 0 and
+        // searched on, so `go depth` silently became the default depth and `go wtime
+        // xyz` silently became zero time.
+        //
+        // Trailing garbage is NOT an error, matching the stream: `is >> int` on "5x"
+        // reads 5 and leaves "x" to be read as its own (unknown, ignored) token. So
+        // the test is "did any digit parse at all", not "was the whole token consumed".
+        const char *value = strtok(nullptr, " \t\n");
+        char *end = nullptr;
+        const long v = value != nullptr ? strtol(value, &end, 10) : 0;
+        if (value == nullptr || end == value) {
+            char reason[64];
+            snprintf(reason, sizeof reason, "Invalid argument for '%s'", token);
+            terminate_on_critical_error(CurrentCmd, reason);
+        }
+
+        if (slot != nullptr)
+            *slot = (int) v;
+        else if (wants_nodes)
             limits.nodes = (uint64_t) v;
-        else if (strcmp(token, "perft") == 0) {
+        else if (wants_perft) {
             engine_report_net();
             engine_verify_network();
             const uint64_t n = engine_perft((int) v);
@@ -201,6 +234,86 @@ static void cmd_flip(void) {
     engine_flip(&reason);
     if (reason)
         terminate_on_critical_error(CurrentCmd, reason);
+}
+
+// Answer `compiler` in upstream's SHAPE: a leading blank line, four fields aligned
+// on a 27-column label, and a trailing blank line (misc.cpp compiler_info).
+//
+// The CONTENT has to differ -- clang built this, not g++, and the ISA set is this
+// tree's own -- but the LAYOUT is upstream's, because a bug report pastes this block
+// verbatim and a reader should not have to learn a second layout to read it.
+// mcfish answered with one sentence, "Compiled by clang 22.1.8, C202311", which
+// carried neither the architecture nor the settings a report needs.
+//
+// The feature list is upstream's ORDER, not the compiler's: widest first, then BMI2,
+// then the narrowing SSE tiers, POPCNT last. Each entry is gated on the macro the
+// compiler defines for the flag build.sh passed, so the line describes THIS binary
+// rather than what the tier is nominally supposed to have.
+static void cmd_compiler(void) {
+    uci_output_printf("\nCompiled by                : ");
+#if defined(__clang__)
+    uci_output_printf("clang++ %d.%d.%d", __clang_major__, __clang_minor__, __clang_patchlevel__);
+#elif defined(__GNUC__)
+    uci_output_printf("g++ (GNUC) %d.%d.%d", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+#else
+    uci_output_printf("Unknown compiler (unknown version)");
+#endif
+#if defined(__linux__)
+    uci_output_printf(" on Linux");
+#elif defined(__APPLE__)
+    uci_output_printf(" on Apple");
+#elif defined(_WIN64)
+    uci_output_printf(" on Microsoft Windows 64-bit");
+#else
+    uci_output_printf(" on unknown system");
+#endif
+
+    uci_output_printf("\nCompilation architecture   : ");
+#if defined(MCFISH_ARCH_STRING)
+    uci_output_printf("%s", MCFISH_ARCH_STRING);
+#else
+    uci_output_printf("(undefined architecture)");
+#endif
+
+    uci_output_printf("\nCompilation settings       : %s", sizeof(void *) == 8 ? "64bit" : "32bit");
+#if defined(__AVX512VBMI2__) && defined(__AVX512BITALG__)
+    uci_output_printf(" AVX512ICL");
+#endif
+#if defined(__AVX512VNNI__)
+    uci_output_printf(" VNNI");
+#endif
+#if defined(__AVX512F__)
+    uci_output_printf(" AVX512");
+#endif
+#if defined(__BMI2__)
+    uci_output_printf(" BMI2");
+#endif
+#if defined(__AVX2__)
+    uci_output_printf(" AVX2");
+#endif
+#if defined(__SSE4_1__)
+    uci_output_printf(" SSE41");
+#endif
+#if defined(__SSSE3__)
+    uci_output_printf(" SSSE3");
+#endif
+#if defined(__SSE2__)
+    uci_output_printf(" SSE2");
+#endif
+#if defined(__POPCNT__)
+    uci_output_printf(" POPCNT");
+#endif
+#if !defined(NDEBUG)
+    uci_output_printf(" DEBUG");
+#endif
+
+    uci_output_printf("\nCompiler __VERSION__ macro : ");
+#ifdef __VERSION__
+    uci_output_printf("%s", __VERSION__);
+#else
+    uci_output_printf("(undefined macro)");
+#endif
+    uci_output_printf("\n\n");
 }
 
 static void cmd_uci(void) {
@@ -305,15 +418,7 @@ static bool execute(char *line) {
         // anchor is comparable against.
         benchmark_run(args);
     } else if (strcmp(cmd, "compiler") == 0) {
-#if defined(__clang__)
-        uci_output_printf("Compiled by clang %d.%d.%d, C%ld\n", __clang_major__, __clang_minor__,
-                          __clang_patchlevel__, __STDC_VERSION__);
-#elif defined(__GNUC__)
-        uci_output_printf("Compiled by gcc %d.%d.%d, C%ld\n", __GNUC__, __GNUC_MINOR__,
-                          __GNUC_PATCHLEVEL__, __STDC_VERSION__);
-#else
-        uci_output_printf("Compiled by an unknown compiler, C%ld\n", __STDC_VERSION__);
-#endif
+        cmd_compiler();
     } else if (*cmd) {
         uci_output_printf("Unknown command: '%s'. Type help for more information.\n", cmd);
     }
