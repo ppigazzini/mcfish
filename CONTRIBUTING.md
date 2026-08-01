@@ -89,8 +89,10 @@ deliberately: it is what keeps every implicit integer conversion visible, since
 the port depends on matching upstream's integer semantics exactly.
 
 Comments are **imperative mood** and state the invariant the code cannot show —
-see [docs/11-writing.md](docs/11-writing.md). Where a port source carries a
-comment about integer semantics or cites `upstream file:line`, carry it across.
+see [docs/11-writing.md](docs/11-writing.md). Where **upstream** carries a comment
+about integer semantics or cites a file and line, carry it across. Upstream is the
+only tree that word means: `../zfish` is a sibling port, not a source this one
+translates from (AGENTS.md, "The sibling").
 
 For git blame, ignore the formatting-only revisions:
 
