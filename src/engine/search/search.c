@@ -180,7 +180,7 @@ static SearchZoneLimits to_zone_limits(const SearchLimits *limits, TimePoint sta
         .start_time = start,
         .movestogo = limits->moves_to_go,
         .depth = limits->depth,
-        .mate = 0,
+        .mate = limits->mate,
         .perft = 0,
         .infinite = limits->infinite,
         .nodes = limits->nodes,

@@ -19,6 +19,12 @@ typedef struct {
     int inc_ms[COLOR_NB];
     int moves_to_go;
     uint64_t nodes;  // node limit, 0 for none
+    // `go mate N`: stop once the best score is a mate in at most N MOVES -- the
+    // depth loop compares 2*N against the ply distance, which is why the doubling
+    // is upstream's and not a unit slip. 0 for none. The search zone has carried
+    // this the whole time (search_setup wires it to SearchIdState::limits_mate and
+    // search_id acts on it); only the shell never filled it in.
+    int mate;
     bool infinite;
     bool ponder;
     // Root moves the caller restricted the search to, IN THE ORDER GIVEN. Upstream

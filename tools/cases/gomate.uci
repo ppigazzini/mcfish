@@ -1,0 +1,5 @@
+position fen 6k1/5ppp/8/8/8/8/8/R5K1 w - -
+go depth 5 mate 1
+position startpos
+go depth 3 mate 2
+quit

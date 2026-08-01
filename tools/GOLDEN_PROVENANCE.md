@@ -103,6 +103,21 @@ This produced a false result here once already: `search` appeared to differ from
 oracle by two lines and was recorded as a self-photograph, when driving the oracle
 properly shows it is byte-identical.
 
+**A case whose `go` is UNBOUNDED cannot be represented here, and the failure looks
+like an engine bug.** The two halves of the comparison drive differently on purpose:
+the audit feeds the oracle line by line with a settle after each `go`, because
+upstream searches on another thread; `./build.sh golden` pipes the whole script at
+mcfish, because it does not need one. For a BOUNDED `go depth N` that asymmetry is
+invisible — `engine_end_search` waits a bounded search out. For an unbounded one
+(`go infinite`, or a `go mate N` with no other limit) the oracle gets its settle and
+finishes while mcfish is stopped by the immediately following `quit`, so the golden
+records a full search and the gate produces `nodes 0` and an empty `pv`.
+
+That is the harness, not a divergence: driven with a settle, mcfish produces the
+oracle's bytes exactly. Keep a case's `go` bounded — `go depth 5 mate 1` still
+exercises the mate limit, stopping at depth 1 — or the case is not answerable by
+this pair of drivers.
+
 The other rig detail is **cwd**. Every gate runs the engine from `resources/`, where
 the net lives; run the oracle from its own worktree instead and it loads no net, and
 every evaluation-bearing case differs for a reason that is not a divergence.

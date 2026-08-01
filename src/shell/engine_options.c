@@ -42,6 +42,18 @@ static const char *on_hash(const UciOption *o) {
     const size_t mb = (size_t) strtoul(o->current_value, nullptr, 10);
     if (!tt_resize(mb)) {
         fprintf(stderr, "Failed to allocate %zuMB for transposition table.\n", mb);
+        // Tear down through the same sequence as `quit` before exiting, exactly as
+        // uci.c's terminate_on_critical_error does and for the same reason: the
+        // sanitized binary must leave this path leak-clean, or the fuzz gate stops
+        // being able to flag a REAL leak. Landing this without the teardown turned
+        // the UCI fuzzer red on `Hash value 33554432` -- the advertised max, which
+        // tools/uci_fuzz.py sends ON PURPOSE to reach exactly here -- reporting the
+        // init-time worker arenas as leaked. Upstream's exit(EXIT_FAILURE) skips its
+        // own destructors too, so this diverges only in memory the process was about
+        // to abandon.
+        search_stop();
+        search_shutdown();
+        eval_nnue_shutdown();
         exit(EXIT_FAILURE);
     }
     return nullptr;
