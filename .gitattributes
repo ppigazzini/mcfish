@@ -1,3 +1,16 @@
+# Normalize line endings tree-wide, so a Linux and a Windows checkout hold the same
+# bytes. This is upstream's own .gitattributes in full (Stockfish 01a79941, "ensures
+# checkouts are by default the same on linux and windows") -- the commit's other half
+# is a src/Makefile GIT_DIFFINDEX guard, and build.sh computes no dirty-index flag for
+# core.autocrlf to confuse.
+#
+# The rules below it were here first and were the whole file: they covered the goldens,
+# the fact tables, the case scripts and the shell scripts, which left every .c, .h, .md
+# and .py to whatever the checkout decided. Keep them anyway -- each names a file where
+# a CRLF rewrite fails a GATE rather than merely churning a diff, which is worth saying
+# out loud even once the blanket rule covers it.
+* text=auto eol=lf
+
 # The golden files are compared byte-for-byte against the engine's LF output by
 # `./build.sh golden`. Pin them to LF so a Windows checkout (core.autocrlf) cannot
 # rewrite them to CRLF and fail the gate. The harness also strips CR on read, so
