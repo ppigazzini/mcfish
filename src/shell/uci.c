@@ -105,15 +105,32 @@ static void cmd_position(char *args) {
                 terminate_on_critical_error(CurrentCmd, reason);
 }
 
-static void cmd_go(char *args) {
+// ANNOUNCE is what separates the two callers, and it is upstream's own split rather
+// than a convenience. The command loop prints the processor and thread info strings on
+// the `go` line (uci.cpp:133-138); UCIEngine::bench does NOT go through that loop --
+// it parses the limits itself and calls perft/engine.go directly (uci.cpp:266-289), so
+// a bench position emits neither. Routing bench through the announcing path put two
+// extra info strings under every `Position: n/m` banner.
+static void go_line(char *args, bool announce) {
     // execute() has already drained any prior search before dispatching here, so the
     // clock stamped now measures from this `go`, and the prior search's output has
     // already flushed ahead of this command's net banner.
 
-    // Stamp the clock as early as possible, before parsing the go arguments, so the
-    // time budget is measured from when the command arrived -- not from when the search
-    // thread later enters search_go (upstream uci.cpp:190, "The search starts as early
-    // as possible").
+    // Upstream sends these two on the `go` LINE, before it looks at a single argument
+    // and before it decides between a search and a perft (uci.cpp:133-138), for old
+    // GUIs and python-chess that do not read info strings before the first search. So
+    // `go perft` gets them too. Emitting them after the argument parse instead put them
+    // on the search path only, because the perft arm returns from inside the loop --
+    // which is what tools/upstream_golden_audit.sh found on its first run, against two
+    // goldens that were green because they were photographs of mcfish.
+    if (announce)
+        engine_report_threads();
+
+    // Stamp the clock after them and before parsing the go arguments, which is where
+    // upstream stamps it: `now()` is the first line of its parse_limits (uci.cpp:190,
+    // "The search starts as early as possible"), so the two info strings are already
+    // out. The budget still measures from when the command arrived rather than from
+    // when the search thread later enters search_go.
     SearchLimits limits = { .start_time = (int64_t) now_ms() };
 
     for (char *token = strtok(args, " \t\n"); token; token = strtok(nullptr, " \t\n")) {
@@ -165,10 +182,9 @@ static void cmd_go(char *args) {
         && !limits.time_ms[WHITE] && !limits.time_ms[BLACK])
         limits.depth = 8;
 
-    // Upstream sends these two AFTER the `go` line arrives rather than at startup,
-    // for old GUIs and python-chess that do not read info strings before the first
-    // search (uci.cpp:129-133). Order matches: processors, threads, then the net.
-    engine_report_threads();
+    // The net banner comes last, after the two above and after the argument parse:
+    // upstream reaches it through Engine::go's own verify callback, not from the
+    // command loop.
     engine_report_net();
     engine_verify_network();
     engine_go(&limits);
@@ -267,7 +283,7 @@ static bool execute(char *line) {
     else if (strcmp(cmd, "position") == 0)
         cmd_position(args);
     else if (strcmp(cmd, "go") == 0)
-        cmd_go(args);
+        go_line(args, true);
     else if (strcmp(cmd, "setoption") == 0)
         cmd_setoption(args);
     else if (strcmp(cmd, "flip") == 0)
@@ -303,6 +319,17 @@ static bool execute(char *line) {
     }
 
     return true;
+}
+
+void uci_bench_go(const char *line) {
+    // Take the same `go ...` line the command loop would, minus the announcement.
+    // benchmark.c cannot reach go_line through uci_execute without it.
+    char buf[4096];
+    snprintf(buf, sizeof buf, "%s", line);
+    char *args = buf;
+    if (strncmp(args, "go", 2) == 0)
+        args += 2;
+    go_line(args, false);
 }
 
 void uci_execute(const char *line) {
