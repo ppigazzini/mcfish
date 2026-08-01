@@ -1855,6 +1855,7 @@ usage: ./build.sh <step> [args]
   upstream-nodes     node-for-node differential on RANDOM positions vs the oracle
   upstream-transcript LOCAL: whole UCI transcript diffed against the oracle
   golden-audit       LOCAL: adjudicate every UCI golden against the oracle
+  fingerprint        LOCAL: assert mcfish CALLS what upstream calls, as often
   upstream-parity    THE finish line: bench vs a pristine upstream build (red until done)
   parity             the aggregate: every in-repo gate above
   clean              remove build/
@@ -1904,6 +1905,7 @@ case "${1:-build}" in
   upstream-nodes)   shift; do_upstream_nodes "$@" ;;
   upstream-transcript) do_upstream_transcript ;;
   golden-audit)     shift; tools/upstream_golden_audit.sh "$@" ;;
+  fingerprint)      shift; tools/upstream_fingerprint.sh "$@" ;;
   sync-status)      do_sync_status ;;
   upstream-parity)  shift; do_upstream_parity "$@" ;;
   fmt)              do_fmt ;;

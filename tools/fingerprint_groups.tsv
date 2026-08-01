@@ -1,0 +1,32 @@
+# Call-count fingerprint groups: NAME <TAB> REGEX
+#
+# One regex per logical component, matched against the symbol names in BOTH
+# engines' callgrind profiles, and the matches summed. Each row is the claim
+# "mcfish calls this as many times as Stockfish does" -- which is a claim about the
+# ALGORITHM, not about cost, and is immune to inlining as long as the symbol
+# survives on both sides.
+#
+# CHOOSE SYMBOLS THAT SURVIVE INLINING ON BOTH SIDES. A group whose regex matches
+# nothing on one side is reported as a MISS and fails, because a silent zero on one
+# side would read as a divergence forever. If a symbol gets inlined away by a
+# compiler change, fix the row rather than deleting the check -- and prefer a
+# callee that is too big to inline over its caller.
+#
+# What this is FOR: a call-count divergence is an algorithm bug and outranks every
+# cost finding. Two real defects were found this way and by nothing else -- a
+# `ucinewgame` that discarded the position, and a terminal root that skipped the
+# per-worker reset -- both of which every value gate passed over, because neither
+# changed a node count on any position anyone had thought to test.
+
+movepick	^movepick_next$|MovePicker::next_move
+legal	^pos_legal$|Position::legal
+gives_check	^pos_gives_check$|Position::gives_check
+see_ge	^see_ge$|Position::see_ge
+is_draw	^pos_is_draw$|Position::is_draw
+set_check_info	^set_check_info$|Position::set_check_info
+position_set	^pos_set_reason$|Position::set\(
+do_move	^pos_do_move$|Position::do_move
+undo_move	^pos_undo_move$|Position::undo_move
+do_null_move	^pos_do_null_move$|Position::do_null_move
+threats	^threats_update_piece_(no_)?ray$|update_piece_threats
+acc_apply	^nnue_acc_apply_combined_delta$|namespace\)::apply_combined
