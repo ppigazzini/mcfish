@@ -1,0 +1,52 @@
+Replace the oracle's evaluation with the same material sum MCFISH_EVAL_MATERIAL uses.
+
+This is the OTHER half of the spine-isolation workload. docs/09-tooling-ci.md has
+said "patch the oracle with the same formula" since the knob landed, but shipped no
+patch, so every spine measurement re-derived it by hand -- and the whole point of
+writing the weights out in both engines is that the two cannot drift. A recipe in
+prose can drift; a patch cannot.
+
+The formula is src/engine/search/search_common.c's material_only_eval: piece values
+{P 100, N 320, B 330, R 500, Q 900}, from the side to move's point of view, with NO
+optimism blend, NO rule50 damping and NO tablebase clamp. Every one of those would
+be a divergence, and the node counts would stop matching -- which is exactly how you
+find out you got it wrong. ASSERT THE NODE COUNTS MATCH BEFORE BELIEVING ANYTHING
+the resulting pair measures.
+
+Apply inside the oracle worktree, measure, then restore it -- a dirty oracle
+silently corrupts upstream-parity, golden-audit and tb-update:
+
+    O=../.mcfish-upstream-oracle
+    git -C $O apply /path/to/tools/material_eval.patch
+    make -C $O/src -j build ARCH=x86-64-sse41-popcnt
+    cp $O/src/stockfish /tmp/sf_material
+    git -C $O checkout -- src/evaluate.cpp
+    tools/upstream/upstream_oracle.sh "$(cat tools/upstream/UPSTREAM_BASE)" --verify
+
+and build this side with `MCFISH_EVAL_MATERIAL=1 MCFISH_ARCH=sse41 ./build.sh build`.
+Both sides must be the same tier or the comparison measures the ISA.
+
+--- a/src/evaluate.cpp
++++ b/src/evaluate.cpp
+@@ -46,6 +46,21 @@ Value Eval::evaluate(const Eval::NNUE::Network&     network,
+
+     assert(!pos.checkers());
+
++    // SPINE ISOLATION (mcfish tools/material_eval.patch): material sum only.
++    // Mirrors mcfish's material_only_eval exactly -- same weights, same point of
++    // view, and none of the blending below it. Returning early leaves the rest of
++    // this function dead on purpose, so the diff stays one hunk and reverts clean.
++    {
++        static const int matWeight[QUEEN + 1] = {0, 100, 320, 330, 500, 900};
++        const Color      matUs                = pos.side_to_move();
++        const Color      matThem              = ~matUs;
++        int              matV                 = 0;
++        for (PieceType pt = PAWN; pt <= QUEEN; ++pt)
++            matV += matWeight[pt]
++                  * (popcount(pos.pieces(matUs, pt)) - popcount(pos.pieces(matThem, pt)));
++        return Value(matV);
++    }
++
+     auto [psqt, positional] = network.evaluate(pos, accumulators, caches);
+
+     Value nnue = psqt + positional;

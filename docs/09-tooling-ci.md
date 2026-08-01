@@ -757,9 +757,18 @@ attribution argument because each simply removes what it is not measuring:
 - **`MCFISH_EVAL_MATERIAL=1`** replaces the evaluation with a material sum, which
   leaves the spine and the search running over a tree the network no longer shapes.
   Patch the oracle with the same formula — the weights are written out in both, not
-  read from either engine's tables, precisely so the two cannot drift — and assert the
-  node counts match before believing anything. They do: 627773 at `bench 16 1 8`,
-  2284915 at `16 1 12`, 10104475 at `16 1 15`.
+  read from either engine's tables, precisely so the two cannot drift — and **assert
+  the node counts match before believing anything**. The patch is
+  [`../tools/material_eval.patch`](../tools/material_eval.patch), which also carries
+  the apply-measure-restore sequence; a dirty oracle silently corrupts
+  `upstream-parity`, `golden-audit` and `tb-update`, so restoring it is part of the
+  procedure and not a tidy-up afterwards.
+
+  The counts themselves are not quoted here. They are a function of the anchor and
+  move with every sync — this page pinned three that were two syncs stale, which is
+  the same rot the bench signature is banned from these pages for. Run the pair and
+  compare; the assertion is that the two sides agree, not that they agree on a
+  number written down once.
 
 Running the same comparison over both is what localised the IPC gap to the search
 rather than the board, in two commands and with no per-function attribution at all.
