@@ -11,8 +11,9 @@
 # deliberate, human-gated session -- this job only detects, it never attempts a
 # port.
 #
-# `upstream-nodes` is a different question from either: not "has upstream
-# moved" but "is mcfish still faithful to the pin it already claims to match."
+# `upstream-nodes` and `golden-audit` are a different question from either: not
+# "has upstream moved" but "is mcfish still faithful to the pin it already claims
+# to match."
 # tools/upstream_nodes.py's random-legal-move positions appear in no bench list,
 # no golden and no test, so this is the strongest fidelity probe this tree has
 # -- and until this job existed it only ran when someone remembered to run it
@@ -144,3 +145,13 @@ jobs:
       # before printing a single node count.
       - name: Node-for-node differential (random positions)
         run: ./build.sh upstream-nodes --positions 40 --depth 10 --seed "$(date +%s)"
+
+      # The oracle is already built and the net already fetched, so adjudicating
+      # the goldens costs one more drive of eight short scripts. It is the only
+      # thing that can tell an oracle-derived golden from a photograph of mcfish,
+      # and `./build.sh golden-update` produces the latter -- so without this lane
+      # a resync converts them back and nothing notices. It found a real `go perft`
+      # divergence on its first run. LOCAL otherwise: it needs the pinned upstream
+      # tree, which the blocking parity workflow's checkout does not carry.
+      - name: Adjudicate the UCI goldens against the oracle
+        run: ./build.sh golden-audit

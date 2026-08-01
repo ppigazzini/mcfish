@@ -1848,13 +1848,15 @@ usage: ./build.sh <step> [args]
   upstream-map       LOCAL: audit the declared upstream map, ratchet uncovered surface
   upstream-nodes     node-for-node differential on RANDOM positions vs the oracle
   upstream-transcript LOCAL: whole UCI transcript diffed against the oracle
+  golden-audit       LOCAL: adjudicate every UCI golden against the oracle
   upstream-parity    THE finish line: bench vs a pristine upstream build (red until done)
   parity             the aggregate: every in-repo gate above
   clean              remove build/
 
   signature-update   re-derive the signature golden  (intended changes only)
   perf-budget-update re-derive the instruction budget for this arch (known-good build)
-  golden-update      re-derive the UCI goldens       (intended changes only)
+  golden-update      re-derive the UCI goldens FROM MCFISH -- prefer golden-audit --write,
+                     which derives them from the oracle instead (intended changes only)
   tb-update          re-derive tools/tb.golden FROM THE ORACLE
   tb-cursed-update   re-derive the tb-cursed node legs (refuses on a bad WDL/DTZ half)
 
@@ -1895,6 +1897,7 @@ case "${1:-build}" in
   docs-lint)        do_docs_lint ;;
   upstream-nodes)   shift; do_upstream_nodes "$@" ;;
   upstream-transcript) do_upstream_transcript ;;
+  golden-audit)     shift; tools/upstream_golden_audit.sh "$@" ;;
   sync-status)      do_sync_status ;;
   upstream-parity)  shift; do_upstream_parity "$@" ;;
   fmt)              do_fmt ;;
