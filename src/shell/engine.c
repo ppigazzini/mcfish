@@ -148,8 +148,18 @@ void engine_new_game(void) {
     // (Engine::search_clear, engine.cpp:170) -- the load report prints again on a
     // usable path, exactly as it does for setoption.
     syzygy_option_reinit();
-    const char *r = nullptr;
-    (void) engine_set_startpos(&r);
+
+    // Do NOT reset the board here. `ucinewgame` clears the SEARCH state -- the table,
+    // the histories, the tablebase mapping -- and upstream's Engine::search_clear
+    // (engine.cpp:166-172) touches the position not at all. Resetting it made
+    // `position fen X` / `ucinewgame` / `d` report the start position where upstream
+    // reports X, so a GUI that sends `ucinewgame` before `go` without repeating
+    // `position` searched a different board than upstream would.
+    //
+    // The bench never noticed because it issues `ucinewgame` BEFORE its first
+    // `position fen`, and reads the `current` FEN before that. Found by attributing
+    // a one-call divergence in the callgrind fingerprint: mcfish set the position
+    // once more per bench than upstream, and this was the extra.
 }
 
 // ---------------------------------------------------------------------------
