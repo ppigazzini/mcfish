@@ -177,9 +177,9 @@ static void go_line(char *args, bool announce) {
         // unknown keyword, and leaves nothing to complain about when the value is
         // missing or is not a number.
         //
-        // `mate` and `searchmoves` are deliberately absent: mcfish implements neither,
-        // so they fall through as unknown tokens. That is a pre-existing gap in the go
-        // grammar, not something this validation should paper over.
+        // Every token upstream's parse_limits knows is here now. `searchmoves` is
+        // handled above, because it consumes the rest of the line rather than one
+        // value.
         int *slot = nullptr;
         bool wants_nodes = false;
         bool wants_perft = false;
@@ -197,6 +197,8 @@ static void go_line(char *args, bool announce) {
             slot = &limits.inc_ms[BLACK];
         else if (strcmp(token, "movestogo") == 0)
             slot = &limits.moves_to_go;
+        else if (strcmp(token, "mate") == 0)
+            slot = &limits.mate;
         else if (strcmp(token, "nodes") == 0)
             wants_nodes = true;
         else if (strcmp(token, "perft") == 0)

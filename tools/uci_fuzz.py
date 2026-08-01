@@ -58,7 +58,9 @@ OPTION_VALUES = ["1", "0", "-1", "99999999", "true", "x" * 300, ""]
 # worker, so one shared pool would read 16 as both. The below-min and non-numeric
 # values take the same reject branch an over-max value would, allocating on no
 # path. 33554432 is Hash's exact advertised max (engine_options.c max_hash_mb): in
-# range, so it reaches ArenaAlloc and exercises on_hash's refusal report, yet 32
+# range, so it reaches ArenaAlloc and exercises on_hash's refusal -- which upstream
+# makes FATAL, so this stream ends in a teardown-then-exit(1) and the leak checker
+# has an opinion about it, which is the point of sending it -- yet 32
 # TiB, so the mapping is refused without a page being touched; Threads refuses it
 # as out of range on any real box. No value here lands in the band that is both in
 # range and backable -- the band where the mapping succeeds and the clear that
@@ -231,15 +233,27 @@ def main() -> None:
             sys.exit(1)
         out = proc.stdout.decode(errors="replace")
         err = proc.stderr.decode(errors="replace")
-        # Two clean outcomes: exit 0, or the documented CRITICAL ERROR contract --
-        # an unusable position command terminates the process with exit(1) after
-        # announcing itself (uci.c terminate_on_critical_error, upstream uci.cpp:684).
-        # The sanitizer must stay silent on BOTH paths.
-        # A refused `setoption name Hash` is neither: on_hash reports the size it
-        # could not allocate through `info string` and leaves the one-cluster
-        # fallback installed, so the session continues and still exits 0. Only the
-        # STARTUP resize is fatal (engine.c), and the default 16 MB gets there.
-        ok_exit = proc.returncode == 0 or (proc.returncode == 1 and "CRITICAL ERROR" in out)
+        # Three clean outcomes, and the sanitizer must stay silent on all of them.
+        #
+        #  * exit 0 -- the ordinary case.
+        #  * exit 1 announcing CRITICAL ERROR on stdout: an unusable `position` or a
+        #    `go` argument that is not a number terminates the process after saying so
+        #    (uci.c terminate_on_critical_error, upstream uci.cpp:684).
+        #  * exit 1 announcing a refused table on STDERR: a `Hash` value inside the
+        #    option's range but larger than the machine has is fatal, and it is fatal
+        #    wherever the resize was reached from -- upstream prints this one line and
+        #    calls exit(EXIT_FAILURE) from inside TranspositionTable::resize
+        #    (tt.cpp:179-183), so there is no CRITICAL ERROR line to look for.
+        #
+        # That third outcome is why `Hash value 33554432` is in MEM_VALUES: it used to
+        # be reported through `info string` and the session continued, this harness
+        # encoded that, and the shape changed when the mid-session path was made as
+        # fatal as the startup one. A contract that only knows the old shape reports a
+        # faithful engine as a failure.
+        fatal_hash = "Failed to allocate" in err and "transposition table" in err
+        ok_exit = proc.returncode == 0 or (
+            proc.returncode == 1 and ("CRITICAL ERROR" in out or fatal_hash)
+        )
         bad = not ok_exit or "Sanitizer" in err or "runtime error" in err
         if bad:
             sys.stderr.write(f"FUZZ FAILURE at run {runs} (seed {args.seed})\n")
