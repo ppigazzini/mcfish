@@ -199,7 +199,7 @@ is no `help` handler** — typing `help` prints the unknown-command message abou
 itself. And an empty line is not treated as unknown, so a blank line from a GUI is
 silently ignored rather than producing noise.
 
-`go` runs the search **off the UCI thread**. `cmd_go` hands the search to worker 0's
+`go` runs the search **off the UCI thread**. `go_line` hands the search to worker 0's
 OS thread through `search_go_start` and returns, so the loop keeps reading stdin
 while the search runs. That is what lets the four during-search commands — `stop`,
 `quit`, `isready`, `ponderhit` — be seen and answered mid-search; `stop` raises the
@@ -256,19 +256,31 @@ truncation of the game.
 
 ### go
 
-Before parsing limits, `cmd_go` (unless it is `go perft N`) calls
-`engine_report_threads()` then `engine_report_net()`, emitting two or three
-`info string` lines: `Available processors: <topology>` (from
-`worker_pool_numa_config_string`), `Using N thread(s)`, optionally suffixed
-` with NUMA node thread binding: <split>` when `worker_pool_thread_binding_string`
-reports binding in effect, and then the net-status line. `go perft N` prints none
-of this — it short-circuits straight to the divide.
+Before parsing limits, `go_line` calls `engine_report_threads()`, emitting
+`Available processors: <topology>` (from `worker_pool_numa_config_string`) and
+`Using N thread(s)`, the latter optionally suffixed ` with NUMA node thread
+binding: <split>` when `worker_pool_thread_binding_string` reports binding in
+effect. `engine_report_net()` follows later, after the parse. **`go perft N` gets
+the first two as well**: upstream prints them on the `go` line, before it looks at
+an argument and before it chooses between a search and a perft, so the choice
+cannot affect them.
+
+This page previously recorded the opposite — that `go perft` "prints none of this"
+— because mcfish emitted them after the argument loop, which the perft arm returns
+from. That was a divergence documented as a design, and it survived because
+`chess960.golden` and `perft.golden` were photographs of mcfish rather than of
+upstream. `./build.sh golden-audit` is what settled it.
+
+`go_line` takes an `announce` flag for that first call, and **bench passes false**.
+Upstream's bench does not go through its command loop at all — it parses the limits
+itself and calls `perft`/`engine.go` directly — so a bench position emits neither
+line. `uci_bench_go` is the entry point that reproduces that split.
 
 Limits parsed: `depth`, `movetime`, `wtime`, `btime`, `winc`, `binc`, `movestogo`,
 `nodes`, `infinite`, `ponder`, and `perft`. How they become a deadline is in
 [02-engine-search.md](02-engine-search.md).
 
-When no limit at all is given, `cmd_go` sets `depth 8`, so an unqualified `go` from a
+When no limit at all is given, `go_line` sets `depth 8`, so an unqualified `go` from a
 script terminates on its own rather than running until a `stop` arrives.
 
 The valueless keywords (`infinite`, `ponder`) are matched **first** and `continue`

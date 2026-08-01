@@ -138,7 +138,7 @@ sites upstream names and nowhere else. The per-worker counters go the other way:
 upstream wraps them in `RelaxedAtomic` (`misc.h:337`), so `AtomicU64` is relaxed.
 
 Driving the pool also fixes the shell's `stop` gap: nothing reads stdin while
-`cmd_go` is inside `search_go`, so `go infinite` does not return. See
+`go_line` is inside `search_go`, so `go infinite` does not return. See
 [07-shell.md](07-shell.md).
 
 ### NUMA

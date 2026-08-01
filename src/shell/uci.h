@@ -23,6 +23,11 @@ void uci_loop(int argc, char **argv);
 // which is exactly what makes a bench number stop meaning anything.
 void uci_execute(const char *line);
 
+// Run a bench position's `go ...` line WITHOUT the command loop's processor/thread
+// announcement. Upstream's bench parses its limits itself instead of going through the
+// command loop, so a bench position emits neither info string; see go_line's comment.
+void uci_bench_go(const char *line);
+
 // Write the current position's FEN into BUF (needs >= 128 bytes).
 void uci_current_fen(char *buf, size_t buf_len);
 
