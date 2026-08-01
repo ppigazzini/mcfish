@@ -89,11 +89,19 @@ static const char *next_field(const char **cursor, char *dst, size_t cap, const 
 }
 
 uint64_t benchmark_run(const char *args) {
-    // Name the evaluation the run used, on the banner stream the totals go to. The
-    // signature anchor is defined with a net loaded, and a fallback run produces an
-    // unrelated number, so the two must never be told apart by eye alone.
-    fprintf(stderr, "info string %s\n", eval_nnue_status());
-
+    // Do NOT open with the resident net's identity here. This used to print
+    // `eval_nnue_status()` on stderr, so a reader watching that stream for `Total time`
+    // / `Nodes searched` could see which evaluation produced them -- the signature
+    // anchor is defined with a net loaded and a netless run yields an unrelated number,
+    // and the two must not be told apart by eye alone.
+    //
+    // The concern is real and the line was the wrong answer to it: upstream prints the
+    // identity once per POSITION instead, which mcfish also does, so nothing is lost
+    // except on a stderr-only view -- where upstream is equally silent. Keeping it made
+    // `bench` the one command whose output could never match upstream's, and
+    // tools/upstream_golden_audit.sh has to be able to answer every case or it stops
+    // being a gate. If the stderr view matters again, raise it upstream rather than
+    // diverging here.
     char tt_size[32], threads[32], limit[32], fen_file[256], limit_type[32];
     const char *cursor = args;
     next_field(&cursor, tt_size, sizeof tt_size, "16");
@@ -178,7 +186,11 @@ uint64_t benchmark_run(const char *args) {
         // root with no legal moves publishes nothing and counts its predecessor
         // twice (Stockfish/src/uci.cpp:270).
         search_reset_last_nodes_searched();
-        uci_execute(go);
+        // Bypass the command loop's `go` announcement, as upstream's bench does.
+        if (strncmp(go, "go", 2) == 0)
+            uci_bench_go(go);
+        else
+            uci_execute(go);
         // `go` now dispatches the search and returns; wait for it before reading the
         // count it publishes, or bench would sum a search that has not run yet.
         search_wait();
