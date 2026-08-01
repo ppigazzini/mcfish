@@ -54,7 +54,9 @@ outside it is unwired, not deferred:
 
 The bench signature in `tools/signature.golden` is **upstream's number**, and
 mcfish currently produces it — matching Stockfish at
-`tools/upstream/UPSTREAM_BASE`, and matching zfish. It is a bit-exactness anchor,
+`tools/upstream/UPSTREAM_BASE`, which `./build.sh upstream-parity` is what
+checks. zfish syncs on its own schedule and its pin is often a different commit,
+so its anchor is not evidence about this one. It is a bit-exactness anchor,
 not a local snapshot; run `./build.sh signature` for the value. A change that moves it is a behaviour change and must say
 what moved it.
 
