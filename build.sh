@@ -1024,9 +1024,22 @@ do_golden_update() {
 do_test() {
   info "unit + property tests"
   mkdir -p build
-  "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=address,undefined -DMCFISH_ACC_STATS \
+  # -fno-sanitize-recover=undefined, and the same halt_on_error the CI lane sets.
+  #
+  # WITHOUT THESE THIS STEP IS WEAKER THAN CI AND LIES BY OMISSION. UBSan's default
+  # is to print a diagnostic and CARRY ON, so a real finding scrolled past in the
+  # middle of the suite's output and the step still exited 0. That is not a
+  # hypothetical: a null-pointer memcpy in worker_root_setup printed here twice,
+  # exited 0, was committed, and turned the blocking CI lane red -- where the same
+  # binary aborts because the workflow exports halt_on_error=1. A gate that is
+  # softer than CI trains you to trust an exit code that does not mean what CI
+  # means by it. Keep these in step with .github/workflows/mcfish_parity.yml.
+  "$CC" "${CFLAGS_COMMON[@]}" -O1 -g -fsanitize=address,undefined \
+    -fno-sanitize-recover=undefined -DMCFISH_ACC_STATS \
     -o build/mcfish-test "${ENGINE_SOURCES[@]}" tests/test_main.c -lm -lpthread
-  ./build/mcfish-test
+  ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:print_stacktrace=1 \
+  UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1 \
+    ./build/mcfish-test
 }
 
 # Assert a fuzz lane EXECUTED, rather than merely exiting 0.
