@@ -297,8 +297,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         // Step 9. Search the null move.
         if (cut_node && ss->static_eval >= null_move_threshold(beta, depth, improving)
             && excluded_move == MOVE_NONE && pos_non_pawn_material(pos, us) != 0
-            && ss->ply >= ctx->nmp_min_ply && !value_is_loss(beta)) {
-            const int r = null_move_reduction(depth);
+            && ss->ply >= ctx->nmp_min_ply && beta >= -2000) {
+            const int r = null_move_reduction(depth, ss->static_eval, beta);
             // Touch no accumulator for a null move: mark the stack move as null and
             // install the all-NO_PIECE continuation pages.
             pos_do_null_move(pos, &st, &pos->scratch_dp, &pos->scratch_dts);
