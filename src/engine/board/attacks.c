@@ -48,11 +48,13 @@ typedef struct {
 static alignas(64) DualMagic DualMagics[SQUARE_NB];
 static_assert(sizeof(DualMagic) == 64, "DualMagic must stay one cache line");
 
-// Sliding attacks within a rank, indexed by the slider's FILE and the 8-bit rank
-// occupancy, giving the 8-bit attack set on that rank. Rank attacks are the one
-// direction hyperbola quintessence cannot do with a byte reversal, because all eight
-// squares share a byte (upstream attacks.cpp:75).
-static uint8_t RankAttacks[FILE_NB][256];
+// Sliding attacks within a rank, indexed by the slider's FILE and the SIX INNER bits
+// of the rank occupancy, giving the 8-bit attack set on that rank. Rank attacks are
+// the one direction hyperbola quintessence cannot do with a byte reversal, because all
+// eight squares share a byte (upstream attacks.cpp:69). A blocker on either edge
+// square of the rank cannot change what is attacked beyond it, so those two bits carry
+// no information and dropping them divides the table by four.
+static alignas(64) uint8_t RankAttacks[FILE_NB][64];
 #endif
 
 static const Direction RookDirs[4] = { NORTH, EAST, SOUTH, WEST };
@@ -148,9 +150,9 @@ static Bitboard line_mask(Square sq, Direction d1, Direction d2) {
 
 static void init_dual_magics(void) {
     for (int file = 0; file < FILE_NB; ++file)
-        for (int occ = 0; occ < 256; ++occ)
-            RankAttacks[file][occ] =
-              (uint8_t) sliding_attack(ROOK, (Square) file, (Bitboard) (unsigned) occ);
+        for (int occ6 = 0; occ6 < 64; ++occ6)
+            RankAttacks[file][occ6] =
+              (uint8_t) sliding_attack(ROOK, (Square) file, (Bitboard) (unsigned) (occ6 << 1));
 
     for (Square s = SQ_A1; s <= SQ_H8; ++s) {
         DualMagic *const m = &DualMagics[s];
@@ -234,7 +236,7 @@ DualAttacks both_attacks_bb(Square s, Bitboard occupied) {
     // subtract-reverse-subtract-xor is hyperbola quintessence run on all three rays at
     // once. The byte reversal is enough (not a full bit reversal) because every square
     // of a file, diagonal or antidiagonal sits in a distinct byte -- which is exactly
-    // why the RANK cannot join them and comes from the 256-entry lookup instead.
+    // why the RANK cannot join them and comes from the 64-entry lookup instead.
     const DualMagic *const m = &DualMagics[s];
     const __m256i bswap_ctl = _mm256_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
                                               0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
@@ -252,8 +254,8 @@ DualAttacks both_attacks_bb(Square s, Bitboard occupied) {
     const __m128i rook_bishop =
       _mm_or_si128(_mm256_extracti128_si256(result, 1), _mm256_castsi256_si128(result));
 
-    const Bitboard rank_attacks = (Bitboard) m->rank_attacks_lookup[(occupied >> m->shift) & 0xff]
-                               << m->shift;
+    const Bitboard rank_attacks =
+      (Bitboard) m->rank_attacks_lookup[(occupied >> (m->shift + 1)) & 0x3f] << m->shift;
 
     return (DualAttacks) {
         .bishop = (Bitboard) _mm_extract_epi64(rook_bishop, 1),
