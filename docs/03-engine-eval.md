@@ -234,6 +234,21 @@ direction and establishes nothing on its own. The instruction and macro-op axes
 are what carry this result; they are near-deterministic under load, which is why
 they are the ones quoted.
 
+**What has already been falsified, so it is not re-derived.** The whole-engine
+cycle ratio against upstream is close to parity while the spine's is well ahead,
+which puts an IPC deficit in the inference path — mcfish retires fewer
+instructions there but more slowly. The obvious suspect is the accumulator
+apply's dependency-chain shape. **In the sibling Zig port that suspect is
+measured and dead**: matching upstream's chain count exactly was bit-exact and
+moved instructions 1.001 and cycles 0.990, inside the noise floor (zfish
+`eb021fdd`). A measurement does not transfer between the two trees, so that is
+not a fact about this one — but it is a strong prior, and it says to look
+elsewhere before spending a quiet box on the chain count. The same note records
+that symbol boundaries cannot say WHICH component differs, because upstream
+inlines its transform and affine into one `simd.h` body while this tree keeps
+them apart; splitting that needs a finer instrument than callgrind's file
+attribution.
+
 ### The two records are byte-identical by contract
 
 The board zone writes `DirtyPiece` and `DirtyThreats`; the accumulator reads the

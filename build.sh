@@ -1856,6 +1856,7 @@ usage: ./build.sh <step> [args]
   upstream-transcript LOCAL: whole UCI transcript diffed against the oracle
   golden-audit       LOCAL: adjudicate every UCI golden against the oracle
   fingerprint        LOCAL: assert mcfish CALLS what upstream calls, as often
+  material-eval [arch] LOCAL: build the spine-isolation pair (network removed, both sides)
   upstream-parity    THE finish line: bench vs a pristine upstream build (red until done)
   parity             the aggregate: every in-repo gate above
   clean              remove build/
@@ -1906,6 +1907,7 @@ case "${1:-build}" in
   upstream-transcript) do_upstream_transcript ;;
   golden-audit)     shift; tools/upstream_golden_audit.sh "$@" ;;
   fingerprint)      shift; tools/upstream_fingerprint.sh "$@" ;;
+  material-eval)    shift; tools/material_eval.sh "$@" ;;
   sync-status)      do_sync_status ;;
   upstream-parity)  shift; do_upstream_parity "$@" ;;
   fmt)              do_fmt ;;
