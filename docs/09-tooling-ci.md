@@ -302,6 +302,31 @@ and finish with `upstream-parity` and `upstream-map`. Cite with `file:line`
 wherever a mcfish header shares the upstream basename — a bare shared name is
 ambiguous and the map skips it rather than guess.
 
+Three things about that process are easy to get wrong and cost real time:
+
+- **Land one upstream commit per mcfish commit, in upstream order, and check each
+  behaviour-changing one against upstream's OWN `Bench:` line at that commit.**
+  Upstream states the anchor in the commit message of every functional change, so
+  the range hands you a checkpoint per step instead of one at the end. A sync
+  landed as a single commit has exactly one place to be wrong and no way to bisect
+  it; one that follows upstream's order has a green anchor at every step.
+- **Build the oracle at the commit under test, not at the old pin.**
+  `upstream_oracle.sh <sha>` takes one, and it is what turns "our number equals the
+  number in the message" into a differential against a pristine build.
+- **`tools/tb.golden` is EVAL-DEPENDENT and must be re-derived from an oracle at
+  the matching commit.** Its root-probe rows carry PVs, so a net or search change
+  moves them. Re-deriving it from mcfish would silently convert that gate from a
+  differential against upstream into a snapshot of whatever mcfish currently does.
+  `tb-cursed` splits the same way on purpose: its WDL/DTZ half is the
+  oracle-pinned one and must be green *before* `tb-cursed-update` re-derives the
+  node-limited legs.
+
+A commit in the range with no counterpart here is a result, not a gap to skip
+over silently. Say which commits those were and why in the pin-advance commit
+body — a backend this port does not carry, a C++ construct with no C23 analogue, a
+facility whose base was never taken — so the next resync does not re-derive the
+same nine answers.
+
 Three fidelity probes see three different bug classes, and each has caught one
 the others cannot:
 

@@ -24,8 +24,10 @@
 #include "../src/engine/eval/nnue/nnue_feature.h"
 #include "../src/engine/eval/nnue/nnue_parse.h"
 #include "../src/engine/eval/nnue/nnue_weight_storage.h"
+#include "../src/engine/search/history.h"
 #include "../src/engine/search/movepick.h"
 #include "../src/engine/search/search.h"
+#include "../src/engine/search/search_common.h"
 #include "../src/engine/search/tt.h"
 #include "../src/engine/eval/nnue/simd.h"
 #include "../src/platform/numa.h"
@@ -1139,6 +1141,38 @@ static void test_nnue_pair_changed_both(void) {
     CHECK(emitted > 0, "the fixtures produce pair indices at all");
 }
 
+// ------------------------------------------------- search step formulas
+
+// Pin the two search margins this tree most recently took from upstream, at the
+// boundaries their formulas turn on. Both are pure integer functions, so the values
+// belong in the suite rather than only in a node count that cannot say WHICH term
+// moved when it changes.
+static void test_search_step_margins(void) {
+    banner("search step margins");
+
+    // R = 7 + depth / 3 + max((staticEval - beta) / 256, 0).
+    CHECK(null_move_reduction(9, 0, 0) == 10, "base R at depth 9, got %d",
+          null_move_reduction(9, 0, 0));
+    CHECK(null_move_reduction(9, 255, 0) == 10, "an excess under 256 adds nothing, got %d",
+          null_move_reduction(9, 255, 0));
+    CHECK(null_move_reduction(9, 256, 0) == 11, "256 above beta adds one, got %d",
+          null_move_reduction(9, 256, 0));
+    CHECK(null_move_reduction(9, 700, 100) == 12, "the excess is measured from beta, got %d",
+          null_move_reduction(9, 700, 100));
+    // The guard on beta lets the null move run below the static eval, where the
+    // truncating division would otherwise contribute a negative reduction.
+    CHECK(null_move_reduction(9, -5000, 0) == 10, "a static eval below beta never shortens R");
+
+    // clamp(delta * singularDepth * 177 / 1024, +/- CORRECTION_HISTORY_LIMIT / 4).
+    CHECK(multicut_correction_bonus(0, 8) == 0, "no delta, no bonus");
+    CHECK(multicut_correction_bonus(64, 4) == 64 * 4 * 177 / 1024, "the unclamped body, got %d",
+          multicut_correction_bonus(64, 4));
+    CHECK(multicut_correction_bonus(30000, 60) == CORRECTION_HISTORY_LIMIT / 4,
+          "clamped above at a quarter of the limit, got %d", multicut_correction_bonus(30000, 60));
+    CHECK(multicut_correction_bonus(-30000, 60) == -CORRECTION_HISTORY_LIMIT / 4,
+          "clamped below at a quarter of the limit, got %d", multicut_correction_bonus(-30000, 60));
+}
+
 static void test_numa_from_string(void) {
     banner("numa policy strings");
 
@@ -1308,6 +1342,7 @@ int main(void) {
     test_nnue_dot4();
     test_nnue_accumulator_paths();
     test_nnue_pair_changed_both();
+    test_search_step_margins();
     test_movepick_poison();
     test_nnue_parse_poison();
     test_numa_from_string();
