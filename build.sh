@@ -128,6 +128,19 @@ arch_report_label() {
   else echo "$MCFISH_ARCH"; fi
 }
 
+# Name the tier IN THE BINARY, the way upstream's Makefile passes -DARCH. The
+# `compiler` command reports it, and a bug report pastes that block verbatim -- so
+# the one thing it must not do is guess. Upstream's own labels, so the two engines'
+# blocks are comparable line for line; `native` resolves to the concrete tier
+# rather than the mutable word, for the reason native_tier_label exists.
+case "$MCFISH_ARCH" in
+  sse41)   MCFISH_ARCH_STRING=x86-64-sse41-popcnt ;;
+  avx2)    MCFISH_ARCH_STRING=x86-64-avx2 ;;
+  vnni512) MCFISH_ARCH_STRING=x86-64-vnni512 ;;
+  native)  MCFISH_ARCH_STRING=$(native_tier_label) ;;
+esac
+CFLAGS_ARCH+=("-DMCFISH_ARCH_STRING=\"$MCFISH_ARCH_STRING\"")
+
 # -flto is load-bearing, not a default worth having by habit. The NNUE kernels sit
 # in their own translation units, so without it nnue_full_append_changed and
 # nnue_bb_pieces_of_exact cannot be inlined AT ALL, and the affine's `sparse` and
@@ -953,10 +966,18 @@ normalize() {
   # "Using N thread" is NOT machine-decided -- it echoes the Threads option -- so it
   # stays pinned in full.
   #
+  # `compiler`'s two IDENTITY lines keep their LINE and lose their VALUE, for the same
+  # reason the banner is replaced rather than removed: clang built this and g++ built
+  # the oracle, so those two can never be equal and comparing them would only ever
+  # report the toolchain. The two lines that carry BEHAVIOUR -- the architecture and the
+  # settings list -- are compared in full, which is the whole point of that block.
+  #
   # `upstream-transcript` does NOT elide any of these: it compares two engines on one
   # machine at one moment, where the real values must agree.
   sed -E 's/ nps [0-9]+//; s/ time [0-9]+//; s/^Total time \(ms\) *: [0-9]+$/Total time (ms) : <elided>/; s/^Nodes\/second *: [0-9]+$/Nodes\/second    : <elided>/' \
     | sed -E 's/^(mcfish|Stockfish) [^ ]+ by .*/<engine banner>/' \
+    | sed -E 's/^(Compiled by                : ).*/\1<toolchain>/' \
+    | sed -E 's/^(Compiler __VERSION__ macro : ).*/\1<toolchain version>/' \
     | sed -E 's/^info string Available processors: .*/info string Available processors: <cpus>/' \
     | sed -E 's/ with NUMA node thread binding: .*/ with NUMA node thread binding: <binding>/' \
     | grep -vE '^info string Network replica' \
