@@ -19,6 +19,17 @@
 // set's per-ply diff. This is upstream's apply_combined shape, not two accumulators.
 enum { PSQ_FEATURE = 0, THREAT_FEATURE = 1 };
 
+// Count which way up to the top slot was taken. See nnue_accumulator.h for why this
+// is a gate rather than a debugging aid, and why it is absent from the release build.
+#ifdef MCFISH_ACC_STATS
+static NnueAccStats AccStats;
+    #define ACC_STAT_BUMP(field) (void) (AccStats.field++)
+const NnueAccStats *nnue_acc_stats(void) { return &AccStats; }
+void nnue_acc_stats_reset(void) { AccStats = (NnueAccStats) { 0 }; }
+#else
+    #define ACC_STAT_BUMP(field) ((void) 0)
+#endif
+
 enum : size_t {
     ACC_BYTES = NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t)
               + NNUE_COLOR_COUNT * NNUE_PSQT_BUCKETS * sizeof(int32_t)
@@ -1002,8 +1013,10 @@ static void evaluate_side(uint8_t perspective,
             apply_combined(stack, perspective, ft, king_square, next, next - 1, true);
         }
     } else if (hybrid_applicable(perspective, stack, pos)) {
+        ACC_STAT_BUMP(hybrid);
         update_accumulator_hybrid(perspective, stack, pos, ft, cache);
     } else {
+        ACC_STAT_BUMP(refresh);
         refresh_combined(perspective, king_square, stack, pos, ft, cache);
 
         for (size_t computed_index = size - 1; computed_index > last_usable; computed_index--) {
@@ -1032,8 +1045,10 @@ static void forward_update_both(NnueAccumulatorStack *stack,
     for (size_t next = black_begin + 1; next <= shared_begin; next++)
         apply_combined(stack, BLACK, ft, black_ksq, next, next - 1, true);
 
-    for (size_t next = shared_begin + 1; next < size; next++)
+    for (size_t next = shared_begin + 1; next < size; next++) {
+        ACC_STAT_BUMP(shared_step);
         apply_combined_both(stack, ft, white_ksq, black_ksq, next, next - 1);
+    }
 }
 
 void nnue_acc_evaluate(NnueAccumulatorStack *stack,
@@ -1048,8 +1063,10 @@ void nnue_acc_evaluate(NnueAccumulatorStack *stack,
 
     if (state_computed(stack, PSQ_FEATURE, last_white, WHITE)
         && state_computed(stack, PSQ_FEATURE, last_black, BLACK)) {
+        ACC_STAT_BUMP(shared_walk);
         forward_update_both(stack, pos, ft, last_white, last_black);
     } else {
+        ACC_STAT_BUMP(split_walk);
         evaluate_side(WHITE, stack, pos, ft, cache, last_white);
         evaluate_side(BLACK, stack, pos, ft, cache, last_black);
     }

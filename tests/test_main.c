@@ -19,7 +19,9 @@
 #include "../src/engine/board/repetition.h"
 #include "../src/engine/board/uci_move.h"
 #include "../src/engine/eval/evaluate.h"
+#include "../src/engine/eval/nnue/nnue_accumulator.h"
 #include "../src/engine/eval/nnue/nnue_architecture.h"
+#include "../src/engine/eval/nnue/nnue_feature.h"
 #include "../src/engine/eval/nnue/nnue_parse.h"
 #include "../src/engine/eval/nnue/nnue_weight_storage.h"
 #include "../src/engine/search/movepick.h"
@@ -873,6 +875,270 @@ static bool parse_policy(const char *s, size_t *out_nodes, size_t *out_cpus) {
     return true;
 }
 
+// ------------------------------------------- nnue accumulator update paths
+
+// Kiwipete: 32 pieces, both kings still on e1/e8 with castling rights, which is what
+// makes every one of the four ways up to the top slot reachable from one fixture.
+static const char *const AccFen =
+  "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+
+// Walk MOVES through the accumulator bracket and compare the incremental evaluation
+// against a full refresh of the same position.
+//
+// The control is a second arena that is reset before every evaluation, so its top
+// slot has no previous ply to walk from and it must rebuild from the board. Any
+// disagreement is the incremental path describing a position the board does not
+// hold -- which is a class of bug that perft cannot see (it never evaluates), that
+// the unit suite could not see before this, and that the bench anchor sees only if
+// it happens to fire on one of 51 fixed positions.
+//
+// EVAL_STRIDE above 1 leaves plies uncomputed between evaluations, which is what
+// makes a walk cover a SUFFIX rather than a single ply. The first ply is always
+// evaluated whatever the stride: a walk that starts at the never-computed root slot
+// can only refresh, so nothing but the refresh path is reachable until one
+// evaluation has happened.
+static void acc_walk(EvalArena *inc,
+                     EvalArena *ctrl,
+                     const char *const *moves,
+                     size_t eval_stride,
+                     const char *label) {
+    Position pos;
+    StateInfo root_st;
+    if (!pos_set(&pos, AccFen, false, &root_st)) {
+        CHECK(false, "acc walk %s: fixture setup", label);
+        return;
+    }
+
+    StateInfo st[16];
+    Move played[16];
+    size_t depth = 0;
+
+    eval_acc_reset(inc);
+
+    for (size_t i = 0; moves[i] != nullptr && depth < 16; ++i) {
+        const Move m = move_from_uci(&pos, moves[i]);
+        if (m == MOVE_NONE) {
+            CHECK(false, "acc walk %s: %s is not legal here", label, moves[i]);
+            break;
+        }
+        DirtyPiece *dp;
+        DirtyThreats *dts;
+        eval_acc_push(inc, &dp, &dts);
+        pos_do_move(&pos, m, &st[depth], pos_gives_check(&pos, m), dp, dts, nullptr);
+        played[depth++] = m;
+
+        const bool evaluate_here = i == 0 || moves[i + 1] == nullptr || (i + 1) % eval_stride == 0;
+        if (!evaluate_here)
+            continue;
+
+        char fen[128];
+        pos_fen(&pos, fen);
+        Position fresh;
+        StateInfo fresh_st;
+        CHECK(pos_set(&fresh, fen, false, &fresh_st), "acc walk %s: round-trip %s", label, fen);
+        eval_acc_reset(ctrl);
+
+        const Value incremental = evaluate_nnue_with_optimism(inc, &pos, 0);
+        const Value refreshed = evaluate_nnue_with_optimism(ctrl, &fresh, 0);
+        CHECK(incremental == refreshed,
+              "acc walk %s ply %zu (%s): incremental %d != refresh %d [%s]", label, depth, moves[i],
+              incremental, refreshed, fen);
+    }
+
+    while (depth > 0) {
+        pos_undo_move(&pos, played[--depth]);
+        eval_acc_pop(inc);
+    }
+}
+
+static void test_nnue_accumulator_paths(void) {
+    banner("nnue accumulator update paths");
+
+    if (!eval_nnue_init()) {
+        CHECK(false, "eval_nnue_init failed");
+        return;
+    }
+    if (!eval_nnue_load("resources/", nullptr)) {
+        // The net is a runtime input; without it the NNUE paths do not run at all.
+        // Say so loudly -- a skipped check proves nothing.
+        printf("  SKIP: resources/%s not present; accumulator paths not exercised\n",
+               eval_nnue_default_file_name());
+        return;
+    }
+
+    EvalArena *const inc = eval_arena_create();
+    EvalArena *const ctrl = eval_arena_create();
+    if (inc == nullptr || ctrl == nullptr) {
+        CHECK(false, "two eval arenas allocate");
+        eval_arena_destroy(inc);
+        eval_arena_destroy(ctrl);
+        return;
+    }
+    eval_arena_clear_refresh_cache(inc);
+    eval_arena_clear_refresh_cache(ctrl);
+
+    // Quiet moves only: neither king moves, so both perspectives stay computed and
+    // the shared both-perspectives walk takes every ply.
+    static const char *const quiet[] = { "d5e6", "e7e6", "e2a6", "e6e5", nullptr };
+    // Same-half king moves at full material: the hybrid step's whole condition.
+    static const char *const same_half[] = { "e1f1", "e8f8", "f1e1", "f8e8", nullptr };
+    // A king move ACROSS the centre file changes the threat orientation too, and
+    // castling also relocates a rook; both must fall back to a full refresh.
+    static const char *const cross_half[] = { "e1d1", "e8d8", nullptr };
+    static const char *const castles[] = { "e1g1", "e8c8", nullptr };
+
+    // Assert only on counters the INCREMENTAL arena can move. The control arena
+    // refreshes twice on purpose before every comparison, so `refresh` carries both
+    // arenas' work and says nothing about the path under test; `hybrid` is reachable
+    // from the incremental walk alone, and "did not take the hybrid" is the same
+    // claim as "fell back to a refresh" seen from the side the counter can see.
+#ifdef MCFISH_ACC_STATS
+    nnue_acc_stats_reset();
+    const NnueAccStats *const s = nnue_acc_stats();
+    uint64_t hybrid_before = 0;
+#endif
+
+    acc_walk(inc, ctrl, quiet, 1, "quiet");
+#ifdef MCFISH_ACC_STATS
+    CHECK(s->shared_walk > 0 && s->shared_step > 0,
+          "a king-free walk takes the shared both-perspectives pass (%llu walks, %llu steps)",
+          (unsigned long long) s->shared_walk, (unsigned long long) s->shared_step);
+    hybrid_before = s->hybrid;
+#endif
+
+    acc_walk(inc, ctrl, same_half, 1, "same-half king moves");
+#ifdef MCFISH_ACC_STATS
+    // Three, not four: the first ply cannot use the step because the walk begins at
+    // a root slot that was never computed, and the hybrid needs the PREVIOUS ply's
+    // accumulation to carry the threat and pair rows forward. The remaining three
+    // king moves each take it, for the moving side's own perspective.
+    CHECK(s->hybrid - hybrid_before == 3,
+          "the same-half fixture takes the hybrid step three times, got %llu",
+          (unsigned long long) (s->hybrid - hybrid_before));
+    hybrid_before = s->hybrid;
+#endif
+
+    acc_walk(inc, ctrl, cross_half, 1, "cross-half king moves");
+#ifdef MCFISH_ACC_STATS
+    CHECK(s->hybrid == hybrid_before,
+          "a king move across the centre file must not take the hybrid step (%llu did)",
+          (unsigned long long) (s->hybrid - hybrid_before));
+#endif
+
+    acc_walk(inc, ctrl, castles, 1, "castling");
+#ifdef MCFISH_ACC_STATS
+    CHECK(s->hybrid == hybrid_before, "castling must not take the hybrid step (%llu did)",
+          (unsigned long long) (s->hybrid - hybrid_before));
+#endif
+
+    // Deferred evaluation: plies land uncomputed between evaluations, so a walk
+    // catches up over a suffix and the two perspectives can start from different
+    // plies -- the case the shared pass's catch-up loops exist for.
+#ifdef MCFISH_ACC_STATS
+    const uint64_t shared_step_before = s->shared_step;
+    const uint64_t shared_walk_before = s->shared_walk;
+#endif
+    acc_walk(inc, ctrl, quiet, 3, "quiet, deferred");
+    acc_walk(inc, ctrl, same_half, 3, "same-half king moves, deferred");
+
+#ifdef MCFISH_ACC_STATS
+    CHECK(s->shared_step - shared_step_before > s->shared_walk - shared_walk_before,
+          "a deferred walk carries more than one ply per pass (%llu steps over %llu passes)",
+          (unsigned long long) (s->shared_step - shared_step_before),
+          (unsigned long long) (s->shared_walk - shared_walk_before));
+    CHECK(s->split_walk > 0, "a king move splits the two perspectives' walks");
+    printf("  paths: shared %llu (%llu steps), split %llu, hybrid %llu, refresh %llu\n",
+           (unsigned long long) s->shared_walk, (unsigned long long) s->shared_step,
+           (unsigned long long) s->split_walk, (unsigned long long) s->hybrid,
+           (unsigned long long) s->refresh);
+#else
+    CHECK(false, "the suite must be built with -DMCFISH_ACC_STATS to gate path coverage");
+#endif
+
+    eval_arena_destroy(inc);
+    eval_arena_destroy(ctrl);
+}
+
+// ------------------------------------------ nnue shared pawn-pair producer
+
+// Assert the both-perspectives pawn-pair producer is list-for-list identical to two
+// per-perspective calls.
+//
+// It exists only to pay for the pawn geometry once, so "same indices in the same
+// order" is the entire contract -- and an ordering slip between the two would be
+// invisible to any value gate, because the accumulator sums the rows and integer
+// addition does not care what order they arrive in. It would surface only later, as
+// a list that overflows or a pair emitted twice.
+static void check_pair_both(uint8_t white_ksq,
+                            uint8_t black_ksq,
+                            uint64_t white_before,
+                            uint64_t black_before,
+                            uint64_t white_after,
+                            uint64_t black_after,
+                            const char *label,
+                            size_t *emitted) {
+    const NnueDirtyPawnPairs diff = {
+        .before = { white_before, black_before },
+        .after = { white_after, black_after },
+    };
+
+    uint32_t one[4][NNUE_THREAT_INDEX_CAPACITY];
+    uint32_t both[4][NNUE_THREAT_INDEX_CAPACITY];
+    size_t one_len[4] = { 0, 0, 0, 0 };
+    size_t both_len[4] = { 0, 0, 0, 0 };
+
+    // Order: white removed, white added, black removed, black added.
+    nnue_pair_append_changed(WHITE, white_ksq, &diff, one[0], &one_len[0], one[1], &one_len[1]);
+    nnue_pair_append_changed(BLACK, black_ksq, &diff, one[2], &one_len[2], one[3], &one_len[3]);
+    nnue_pair_append_changed_both(white_ksq, black_ksq, &diff, both[0], &both_len[0], both[1],
+                                  &both_len[1], both[2], &both_len[2], both[3], &both_len[3]);
+
+    static const char *const names[4] = { "white removed", "white added", "black removed",
+                                          "black added" };
+    for (size_t i = 0; i < 4; ++i) {
+        CHECK(one_len[i] == both_len[i], "%s: %s length %zu vs %zu", label, names[i], one_len[i],
+              both_len[i]);
+        if (one_len[i] == both_len[i]) {
+            CHECK(memcmp(one[i], both[i], one_len[i] * sizeof one[i][0]) == 0,
+                  "%s: %s indices differ", label, names[i]);
+        }
+        *emitted += one_len[i];
+    }
+}
+
+static void test_nnue_pair_changed_both(void) {
+    banner("nnue shared pawn-pair producer");
+
+    // PawnPairBB is built by nnue_feature_init, which eval_nnue_init runs.
+    if (!eval_nnue_init()) {
+        CHECK(false, "eval_nnue_init failed");
+        return;
+    }
+
+    // Two adjacent files of pawns on both sides, so the pair bands are populated and
+    // a single changed pawn produces several pairs rather than none.
+    const uint64_t w = square_bb(SQ_D2) | square_bb(SQ_E2) | square_bb(SQ_F3) | square_bb(SQ_C4);
+    const uint64_t b = square_bb(SQ_D7) | square_bb(SQ_E6) | square_bb(SQ_F7) | square_bb(SQ_C5);
+
+    size_t emitted = 0;
+    check_pair_both(SQ_G1, SQ_G8, w, b, w, b, "no pawn moved", &emitted);
+    CHECK(emitted == 0, "an unchanged pawn set emits nothing, got %zu", emitted);
+
+    // A push, a capture (the white pawn lands on the black pawn's square), a
+    // promotion (the pawn leaves the pair space), and a mirrored king bucket.
+    check_pair_both(SQ_G1, SQ_G8, w, b, (w ^ square_bb(SQ_E2)) | square_bb(SQ_E4), b, "white push",
+                    &emitted);
+    check_pair_both(SQ_G1, SQ_G8, w, b, (w ^ square_bb(SQ_C4)) | square_bb(SQ_C5),
+                    b ^ square_bb(SQ_C5), "white captures", &emitted);
+    check_pair_both(SQ_G1, SQ_G8, w, b, w ^ square_bb(SQ_D2), b, "white pawn disappears", &emitted);
+    check_pair_both(SQ_B1, SQ_B8, w, b, w, (b ^ square_bb(SQ_E6)) | square_bb(SQ_E5),
+                    "queen-side king bucket", &emitted);
+    check_pair_both(SQ_A1, SQ_H8, w, b, (w ^ square_bb(SQ_F3)) | square_bb(SQ_F4),
+                    (b ^ square_bb(SQ_D7)) | square_bb(SQ_D5), "both sides moved", &emitted);
+
+    CHECK(emitted > 0, "the fixtures produce pair indices at all");
+}
+
 static void test_numa_from_string(void) {
     banner("numa policy strings");
 
@@ -1040,6 +1306,8 @@ int main(void) {
     test_search();
     test_draw_detection();
     test_nnue_dot4();
+    test_nnue_accumulator_paths();
+    test_nnue_pair_changed_both();
     test_movepick_poison();
     test_nnue_parse_poison();
     test_numa_from_string();
