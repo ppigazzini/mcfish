@@ -236,10 +236,22 @@ static void go_line(char *args, bool announce) {
         }
     }
 
-    // Default to a bounded depth rather than an unbounded search.
-    if (!limits.depth && !limits.movetime_ms && !limits.nodes && !limits.infinite
-        && !limits.time_ms[WHITE] && !limits.time_ms[BLACK])
-        limits.depth = 8;
+    // NO DEFAULT DEPTH. A `go` with no usable limit searches until `stop`, which is
+    // what upstream does: its limit fields are plain ints and every test of them is a
+    // truthiness check, so an absent limit and a ZERO limit are the same thing and
+    // neither bounds the depth loop (search.cpp's `!(limits.depth && rootDepth >
+    // limits.depth)`).
+    //
+    // mcfish capped these at depth 8. That was defensible when `go` ran on the UCI
+    // thread -- an unbounded search there could not be interrupted, because the loop
+    // that would read `stop` was inside it -- and it stopped being defensible when the
+    // search moved onto worker 0. It made `go`, `go nodes 0`, `go depth 0` and `go
+    // movetime 0` all stop at depth 8 where upstream was still going at 23.
+    //
+    // The zero-limit half falls out for free: search_control already tests
+    // `lim_movetime != 0` and `lim_nodes != 0`, and search_id tests `limits_depth != 0`,
+    // so every zero already meant "absent" everywhere below this line. Only this
+    // default disagreed.
 
     // The net banner comes last, after the two above and after the argument parse:
     // upstream reaches it through Engine::go's own verify callback, not from the
