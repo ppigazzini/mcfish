@@ -49,6 +49,7 @@ count really does need startup removed and the axis is deterministic enough to
 survive the subtraction.
 """
 
+import re
 import statistics
 import sys
 
@@ -59,6 +60,24 @@ ALL_AXES = ["instructions", "cycles", "cache_misses", "branch_misses", "macro_op
 
 def axes_for(width):
     return ALL_AXES[:width]
+
+
+def nodes_of(path):
+    """The tree size perf_counters.sh recorded in its header, or None.
+
+    A RATIO WITH NO BASE CANNOT SAY WHETHER IT MATTERS. "cache misses: 1.007" reads
+    like a finding until the absolute turns out to be a fraction of a miss per node
+    on a base of fifty, which the out-of-order engine hides entirely. Per NODE
+    rather than per run, so two transcripts taken over DIFFERENT trees -- a
+    material-eval spine run against a full-engine one -- are still comparable, which
+    they are not on absolutes.
+    """
+    with open(path) as f:
+        for line in f:
+            m = re.match(r"#\s*tree:\s*([\d,]+)\s+nodes", line)
+            if m:
+                return int(m.group(1).replace(",", ""))
+    return None
 
 
 def read(path):
@@ -73,6 +92,14 @@ def read(path):
     if not a or not b:
         sys.exit(f"error: {path} holds no `#R` lines -- was it produced by perf_counters?")
     return a, b
+
+
+def per_node(total, n):
+    """Render TOTAL per node, or a dash when the transcript carried no tree size."""
+    if not n:
+        return "-"
+    v = total / n
+    return f"{v:,.1f}" if v < 1000 else f"{v:,.0f}"
 
 
 def med(rows):
@@ -97,19 +124,32 @@ def search_only(deep, shallow):
 def main(deep_fwd, shal_fwd, deep_swp=None, shal_swp=None):
     A, B = search_only(deep_fwd, shal_fwd)
     axes = axes_for(len(A))
+    n = nodes_of(deep_fwd)
     fwd = [(x / y if y else 0.0) for x, y in zip(A, B, strict=True)]
 
     if deep_swp:
         SA, SB = search_only(deep_swp, shal_swp)
         swp = [(x / y if y else 0.0) for x, y in zip(SA, SB, strict=True)]
-        print(f"{'axis':<16}{'A (search)':>18}{'B (search)':>18}{'fwd':>8}{'swp':>8}{'A/B':>9}")
+        print(
+            f"{'axis':<16}{'A (search)':>18}{'B (search)':>18}"
+            f"{'fwd':>8}{'swp':>8}{'A/B':>9}{'A/node':>12}{'B/node':>12}"
+        )
         for i, ax in enumerate(axes):
             bc = (fwd[i] / swp[i]) ** 0.5 if swp[i] else 0.0
-            print(f"{ax:<16}{A[i]:>18,}{B[i]:>18,}{fwd[i]:>8.3f}{swp[i]:>8.3f}{bc:>9.3f}")
+            print(
+                f"{ax:<16}{A[i]:>18,}{B[i]:>18,}{fwd[i]:>8.3f}{swp[i]:>8.3f}{bc:>9.3f}"
+                f"{per_node(A[i], n):>12}{per_node(B[i], n):>12}"
+            )
     else:
-        print(f"{'axis':<16}{'A (search)':>18}{'B (search)':>18}{'A/B':>9}")
+        print(
+            f"{'axis':<16}{'A (search)':>18}{'B (search)':>18}"
+            f"{'A/B':>9}{'A/node':>12}{'B/node':>12}"
+        )
         for i, ax in enumerate(axes):
-            print(f"{ax:<16}{A[i]:>18,}{B[i]:>18,}{fwd[i]:>9.3f}")
+            print(
+                f"{ax:<16}{A[i]:>18,}{B[i]:>18,}{fwd[i]:>9.3f}"
+                f"{per_node(A[i], n):>12}{per_node(B[i], n):>12}"
+            )
 
     if A[1] and B[1]:
         ipc = (A[0] / A[1]) / (B[0] / B[1])
