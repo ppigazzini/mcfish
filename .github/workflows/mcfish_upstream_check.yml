@@ -101,7 +101,10 @@ jobs:
   upstream-nodes:
     name: Node-for-node differential (random positions)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Raised from 20: this job now also adjudicates the goldens (which drives the
+    # oracle with a settle after every `go`) and runs two callgrind profiles. The
+    # fingerprint alone measures 77s on a developer box and a runner is slower.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -154,12 +157,20 @@ jobs:
       # divergence on its first run. LOCAL otherwise: it needs the pinned upstream
       # tree, which the blocking parity workflow's checkout does not carry.
       - name: Adjudicate the UCI goldens against the oracle
-        run: ./build.sh golden-audit
+        run: CC="clang-$CLANG_VERSION" ./build.sh golden-audit
 
       # The ALGORITHM gate, and the only one here that is not about values. Every
       # other differential passes over a state divergence that happens not to move a
       # node count on the positions it drives; this one found two that all of them
       # missed. callgrind is deterministic, so a loaded runner cannot flap it -- but
       # it is ~50x slow, which is why it runs here and not in the blocking lane.
+      # CC is NOT optional here: this step BUILDS mcfish (at sse41, to match the
+      # tier the oracle builds and the only tier callgrind can run), and build.sh
+      # defaults to plain `clang`, which on this runner is not the pinned major the
+      # rest of the lane uses. Every other build step in these workflows passes it
+      # explicitly for the same reason.
       - name: Call-count fingerprint vs the oracle
-        run: sudo apt-get install -y valgrind && ./build.sh fingerprint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+          CC="clang-$CLANG_VERSION" ./build.sh fingerprint

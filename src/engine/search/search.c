@@ -217,13 +217,19 @@ static bool worker_root_setup(SearchWorker *w,
     // which the guard below would read as failure.
     if (src->count == 0) {
         root_moves_free(&w->rml);
-    } else if (w->rml.moves == nullptr || w->rml.count != src->count) {
-        root_moves_free(&w->rml);
-        w->rml.moves = calloc(src->count, sizeof *w->rml.moves);
-        if (w->rml.moves == nullptr)
-            return false;
+    } else {
+        if (w->rml.moves == nullptr || w->rml.count != src->count) {
+            root_moves_free(&w->rml);
+            w->rml.moves = calloc(src->count, sizeof *w->rml.moves);
+            if (w->rml.moves == nullptr)
+                return false;
+        }
+        // Keep the copy on the arm where BOTH pointers are real. memcpy's operands
+        // are declared nonnull, so a zero-length copy out of a null source is
+        // undefined even though it moves no byte -- and on the empty arm both sides
+        // are null. UBSan says so; the copy itself would have looked harmless.
+        memcpy(w->rml.moves, src->moves, src->count * sizeof *src->moves);
     }
-    memcpy(w->rml.moves, src->moves, src->count * sizeof *src->moves);
     w->rml.count = src->count;
     w->rml.tb_config = src->tb_config;
 
