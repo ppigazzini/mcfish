@@ -148,14 +148,63 @@ Two details that make the contract cheap to honour:
   the child evaluates against the parent's own slot — which is what upstream does.
   Pushing a slot carrying `pos_do_null_move`'s empty delta is *not* equivalent: the
   empty diff is applied rather than skipped, and the resulting accumulator disagrees
-  with a full refresh of the same position. That divergence is invisible to perft
-  and to the unit suite; it shows up only as evaluations that differ from a
-  refresh-per-node control run.
+  with a full refresh of the same position. That divergence is invisible to perft,
+  which never evaluates; it shows up only as evaluations that differ from a
+  refresh-per-node control run, which is what
+  [`../tests/test_main.c`](../tests/test_main.c)'s `test_nnue_accumulator_paths`
+  runs — see [the four update paths](#the-four-update-paths) below.
 
 `AccDepth` counts plies above the root so a push can never run past the arena. The
 search's `ply >= MAX_PLY` guard already bounds it; the check exists so a future
 caller that loses that guard degrades to a stale evaluation rather than writing
 outside the arena.
+
+### The four update paths
+
+`nnue_acc_evaluate` has four ways up to the top slot, and **they all produce the
+same numbers**. Which one runs changes only how much work it costs:
+
+| path | when | what it does |
+|---|---|---|
+| shared walk | neither perspective needs a refresh | one forward pass takes both, reading each ply's diff once |
+| split walk | otherwise | one pass per perspective |
+| hybrid | this perspective's own king moved but stayed on its half | swaps the HalfKA half between the two king squares' refresh-cache entries and carries the threat/pair accumulation over |
+| refresh | everything else | rebuilds the top slot from the board |
+
+The hybrid step is the one worth understanding. A king move rebuckets every HalfKA
+index, but the threat and pair features only change orientation when the king
+crosses the **centre file** — so a same-half king move keeps that whole
+accumulation, and only the HalfKA half has to move buckets. Both buckets are
+available from the refresh cache, so the step is
+
+```
+target = computed − <source-bucket HalfKA> + <destination-bucket HalfKA>
+         + <this ply's threat/pair delta>
+```
+
+The source bucket's board is the position *before* the move, which the step
+reconstructs by undoing the king move on a copy of the piece array — the only board
+`nnue_accumulator.c` builds rather than reads. It is bounded below by
+`MIN_PC_COUNT_HYBRID` pieces, under which summing the threat/pair features outright
+is cheaper, and it declines castling, which also relocates a rook.
+
+**That they agree is exactly what makes a broken one hard to see.** A path that
+stops running is answered correctly by its own fallback: the bench anchor, the UCI
+goldens and the upstream node differential all stay green while a whole branch is
+dead. So the suite makes two separate claims, and needs both:
+
+- **agreement** — `test_nnue_accumulator_paths` walks move sequences through the
+  bracket and compares every ply's incremental evaluation against a second arena
+  that is reset before each evaluation and must therefore rebuild from the board.
+- **coverage** — the same test asserts each path was *taken*, against the counters
+  `nnue_accumulator.h` exposes under `MCFISH_ACC_STATS`. `build.sh` defines that
+  macro for the `test` and `tsan` binaries and for nothing else, so the release
+  binary carries no counter in its hottest function.
+
+Assert only on counters the incremental arena can move. The control arena refreshes
+on purpose, twice per comparison, so `refresh` carries both arenas' work and says
+nothing about the path under test; "did not take the hybrid" is the same claim seen
+from the side the counter can see.
 
 ### The two records are byte-identical by contract
 

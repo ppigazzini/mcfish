@@ -88,7 +88,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `debug` | the same sources with ASan + UBSan and `-fno-sanitize-recover=undefined` | nothing on its own; it is the binary the sanitizer lane drives |
 | `zone-check` | links `ENGINE_SOURCES` plus a stub `main`, with no shell object | that no **listed** `engine/` file calls into `shell/`. It **links**, so a forbidden call is an undefined symbol rather than a clean compile. It cannot see the engine→platform edge — all of `platform/` is inside the array — which is what `engine-standalone` is for |
 | `engine-standalone` | compiles every `src/engine/*.c` alone and links them with **no** platform object | the engine→platform edge, as a count rather than a claim. Ratchets the undefined symbols against [`../tools/engine_platform.baseline`](../tools/engine_platform.baseline): a new one fails (fix it with a seam, not a baseline edit), and a stale one fails too, so the list cannot outlive what it measures. See [00-architecture.md](00-architecture.md) |
-| `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism |
+| `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it, with `-DMCFISH_ACC_STATS` | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism, and the accumulator's four update paths — see *A path that agrees is not a path that ran* below |
 | `fuzz-search [seconds]` | builds `ENGINE_SOURCES` + [`../tools/fuzz_search.c`](../tools/fuzz_search.c) under libFuzzer+ASan+UBSan and runs it for the given budget (default 30s) | the real search **in-process**: a fuzzer-selected random-legal-move walk from the start position, then `search_go` at a shallow depth, with no shell and no UCI text in the way. clang-only (libFuzzer has no gcc lane). The step **asserts the lane executed**, not merely that it exited 0 — see below. Kept out of `parity`, same reason as `tsan`: its own build and a real time budget, and a clean run means "no crash in that budget," not "there is none." See [00-architecture.md](00-architecture.md#what-the-library-boundary-buys) |
 | `fuzz-tb [seconds]` | builds **two** libFuzzer+ASan+UBSan drivers and runs each for the given budget (default 30s): [`../tools/fuzz_tb_parse.c`](../tools/fuzz_tb_parse.c) over `decode_set_sizes`/`decode_pairs` directly, and [`../tools/fuzz_tb_file.c`](../tools/fuzz_tb_file.c) over a real file through `tablebase_init` and a probe | the Syzygy parse — the other untrusted input, since `SyzygyPath` names a **binary** file the engine did not write and every offset the parse advances is read out of it. The decoder lane runs at ~200k iterations/s and is the only one fast enough to explore header shapes, but it reaches the decoder by reimplementing `registry.c set`'s carve; the whole-file lane runs at ~200/s and is the only one that executes `set`, `set_groups`, `set_dtz_map` and `map_file` at all. Neither subsumes the other, so both run and both must be clean. The whole-file lane is seeded from `resources/syzygy/` when the tables are there — mutating a table that parses is where a parser dies — and says so in red when they are not. Both pass `-timeout`, because a corrupt btree could once make the descent run forever, so a hang is a finding, and both assert their executed count against a floor rather than trusting an exit code. Standing this gate up found three bugs the hand-written bounds had missed. clang-only, out of `parity`, same reasons as `fuzz-search` |
 | `tsan` | rebuilds `ENGINE_SOURCES` + the test binary under ThreadSanitizer and runs it | the thread pool: that spawning, dispatching a job, waiting on the condition variable and joining carry the happens-before edges they claim. **This is the only gate that can see a threading bug at all** — the single-threaded search never reaches that code, and a race does not have to fire to be there. Kept out of `parity`: it needs its own build of the engine and roughly triples the suite. Run it whenever `src/platform/thread*.c` changes |
@@ -135,6 +135,35 @@ going, and then **names every skipped gate in its summary line** — because
 actually checked, is exactly how a gate rots into decoration. Those three are the
 gates here that can be skipped; every other one runs on a bare toolchain with no
 net.
+
+### A path that agrees is not a path that ran
+
+Some ports add a second way to compute an answer the tree already computes: the
+accumulator's hybrid king-move step and its shared both-perspectives walk are both
+"no functional change" by construction. **Every value gate in this repository is
+blind to one of those going dead.** The fallback answers correctly in its place, so
+the anchor, the goldens, `simd-scalar`, `arch-determinism` and even the upstream
+node differential all stay green while the new code never executes.
+
+The value gates cannot close that, because agreement is what they test. Two claims
+are needed and they are separate:
+
+- **the path agrees with a control.** `test_nnue_accumulator_paths` walks move
+  sequences through the accumulator bracket and compares every ply against a second
+  arena reset before each evaluation, which must therefore rebuild from the board.
+- **the path was taken.** The same test asserts the counters
+  `nnue_accumulator.h` exposes under `MCFISH_ACC_STATS`, which `build.sh` defines
+  for `test` and `tsan` and for nothing else — a release binary must not carry a
+  counter in the engine's hottest function.
+
+Both halves were checked against deliberate mutations before being trusted: killing
+the hybrid condition fails only the coverage assertion (every value still correct),
+and flipping a sign in its arithmetic fails only the comparison. A gate that has
+never failed for the right reason has not been shown to be a gate.
+
+When you add a third way to compute something here, add both halves. And assert
+only on counters the path under test can move: the control arena refreshes on
+purpose, so the `refresh` counter carries both arenas' work and proves nothing.
 
 ## Regenerating a golden on a red gate launders a bug
 
