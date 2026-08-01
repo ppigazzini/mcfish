@@ -2,6 +2,7 @@
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 1 seldepth 8 multipv 1 score cp -56 nodes 100 hashfull 0 tbhits 0 pv e2a6 b4c3
 info depth 2 seldepth 4 multipv 1 score cp -56 nodes 200 hashfull 0 tbhits 0 pv e2a6 b4c3
 info depth 3 seldepth 6 multipv 1 score cp -92 nodes 797 hashfull 0 tbhits 0 pv e2a6 b4c3 d2c3 e6d5
@@ -16,6 +17,7 @@ bestmove e2a6 ponder b4c3
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 1 seldepth 6 multipv 1 score cp 286 nodes 67 hashfull 0 tbhits 0 pv d7c8r
 info depth 2 seldepth 3 multipv 1 score cp 371 nodes 123 hashfull 0 tbhits 0 pv d7c8r
 info depth 3 seldepth 5 multipv 1 score cp 465 nodes 199 hashfull 0 tbhits 0 pv d7c8r d8c8 e1f2

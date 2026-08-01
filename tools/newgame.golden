@@ -25,6 +25,7 @@ Checkers:
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 0 score cp 0
 bestmove (none)
 
@@ -53,11 +54,13 @@ Checkers:
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 0 score mate 0
 bestmove (none)
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 0 score mate 0
 bestmove (none)
 exit=0

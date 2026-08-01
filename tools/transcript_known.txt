@@ -13,10 +13,22 @@
 # would mean claiming to be Stockfish. Never retired.
 ^[<>] id name
 
-# Upstream reports the NNUE net replicated per NUMA node. mcfish does not register the
-# network for replication (AGENTS.md names it as an open limitation), so it has nothing
-# truthful to print here. RETIRE when replication lands.
-^> info string Network replica
+# The net replica line is now EMITTED on both sides, in the same place and once per
+# replica; only the BACKING WORD differs. Upstream maps the net system-wide and says
+# `Shared memory.`; mcfish holds one network in ordinary process memory and says
+# `Local memory.`, which is one of upstream's own four strings and the true one here.
+# Claiming `Shared memory.` would match the byte by asserting something false about the
+# allocation.
+#
+# This entry used to accept ONLY upstream's side, because mcfish printed nothing at all
+# -- so its announcement block was a line shorter than every other Stockfish's, and the
+# ABSENCE was what the entry was hiding. Both sides are named now, and the pattern is
+# anchored to the two backing words, so a missing line on either side fails again.
+#
+# RETIRE by registering the network for NUMA replication (AGENTS.md names it as open),
+# after which the count follows the node count and the backing may genuinely match --
+# not by widening this back to the whole line.
+^[<>] info string Network replica [0-9]+: (Local|Shared) memory\.$
 
 # After a REJECTED NumaPolicy, upstream still reports a per-node binding while mcfish
 # reports none, though both print the same rejection line and the same `Available

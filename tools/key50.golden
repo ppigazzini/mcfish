@@ -1,7 +1,7 @@
 <engine banner>
 
  +---+---+---+---+---+---+---+---+
- | q | b | r | n | n | k | r | b | 8
+ | r | n | b | q | k | b | n | r | 8
  +---+---+---+---+---+---+---+---+
  | p | p | p | p | p | p | p | p | 7
  +---+---+---+---+---+---+---+---+
@@ -15,16 +15,16 @@
  +---+---+---+---+---+---+---+---+
  | P | P | P | P | P | P | P | P | 2
  +---+---+---+---+---+---+---+---+
- | Q | B | R | N | N | K | R | B | 1
+ | R | N | B | Q | K | B | N | R | 1
  +---+---+---+---+---+---+---+---+
    a   b   c   d   e   f   g   h
 
-Fen: qbrnnkrb/pppppppp/8/8/8/8/PPPPPPPP/QBRNNKRB w GCgc - 0 1
-Key: 3A2B2F678297F4BB
+Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 13 1
+Key: 8F8F01D4562F59FB
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
- | q | b | r | n | n | k | r | b | 8
+ | r | n | b | q | k | b | n | r | 8
  +---+---+---+---+---+---+---+---+
  | p | p | p | p | p | p | p | p | 7
  +---+---+---+---+---+---+---+---+
@@ -38,44 +38,16 @@ Checkers:
  +---+---+---+---+---+---+---+---+
  | P | P | P | P | P | P | P | P | 2
  +---+---+---+---+---+---+---+---+
- | Q | B | R | N | N | R | K | B | 1
+ | R | N | B | Q | K | B | N | R | 1
  +---+---+---+---+---+---+---+---+
    a   b   c   d   e   f   g   h
 
-Fen: qbrnnkrb/pppppppp/8/8/8/8/PPPPPPPP/QBRNNRKB b gc - 1 1
-Key: FF9EAE48F14D1BAC
+Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 14 1
+Key: 9B8A7AAAA148D8B4
 Checkers: 
-info string Available processors: <cpus>
-info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-a2a3: 9209
-b2b3: 12179
-c2c3: 11588
-d2d3: 9694
-e2e3: 12097
-f2f3: 9658
-g2g3: 13919
-h2h3: 10179
-a2a4: 9681
-b2b4: 12203
-c2c4: 12630
-d2d4: 10132
-e2e4: 12021
-f2f4: 10216
-g2g4: 14425
-h2h4: 10653
-b1a3: 10163
-b1c3: 11070
-e1d3: 11112
-e1f3: 11062
-f1g1: 9694
-
-Nodes searched: 233585
-
 
  +---+---+---+---+---+---+---+---+
- | b | q | n | b | n | r | k | r | 8
+ | r | n | b | q | k | b | n | r | 8
  +---+---+---+---+---+---+---+---+
  | p | p | p | p | p | p | p | p | 7
  +---+---+---+---+---+---+---+---+
@@ -89,11 +61,11 @@ Nodes searched: 233585
  +---+---+---+---+---+---+---+---+
  | P | P | P | P | P | P | P | P | 2
  +---+---+---+---+---+---+---+---+
- | B | Q | N | B | N | R | K | R | 1
+ | R | N | B | Q | K | B | N | R | 1
  +---+---+---+---+---+---+---+---+
    a   b   c   d   e   f   g   h
 
-Fen: bqnbnrkr/pppppppp/8/8/8/8/PPPPPPPP/BQNBNRKR b HFhf - 0 1
-Key: 8697E6B1DAEFC888
+Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 999 1
+Key: 0CEACC969514C215
 Checkers: 
 exit=0

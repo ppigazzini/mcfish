@@ -1,5 +1,6 @@
 <engine banner>
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -22,6 +23,7 @@ NNUE evaluation        +0.02 (white side)
 Final evaluation      +0.03 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -44,6 +46,7 @@ NNUE evaluation        +7.12 (white side)
 Final evaluation      +6.44 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -66,9 +69,11 @@ NNUE evaluation        -1.05 (white side)
 Final evaluation      -1.38 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 Final evaluation: none (in check)
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -91,6 +96,7 @@ NNUE evaluation        +0.02 (white side)
 Final evaluation      +0.03 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -113,6 +119,7 @@ NNUE evaluation        -1.05 (white side)
 Final evaluation      -1.38 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -135,6 +142,7 @@ NNUE evaluation        +0.21 (white side)
 Final evaluation      +0.22 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -157,6 +165,7 @@ NNUE evaluation        +0.35 (white side)
 Final evaluation      +0.43 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -179,6 +188,7 @@ NNUE evaluation        +1.04 (white side)
 Final evaluation      +1.30 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -201,6 +211,7 @@ NNUE evaluation        +3.52 (white side)
 Final evaluation      +4.11 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -223,6 +234,7 @@ NNUE evaluation        +0.13 (white side)
 Final evaluation      +0.17 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -245,6 +257,7 @@ NNUE evaluation        +0.52 (white side)
 Final evaluation      +0.65 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -267,6 +280,7 @@ NNUE evaluation        +1.22 (white side)
 Final evaluation      +1.58 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -289,6 +303,7 @@ NNUE evaluation        +0.15 (white side)
 Final evaluation      +0.19 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -311,6 +326,7 @@ NNUE evaluation        -0.85 (white side)
 Final evaluation      -1.03 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -333,6 +349,7 @@ NNUE evaluation        -0.05 (white side)
 Final evaluation      -0.06 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -355,6 +372,7 @@ NNUE evaluation        -0.51 (white side)
 Final evaluation      -0.58 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -377,6 +395,7 @@ NNUE evaluation        -1.10 (white side)
 Final evaluation      -1.31 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -399,6 +418,7 @@ NNUE evaluation        -0.42 (white side)
 Final evaluation      -0.46 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -421,6 +441,7 @@ NNUE evaluation        +0.28 (white side)
 Final evaluation      +0.31 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -443,6 +464,7 @@ NNUE evaluation        +1.43 (white side)
 Final evaluation      +1.55 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -465,6 +487,7 @@ NNUE evaluation        -2.31 (white side)
 Final evaluation      -2.38 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -487,6 +510,7 @@ NNUE evaluation        +1.28 (white side)
 Final evaluation      +1.33 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -509,6 +533,7 @@ NNUE evaluation        -2.76 (white side)
 Final evaluation      -2.77 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -531,6 +556,7 @@ NNUE evaluation        +0.11 (white side)
 Final evaluation      +0.12 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -553,6 +579,7 @@ NNUE evaluation        -0.37 (white side)
 Final evaluation      -0.41 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -575,6 +602,7 @@ NNUE evaluation        +0.94 (white side)
 Final evaluation      +0.97 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -597,6 +625,7 @@ NNUE evaluation        +0.28 (white side)
 Final evaluation      +0.30 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -619,6 +648,7 @@ NNUE evaluation        +1.75 (white side)
 Final evaluation      +1.96 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -641,6 +671,7 @@ NNUE evaluation        +1.16 (white side)
 Final evaluation      +1.27 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -663,6 +694,7 @@ NNUE evaluation        -1.09 (white side)
 Final evaluation      -1.15 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -685,6 +717,7 @@ NNUE evaluation        +0.40 (white side)
 Final evaluation      +0.26 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -707,6 +740,7 @@ NNUE evaluation        +0.26 (white side)
 Final evaluation      +0.26 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -729,6 +763,7 @@ NNUE evaluation        +0.48 (white side)
 Final evaluation      +0.62 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -751,6 +786,7 @@ NNUE evaluation        +1.71 (white side)
 Final evaluation      +1.98 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -773,6 +809,7 @@ NNUE evaluation        +0.73 (white side)
 Final evaluation      +0.86 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -795,6 +832,7 @@ NNUE evaluation        -0.75 (white side)
 Final evaluation      -0.87 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -817,6 +855,7 @@ NNUE evaluation        +21.27 (white side)
 Final evaluation      +20.04 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -839,6 +878,7 @@ NNUE evaluation        +7.99 (white side)
 Final evaluation      +9.43 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -861,6 +901,7 @@ NNUE evaluation        +0.80 (white side)
 Final evaluation      +0.80 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -883,6 +924,7 @@ NNUE evaluation        +0.06 (white side)
 Final evaluation      +0.06 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -905,6 +947,7 @@ NNUE evaluation        +1.84 (white side)
 Final evaluation      +1.68 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -927,9 +970,11 @@ NNUE evaluation        +0.33 (white side)
 Final evaluation      +0.35 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 Final evaluation: none (in check)
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -952,6 +997,7 @@ NNUE evaluation        -0.04 (white side)
 Final evaluation      -0.04 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -974,6 +1020,7 @@ NNUE evaluation        +0.02 (white side)
 Final evaluation      +0.02 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, Black to move)
@@ -996,6 +1043,7 @@ NNUE evaluation        -0.10 (white side)
 Final evaluation      -0.11 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)
@@ -1018,6 +1066,7 @@ NNUE evaluation        +2.46 (white side)
 Final evaluation      +2.77 (white side) [with scaled NNUE, ...]
 
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 
 
 NNUE network contributions (Normalized, White to move)

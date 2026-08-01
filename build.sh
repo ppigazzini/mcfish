@@ -953,9 +953,13 @@ normalize() {
   # only thing keeping it out of the goldens -- so when the subsystem lands, delete
   # its line here FIRST and let the gate go red. A filter that outlives its gap
   # silently stops comparing real output.
-  #   - "Network replica": upstream reports the NNUE net replicated per NUMA node.
-  #     mcfish does not register the network for replication (AGENTS.md names it),
-  #     so it has nothing truthful to print. Delete this line when that lands.
+  # "Network replica N" now keeps its LINE and loses only its BACKING word, where it
+  # used to be dropped whole. mcfish emits the line -- the count and the shape are
+  # upstream's -- but reports `Local memory.` against upstream's `Shared memory.`,
+  # because it holds one network in ordinary process memory and has no system-wide
+  # mapping to name. Eliding the word compares what is comparable: that the line is
+  # emitted, in the right place, once per replica. Dropping the line compared
+  # nothing, and hid its absence for as long as it was absent.
   #
   # "Available processors" and the NUMA binding suffix keep their LINE and lose their
   # VALUE. The line is behaviour -- mcfish must emit it, on `go`, in upstream's place --
@@ -980,7 +984,7 @@ normalize() {
     | sed -E 's/^(Compiler __VERSION__ macro : ).*/\1<toolchain version>/' \
     | sed -E 's/^info string Available processors: .*/info string Available processors: <cpus>/' \
     | sed -E 's/ with NUMA node thread binding: .*/ with NUMA node thread binding: <binding>/' \
-    | grep -vE '^info string Network replica' \
+    | sed -E 's/^(info string Network replica [0-9]+: ).*/\1<backing>/' \
     | tr -d '\r'
 }
 
