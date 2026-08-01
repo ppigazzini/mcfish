@@ -314,6 +314,12 @@ int correction_history_bonus(int eval_delta, int depth, bool has_best_move) {
     return 1061 * clamped / 1024;
 }
 
+int multicut_correction_bonus(int eval_delta, int singular_depth) {
+    const int raw = eval_delta * singular_depth * 177 / 1024;
+    const int limit = CORRECTION_HISTORY_LIMIT / 4;
+    return raw < -limit ? -limit : raw > limit ? limit : raw;
+}
+
 int correction_value_blend(int pcv, int micv, int wnpcv, int bnpcv, int cch2, int cch4, bool m_ok) {
     const int cntcv = m_ok ? 8761 * (cch2 + cch4) : 64049;
     return 15341 * pcv + 10569 * micv + 12906 * (wnpcv + bnpcv) + cntcv;
