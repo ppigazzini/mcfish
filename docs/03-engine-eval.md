@@ -206,6 +206,34 @@ on purpose, twice per comparison, so `refresh` carries both arenas' work and say
 nothing about the path under test; "did not take the hybrid" is the same claim seen
 from the side the counter can see.
 
+### And separately: do they pay?
+
+"The path fires" and "the change is worth having" are a third pair of claims that
+fail independently, and the coverage counters answer only the first. A hot-path
+restructure can run, produce the right values, and still cost time — an avx2 tile
+measured in the sibling port once came in at −7.4% instructions and **+1.9%
+cycles**.
+
+Measured here by disabling both routes and A/B-ing the two binaries, which is a
+clean experiment precisely because the four routes agree: both sides bench the
+same node count (`./build.sh signature`), so the comparison is one tree with two
+amounts of work. `bench 16 1 13`, x86-64-vnni512, whole-process (startup is
+identical on both sides and cancels):
+
+| axis | ratio, hybrid+shared vs neither |
+|---|---|
+| instructions | **0.981** (−238M) |
+| macro-ops | 0.982 |
+| branch misses | 0.978 |
+| cache misses | 1.005 |
+| cycles | 0.968 |
+
+The paired *time* run over 9 alternating rounds read a median 0.9855 with a
+0.930–1.205 spread that straddles 1.000, on a box under load — so it agrees in
+direction and establishes nothing on its own. The instruction and macro-op axes
+are what carry this result; they are near-deterministic under load, which is why
+they are the ones quoted.
+
 ### The two records are byte-identical by contract
 
 The board zone writes `DirtyPiece` and `DirtyThreats`; the accumulator reads the
