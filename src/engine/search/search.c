@@ -3,6 +3,7 @@
 #include "../board/board_props.h"
 #include "../board/legality.h"
 #include "../board/movegen.h"
+#include "../board/repetition.h"
 #include "../board/uci_move.h"
 #include "../eval/evaluate.h"
 #include "../state/worker_construct.h"
@@ -19,7 +20,9 @@
 #include "search_types.h"
 #include "time_source.h"
 #include "timeman.h"
+#include "tt.h"
 
+#include <assert.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -185,6 +188,51 @@ static SearchZoneLimits to_zone_limits(const SearchLimits *limits, TimePoint sta
     };
 }
 
+// Recover a ponder move from the transposition table when the PV is one move long
+// — a port of upstream's RootMove::extract_ponder_from_tt (search.cpp:2311).
+//
+// A search that ends on a fail-high, or one cut short by the clock, can finish with a
+// best move and no reply behind it. Upstream does not give up there: it plays the
+// move, probes the table for the resulting position, and takes the stored move if it
+// is legal. Without this, `bestmove X` goes out with no `ponder Y` and the GUI cannot
+// ponder at all — a whole feature silently absent on exactly the searches where the
+// engine is under time pressure.
+//
+// The make/unmake here is deliberately NOT bracketed with eval_acc_push: nothing
+// evaluates between them, which is the same reason the Step 4 TT verification is
+// unbracketed. Upstream's own call passes rootPos and evaluates nothing either.
+//
+// `is_draw(1)` guards the probe because a drawn child has no useful stored move, and
+// the ply argument is upstream's literal 1: this is one ply below the root.
+static bool root_move_extract_ponder_from_tt(RootMove *rm, Position *pos) {
+    assert(rm->pv.length == 1 && rm->pv.moves[0] != MOVE_NONE);
+
+    const Move first = rm->pv.moves[0];
+    StateInfo st;
+    pos_do_move(pos, first, &st, pos_gives_check(pos, first), &pos->scratch_dp, &pos->scratch_dts,
+                nullptr);
+
+    if (!pos_is_draw(pos, 1)) {
+        const TTProbeResult probe = tt_probe(pos_key(pos));
+        if (probe.found && probe.data.move != MOVE_NONE) {
+            // Legality is checked against the CHILD's own legal moves, as upstream's
+            // MoveList<LEGAL>(pos).contains does: a 16-bit key fragment collides, so a
+            // stored move can belong to an unrelated position entirely.
+            ExtMove list[MAX_MOVES];
+            const ExtMove *const end = generate_legal(pos, list);
+            for (const ExtMove *m = list; m != end; ++m) {
+                if (m->move == probe.data.move) {
+                    rm->pv.moves[rm->pv.length++] = probe.data.move;
+                    break;
+                }
+            }
+        }
+    }
+
+    pos_undo_move(pos, first);
+    return rm->pv.length > 1;
+}
+
 // Fill the caller's result from the searched root move list.
 static SearchResult result_of(const SearchCtx *ctx, TimePoint elapsed) {
     const RootMove *const best = &ctx->root_moves[0];
@@ -318,7 +366,9 @@ static void run_main_search(void *unused) {
     // for the same reason: its `go` returns immediately, so the driver runs off the
     // input thread.
     WorkerSet.start_siblings(WorkerSet.ctx, sibling_search);
-    const bool uci_pv_sent = iterative_deepening(ctx, &Session.id);
+    // Not const: a ponder move recovered from the table below makes the reported line
+    // stale, and clearing this is how upstream forces the re-emit (search.cpp:252).
+    bool uci_pv_sent = iterative_deepening(ctx, &Session.id);
 
     // Raise stop and collect every sibling before reading any of their root move lists.
     // The join is the happens-before edge the vote below depends on.
@@ -356,6 +406,14 @@ static void run_main_search(void *unused) {
     // it, as upstream's persistent callsCnt does (thread.cpp:268 is the only
     // reset). The counter runs by value in ctx for the fast path's sake.
     sm->calls_cnt = ctx->time_state.calls_cnt;
+
+    // Recover a ponder move before reporting, as upstream does (search.cpp:250). A PV
+    // that grew a second move is a DIFFERENT line from the one already on the wire, so
+    // the re-emit below is forced -- which is what upstream's `uciPvSent = false` there
+    // means.
+    if (best->ctx.root_moves[0].pv.length == 1
+        && root_move_extract_ponder_from_tt(&best->ctx.root_moves[0], best->ctx.root_pos))
+        uci_pv_sent = false;
 
     // Report the finished line once. The depth loop already emitted it when the last
     // MultiPV line of the final iteration completed -- but a vote that picked another

@@ -1,0 +1,8 @@
+<engine banner>
+
+Compiled by                : <toolchain>
+Compilation architecture   : x86-64-sse41-popcnt
+Compilation settings       : 64bit SSE41 SSSE3 SSE2 POPCNT
+Compiler __VERSION__ macro : <toolchain version>
+
+exit=0
