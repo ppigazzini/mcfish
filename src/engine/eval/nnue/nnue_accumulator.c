@@ -616,6 +616,85 @@ static void threat_changed_indices(uint8_t perspective,
     *added_len_out = added_len;
 }
 
+// Build both perspectives' threat and pawn-pair changed-feature lists from ONE walk of
+// the ply's diff. The dirty records and the pawn geometry are perspective-independent;
+// only the orientation the index is computed under differs, so the loads, the
+// add/remove routing and the pair topology are paid once instead of twice. Upstream's
+// FullThreats/PP_3Wide::append_changed_indices_both.
+//
+// Forward walks only: the shared step exists for the common suffix of a two-perspective
+// forward catch-up, where every ply's diff belongs to its own target slot.
+static void threat_changed_indices_both(uint8_t white_ksq,
+                                        uint8_t black_ksq,
+                                        const NnueDirtyThreats *thr_diff,
+                                        const int8_t *thr_weights,
+                                        uint32_t *white_removed,
+                                        size_t *white_removed_len_out,
+                                        uint32_t *white_added,
+                                        size_t *white_added_len_out,
+                                        uint32_t *black_removed,
+                                        size_t *black_removed_len_out,
+                                        uint32_t *black_added,
+                                        size_t *black_added_len_out) {
+    size_t white_removed_len = 0;
+    size_t white_added_len = 0;
+    size_t black_removed_len = 0;
+    size_t black_added_len = 0;
+
+    const NnueDirtyThreatRaw *thr_list = thr_diff->list.values;
+    const size_t thr_list_len = thr_diff->list.size;
+    const uint32_t white_mask = nnue_full_orient_mask(WHITE, white_ksq, true);
+    const uint32_t black_mask = nnue_full_orient_mask(BLACK, black_ksq, true);
+
+#pragma clang loop vectorize(disable) interleave(disable)
+    for (size_t list_index = 0; list_index < thr_list_len; list_index++) {
+        const uint32_t data = thr_list[list_index].data;
+        // A forward mask leaves bit 31 alone, so the raw record's own sign is the
+        // add/remove decision and it is the same for both perspectives.
+        const bool add = (int32_t) data < 0;
+
+        const uint32_t white_rec = data ^ white_mask;
+        const uint32_t white_index = nnue_full_make_index_oriented(
+          (uint8_t) ((white_rec >> NNUE_DIRTY_THREAT_PC_SHIFT) & 0xf),
+          (uint8_t) ((white_rec >> NNUE_DIRTY_THREAT_PC_SQ_SHIFT) & 0xff),
+          (uint8_t) ((white_rec >> NNUE_DIRTY_THREATENED_SQ_SHIFT) & 0xff),
+          (uint8_t) ((white_rec >> NNUE_DIRTY_THREATENED_PC_SHIFT) & 0xf));
+        const uint32_t black_rec = data ^ black_mask;
+        const uint32_t black_index = nnue_full_make_index_oriented(
+          (uint8_t) ((black_rec >> NNUE_DIRTY_THREAT_PC_SHIFT) & 0xf),
+          (uint8_t) ((black_rec >> NNUE_DIRTY_THREAT_PC_SQ_SHIFT) & 0xff),
+          (uint8_t) ((black_rec >> NNUE_DIRTY_THREATENED_SQ_SHIFT) & 0xff),
+          (uint8_t) ((black_rec >> NNUE_DIRTY_THREATENED_PC_SHIFT) & 0xf));
+
+        __builtin_prefetch(thr_weights + (size_t) white_index * NNUE_HALF_DIMENSIONS, 0, 1);
+        __builtin_prefetch(thr_weights + (size_t) black_index * NNUE_HALF_DIMENSIONS, 0, 1);
+
+        if (white_index < NNUE_FULL_DIMENSIONS) {
+            if (add) {
+                white_added[white_added_len++] = white_index;
+            } else {
+                white_removed[white_removed_len++] = white_index;
+            }
+        }
+        if (black_index < NNUE_FULL_DIMENSIONS) {
+            if (add) {
+                black_added[black_added_len++] = black_index;
+            } else {
+                black_removed[black_removed_len++] = black_index;
+            }
+        }
+    }
+
+    nnue_pair_append_changed_both(white_ksq, black_ksq, &thr_diff->pawn_pairs, white_removed,
+                                  &white_removed_len, white_added, &white_added_len, black_removed,
+                                  &black_removed_len, black_added, &black_added_len);
+
+    *white_removed_len_out = white_removed_len;
+    *white_added_len_out = white_added_len;
+    *black_removed_len_out = black_removed_len;
+    *black_added_len_out = black_added_len;
+}
+
 static void append_half_change(uint32_t *removed,
                                size_t *removed_len,
                                uint32_t *added,
@@ -627,6 +706,47 @@ static void append_half_change(uint32_t *removed,
     } else {
         added[(*added_len)++] = index;
     }
+}
+
+// Route each HalfKA index at its diff site, upstream append_changed_indices' shape
+// (half_ka_v2_hm.cpp): every diff condition is tested once and the computed index goes
+// straight into its list -- no intermediate buffer, no second routing pass. Same
+// conditions in the same order as the buffered form, so both lists keep their per-list
+// order.
+static void psq_changed_indices(uint8_t perspective,
+                                uint8_t king_square,
+                                NnueDirtyPiece psq_diff,
+                                bool forward,
+                                uint32_t *removed,
+                                size_t *removed_len_out,
+                                uint32_t *added,
+                                size_t *added_len_out) {
+    size_t removed_len = 0;
+    size_t added_len = 0;
+
+    append_half_change(removed, &removed_len, added, &added_len,
+                       nnue_half_make_index(perspective, psq_diff.from, psq_diff.pc, king_square),
+                       forward);
+    if (psq_diff.to != NNUE_SQ_NONE) {
+        append_half_change(removed, &removed_len, added, &added_len,
+                           nnue_half_make_index(perspective, psq_diff.to, psq_diff.pc, king_square),
+                           !forward);
+    }
+    if (psq_diff.remove_sq != NNUE_SQ_NONE) {
+        append_half_change(
+          removed, &removed_len, added, &added_len,
+          nnue_half_make_index(perspective, psq_diff.remove_sq, psq_diff.remove_pc, king_square),
+          forward);
+    }
+    if (psq_diff.add_sq != NNUE_SQ_NONE) {
+        append_half_change(
+          removed, &removed_len, added, &added_len,
+          nnue_half_make_index(perspective, psq_diff.add_sq, psq_diff.add_pc, king_square),
+          !forward);
+    }
+
+    *removed_len_out = removed_len;
+    *added_len_out = added_len;
 }
 
 // Take one fused incremental step onto the combined accumulator — a port of upstream's
@@ -652,34 +772,10 @@ static void apply_combined(NnueAccumulatorStack *stack,
 
     uint32_t psq_removed[NNUE_PSQ_INDEX_CAPACITY];
     uint32_t psq_added[NNUE_PSQ_INDEX_CAPACITY];
-    size_t psq_removed_len = 0;
-    size_t psq_added_len = 0;
-
-    // Route each HalfKA index at its diff site, upstream append_changed_indices' shape
-    // (half_ka_v2_hm.cpp): every diff condition is tested once and the computed index
-    // goes straight into its list -- no intermediate buffer, no second routing pass.
-    // Same conditions in the same order as the buffered form, so both lists keep their
-    // per-list order.
-    append_half_change(psq_removed, &psq_removed_len, psq_added, &psq_added_len,
-                       nnue_half_make_index(perspective, psq_diff.from, psq_diff.pc, king_square),
-                       forward);
-    if (psq_diff.to != NNUE_SQ_NONE) {
-        append_half_change(psq_removed, &psq_removed_len, psq_added, &psq_added_len,
-                           nnue_half_make_index(perspective, psq_diff.to, psq_diff.pc, king_square),
-                           !forward);
-    }
-    if (psq_diff.remove_sq != NNUE_SQ_NONE) {
-        append_half_change(
-          psq_removed, &psq_removed_len, psq_added, &psq_added_len,
-          nnue_half_make_index(perspective, psq_diff.remove_sq, psq_diff.remove_pc, king_square),
-          forward);
-    }
-    if (psq_diff.add_sq != NNUE_SQ_NONE) {
-        append_half_change(
-          psq_removed, &psq_removed_len, psq_added, &psq_added_len,
-          nnue_half_make_index(perspective, psq_diff.add_sq, psq_diff.add_pc, king_square),
-          !forward);
-    }
+    size_t psq_removed_len;
+    size_t psq_added_len;
+    psq_changed_indices(perspective, king_square, psq_diff, forward, psq_removed, &psq_removed_len,
+                        psq_added, &psq_added_len);
 
     const NnueDirtyThreats *thr_diff = threat_diff_at(
       state_bytes_const(THREAT_FEATURE, forward ? target_index : computed_index, stack));
@@ -703,6 +799,63 @@ static void apply_combined(NnueAccumulatorStack *stack,
       psq_removed_len, psq_added, psq_added_len, thr_removed, thr_removed_len, thr_added,
       thr_added_len, nnue_ft_psq_psqt_weights(ft), nnue_ft_threat_psqt_weights(ft));
     state_bytes_mut(PSQ_FEATURE, target_index, stack)[COMPUTED_OFFSET + perspective] = 1;
+}
+
+// Take one forward incremental step for BOTH perspectives — a port of upstream's
+// update_accumulator_incremental_both. The ply's diff is read once, the threat and
+// pawn-pair lists come from one shared walk, and only the HalfKA indices and the
+// accumulator arithmetic stay per-perspective. Every list holds exactly what two
+// separate steps would have produced, in the same order.
+static void apply_combined_both(NnueAccumulatorStack *stack,
+                                const NnueFeatureTransformer *ft,
+                                uint8_t white_ksq,
+                                uint8_t black_ksq,
+                                size_t target_index,
+                                size_t computed_index) {
+    assert(state_computed(stack, PSQ_FEATURE, computed_index, WHITE));
+    assert(state_computed(stack, PSQ_FEATURE, computed_index, BLACK));
+    assert(!state_computed(stack, PSQ_FEATURE, target_index, WHITE));
+    assert(!state_computed(stack, PSQ_FEATURE, target_index, BLACK));
+
+    const NnueDirtyPiece psq_diff =
+      psq_diff_at(state_bytes_const(PSQ_FEATURE, target_index, stack));
+
+    uint32_t psq_removed[NNUE_COLOR_COUNT][NNUE_PSQ_INDEX_CAPACITY];
+    uint32_t psq_added[NNUE_COLOR_COUNT][NNUE_PSQ_INDEX_CAPACITY];
+    size_t psq_removed_len[NNUE_COLOR_COUNT];
+    size_t psq_added_len[NNUE_COLOR_COUNT];
+    psq_changed_indices(WHITE, white_ksq, psq_diff, true, psq_removed[WHITE],
+                        &psq_removed_len[WHITE], psq_added[WHITE], &psq_added_len[WHITE]);
+    psq_changed_indices(BLACK, black_ksq, psq_diff, true, psq_removed[BLACK],
+                        &psq_removed_len[BLACK], psq_added[BLACK], &psq_added_len[BLACK]);
+
+    uint32_t thr_removed[NNUE_COLOR_COUNT][NNUE_THREAT_INDEX_CAPACITY];
+    uint32_t thr_added[NNUE_COLOR_COUNT][NNUE_THREAT_INDEX_CAPACITY];
+    size_t thr_removed_len[NNUE_COLOR_COUNT];
+    size_t thr_added_len[NNUE_COLOR_COUNT];
+    threat_changed_indices_both(
+      white_ksq, black_ksq, threat_diff_at(state_bytes_const(THREAT_FEATURE, target_index, stack)),
+      nnue_ft_threat_weights(ft), thr_removed[WHITE], &thr_removed_len[WHITE], thr_added[WHITE],
+      &thr_added_len[WHITE], thr_removed[BLACK], &thr_removed_len[BLACK], thr_added[BLACK],
+      &thr_added_len[BLACK]);
+
+    for (uint8_t perspective = 0; perspective < NNUE_COLOR_COUNT; perspective++) {
+        nnue_acc_apply_combined_delta(
+          state_accumulation_mut(PSQ_FEATURE, target_index, stack, perspective),
+          state_accumulation_const(PSQ_FEATURE, computed_index, stack, perspective),
+          psq_removed[perspective], psq_removed_len[perspective], psq_added[perspective],
+          psq_added_len[perspective], thr_removed[perspective], thr_removed_len[perspective],
+          thr_added[perspective], thr_added_len[perspective], nnue_ft_psq_weights(ft),
+          nnue_ft_threat_weights(ft));
+        nnue_acc_apply_combined_psqt_delta(
+          state_psqt_mut(PSQ_FEATURE, target_index, stack, perspective),
+          state_psqt_const(PSQ_FEATURE, computed_index, stack, perspective),
+          psq_removed[perspective], psq_removed_len[perspective], psq_added[perspective],
+          psq_added_len[perspective], thr_removed[perspective], thr_removed_len[perspective],
+          thr_added[perspective], thr_added_len[perspective], nnue_ft_psq_psqt_weights(ft),
+          nnue_ft_threat_psqt_weights(ft));
+        state_bytes_mut(PSQ_FEATURE, target_index, stack)[COMPUTED_OFFSET + perspective] = 1;
+    }
 }
 
 // Bound the hybrid king-move step by piece count, upstream's MIN_PC_COUNT_HYBRID
@@ -839,8 +992,8 @@ static void evaluate_side(uint8_t perspective,
                           NnueAccumulatorStack *stack,
                           const Position *pos,
                           const NnueFeatureTransformer *ft,
-                          NnueRefreshCache *cache) {
-    const size_t last_usable = find_last_usable(PSQ_FEATURE, stack, perspective);
+                          NnueRefreshCache *cache,
+                          size_t last_usable) {
     const size_t size = stack_size(stack);
     const uint8_t king_square = nnue_king_square(pos, perspective);
 
@@ -860,14 +1013,46 @@ static void evaluate_side(uint8_t perspective,
     }
 }
 
+// Walk the stack forward for BOTH perspectives — a port of upstream's
+// forward_update_incremental_both. The two perspectives can be usable from different
+// plies, so first catch the lagging one up alone; from there the remaining plies are
+// common to both and the shared step takes them, reading each ply's diff once.
+static void forward_update_both(NnueAccumulatorStack *stack,
+                                const Position *pos,
+                                const NnueFeatureTransformer *ft,
+                                size_t white_begin,
+                                size_t black_begin) {
+    const size_t size = stack_size(stack);
+    const uint8_t white_ksq = nnue_king_square(pos, WHITE);
+    const uint8_t black_ksq = nnue_king_square(pos, BLACK);
+    const size_t shared_begin = white_begin > black_begin ? white_begin : black_begin;
+
+    for (size_t next = white_begin + 1; next <= shared_begin; next++)
+        apply_combined(stack, WHITE, ft, white_ksq, next, next - 1, true);
+    for (size_t next = black_begin + 1; next <= shared_begin; next++)
+        apply_combined(stack, BLACK, ft, black_ksq, next, next - 1, true);
+
+    for (size_t next = shared_begin + 1; next < size; next++)
+        apply_combined_both(stack, ft, white_ksq, black_ksq, next, next - 1);
+}
+
 void nnue_acc_evaluate(NnueAccumulatorStack *stack,
                        const Position *pos,
                        const NnueFeatureTransformer *ft,
                        NnueRefreshCache *cache) {
     // Match upstream AccumulatorStack::evaluate: one combined (HalfKA + Threats) pass per
-    // perspective, not one per (feature, perspective).
-    evaluate_side(WHITE, stack, pos, ft, cache);
-    evaluate_side(BLACK, stack, pos, ft, cache);
+    // perspective, not one per (feature, perspective). When NEITHER perspective needs a
+    // refresh the whole update is a forward walk, and the two walks share their suffix.
+    const size_t last_white = find_last_usable(PSQ_FEATURE, stack, WHITE);
+    const size_t last_black = find_last_usable(PSQ_FEATURE, stack, BLACK);
+
+    if (state_computed(stack, PSQ_FEATURE, last_white, WHITE)
+        && state_computed(stack, PSQ_FEATURE, last_black, BLACK)) {
+        forward_update_both(stack, pos, ft, last_white, last_black);
+    } else {
+        evaluate_side(WHITE, stack, pos, ft, cache, last_white);
+        evaluate_side(BLACK, stack, pos, ft, cache, last_black);
+    }
 }
 
 // ---------------------------------------------------------------------------

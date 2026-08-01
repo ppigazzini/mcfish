@@ -486,6 +486,75 @@ static void pair_generate(uint8_t perspective,
     }
 }
 
+// Enumerate the same topology as pair_generate, but emit BOTH perspectives' indices per
+// pair. The pawn geometry — which squares changed, which partners each pairs with, and
+// in what order — does not depend on the perspective; only the index does. Upstream's
+// `generate` lambda in append_changed_indices_both (pp_3wide.cpp).
+static void pair_generate_both(uint8_t white_king_square,
+                               uint8_t black_king_square,
+                               uint64_t updated_white,
+                               uint64_t updated_black,
+                               uint64_t pawns_white,
+                               uint64_t pawns_black,
+                               uint32_t *white_out,
+                               size_t *white_out_len,
+                               uint32_t *black_out,
+                               size_t *black_out_len) {
+    const uint64_t unchanged = (pawns_white | pawns_black) & ~(updated_white | updated_black);
+    uint64_t pending = updated_white | updated_black;
+    while (pending != 0) {
+        const unsigned a = nnue_bb_pop_lsb(&pending);
+        const uint64_t mask = PawnPairBB[a] & (unchanged | pending);
+        const uint8_t a_color =
+          (pawns_black & nnue_bb_square(a)) != 0 ? NNUE_BB_BLACK : NNUE_BB_WHITE;
+
+        uint64_t pb = pawns_black & mask;
+        while (pb != 0) {
+            const unsigned to = nnue_bb_pop_lsb(&pb);
+            white_out[(*white_out_len)++] = pair_make_index(
+              NNUE_BB_WHITE, a_color, (uint8_t) a, (uint8_t) to, NNUE_BB_BLACK, white_king_square);
+            black_out[(*black_out_len)++] = pair_make_index(
+              NNUE_BB_BLACK, a_color, (uint8_t) a, (uint8_t) to, NNUE_BB_BLACK, black_king_square);
+        }
+        uint64_t pw = pawns_white & mask;
+        while (pw != 0) {
+            const unsigned to = nnue_bb_pop_lsb(&pw);
+            white_out[(*white_out_len)++] = pair_make_index(
+              NNUE_BB_WHITE, a_color, (uint8_t) a, (uint8_t) to, NNUE_BB_WHITE, white_king_square);
+            black_out[(*black_out_len)++] = pair_make_index(
+              NNUE_BB_BLACK, a_color, (uint8_t) a, (uint8_t) to, NNUE_BB_WHITE, black_king_square);
+        }
+    }
+}
+
+void nnue_pair_append_changed_both(uint8_t white_king_square,
+                                   uint8_t black_king_square,
+                                   const NnueDirtyPawnPairs *diff,
+                                   uint32_t *white_removed,
+                                   size_t *white_removed_len,
+                                   uint32_t *white_added,
+                                   size_t *white_added_len,
+                                   uint32_t *black_removed,
+                                   size_t *black_removed_len,
+                                   uint32_t *black_added,
+                                   size_t *black_added_len) {
+    const uint64_t white_before = diff->before[NNUE_BB_WHITE];
+    const uint64_t black_before = diff->before[NNUE_BB_BLACK];
+    const uint64_t white_after = diff->after[NNUE_BB_WHITE];
+    const uint64_t black_after = diff->after[NNUE_BB_BLACK];
+
+    if (white_before == white_after && black_before == black_after) {
+        return;
+    }
+
+    pair_generate_both(white_king_square, black_king_square, white_after & ~white_before,
+                       black_after & ~black_before, white_after, black_after, white_added,
+                       white_added_len, black_added, black_added_len);
+    pair_generate_both(white_king_square, black_king_square, white_before & ~white_after,
+                       black_before & ~black_after, white_before, black_before, white_removed,
+                       white_removed_len, black_removed, black_removed_len);
+}
+
 void nnue_pair_append_changed(uint8_t perspective,
                               uint8_t king_square,
                               const NnueDirtyPawnPairs *diff,
