@@ -1,0 +1,63 @@
+<engine banner>
+
+ +---+---+---+---+---+---+---+---+
+ | r |   |   |   | k |   |   | r | 8
+ +---+---+---+---+---+---+---+---+
+ | p |   | p | p | q | p | b |   | 7
+ +---+---+---+---+---+---+---+---+
+ | b | n |   |   | p | n | p |   | 6
+ +---+---+---+---+---+---+---+---+
+ |   |   |   | P | N |   |   |   | 5
+ +---+---+---+---+---+---+---+---+
+ |   | p |   |   | P |   |   |   | 4
+ +---+---+---+---+---+---+---+---+
+ |   |   | N |   |   | Q |   | p | 3
+ +---+---+---+---+---+---+---+---+
+ | P | P | P | B | B | P | P | P | 2
+ +---+---+---+---+---+---+---+---+
+ | R |   |   |   | K |   |   | R | 1
+ +---+---+---+---+---+---+---+---+
+   a   b   c   d   e   f   g   h
+
+Fen: r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 10
+Key: BA0586148EFA180B
+Checkers: 
+info string Available processors: <cpus>
+info string Using 1 thread
+info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info depth 0 score cp 0
+bestmove (none)
+
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 8
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 7
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 6
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 5
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 4
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   | k |   | 3
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   | p |   | 2
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   | K |   | 1
+ +---+---+---+---+---+---+---+---+
+   a   b   c   d   e   f   g   h
+
+Fen: 8/8/8/8/8/6k1/6p1/6K1 w - - 0 1
+Key: 9A5A0ABF2A13D4C9
+Checkers: 
+info string Available processors: <cpus>
+info string Using 1 thread
+info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info depth 0 score mate 0
+bestmove (none)
+info string Available processors: <cpus>
+info string Using 1 thread
+info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info depth 0 score mate 0
+bestmove (none)
+exit=0
