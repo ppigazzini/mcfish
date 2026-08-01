@@ -765,6 +765,13 @@ attribution argument because each simply removes what it is not measuring:
   `upstream-parity`, `golden-audit` and `tb-update`, so restoring it is part of the
   procedure and not a tidy-up afterwards.
 
+  `./build.sh material-eval [arch]` builds the pair and is what to use: applying the
+  patch is the easy half, and putting the oracle back is the half that gets skipped.
+  Reverting the source is NOT enough -- the stubbed binary stays on disk and its
+  `.built-sha` stamp still matches the pin, so `upstream_oracle.sh` sees a current
+  build and does nothing. The step's EXIT trap therefore deletes the binary and the
+  stamp too: a missing oracle fails loudly on the next use, a stubbed one does not.
+
   The counts themselves are not quoted here. They are a function of the anchor and
   move with every sync — this page pinned three that were two syncs stale, which is
   the same rot the bench signature is banned from these pages for. Run the pair and
