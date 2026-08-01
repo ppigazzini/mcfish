@@ -6,6 +6,7 @@
 
 #include "../engine/board/board_props.h"
 #include "../engine/board/position.h"
+#include "../engine/board/uci_move.h"
 #include "../engine/eval/evaluate.h"
 #include "../engine/search/search.h"
 #include "../platform/clock.h"
@@ -15,6 +16,7 @@
 #include "uci_output.h"
 #include "ucioption.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -142,6 +144,30 @@ static void go_line(char *args, bool announce) {
         if (strcmp(token, "ponder") == 0) {
             limits.ponder = true;
             continue;
+        }
+
+        // `searchmoves` CONSUMES THE REST OF THE LINE and must therefore be last
+        // (uci.cpp:196 says so in as many words). Convert here, against the position
+        // the `go` is about: upstream stores the strings and converts in
+        // start_thinking against the same board, and drops whatever `to_move` cannot
+        // resolve -- an unknown, malformed or ILLEGAL move all come back none. That
+        // is also why upstream needs no separate legality filter downstream.
+        //
+        // Lower-cased first, as upstream does: `to_lower(token)` there, so "E2E4"
+        // resolves rather than silently dropping out of the list.
+        if (strcmp(token, "searchmoves") == 0) {
+            while ((token = strtok(nullptr, " \t\n")) != nullptr) {
+                char lowered[16];
+                size_t n = 0;
+                for (; token[n] != '\0' && n < sizeof lowered - 1; ++n)
+                    lowered[n] = (char) tolower((unsigned char) token[n]);
+                lowered[n] = '\0';
+
+                const Move m = move_from_uci(engine_position(), lowered);
+                if (m != MOVE_NONE && limits.searchmoves_count < MAX_MOVES)
+                    limits.searchmoves[limits.searchmoves_count++] = m;
+            }
+            break;
         }
 
         // RECOGNISE THE KEYWORD BEFORE READING A VALUE, which is the order upstream's

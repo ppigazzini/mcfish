@@ -519,9 +519,22 @@ void search_go_start(Position *pos, const SearchLimits *limits) {
         return;
     }
 
+    // Build the root list from `searchmoves` when the caller gave one, IN THE ORDER
+    // THE CALLER WROTE, and fall back to the generator only when it is empty -- which
+    // is upstream's own shape (thread.cpp:301-314), and the order is observable
+    // because it decides which move is searched first at depth one. Filtering the
+    // generator instead would silently re-impose generation order.
+    //
+    // Empty here includes "every move given was unresolvable": the shell has already
+    // dropped those, and upstream falls back to the full legal list in exactly that
+    // case rather than reporting a terminal position.
     Move moves[MAX_MOVES];
-    for (size_t i = 0; i < count; ++i)
-        moves[i] = legal[i].move;
+    size_t move_count = 0;
+    for (size_t i = 0; i < limits->searchmoves_count && move_count < MAX_MOVES; ++i)
+        moves[move_count++] = limits->searchmoves[i];
+    if (move_count == 0)
+        for (size_t i = 0; i < count; ++i)
+            moves[move_count++] = legal[i].move;
 
     // Hand the root FEN to the ranking: it replays each root move from that string
     // on a scratch board. Only the tablebase path reads it, which is inert here.
@@ -532,7 +545,7 @@ void search_go_start(Position *pos, const SearchLimits *limits) {
     // worker would agree -- but it walks the board with do/undo for every root move, and
     // paying that N times is a cost the copy does not have.
     RootMoveList ranked;
-    if (!root_moves_build(pos, root_fen, board_is_chess960(pos), moves, count, &ranked)) {
+    if (!root_moves_build(pos, root_fen, board_is_chess960(pos), moves, move_count, &ranked)) {
         // An allocation failure leaves nothing to search. Return a legal move
         // rather than MOVE_NONE, so the caller still has something playable.
         Session.result.best_move = legal[0].move;
