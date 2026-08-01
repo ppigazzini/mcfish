@@ -169,6 +169,23 @@ void nnue_pair_append_changed(uint8_t perspective,
                               uint32_t *added,
                               size_t *added_len);
 
+// Append the pawn-pair delta for BOTH perspectives at once, onto four lists. The pawn
+// geometry the walk enumerates is perspective-independent, so a shared step pays for it
+// once; each list ends up holding exactly what the per-perspective call would have put
+// there. Forward walks only -- the shared step exists for the common suffix of a
+// two-perspective forward catch-up.
+void nnue_pair_append_changed_both(uint8_t white_king_square,
+                                   uint8_t black_king_square,
+                                   const NnueDirtyPawnPairs *diff,
+                                   uint32_t *white_removed,
+                                   size_t *white_removed_len,
+                                   uint32_t *white_added,
+                                   size_t *white_added_len,
+                                   uint32_t *black_removed,
+                                   size_t *black_removed_len,
+                                   uint32_t *black_added,
+                                   size_t *black_added_len);
+
 // Report whether a king move crossing the board's centre file invalidates PERSPECTIVE's
 // threat orientation. Bit 2 of the king square is the half-of-the-board bit.
 static inline bool
