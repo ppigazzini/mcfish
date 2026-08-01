@@ -1,0 +1,11 @@
+position fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 10
+ucinewgame
+d
+position fen 8/8/8/8/8/6k1/6p1/6K1 w - -
+go depth 4
+d
+position fen 7k/7P/6K1/8/3B4/8/8/8 b - -
+go depth 4
+ucinewgame
+go depth 4
+quit

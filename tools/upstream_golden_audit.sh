@@ -153,7 +153,12 @@ FAILED=()
 for name in "${SELECTED[@]}"; do
   golden="tools/${name}.golden"
   printf '  %-12s ' "$name"
-  if [[ ! -f $golden ]]; then
+  # A case with no golden yet is MISSING when auditing and a NEW GOLDEN when
+  # writing. Adding a case is the moment its golden should come from upstream
+  # rather than from mcfish, so --write has to be able to create one -- otherwise
+  # the only way to seed a new case is golden-update, which drives this engine and
+  # produces exactly the self-photograph this tool exists to prevent.
+  if [[ ! -f $golden && $WRITE != 1 ]]; then
     red "MISSING ($golden)"
     missing=$((missing + 1))
     continue
@@ -166,7 +171,7 @@ for name in "${SELECTED[@]}"; do
     actual=$(printf '%s\n' "$actual" | sed "s|^id name Stockfish .*|$ID_NAME|")
   fi
 
-  if diff -u "$golden" <(printf '%s\n' "$actual") > /dev/null; then
+  if [[ -f $golden ]] && diff -u "$golden" <(printf '%s\n' "$actual") > /dev/null; then
     green "AGREES"
     agree=$((agree + 1))
     continue
