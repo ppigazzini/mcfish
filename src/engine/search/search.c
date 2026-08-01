@@ -593,7 +593,15 @@ void search_go_start(Position *pos, const SearchLimits *limits) {
     // of its own, so `quit` must raise stop to end it. Every other search terminates by
     // depth, nodes, or the clock, and `quit` waits it out instead (a bounded search's
     // output stays deterministic, which the golden gate relies on).
-    Session.unbounded = limits->infinite || limits->ponder;
+    //
+    // A search with NO usable limit belongs here too, and did not used to: the shell
+    // capped it at depth 8, so it always terminated on its own. Now that a bare `go`
+    // runs to MAX_PLY as upstream's does, `quit` must raise stop for it as well, or
+    // the wait below never returns. Zero counts as absent on every field, which is
+    // what the checks in search_control and search_id already assume.
+    const bool no_limit = limits->depth == 0 && limits->nodes == 0 && limits->movetime_ms == 0
+                       && limits->time_ms[WHITE] == 0 && limits->time_ms[BLACK] == 0;
+    Session.unbounded = limits->infinite || limits->ponder || no_limit;
 
     // Arm the guard, then dispatch onto thread 0. Everything above ran on the UCI
     // thread; from here the search runs on worker 0's OS thread and this call returns.
