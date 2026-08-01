@@ -211,7 +211,13 @@ static bool worker_root_setup(SearchWorker *w,
                               const char *root_fen,
                               const RootMoveList *src,
                               const SearchZoneLimits *zone_limits) {
-    if (w->rml.moves == nullptr || w->rml.count != src->count) {
+    // An EMPTY source list is reachable: a mate or stalemate root re-seeds every
+    // worker with no moves, as upstream's start_thinking does. Handle it before the
+    // allocation rather than through it -- calloc(0, n) may legitimately return null,
+    // which the guard below would read as failure.
+    if (src->count == 0) {
+        root_moves_free(&w->rml);
+    } else if (w->rml.moves == nullptr || w->rml.count != src->count) {
         root_moves_free(&w->rml);
         w->rml.moves = calloc(src->count, sizeof *w->rml.moves);
         if (w->rml.moves == nullptr)
@@ -417,6 +423,32 @@ void search_go_start(Position *pos, const SearchLimits *limits) {
         // at this go's data first; the next setup memsets ctx and rebuilds both.
         ctx->limits = to_zone_limits(limits, start);
         ctx->root_pos = pos;
+
+        // Re-seed EVERY worker before bailing, which is what upstream does. Its
+        // ThreadPool::start_thinking runs the per-worker job unconditionally --
+        // limits, nodes/tbHits/bestMoveChanges, nmpMinPly, rootDepth, rootMoves,
+        // rootPos/rootState and tbConfig (thread.cpp:328-340) -- and only then hands
+        // over to Worker::start_searching, where the rootMoves.empty() check lives.
+        // Returning first left worker 0 holding the PREVIOUS go's limits, counters
+        // and root position until the next go overwrote them.
+        //
+        // Nothing searches here, so no node count can move; this is state hygiene at
+        // a terminal root, and it is the same divergence class as the tt.new_search()
+        // bump above -- one line further down the same upstream function.
+        char root_fen[128];
+        pos_fen(pos, root_fen);
+
+        RootMoveList empty;
+        if (root_moves_build(pos, root_fen, board_is_chess960(pos), nullptr, 0, &empty)) {
+            const SearchZoneLimits zone_limits = to_zone_limits(limits, start);
+            const size_t threads = WorkerSet.count(WorkerSet.ctx);
+            for (size_t i = 0; i < threads; ++i) {
+                SearchWorker *const wi = WorkerSet.at(WorkerSet.ctx, i);
+                (void) worker_root_setup(wi, pos, root_fen, &empty, &zone_limits);
+            }
+            root_moves_free(&empty);
+        }
+
         search_tm_init(ctx, &sm->tm, &sm->original_time_adjust);
         Session.result.score = board_has_checkers(pos) ? mated_in(0) : VALUE_DRAW;
         search_emit_no_moves(pos);
