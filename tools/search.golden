@@ -2,6 +2,7 @@
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 1 seldepth 2 multipv 1 score cp 1 nodes 20 hashfull 0 tbhits 0 pv d2d4
 info depth 2 seldepth 3 multipv 1 score cp 18 nodes 47 hashfull 0 tbhits 0 pv d2d4
 info depth 3 seldepth 4 multipv 1 score cp 28 nodes 86 hashfull 0 tbhits 0 pv d2d4
@@ -13,6 +14,7 @@ bestmove e2e4 ponder e7e5
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 1 seldepth 2 multipv 1 score mate 1 nodes 16 hashfull 0 tbhits 0 pv a1a8
 info depth 2 seldepth 2 multipv 1 score mate 1 nodes 32 hashfull 0 tbhits 0 pv a1a8
 info depth 3 seldepth 2 multipv 1 score mate 1 nodes 48 hashfull 0 tbhits 0 pv a1a8
@@ -22,6 +24,7 @@ bestmove a1a8
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 1 seldepth 5 multipv 1 score cp 14 nodes 19 hashfull 0 tbhits 0 pv e4g6 d5f7 g6f7 e8f7
 info depth 2 seldepth 5 multipv 1 score cp 18 nodes 51 hashfull 0 tbhits 0 pv e4d5
 info depth 3 seldepth 4 multipv 1 score cp 18 nodes 79 hashfull 0 tbhits 0 pv e4d5 e8d7
@@ -32,6 +35,7 @@ bestmove e4d5 ponder e8f8
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
 info depth 0 score mate 0
 bestmove (none)
 exit=0
