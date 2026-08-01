@@ -1,0 +1,5 @@
+position startpos
+go depth 2 searchmoves e2e4 d2d4
+position startpos
+go depth 2 searchmoves zzzz
+quit
