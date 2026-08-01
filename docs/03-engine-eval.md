@@ -108,8 +108,12 @@ the search does not need to know — but a harness comparing against upstream mu
 **The accumulator is incremental, and the diffs are not optional bookkeeping.**
 Slot `i` of the stack holds the accumulator after `i` plies *and* the diff that
 produced it; evaluation walks from the nearest computed slot to the top applying
-diffs, falling back to a full refresh only when a king move invalidated the bucketed
-features.
+diffs. When neither perspective needs a refresh the two walks share their common
+suffix and read each ply's diff once. A king move invalidates the bucketed HalfKA
+features, but not the threat and pair ones unless it also crosses the centre file,
+so a same-half king move is still incremental: it swaps the HalfKA half between the
+two king squares' refresh-cache entries instead of rebuilding everything. Only the
+remaining king moves fall back to a full refresh.
 
 That imposes a contract on every caller that moves a piece:
 
