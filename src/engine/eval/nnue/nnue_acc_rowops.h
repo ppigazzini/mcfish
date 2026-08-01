@@ -31,6 +31,55 @@ void nnue_acc_apply_delta_i16_dual(int16_t *cache_dest,
                                    size_t added_len,
                                    const int16_t *weights);
 
+// Hybrid king-move i16 step (upstream update_accumulator_hybrid, nnue_accumulator.cpp).
+// Per tile, in ONE register:
+//   1. refresh the destination-king cache entry in place:
+//      new_entry = new_entry - Σnew_removed + Σnew_added, stored;
+//   2. carry the previous ply's combined accumulation over, then swap the HalfKA half
+//      from the source king's bucket to the destination's:
+//      acc = new_entry + source - old_entry + Σold_removed - Σold_added;
+//   3. apply this ply's threat/pair delta on top.
+// OLD_ENTRY is read only: the source king's cache entry describes a board this move
+// left, so nothing refreshes it here.
+void nnue_acc_apply_hybrid_delta(int16_t *target,
+                                 const int16_t *source,
+                                 int16_t *new_entry,
+                                 const int16_t *old_entry,
+                                 const uint32_t *new_removed,
+                                 size_t new_removed_len,
+                                 const uint32_t *new_added,
+                                 size_t new_added_len,
+                                 const uint32_t *old_removed,
+                                 size_t old_removed_len,
+                                 const uint32_t *old_added,
+                                 size_t old_added_len,
+                                 const uint32_t *thr_removed,
+                                 size_t thr_removed_len,
+                                 const uint32_t *thr_added,
+                                 size_t thr_added_len,
+                                 const int16_t *psq_weights,
+                                 const int8_t *thr_weights);
+
+// Mirror nnue_acc_apply_hybrid_delta for the 8-bucket psqt row.
+void nnue_acc_apply_hybrid_psqt_delta(int32_t *target,
+                                      const int32_t *source,
+                                      int32_t *new_entry,
+                                      const int32_t *old_entry,
+                                      const uint32_t *new_removed,
+                                      size_t new_removed_len,
+                                      const uint32_t *new_added,
+                                      size_t new_added_len,
+                                      const uint32_t *old_removed,
+                                      size_t old_removed_len,
+                                      const uint32_t *old_added,
+                                      size_t old_added_len,
+                                      const uint32_t *thr_removed,
+                                      size_t thr_removed_len,
+                                      const uint32_t *thr_added,
+                                      size_t thr_added_len,
+                                      const int32_t *psq_weights,
+                                      const int32_t *thr_weights);
+
 // int8 (threat) rows accumulated onto target, widened to i16.
 void nnue_acc_accumulate_rows_i8(int16_t *target,
                                  const uint32_t *rows,
