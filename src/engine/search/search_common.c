@@ -167,7 +167,10 @@ int null_move_threshold(int beta, int depth, bool improving) {
     return beta - 13 * depth - 47 * (int) improving + 365;
 }
 
-int null_move_reduction(int depth) { return 7 + depth / 3; }
+int null_move_reduction(int depth, int static_eval, int beta) {
+    const int excess = (static_eval - beta) / 256;
+    return 7 + depth / 3 + (excess > 0 ? excess : 0);
+}
 
 int nmp_min_ply_of(int ply, int depth, int r) { return ply + 3 * (depth - r) / 4; }
 
