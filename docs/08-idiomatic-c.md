@@ -368,7 +368,13 @@ compiles to a single move and is correct at any alignment:
 | --- | --- |
 | `_mm256_load_si256` / `_mm256_store_si256` | `__builtin_memcpy(&v, p, sizeof v)` on an aligned buffer |
 | `_mm256_loadu_si256` / `_mm_loadu_si128` | the same expression — there is no separate unaligned spelling |
+| `_mm_load_si128` where the load is a legacy-SSE operand | `_load_a` / `_store_a`, the aligned forms in [`simd.h`](../src/engine/eval/nnue/simd.h) |
 | `_mm_cvtsi32_si128` / `_mm_cvtsi128_si32` | a cast between a scalar and a 1-lane vector, or `v[0]` |
+
+The third row is the exception, and the only one: `__builtin_memcpy` lowers to
+`movdqu`, which a legacy-SSE instruction cannot fold as a memory operand. That is
+an sse41 concern with a measured price — see *[Alignment has to be
+provable](#alignment-has-to-be-provable-not-merely-true)*.
 
 **Constants and reinterpretation.** Free — type-level, no instruction:
 
@@ -578,6 +584,83 @@ Three rules, each paid for:
   generated straight into `ExtMove` in one pass where upstream's shape needs two, and
   the splats did not recover the copy. It was reverted. Port them one at a time and
   let the clock rule on each.
+
+## The C23 spellings that measured
+
+Each row is a language-level edit with **no algorithmic content** — the same
+arithmetic over the same tree, an identical node count on both sides — that moved
+the whole-binary instruction count under `tools/perf_counters.sh` paired rounds at
+`bench 16 1 13`. These are the levers to reach for before rewriting anything; the
+commit that landed each one carries its rounds, its tiers and, where the shape was
+the point, its disassembly. Search the log before re-deriving one.
+
+**The tier is part of the claim.** The two largest entries are sse41-only: VEX and
+EVEX encodings fold an unaligned memory operand, so above sse41 the aligned and
+the portable spelling compile to the same binary, byte for byte.
+
+| spelling | owner | mechanism | measured |
+| --- | --- | --- | --- |
+| `static inline` body in a header, over extern state | `tt_probe` in [`tt.h`](../src/engine/search/tt.h), the per-node seams in [`search_common.h`](../src/engine/search/search_common.h) | *[Split files at the cold seam](#split-files-at-the-cold-seam-keep-hot-bodies-in-headers)* | native −0.29% and −0.33%, super-additive once every seam is inline |
+| `always_inline` implementation behind thin literal-argument clones | `search_node_impl` in [`search_main.c`](../src/engine/search/search_main.c), the four entries in [`movegen.c`](../src/engine/board/movegen.c), `threats_update_piece_impl` in [`threats.c`](../src/engine/board/threats.c) | *[A runtime flag where upstream has a template parameter](#a-runtime-flag-where-upstream-has-a-template-parameter-costs-real-work)* | native −1.11%, −1.69%, −0.42% |
+| call the clone, not the tag dispatcher | `search_node_nonpv` / `search_node_pv` | clang declines to fold the dispatch layer even at a literal call site | native −0.41% |
+| `alignas(CACHE_LINE_SIZE)` on a buffer a legacy-SSE kernel reads | `fc0_out`, `fc1_out`, `concat` in [`nnue_inference.c`](../src/engine/eval/nnue/nnue_inference.c) | `pmaddubsw` folds an aligned memory operand and cannot fold `movdqu` | sse41 −3.60%; avx2 and native unmoved |
+| `_load_a` / `_store_a` instead of `__builtin_memcpy` | [`simd.h`](../src/engine/eval/nnue/simd.h), used across [`nnue_acc_rowops.c`](../src/engine/eval/nnue/nnue_acc_rowops.c) | the same folding, on the row kernels' `psubw`/`paddw` | sse41 −4.06%; identical binaries above it |
+| one cache-line-aligned block per attacker, not three separately based tables | `ThreatIndexBlocks` in [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c) | `nnue_full_make_index` pays one block base and two loads | native −1.16% |
+| field **order** in a hot struct | the bool cluster in `SearchNodeState`, the per-node block in `SearchCtx` ([`search_types.h`](../src/engine/search/search_types.h)) | interleaving the bools kills an SLP mask-domain lowering; keeping the per-node scalars contiguous keeps them off three further cache lines | native −0.22% |
+| a hot scalar by value in the context, not behind a pointer | `time_state` in `SearchCtx`, `histories_bind_shared` in [`history.h`](../src/engine/search/history.h) | a dependent double-load chain becomes one flat read — a decrement-and-branch in `check_time`'s case | native −0.08% and −0.21% |
+| parameters narrowed to what the callee actually reads | `search_update_continuation_histories` | the caller passes fields straight off its stack, with no gather to build | native −0.14% |
+| a non-null fallback singleton instead of a null test | the one-cluster fallback in [`tt.c`](../src/engine/search/tt.c) | probe, prefetch and save carry no null test, because a table always exists | native −0.06% |
+| block scope around a large local | the picker in [`search_qsearch.c`](../src/engine/search/search_qsearch.c) | stack colouring overlays the slot with the buffer that follows it | the frame carries one picker, not two; instructions flat — the win is per-ply stack stride |
+| a plain-typed view over `_Atomic` storage in a provably exclusive phase | `history_clear` | *[An `_Atomic` store silently de-vectorizes a hot loop](#an-_atomic-store-silently-de-vectorizes-a-hot-loop)* | figures in that section |
+| align the arena **payload**, not the mapping | `page_alloc_default` in [`memory.c`](../src/platform/memory.c) | a size header past the mmap base destroys 2 MiB alignment, and transparent huge pages need an aligned start | vnni512 PGO, spine harness intra-engine 0.955 |
+
+None of them is allowed to move behaviour: `./build.sh signature` holds the anchor
+and `./build.sh arch-determinism` holds every tier the host can execute, which is
+what makes an alignment or field-order edit safe to land at all. Every figure
+above is the instruction axis alone — what that axis can and cannot settle is
+*Measurement discipline* below.
+
+### Alignment has to be provable, not merely true
+
+A buffer that happens to be 64-byte aligned buys nothing. The compiler folds a
+legacy-SSE memory operand only where the **type** carries the alignment, so the
+promise is made in the source: `alignas` on the storage, and a load through a
+typedef that states it. `NNUE_SIMD_ALIGN_CAP` in
+[`simd.h`](../src/engine/eval/nnue/simd.h) caps that claim at the arena's 64-byte
+guarantee — a `vector_size` type's natural alignment is its full width, which no
+arena offset provides, so claiming it would be a lie the sanitizers eventually
+collect.
+
+Use `_load_a` / `_store_a` where the pointer is a multiple of `NNUE_ALIGN` off
+64-byte-aligned storage, and the plain `_load` / `_store` everywhere else. Both
+are correct; only the aligned pair folds, and only below AVX.
+
+### Struct field order is codegen
+
+Two independent effects, both measured, both invisible in review:
+
+- **Contiguity of the per-node set.** A large cold member in the middle of the hot
+  fields pushes the rest onto further cache lines that every node then touches.
+- **Runs of same-typed narrow fields.** Four contiguous bools are an invitation the
+  SLP vectorizer accepts, assembling them through AVX-512 mask registers where four
+  plain byte stores do the job. Interleaving them with narrow scalars so no run
+  exceeds two is what stops the merge forming.
+
+Neither is arguable from the source, so re-measure the whole binary after any
+reordering — and expect the effect to change sign between tiers.
+
+### What did not pay
+
+- **`noinline` on the two threat specializations.** Forbidding the inline buys each
+  variant its own register allocation and charges a call plus its spills to every
+  piece touch in every make. Let both inline, as
+  [`threats.h`](../src/engine/board/threats.h) says.
+- **The same parameter narrowing on the fourth history gather.** It measures +1.2M
+  on an LTO inlining flip where three sibling call sites pay; the quiet-histories
+  writer keeps the full gather.
+- **Cache-line alignment of the magic table.** The D1 reduction is real and
+  deterministic and does **not** convert to cycles. It stands as fidelity with
+  upstream — cite it that way, never as nps.
 
 ## Measurement discipline
 

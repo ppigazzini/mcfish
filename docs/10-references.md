@@ -74,18 +74,51 @@ must live in a header while a cold one may split freely.
 - [Structuring C projects][c-structure] — the conventional layout this tree's
   zone structure follows.
 
+## Codegen: attributes, alignment and vectorisation
+
+Background for the levers in
+[08-idiomatic-c.md](08-idiomatic-c.md#the-c23-spellings-that-measured), which is
+where this tree's own measurements live.
+
+- [clang attribute reference][clang-attr] — what `always_inline`, `noinline` and
+  `aligned` are, and are not, a request for.
+- [GCC common function attributes][gcc-attr] — the same set as the
+  second-compiler lane sees it.
+- [clang vector extensions][clang-vec] — the `vector_size` vocabulary, and the
+  alignment a vector type claims by default.
+- [LLVM auto-vectorization][llvm-vec] — the loop and SLP vectorizers, their cost
+  models, and the `-Rpass` remarks that report both.
+- [LLVM atomics and optimisation][llvm-atomics] — which transforms an atomic
+  access blocks.
+- [Agner Fog's optimisation manuals][agner] — instruction tables and
+  microarchitecture, per encoding: operand folding and alignment penalties.
+- [Intel intrinsics guide][intel-intrinsics] — the lookup for upstream's per-ISA
+  kernels.
+- [What every programmer should know about memory][drepper] — cache lines,
+  alignment and data layout.
+- [Transparent hugepages][thp] — the alignment and size `MADV_HUGEPAGE` requires.
+
 ## Licensing
 
 - [GNU GPL v3][gpl3] — mcfish is a derivative of Stockfish and inherits it. See
   [`../Copying.txt`](../Copying.txt) and [`../AUTHORS`](../AUTHORS).
 
+[agner]:        https://www.agner.org/optimize/
 [c-structure]:  https://www.lucavallin.com/blog/how-to-structure-c-projects-my-experience-best-practices
+[clang-attr]:   https://clang.llvm.org/docs/AttributeReference.html
 [clang-diag]:   https://clang.llvm.org/docs/DiagnosticsReference.html
+[clang-vec]:    https://clang.llvm.org/docs/LanguageExtensions.html#vectors-and-extended-vectors
 [cppref-c]:     https://en.cppreference.com/w/c
+[drepper]:      https://www.akkadia.org/drepper/cpumemory.pdf
+[gcc-attr]:     https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html
+[intel-intrinsics]: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
 [jb-lto]:       https://blog.jetbrains.com/clion/2022/05/testing-3-approaches-performance-cpp_apps/
+[llvm-atomics]: https://llvm.org/docs/Atomics.html
+[llvm-vec]:     https://llvm.org/docs/Vectorizers.html
 [lto-guide]:    https://convolv.es/guides/lto/
 [lto-survey]:   https://gist.github.com/MangaD/2822580b199c605009bb53c892383d93
 [thinlto]:      https://storage.googleapis.com/gweb-research2023-media/pubtools/pdf/af0a39422b19fbbe063479f5d3a71d9278677314.pdf
+[thp]:          https://docs.kernel.org/admin-guide/mm/transhuge.html
 [cpw]:          https://www.chessprogramming.org/Main_Page
 [cpw-960]:      https://www.chessprogramming.org/Chess960
 [cpw-ab]:       https://www.chessprogramming.org/Alpha-Beta
