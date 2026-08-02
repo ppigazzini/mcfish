@@ -97,12 +97,16 @@ What the decision costs, and what to watch instead:
 
 - **Navigation is by `grep`, not by file name.** The dispatcher's `case` block is
   the index; `./build.sh help` is the user-facing one.
-- **Two tools read this file as TEXT** — `docs_lint.sh` extracts the step list from
-  the last `case` block, and `upstream_golden_audit.sh` lifts `normalize()` out of
-  it with a `sed`. Both now guard their own extraction and fail at exit 2 rather
-  than going quietly vacuous, which is the failure mode a split would otherwise
-  trigger silently. Anything else that grows a text dependency on `build.sh` owes
-  the same guard.
+- **One tool still reads this file as TEXT** — `docs_lint.sh` extracts the step
+  list from the last `case` block, and guards its own extraction so it fails at
+  exit 2 rather than going quietly vacuous. There were two: the audit lifted
+  `normalize()` out with a `sed` until that function moved to
+  [`../tools/lib/normalize.sh`](../tools/lib/normalize.sh), which both callers now
+  source. **That is the cheap half of a split, and the half that was actually
+  paying for itself**: the extraction hack existed because the build had no
+  importable unit, and one shared file removed it without moving the other 1900
+  lines. Anything that grows a text dependency on `build.sh` should be asked the
+  same question — can it source instead? — before it grows a guard.
 - **A split, if it is ever wanted, has to prove equivalence rather than assume it.**
   The check zfish used is the one to reuse: diff the full step-name list before and
   after, because a step can stop existing while `build`, `parity` and every gate
@@ -388,6 +392,12 @@ The cases cover the board dump, malformed input, the eval trace, the UCI
 handshake, perft output, and a search transcript.
 
 ### normalize(), and what it costs
+
+It lives in [`../tools/lib/normalize.sh`](../tools/lib/normalize.sh) — one
+definition, sourced by `build.sh` for `golden`/`golden-update` and by
+`upstream_golden_audit.sh` for the oracle run. Both must see the same filter or
+the two gates stop meaning the same thing, and a second copy would drift exactly
+when it matters: when a gap closes and its line must stop being dropped.
 
 ```bash
 sed -E 's/ nps [0-9]+//; s/ time [0-9]+//;
