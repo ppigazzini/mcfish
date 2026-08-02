@@ -85,16 +85,23 @@ static void cmd_position(char *args) {
         (void) strtok(nullptr, " \t\n");
     } else if (strcmp(token, "fen") == 0) {
         // Reassemble the FEN: six space-separated fields, ending at `moves` or EOL.
+        //
+        // A SEPARATOR AFTER EVERY FIELD, INCLUDING THE LAST -- upstream builds this
+        // string as `fen += token + " "` (uci.cpp:512), and the trailing space is
+        // load-bearing because Position::set reads the result as a CHARACTER stream:
+        // a FEN cut short after the side-to-move field ends in whitespace there and
+        // is accepted, where the same text without it fails "Expected whitespace
+        // after side to move". Joining with separators BETWEEN fields made mcfish's
+        // parser see a different string than upstream's does.
         char fen[128] = { 0 };
         int n = 0;
         while ((token = strtok(nullptr, " \t\n")) && strcmp(token, "moves") != 0) {
             const int len = (int) strlen(token);
             if (n + len + 2 >= (int) sizeof fen)
                 break;
-            if (n)
-                fen[n++] = ' ';
             memcpy(fen + n, token, (size_t) len);
             n += len;
+            fen[n++] = ' ';
         }
         if (!engine_set_position(fen, &reason))
             terminate_on_critical_error(CurrentCmd, reason);

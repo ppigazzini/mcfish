@@ -1,0 +1,9 @@
+position fen 1nbbnrkr/p1p1qppp/3p4/1p2p3/3PP3/2N5/PPP1QPPP/1NBBR1KR w HEhe - 4 9
+d
+position fen 4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2
+d
+position fen 8/8/8/K1pP3q/8/8/8/7k w - c6 0 2
+d
+position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq e3 0 1
+d
+quit
