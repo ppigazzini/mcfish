@@ -78,7 +78,11 @@ static void cmd_position(char *args) {
     if (strcmp(token, "startpos") == 0) {
         if (!engine_set_startpos(&reason))
             terminate_on_critical_error(CurrentCmd, reason);
-        token = strtok(nullptr, " \t\n");
+        // Consume the `moves` token, if any -- and upstream consumes ONE token here
+        // whatever it turns out to be (uci.cpp:508), which is why `position startpos
+        // fen <FEN>` is an error rather than a position: `fen` is eaten as the
+        // keyword and the FEN's own words are then read as MOVES.
+        (void) strtok(nullptr, " \t\n");
     } else if (strcmp(token, "fen") == 0) {
         // Reassemble the FEN: six space-separated fields, ending at `moves` or EOL.
         char fen[128] = { 0 };
@@ -98,13 +102,13 @@ static void cmd_position(char *args) {
         return;
     }
 
-    if (token && strcmp(token, "moves") != 0)
-        token = strtok(nullptr, " \t\n");
-
-    if (token && strcmp(token, "moves") == 0)
-        while ((token = strtok(nullptr, " \t\n")))
-            if (!engine_play_move(token, &reason))
-                terminate_on_critical_error(CurrentCmd, reason);
+    // Whatever is left on the line is a MOVE, with no keyword to introduce it: both
+    // branches above have already consumed the `moves` token if there was one
+    // (uci.cpp:516-521). Skipping a second token here instead let a stray word slip
+    // between `startpos` and `moves`, and swallowed the shape upstream rejects.
+    while ((token = strtok(nullptr, " \t\n")))
+        if (!engine_play_move(token, &reason))
+            terminate_on_critical_error(CurrentCmd, reason);
 }
 
 // ANNOUNCE is what separates the two callers, and it is upstream's own split rather
