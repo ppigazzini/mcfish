@@ -444,7 +444,11 @@ cannot carry a performance verdict — so they are deliberately kept out of
 2. **`perf_fingerprint.py compare --calls`** — is it the algorithm? Call counts are
    inlining-immune, and a divergence there outranks every cost finding.
 3. **an isolating workload** — `perft` for the board zone, `MCFISH_EVAL_MATERIAL=1`
-   for the spine. Which component owns it.
+   for the spine, `MCFISH_ACC_REFRESH_ONLY=1` (optionally with
+   `MCFISH_NO_THREAT_RECORD=1`) to price the accumulator's incremental path against
+   the rebuild it replaces. Which component owns it. The last two are bit-exact, so
+   the node total must not move between the variants — and the same workload check
+   is what catches an ablation that quietly searches a different tree.
 4. **`perf_counters` + `perf_delta.py`** — only now, and only for the WORK axes.
 
 Going straight to the counters is how a session spends a day attributing a deficit
