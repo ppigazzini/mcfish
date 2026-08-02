@@ -87,9 +87,12 @@ does not yet emit because the subsystem is unwired — the NUMA network-replica
 when the subsystem lands, delete its line from `normalize` FIRST and let the gate go
 red. A filter that outlives its gap silently stops comparing real output.
 
-The audit shares `normalize` with the gate rather than restating it, by extracting
-the function from `build.sh`. A second copy would drift from the first exactly when
-it matters — when a gap closes and its line must stop being dropped.
+The audit shares `normalize` with the gate rather than restating it: both source
+[`lib/normalize.sh`](lib/normalize.sh), the one definition. A second copy would
+drift from the first exactly when it matters — when a gap closes and its line must
+stop being dropped. The audit used to extract the function out of `build.sh` with a
+`sed`, which worked until someone moved it; sourcing a shared file cannot go stale
+that way, and the audit still refuses to run if the file defines no `normalize`.
 
 ## Driving the oracle: a case containing `go` needs pauses
 
