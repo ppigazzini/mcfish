@@ -452,29 +452,60 @@ diff.
 
 `pos_set` parses a full FEN record and returns `false` on anything malformed,
 leaving `pos` unspecified. It rejects: a rank that does not sum to 8, too few or too
-many ranks, a bad side-to-move token, a castling right whose rook is not on the
-implied square, and — the one that is not syntax — **any position without exactly
-one king per side**, because every downstream `king_square()` is an `lsb` on the
-king bitboard and would read square 0 from an empty board. The rejection list in
-`test_fen` in [`../tests/test_main.c`](../tests/test_main.c) has one FEN per
-invariant.
+many ranks, a bad side-to-move token, and — the one that is not syntax — **any
+position without exactly one king per side**, because every downstream
+`king_square()` is an `lsb` on the king bitboard and would read square 0 from an
+empty board. The rejection list in `test_fen` in
+[`../tests/test_main.c`](../tests/test_main.c) has one FEN per invariant.
+`pos_set_reason` is the same parse with the diagnostic upstream prints, and the
+messages are upstream's verbatim — a reason that only approximates the reference is
+not comparable against it.
+
+**A FEN IS A CHARACTER STREAM, NOT A LIST OF WHITESPACE-SEPARATED FIELDS.** Upstream
+reads it under `noskipws`, one character at a time, so a field ends at exactly the
+one character that ends it and the character after that already belongs to the next
+field. Three consequences that a split-on-whitespace reading gets wrong, all of them
+reachable from a GUI:
+
+- `-` ends the castling field, and only in first position. `w -K - 0 1` therefore
+  reads `K` as an EN-PASSANT square and fails; a `-` *after* a right is not a
+  separator but an unrecognised right, so `w K- - 0 1` fails too.
+- the side-to-move field must be followed by exactly one whitespace character.
+- the stream running dry inside the board field is `Unexpected end of stream`, and
+  that is reported before the board-shape check, so `8/8/8` is an end of stream
+  rather than a half-drawn board.
 
 Castling rights accept both standard (`KQkq`) and Shredder-FEN file letters
-(`A`..`H`), resolving `K`/`Q` to the outermost rook on the back rank via `msb`/`lsb`
-so Chess960 needs no special case. `set_castling_right` records the rook origin in
+(`A`..`H`), and **incorrect rights are sanitised rather than rejected** — upstream
+says so in the source, because stale castling fields are common enough that it
+relaxed the rule for them. A right whose rook or king is missing is DROPPED and the
+rest of the position is accepted; only an unrecognised character is an error. `K`/`Q`
+mean "scan inward from that corner and take the first rook, stopping AT the king",
+not "the h-file/a-file rook": the king must come later than the rook or the right is
+not real, so with `Kh1` and `Ra1` the kingside right is dropped rather than granted
+to a rook on the far side of the king. A file letter looks for its rook on the BACK
+RANK and for the king on files b..g only, since a king on the a- or h-file has no
+room to castle. `set_castling_right` records the rook origin in
 `castling_rook_square[cr]` and marks both the king and rook squares in
 `castling_rights_mask`, which is what lets `pos_do_move` drop a right by masking on
 the from- and to-square together.
 
-**The en-passant field is stored only when the capture is actually available.**
-`pos_set` requires that some pawn of the side to move actually attacks the ep square
-and that the square is empty; otherwise `ep_square` stays `SQ_NONE`. `pos_do_move`
-applies the same rule when setting the square after a double push. This matters
-because the ep square is hashed into the key: a FEN that states an ep square
-unconditionally would produce a different key for a position that is, in every way
-that affects play, identical — desynchronising the TT, the repetition test, and
-every golden built on them. The two sites must stay in agreement; changing one alone
-breaks the FEN round-trip in `test_fen`.
+**The en-passant field is stored only when the capture is actually available, and a
+square that fails the SYNTAX is a different outcome from one that fails the test.**
+The rank is checked against the side to move — relative rank 6, so `6` for white and
+`3` for black — and a square on the wrong one is a rejected FEN, not a dropped
+square. Past that, four conditions decide whether `ep_square` is recorded at all: a
+pawn of the side to move attacks the square, the enemy pawn stands in front of it,
+neither the square nor the one behind it is occupied, and at least one capturer can
+execute the capture **without leaving its own king in check** — a pawn pinned along
+the fifth rank cannot take, and if none of them can then the square is not an
+en-passant square. Otherwise `ep_square` stays `SQ_NONE`, and `pos_do_move` applies
+the same rule when setting the square after a double push. This matters because the
+ep square is hashed into the key: a FEN that states an ep square unconditionally
+would produce a different key for a position that is, in every way that affects play,
+identical — desynchronising the TT, the repetition test, and every golden built on
+them. The two sites must stay in agreement; changing one alone breaks the FEN
+round-trip in `test_fen`.
 
 `pos_fen` writes the record back, and `pos_pretty` renders the ASCII board plus the
 FEN and key that the UCI `d` command prints.

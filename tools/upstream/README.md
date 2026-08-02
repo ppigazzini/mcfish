@@ -3,17 +3,29 @@
 mcfish targets a **bit-exact 1:1 clone of Stockfish**. This directory holds the
 state and the tooling that makes that checkable.
 
-## The two repos
+## The repos
 
 | Role | Path | Use |
 |---|---|---|
 | **Golden** | `../Stockfish` | the definition of correct behaviour |
-| **Sibling** | `../zfish` | a second independent port of the same golden |
+| **Sibling** | `../zfish` | an independent Zig port of the same golden |
+| **Sibling** | `../rfish` | an independent Rust port of the same golden |
+| **Sibling** | `../fcfish` | an independent C17 port of the same golden |
 
 **Only one of these is an authority.** The differential gates compare mcfish
-against a **pristine upstream build**, never against zfish. Where mcfish and
-Stockfish disagree, Stockfish wins; where zfish and Stockfish disagree, that is a
-bug report for zfish.
+against a **pristine upstream build**, never against a sibling. Where mcfish and
+Stockfish disagree, Stockfish wins; where a sibling and Stockfish disagree, that
+is a bug report for the sibling.
+
+### A sibling finding is a hypothesis, not a bug report
+
+Every rule below is written about zfish because that is where the pattern was
+paid for; each applies unchanged to `../rfish` and `../fcfish`. One rule the
+rfish sweeps added: **probe the named behaviour against the oracle before writing
+a fix.** Of the eleven behaviours the fourth rfish sweep named, seven were already
+correct here — the four that were not became `2ccd9c5a`, `d71ad444`, `8415fd6b`
+and `f4f10372`, and the seven that were are recorded in those commit bodies so
+the next sweep does not re-probe them. `git log --grep=rfish` finds the set.
 
 ### zfish is a sibling, not a source
 
