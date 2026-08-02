@@ -749,7 +749,22 @@ do_signature_update() {
 # golden is keyed by ARCH because the count differs per ISA tier.
 PERF_BUDGET_GOLDEN=tools/instr_budget.golden
 PERF_BUDGET_BENCH=${PERF_BUDGET_BENCH:-16 1 13}
-PERF_BUDGET_TOL=${PERF_BUDGET_TOL:-0.005}   # 0.5%: catches real inflation, tolerates clang jitter
+# 0.05%, and the figure is MEASURED, not chosen: five runs of this bench span under
+# 0.00002%, so this is ~2000x the noise floor and still catches a per-node regression
+# a fifth the size of the one it was set against. The previous 0.5% was ~40000x, and
+# a real one walked through it -- forcing pos_adjust_key50_of out of line costs
+# +0.238% here with `signature` green, which is exactly the class this gate owns.
+# Set a tolerance by mutation or it is a decoration (../zfish 51031f48 learnt the
+# same lesson at 0.20%).
+PERF_BUDGET_TOL=${PERF_BUDGET_TOL:-0.0005}
+
+# Key a budget row by the tier IN THE BINARY, never by the word that selected it.
+# `native` names a different ISA on every host, so a row recorded under it is a
+# number about one machine that the next machine will compare its own binary
+# against. MCFISH_ARCH_STRING is already the resolved tier (`native` becomes
+# `x86-64-avx512icl-class`), so a row is portable by construction and a host with no
+# matching row SKIPS -- loudly, at 127 -- instead of measuring against a stranger.
+perf_budget_key() { printf '%s' "$MCFISH_ARCH_STRING"; }
 
 # Compile the counter (same cache perf_counters.sh uses) and read $BIN's median retired
 # instruction count on the fixed bench. Echoes "INSTRUCTIONS <n>\nNODES <n>", or returns 3
@@ -791,9 +806,16 @@ do_perf_budget() {
     info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
     return 127
   fi
-  budget=$(grep -v '^#' "$PERF_BUDGET_GOLDEN" | awk -v a="$MCFISH_ARCH" '$1==a{print $2}' || true)
+  budget=$(grep -v '^#' "$PERF_BUDGET_GOLDEN" | awk -v a="$(perf_budget_key)" '$1==a{print $2}' || true)
   if [[ -z $budget ]]; then
-    info "perf-budget: no budget recorded for arch '$MCFISH_ARCH'."
+    info "perf-budget: no budget recorded for tier '$(perf_budget_key)'."
+    # A file written before the key became the tier string holds `sse41`/`native`
+    # rows. Say so rather than leaving a bare "no budget": the number is still good,
+    # it is only filed under a name that cannot be compared across hosts.
+    if grep -qv '^#' "$PERF_BUDGET_GOLDEN" \
+       && grep -v '^#' "$PERF_BUDGET_GOLDEN" | awk -v a="$MCFISH_ARCH" '$1==a{found=1} END{exit !found}'; then
+      info "  a LEGACY row for '$MCFISH_ARCH' is present -- re-record it under the tier string"
+    fi
     info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
     return 127
   fi
@@ -801,15 +823,17 @@ do_perf_budget() {
   # Ceiling = budget * (1 + TOL). A regression INFLATES instructions; a drop is a win.
   awk -v a="$actual" -v b="$budget" -v tol="$PERF_BUDGET_TOL" -v arch="$(arch_report_label)" 'BEGIN{
     ceil = b * (1 + tol); floor = b * (1 - tol);
+    # %g, not %.1f: a 0.05% tolerance printed as "0.1%" is a gate lying about its
+    # own threshold, and the reader has no other place to learn it.
     if (a > ceil) {
-      printf "\033[31mperf-budget REGRESSION (%s): %d instr > budget %d + %.1f%% (%.0f)\033[0m\n", arch, a, b, tol*100, ceil;
+      printf "\033[31mperf-budget REGRESSION (%s): %d instr > budget %d + %g%% (%.0f)\033[0m\n", arch, a, b, tol*100, ceil;
       print  "\033[31mA refactor inflated the instruction count without moving the node signature.\033[0m";
       print  "\033[31mIf the change is intended, re-derive: ./build.sh perf-budget-update\033[0m";
       exit 1;
     } else if (a < floor) {
       printf "\033[32mperf-budget OK (%s): %d instr — IMPROVED vs budget %d (%.2f%%). Consider perf-budget-update.\033[0m\n", arch, a, b, (a/b-1)*100;
     } else {
-      printf "\033[32mperf-budget OK (%s): %d instr (budget %d, within %.1f%%)\033[0m\n", arch, a, b, tol*100;
+      printf "\033[32mperf-budget OK (%s): %d instr (budget %d, within %g%%)\033[0m\n", arch, a, b, tol*100;
     }
   }'
 }
@@ -823,19 +847,21 @@ do_perf_budget_update() {
   nodes=$(awk '/^NODES/{print $2}' <<< "$out")
   [[ -f $PERF_BUDGET_GOLDEN ]] || {
     { echo "# mcfish retired-instruction budget: median count on 'bench $PERF_BUDGET_BENCH',"
-      echo "# per ARCH tier. Deterministic (~0.00002% spread), toolchain-specific: re-derive"
-      echo "# on a clang upgrade or an intended perf change. One line per arch: <arch> <count>."
+      echo "# per ISA TIER. Deterministic (~0.00002% spread), toolchain-specific: re-derive"
+      echo "# on a clang upgrade or an intended perf change. One line per tier:"
+      echo "# <MCFISH_ARCH_STRING> <count> -- the tier IN the binary, so a row means the"
+      echo "# same thing on every host and a foreign tier finds none rather than matching."
       echo "# A regression that leaves the node signature ($nodes) untouched shows up ONLY here."
     } > "$PERF_BUDGET_GOLDEN"
   }
-  # Replace the line for this arch (or append it), keeping the header and other arches.
+  # Replace the line for this tier (or append it), keeping the header and other tiers.
   local tmp; tmp=$(mktemp)
-  awk -v a="$MCFISH_ARCH" -v n="$actual" '
+  awk -v a="$(perf_budget_key)" -v n="$actual" '
     /^#/ { print; next }
     $1==a { next }
     { print }
     END { print a, n }' "$PERF_BUDGET_GOLDEN" > "$tmp" && mv "$tmp" "$PERF_BUDGET_GOLDEN"
-  green "perf-budget golden for '$(arch_report_label)' set to $actual instructions (bench $PERF_BUDGET_BENCH, $nodes nodes)"
+  green "perf-budget golden for '$(perf_budget_key)' set to $actual instructions (bench $PERF_BUDGET_BENCH, $nodes nodes)"
 }
 
 do_simd_scalar() {
