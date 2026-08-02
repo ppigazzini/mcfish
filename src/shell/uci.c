@@ -17,6 +17,8 @@
 #include "ucioption.h"
 
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -118,6 +120,47 @@ static void cmd_position(char *args) {
             terminate_on_critical_error(CurrentCmd, reason);
 }
 
+// Read one `go` argument AT THE WIDTH OF THE FIELD IT GOES INTO, terminating the way
+// upstream does when it does not fit.
+//
+// `is >> field` fails when the text does not fit the FIELD's type, and upstream turns
+// that failbit into a critical error on the very next line (uci.cpp:229-230), so the
+// declared width is observable from a GUI. Everything here was parsed as one wide
+// integer, which is too wide for the five `int` fields and too narrow for `nodes`:
+//
+//   go depth 3000000000               upstream: CRITICAL ERROR   mcfish: searched
+//   go nodes 999999999999999999999999 upstream: CRITICAL ERROR   mcfish: searched
+//
+// LO/HI are the field's own range: a C++ stream sets failbit when the parsed value
+// falls outside the target type, so the bound IS the accept/reject boundary rather
+// than something to clamp to.
+static long long go_value_int(const char *key, const char *value, long long lo, long long hi) {
+    char *end = nullptr;
+    errno = 0;
+    const long long v = value != nullptr ? strtoll(value, &end, 10) : 0;
+    if (value == nullptr || end == value || errno == ERANGE || v < lo || v > hi) {
+        char reason[64];
+        snprintf(reason, sizeof reason, "Invalid argument for '%s'", key);
+        terminate_on_critical_error(CurrentCmd, reason);
+    }
+    return v;
+}
+
+// `nodes` is upstream's `u64`, read the way a C++ stream reads one: a leading minus is
+// ACCEPTED and the magnitude wraps, so `go nodes -1` is a budget of UINT64_MAX on both
+// sides, while a magnitude past UINT64_MAX is a critical error.
+static uint64_t go_value_u64(const char *key, const char *value) {
+    char *end = nullptr;
+    errno = 0;
+    const unsigned long long v = value != nullptr ? strtoull(value, &end, 10) : 0;
+    if (value == nullptr || end == value || errno == ERANGE) {
+        char reason[64];
+        snprintf(reason, sizeof reason, "Invalid argument for '%s'", key);
+        terminate_on_critical_error(CurrentCmd, reason);
+    }
+    return v;
+}
+
 // ANNOUNCE is what separates the two callers, and it is upstream's own split rather
 // than a convenience. The command loop prints the processor and thread info strings on
 // the `go` line (uci.cpp:133-138); UCIEngine::bench does NOT go through that loop --
@@ -192,20 +235,21 @@ static void go_line(char *args, bool announce) {
         // handled above, because it consumes the rest of the line rather than one
         // value.
         int *slot = nullptr;
+        int64_t *clock_slot = nullptr;
         bool wants_nodes = false;
         bool wants_perft = false;
         if (strcmp(token, "depth") == 0)
             slot = &limits.depth;
         else if (strcmp(token, "movetime") == 0)
-            slot = &limits.movetime_ms;
+            clock_slot = &limits.movetime_ms;
         else if (strcmp(token, "wtime") == 0)
-            slot = &limits.time_ms[WHITE];
+            clock_slot = &limits.time_ms[WHITE];
         else if (strcmp(token, "btime") == 0)
-            slot = &limits.time_ms[BLACK];
+            clock_slot = &limits.time_ms[BLACK];
         else if (strcmp(token, "winc") == 0)
-            slot = &limits.inc_ms[WHITE];
+            clock_slot = &limits.inc_ms[WHITE];
         else if (strcmp(token, "binc") == 0)
-            slot = &limits.inc_ms[BLACK];
+            clock_slot = &limits.inc_ms[BLACK];
         else if (strcmp(token, "movestogo") == 0)
             slot = &limits.moves_to_go;
         else if (strcmp(token, "mate") == 0)
@@ -227,22 +271,18 @@ static void go_line(char *args, bool announce) {
         // reads 5 and leaves "x" to be read as its own (unknown, ignored) token. So
         // the test is "did any digit parse at all", not "was the whole token consumed".
         const char *value = strtok(nullptr, " \t\n");
-        char *end = nullptr;
-        const long v = value != nullptr ? strtol(value, &end, 10) : 0;
-        if (value == nullptr || end == value) {
-            char reason[64];
-            snprintf(reason, sizeof reason, "Invalid argument for '%s'", token);
-            terminate_on_critical_error(CurrentCmd, reason);
-        }
 
         if (slot != nullptr)
-            *slot = (int) v;
+            *slot = (int) go_value_int(token, value, INT_MIN, INT_MAX);
+        else if (clock_slot != nullptr)
+            *clock_slot = go_value_int(token, value, INT64_MIN, INT64_MAX);
         else if (wants_nodes)
-            limits.nodes = (uint64_t) v;
+            limits.nodes = go_value_u64(token, value);
         else if (wants_perft) {
+            const int perft_depth = (int) go_value_int(token, value, INT_MIN, INT_MAX);
             engine_report_net();
             engine_verify_network();
-            const uint64_t n = engine_perft((int) v);
+            const uint64_t n = engine_perft(perft_depth);
             // Two newlines: upstream writes "\n" then sync_endl (uci.cpp:481).
             uci_output_printf("\nNodes searched: %llu\n\n", (unsigned long long) n);
             return;

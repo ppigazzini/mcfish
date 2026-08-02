@@ -1,0 +1,5 @@
+position startpos
+go nodes 18446744073709551615 depth 1
+go depth 3000000000
+d
+quit
