@@ -111,6 +111,16 @@ done
 # would drift from it exactly when it matters -- when a gap closes and its line must
 # stop being dropped.
 eval "$(sed -n '/^normalize()/,/^}/p' "$ROOT/build.sh")"
+# ... and check that the extraction actually produced it. This is a TEXT read of
+# another file keyed on one anchored line: rename or move normalize() and the eval
+# defines nothing, after which every case is compared unnormalized and the volatile
+# fields -- nps, time, the banner, the CPU list -- make all of them differ. That
+# reads as "mcfish diverged everywhere" rather than as a broken rig, which is the
+# expensive way to learn it.
+declare -F normalize > /dev/null || {
+  red "golden-audit: could not lift normalize() out of build.sh -- rig fault, not a divergence"
+  exit 2
+}
 
 ORACLE=$("$ROOT/tools/upstream/upstream_oracle.sh" ${ORACLE_SHA:+"$ORACLE_SHA"}) || {
   red "golden-audit: oracle build failed"
