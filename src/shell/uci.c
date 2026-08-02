@@ -189,6 +189,14 @@ static void go_line(char *args, bool announce) {
     // when the search thread later enters search_go.
     SearchLimits limits = { .start_time = (int64_t) now_ms() };
 
+    // PERFT IS A LIMIT LIKE ANY OTHER while the line is being read, and only a
+    // dispatch once the whole line has been read: upstream parses first and then
+    // tests `if (limits.perft)` (uci.cpp:437-441). So a ZERO is not a perft at all --
+    // it is an ordinary search with no limit -- and running the divide from inside
+    // the loop, on the keyword's mere presence, made `go perft 0` print a depth-zero
+    // divide of every root move where upstream plays a move.
+    int perft_depth = 0;
+
     for (char *token = strtok(args, " \t\n"); token; token = strtok(nullptr, " \t\n")) {
         // Zero-argument keywords first, reading NO lookahead token (uci.cpp:221-224).
         if (strcmp(token, "infinite") == 0) {
@@ -278,15 +286,18 @@ static void go_line(char *args, bool announce) {
             *clock_slot = go_value_int(token, value, INT64_MIN, INT64_MAX);
         else if (wants_nodes)
             limits.nodes = go_value_u64(token, value);
-        else if (wants_perft) {
-            const int perft_depth = (int) go_value_int(token, value, INT_MIN, INT_MAX);
-            engine_report_net();
-            engine_verify_network();
-            const uint64_t n = engine_perft(perft_depth);
-            // Two newlines: upstream writes "\n" then sync_endl (uci.cpp:481).
-            uci_output_printf("\nNodes searched: %llu\n\n", (unsigned long long) n);
-            return;
-        }
+        else if (wants_perft)
+            perft_depth = (int) go_value_int(token, value, INT_MIN, INT_MAX);
+    }
+
+    // The dispatch, after the WHOLE line is parsed and on the VALUE, not the keyword.
+    if (perft_depth != 0) {
+        engine_report_net();
+        engine_verify_network();
+        const uint64_t n = engine_perft(perft_depth);
+        // Two newlines: upstream writes "\n" then sync_endl (uci.cpp:481).
+        uci_output_printf("\nNodes searched: %llu\n\n", (unsigned long long) n);
+        return;
     }
 
     // NO DEFAULT DEPTH. A `go` with no usable limit searches until `stop`, which is
