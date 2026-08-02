@@ -13,10 +13,14 @@
 #include "../board/types.h"
 
 typedef struct {
-    int depth;        // fixed-depth limit, 0 for none
-    int movetime_ms;  // fixed time per move, 0 for none
-    int time_ms[COLOR_NB];
-    int inc_ms[COLOR_NB];
+    int depth;  // fixed-depth limit, 0 for none
+    // The four clock fields are upstream's TimePoint (search.h LimitsType), which is
+    // int64_t and NOT int: `go wtime 3000000000` is a clock upstream accepts, and
+    // holding it in an int truncated it here. Declared as int64_t rather than as
+    // TimePoint so this header stays independent of timeman.h.
+    int64_t movetime_ms;  // fixed time per move, 0 for none
+    int64_t time_ms[COLOR_NB];
+    int64_t inc_ms[COLOR_NB];
     int moves_to_go;
     uint64_t nodes;  // node limit, 0 for none
     // `go mate N`: stop once the best score is a mate in at most N MOVES -- the
