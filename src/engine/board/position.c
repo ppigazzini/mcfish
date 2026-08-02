@@ -3,6 +3,7 @@
 #include "../search/history.h"
 #include "../search/tt.h"
 
+#include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -290,10 +291,16 @@ bool pos_set_reason(
     si->ep_square = SQ_NONE;
     pos->chess960 = chess960;
 
+    // A FEN IS A CHARACTER STREAM, not a list of whitespace-separated fields.
+    // Upstream sets `ss >> std::noskipws` (position.cpp:213) and reads one character
+    // at a time, so every field boundary is exactly the one character that ends it
+    // and the character after it already belongs to the next field. Splitting on
+    // whitespace instead accepts strings upstream rejects -- `w -K - 0 1` reads `K`
+    // as an EN-PASSANT square there and as a castling right here.
     const char *p = fen;
     int f = 0, r = 7, num_pieces = 0;
 
-    for (; *p && *p != ' '; ++p) {
+    for (; *p && !isspace((unsigned char) *p); ++p) {
         if (*p == '/') {
             if (f != 8)
                 FEN_FAIL("Invalid FEN. Trying to end rank when not at the end of it.");
@@ -322,6 +329,11 @@ bool pos_set_reason(
             ++f;
         }
     }
+    // The stream running dry inside the board field is upstream's own first error
+    // (position.cpp:222-223), and it is reported BEFORE the shape check: `8/8/8` is
+    // an unexpected end of stream there, not a half-drawn board.
+    if (*p == '\0')
+        FEN_FAIL("Invalid FEN. Unexpected end of stream.");
     if (f != 8 || r != 0)
         FEN_FAIL("Invalid FEN. Board state encoding ended but cursor not at end.");
 
@@ -356,15 +368,21 @@ bool pos_set_reason(
                                 : "Unsupported position. Too many pieces for BLACK.");
     }
 
-    while (*p == ' ')
-        ++p;
+    // The board loop broke ON the separator, which upstream had already extracted:
+    // step over exactly that one character, never over a run of them.
+    ++p;
+
+    if (*p == '\0')
+        FEN_FAIL("Invalid FEN. Unexpected end of stream.");
     if (*p != 'w' && *p != 'b')
         FEN_FAIL_CH("Invalid FEN. Invalid side to move: %c", *p);
     pos->side_to_move = (*p == 'w') ? WHITE : BLACK;
     ++p;
-
-    while (*p == ' ')
-        ++p;
+    // One separator is REQUIRED here and it is an error to find anything else
+    // (position.cpp:296-297), so `w-` is rejected rather than read as a right.
+    if (*p == '\0' || !isspace((unsigned char) *p))
+        FEN_FAIL("Invalid FEN. Expected whitespace after side to move.");
+    ++p;
     // Resolve each castling right to a ROOK SQUARE, upstream's way (position.cpp).
     //
     // Two things here are not obvious and mcfish had both wrong.
@@ -380,10 +398,24 @@ bool pos_set_reason(
     // ("Only apply castling rights if they can be valid"). Only an unrecognised
     // character is an error. mcfish rejected the whole FEN, so a position upstream
     // accepts was refused outright.
+    //
+    // Third, `-` is a right-hand FIELD TERMINATOR and only in first position
+    // (position.cpp:319-323): it ends the castling field, skips the whitespace after
+    // it, and hands the cursor to the en-passant field -- so `w -K - 0 1` fails on
+    // `K` as an en-passant square. A `-` anywhere else is an unrecognised right and
+    // an error, not a separator to skip over.
     int cr_seen = 0;
-    for (; *p && *p != ' '; ++p) {
-        if (*p == '-')
-            continue;
+    while (*p != '\0') {
+        if (isspace((unsigned char) *p)) {
+            ++p;  // upstream's isspace break, which has already extracted it
+            break;
+        }
+        if (cr_seen == 0 && *p == '-') {
+            ++p;
+            while (isspace((unsigned char) *p))  // upstream's `ss >> std::ws`
+                ++p;
+            break;
+        }
         if (++cr_seen > 4)
             FEN_FAIL("Invalid FEN. Maximum of 4 castling rights can be specified.");
 
@@ -421,17 +453,25 @@ bool pos_set_reason(
 
         if (ksq != SQ_NONE && rsq != SQ_NONE)
             set_castling_right(pos, c, rsq);
+        ++p;
     }
 
-    while (*p == ' ')
-        ++p;
-    if (*p >= 'a' && *p <= 'h') {
+    // 4. En-passant square. Two characters, read unconditionally: a stream that has
+    // run dry leaves upstream's `col` at its initial `-` and is the same as none
+    // (position.cpp:386-388). The RANK is checked against the side to move rather
+    // than accepted as either 3 or 6 -- a square on the wrong one is not a square
+    // this side could ever capture on, and upstream rejects the whole FEN for it.
+    if (*p != '\0' && *p != '-') {
         const int ef = *p - 'a';
+        const char col = *p;
         ++p;
-        if (*p != '3' && *p != '6')
+        if (*p == '\0')
+            FEN_FAIL("Invalid FEN. Unexpected end of stream.");
+        const char row = *p;
+        ++p;
+        if (!(col >= 'a' && col <= 'h') || row != (pos->side_to_move == WHITE ? '6' : '3'))
             FEN_FAIL("Invalid FEN. Invalid en-passant square.");
-        const Square ep = make_square(ef, *p - '1');
-        ++p;
+        const Square ep = make_square(ef, row - '1');
 
         // Keep the ep square only when the capture is actually LEGAL. A FEN that
         // states one unconditionally perturbs the key and desynchronises every
@@ -470,8 +510,6 @@ bool pos_set_reason(
             si->ep_square = ep;
     } else if (*p == '-') {
         ++p;
-    } else if (*p) {
-        FEN_FAIL("Invalid FEN. Invalid en-passant square.");
     }
 
     int rule50 = 0, fullmove = 1;
