@@ -106,19 +106,18 @@ for c in "${CASES[@]}"; do
 done
 [[ ${#SELECTED[@]} -eq 0 ]] && { red "golden-audit: no cases selected"; exit 2; }
 
-# Take normalize() from build.sh rather than restating it. It is the gate's own
+# SOURCE normalize() rather than restating or extracting it. It is the gate's own
 # definition of what is volatile and what is a declared gap, and a second copy here
 # would drift from it exactly when it matters -- when a gap closes and its line must
-# stop being dropped.
-eval "$(sed -n '/^normalize()/,/^}/p' "$ROOT/build.sh")"
-# ... and check that the extraction actually produced it. This is a TEXT read of
-# another file keyed on one anchored line: rename or move normalize() and the eval
-# defines nothing, after which every case is compared unnormalized and the volatile
-# fields -- nps, time, the banner, the CPU list -- make all of them differ. That
-# reads as "mcfish diverged everywhere" rather than as a broken rig, which is the
-# expensive way to learn it.
+# stop being dropped. This used to lift the function out of build.sh with a `sed`
+# keyed on one anchored line; the shared file makes that a plain import.
+. "$ROOT/tools/lib/normalize.sh"
+# Keep the check anyway: a source that fails under `set -e` stops the script, but a
+# file that exists and defines something else does not, and unnormalized output makes
+# every case differ on nps, time, the banner and the CPU list -- which reads as
+# "mcfish diverged everywhere" rather than as a broken rig.
 declare -F normalize > /dev/null || {
-  red "golden-audit: could not lift normalize() out of build.sh -- rig fault, not a divergence"
+  red "golden-audit: tools/lib/normalize.sh defined no normalize() -- rig fault, not a divergence"
   exit 2
 }
 
