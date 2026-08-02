@@ -458,6 +458,17 @@ that reads instructions on avx2 and native/vnni512 — where callgrind SIGILLs o
 AVX-512 EVEX prefix — and the only one that can *see* an IPC gap rather than infer
 one.
 
+**The workload is a precondition, and it is enforced on every round, not just the
+first.** Both modes parse `Nodes searched` out of each run and refuse to report if
+it moves: a count is a statement about an amount of work, so an engine that dies
+mid-round, a net that goes missing after round one, or an ablation that quietly
+searches a different tree would otherwise produce a plausible smaller number that
+the budget gate compares as though nothing had changed. `../zfish f876cb5b` credits
+exactly this check with catching an ablation searching 162,860 nodes while claiming
+163,081 — the instruction delta read clean either way. The harness is also built
+under the engine's own warning set with `-Werror`: the binary every perf claim in
+this tree rests on should not be the least-checked one in it.
+
 It also reads **retired macro-ops** (AMD `ex_ret_ops`), which is the axis that says
 whether an instruction-count difference is a difference in WORK. An x86 instruction is
 not a unit of work — a folded load-op, a load-op-store and a wide vector op each retire

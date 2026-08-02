@@ -251,17 +251,40 @@ int main(int argc, char **argv) {
             sr = 5;
         size_t sextra = (size_t) argc - 4;
         char **sargv = calloc(sextra + 2, sizeof *sargv);
+        double *ins = calloc(sr, sizeof *ins);
+        if (sargv == NULL || ins == NULL) {
+            fprintf(stderr, "error: out of memory building the run vector\n");
+            return 2;
+        }
         sargv[0] = (char *) bin;
         for (size_t i = 0; i < sextra; i++)
             sargv[i + 1] = argv[4 + i];
 
-        double *ins = calloc(sr, sizeof *ins);
         uint64_t nodes = 0;
         for (size_t i = 0; i < sr; i++) {
             Counters c = run_once(sargv, 0);
             ins[i] = (double) c.instructions;
-            if (i == 0)
+            if (i == 0) {
                 nodes = c.nodes;
+                continue;
+            }
+            // THE WORKLOAD IS A PRECONDITION OF THE COUNT, and it was checked on the
+            // first round only. An instruction total means nothing unless every round
+            // did the same work, and the ways it silently stops doing so are ordinary:
+            // an engine that dies mid-round, a bench whose net went missing after the
+            // first run, an ablation that changes the tree it searches. Each yields a
+            // plausible smaller number and the budget gate compares it as if it were
+            // the same work. ../zfish f876cb5b credits exactly this check with
+            // catching an ablation that searched 162,860 nodes where it claimed
+            // 163,081 -- the instruction delta read clean either way.
+            if (c.nodes != nodes) {
+                fprintf(stderr,
+                        "error: node count moved between rounds (round 1 = %lu, round %zu = %lu).\n"
+                        "       Same binary, different work: the median below would be a "
+                        "number about two workloads.\n",
+                        (unsigned long) nodes, i + 1, (unsigned long) c.nodes);
+                return 2;
+            }
         }
         if (ins[0] == 0.0 || nodes == 0) {
             fprintf(stderr,
@@ -309,11 +332,31 @@ int main(int argc, char **argv) {
     double *r_ops = calloc(rounds, sizeof *r_ops);
     double *r_opi_a = calloc(rounds, sizeof *r_opi_a);
     double *r_opi_b = calloc(rounds, sizeof *r_opi_b);
+    if (argv_a == NULL || argv_b == NULL || r_instr == NULL || r_cyc == NULL || r_ipc == NULL
+        || r_cache == NULL || r_branch == NULL || r_ops == NULL || r_opi_a == NULL
+        || r_opi_b == NULL) {
+        fprintf(stderr, "error: out of memory allocating the round tables\n");
+        return 2;
+    }
 
+    uint64_t nodes_first = 0;
     for (size_t i = 0; i < rounds; i++) {
         Counters a = run_once(argv_a, 0);
         Counters b = run_once(argv_b, 0);
+        // Round 0 establishes the workload; EVERY later round has to still be doing it.
+        // Checking only the first left the ratio defined over two different trees the
+        // moment one side stopped searching the same one -- see the --single path.
+        if (i > 0 && (a.nodes != nodes_first || b.nodes != nodes_first)) {
+            fprintf(stderr,
+                    "error: node count moved after round 1 (was %lu; round %zu: A=%lu B=%lu).\n"
+                    "       Different work between rounds; every ratio below would be "
+                    "meaningless.\n",
+                    (unsigned long) nodes_first, i + 1, (unsigned long) a.nodes,
+                    (unsigned long) b.nodes);
+            return 2;
+        }
         if (i == 0) {
+            nodes_first = a.nodes;
             if (a.nodes == 0 || b.nodes == 0) {
                 fprintf(stderr,
                         "error: could not parse a node count (A=%lu, B=%lu).\n"
