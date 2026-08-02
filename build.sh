@@ -772,7 +772,14 @@ perf_budget_key() { printf '%s' "$MCFISH_ARCH_STRING"; }
 measure_instructions() {
   local counter="${TMPDIR:-/tmp}/mcfish_perf_counters"
   if [[ ! -x $counter || tools/perf_counters.c -nt $counter ]]; then
-    "$CC" -O2 "$STD_FLAG" -o "$counter" tools/perf_counters.c || return 2
+    # Build the HARNESS under the same warning set as the engine it judges, and
+    # fatally. It was the least-checked binary in the tree -- plain `-O2` with no
+    # warnings at all -- while every gate that quotes an instruction count trusts
+    # whatever it prints. ../zfish d30481f0 found its own parity harness compiled
+    # with safety OFF, where a table entry two characters longer than a stack buffer
+    # let it report a verdict for a command it never sent. It compiles clean under
+    # these today, so -Werror costs nothing and keeps it that way.
+    "$CC" -O2 "${CFLAGS_COMMON[@]}" -Werror -o "$counter" tools/perf_counters.c || return 2
   fi
   ( cd "$ROOT/$RESOURCES_DIR" && "$counter" --single "$ROOT/$BIN" 5 bench $PERF_BUDGET_BENCH )
 }

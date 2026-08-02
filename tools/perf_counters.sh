@@ -23,7 +23,13 @@ command -v "$CC" >/dev/null || { echo "error: $CC not installed" >&2; exit 1; }
 
 # Rebuild only when the source is newer than the cached binary.
 if [ ! -x "$BIN" ] || [ "$SRC" -nt "$BIN" ]; then
-    "$CC" -O2 -std=c23 -o "$BIN" "$SRC" || { echo "error: failed to build $SRC" >&2; exit 1; }
+    # Same warning set the engine is built under, fatally: this binary's numbers are
+    # what every perf claim in the tree rests on, so it must not be the least-checked
+    # thing in it. See build.sh's copy of this compile.
+    "$CC" -O2 -std=c23 -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-prototypes \
+        -Wconversion -Wsign-conversion -Wno-unused-parameter -Werror \
+        -D_POSIX_C_SOURCE=200809L -o "$BIN" "$SRC" \
+        || { echo "error: failed to build $SRC" >&2; exit 1; }
 fi
 
 exec "$BIN" "$@"
