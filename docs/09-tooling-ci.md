@@ -76,6 +76,39 @@ file. Under timestamps, building at sse41 and then running a gate with
 native tier — the same trap `perf-budget` documents, and one that silently voids any
 per-tier comparison. Hashing the flags closes it.
 
+### One file, and no size gate — a standing decision, not an oversight
+
+`build.sh` is 1983 lines and 57 functions, and it stays one file. The property
+being bought is that the build and every gate are a single self-contained script:
+no source-path bootstrap, no half-installed fragment directory, and a copy of this
+one file plus the tree builds and gates the engine.
+
+**The sibling drew the opposite conclusion, and the contrast is the useful part.**
+`../zfish` holds every file to 500 lines under a ratcheting `loc` gate — a baseline
+that may fall and never rise — and when its `build.zig` reached 2595 lines it split
+into a `build/` package rather than raising the baseline (zfish `eeb52780`,
+`5ffd1bca`). That works there because the build file is Zig, checked by the same
+lint as the program. Here the equivalent policy is absent entirely: **there is no
+file-size gate in this tree at all**, and 11 files under `src/` are already over
+500 lines (`nnue_accumulator.c` at 1365 is the largest), so importing the rule
+would be a refactor campaign rather than a gate.
+
+What the decision costs, and what to watch instead:
+
+- **Navigation is by `grep`, not by file name.** The dispatcher's `case` block is
+  the index; `./build.sh help` is the user-facing one.
+- **Two tools read this file as TEXT** — `docs_lint.sh` extracts the step list from
+  the last `case` block, and `upstream_golden_audit.sh` lifts `normalize()` out of
+  it with a `sed`. Both now guard their own extraction and fail at exit 2 rather
+  than going quietly vacuous, which is the failure mode a split would otherwise
+  trigger silently. Anything else that grows a text dependency on `build.sh` owes
+  the same guard.
+- **A split, if it is ever wanted, has to prove equivalence rather than assume it.**
+  The check zfish used is the one to reuse: diff the full step-name list before and
+  after, because a step can stop existing while `build`, `parity` and every gate
+  stay green — that is how it found two deleted steps and one silently dropped
+  argument.
+
 ## The steps
 
 [`../build.sh`](../build.sh) is the whole build system and the whole in-repo gate
