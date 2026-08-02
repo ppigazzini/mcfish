@@ -106,7 +106,15 @@ last tried to load, and the directory the binary was launched from, derived from
 concatenation inserts none.
 
 `engine_nnue_report()` prints `eval_nnue_status()` through `info string` before every
-`go`, `perft` and `eval`, and `engine_nnue_verify()` **terminates** the process
+`go`, `perft` and `eval`, **followed by one `Network replica N:` line per replica**,
+which upstream emits right after the same summary. The count and the shape are
+upstream's; the STATUS deliberately is not. Upstream maps the net system-wide and
+answers `Shared memory.`, while mcfish holds one network in ordinary process memory
+and answers `Local memory.` — one of upstream's own four strings, and the true one
+here until the network registers itself for NUMA replication
+([04-multithreading.md](04-multithreading.md)). Matching the byte would assert
+something false about the allocation. `engine_nnue_verify()` **terminates** the
+process
 right after when no usable net is loaded — upstream's five error lines verbatim, from
 the same three sites (nnue/network.cpp:165-187). Those five lines go through the same
 `info`-prefixing sink as every option-message callback (installed by
@@ -180,15 +188,15 @@ is why `strtok` is usable at all.
 | --- | --- |
 | `uci` | Print `id name`, `id author`, the option lines, then `uciok`. |
 | `isready` | Print `readyok`. |
-| `ucinewgame` | Clear the transposition table and reset to the start position. |
-| `position` | `startpos` or `fen <6 fields>`, optionally followed by `moves ...`. |
-| `go` | Emit the processor/thread `info string` lines and the net-status line, parse limits, hand the search to worker 0's thread, and return; the search emits its own `info` and `bestmove` lines through the sink. `go perft N` short-circuits to a perft divide and skips the processor/thread/net lines. |
+| `ucinewgame` | Clear the transposition table, the history block and the tablebase mapping. It does **not** touch the position: upstream's `Engine::search_clear` clears search state only, so a GUI that sends `ucinewgame` between `position` and `go` keeps the board it set. |
+| `position` | `startpos` or `fen <fields>`, then any remaining tokens as moves. Anything else — including a bare `position` — returns without touching the board. |
+| `go` | Emit the processor/thread `info string` lines and the net-status line, parse limits, hand the search to worker 0's thread, and return; the search emits its own `info` and `bestmove` lines through the sink. A perft is chosen after the whole line is parsed and on the VALUE of `perft`, so `go perft 0` is an ordinary search. |
 | `setoption` | `setoption name <NAME> [value <VALUE>]`; see the table below. |
 | `stop` | Raise the stop flag and return; the search thread ends and emits its `bestmove`. |
 | `quit` | End the search (stop it if unbounded, else wait it out), leave the loop; `uci_loop` frees the table. |
 | `flip` | Mirror the position color-flipped, via `engine_flip`. |
-| `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`, then the `Tablebases WDL:`/`DTZ:` lines when the position is small enough and has no castling rights. See [05-tablebases.md](05-tablebases.md). |
-| `bench` | Run the benchmark at the given depth, default 8. |
+| `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`, then the `Tablebases WDL:`/`DTZ:` lines when the position is small enough and has no castling rights. The key printed is the **rule50-adjusted** one (`pos_adjust_key50_of`), which is what upstream's `Position::key()` returns; below a halfmove clock of 14 the adjustment is the identity, which is why every bench position and every golden case saw the raw key agree. See [05-tablebases.md](05-tablebases.md). |
+| `bench` | `bench <tt> <threads> <limit> <fen file> <limit type>`, each field defaulting when the line runs dry. The limit type is upstream's own set — `depth`, `nodes`, `movetime`, `perft`, `eval` — and becomes the command run per position, so `perft` and `eval` are not searches at all. |
 | `eval` | Print the evaluation trace via `evaluate_trace`. |
 | `compiler` | Print the clang or gcc version and `__STDC_VERSION__` the binary was built with. |
 | `ponderhit` | Clear the ponder flag, so a `go ponder` search begins enforcing its time limits. |
@@ -222,9 +230,11 @@ pondering — is *stopped*, while a bounded one (`go depth N`, `go movetime T`, 
 draws that line. The bench and the tests reach the search through the synchronous
 `search_go`, which is `search_go_start` immediately followed by `search_wait`.
 
-`ucinewgame` clears the TT but does **not** clear the history block; the live search
-clears that per `go` instead, which is not where upstream clears it. See
-[02-engine-search.md](02-engine-search.md).
+`ucinewgame` reaches `search_clear`, which is where the history block is cleared —
+upstream clears it in `ThreadPool::clear`, from `ucinewgame` and nowhere else. This
+page recorded the opposite for as long as the live search cleared it per `go`; a
+search that starts from a blank history searches a different tree than upstream's.
+See [02-engine-search.md](02-engine-search.md).
 
 ### position
 
@@ -241,8 +251,28 @@ own allocation that never moves once handed out, and the list has no bound —
 upstream's chain is a deque (engine.cpp:210), so a long analysis line of coordinate
 moves does not run into a cap.
 
-The FEN branch reassembles six space-separated fields into one buffer, stopping at
-`moves` or end of line, and bounded by the buffer size. `engine_set_position` returns
+**`cmd_position` reads the line the way upstream reads it: token by token, with one
+branch per shape and no keyword search.** `startpos` sets the start position and then
+consumes exactly ONE more token *whatever it is* — the `moves` keyword if there is
+one — and everything after that is a move. `fen` accumulates words until it meets
+`moves`. Anything else, including no argument at all, returns without touching the
+board. Two shapes follow from the first rule and are not obvious:
+
+- `position startpos fen <FEN>` is an **error**, not a position: `fen` is eaten as
+  the keyword and the FEN's own words are read as moves, so it terminates on
+  `Illegal move: <first field>`.
+- `position moves e2e4` is ignored entirely, because `moves` matches neither branch.
+
+The FEN branch reassembles the fields into one buffer, stopping at `moves` or end of
+line, and bounded by the buffer size. **A separator follows every field, including
+the last**, which is upstream's `fen += token + " "` and is load-bearing rather than
+cosmetic: `pos_set_reason` reads the buffer as a character stream, so a record cut
+short after the side-to-move field ends in whitespace there and is accepted, where
+the same text without the trailing separator fails "Expected whitespace after side to
+move". The two parsers must be handed the same bytes to be comparable at all. See
+[01-engine-board.md](01-engine-board.md).
+
+`engine_set_position` returns
 the parse reason on a malformed record, and `cmd_position` **terminates** on it
 (`terminate_on_critical_error`) rather than answering for some other board — the
 `errors` golden case in [`../tools/cases/errors.uci`](../tools/cases/errors.uci) pins
@@ -276,12 +306,31 @@ Upstream's bench does not go through its command loop at all — it parses the l
 itself and calls `perft`/`engine.go` directly — so a bench position emits neither
 line. `uci_bench_go` is the entry point that reproduces that split.
 
-Limits parsed: `depth`, `movetime`, `wtime`, `btime`, `winc`, `binc`, `movestogo`,
-`nodes`, `infinite`, `ponder`, and `perft`. How they become a deadline is in
-[02-engine-search.md](02-engine-search.md).
+Limits parsed — **upstream's whole grammar, with nothing left out**: `searchmoves`,
+`wtime`, `btime`, `winc`, `binc`, `movestogo`, `depth`, `nodes`, `movetime`, `mate`,
+`perft`, `infinite`, `ponder`. How they become a deadline is in
+[02-engine-search.md](02-engine-search.md). `searchmoves` consumes the rest of the
+line and is matched first for that reason; each token is lower-cased and resolved
+against the position the `go` is about, and anything `move_from_uci` cannot resolve
+is dropped, which is why no legality filter is needed downstream.
 
-When no limit at all is given, `go_line` sets `depth 8`, so an unqualified `go` from a
-script terminates on its own rather than running until a `stop` arrives.
+**There is no default depth.** Upstream's limit fields are plain integers and every
+test of them is a truthiness check, so an absent limit and a zero limit are the same
+thing and neither bounds the depth loop: a bare `go`, `go nodes 0`, `go depth 0` and
+`go movetime 0` all run until `stop`. mcfish capped these at depth 8 — defensible
+only while `go` ran on the UCI thread, where nothing could interrupt an unbounded
+search, and a divergence from the moment the search moved onto worker 0.
+`search_running_unbounded` covers the no-limit case for exactly that reason, or
+`quit` would wait forever on a search that never ends.
+
+**Each argument parses at the width of the field it goes into**, through
+`go_value_int` and `go_value_u64`. `is >> field` fails when the text does not fit the
+FIELD's type and upstream turns that failbit into a critical error on the next line,
+so the width is observable from a GUI: `int` for `depth`/`mate`/`movestogo`/`perft`,
+`TimePoint` (int64) for the four clocks, `u64` for `nodes` — read the way a C++
+stream reads one, where a leading minus is accepted and the magnitude wraps, so `go
+nodes -1` is a budget of `UINT64_MAX`. `go depth 3000000000` is `Invalid argument for
+'depth'` and terminates; `go nodes 18446744073709551615` searches.
 
 The valueless keywords (`infinite`, `ponder`) are matched **first** and `continue`
 without reading a lookahead token, so they do not swallow the keyword that follows
@@ -292,6 +341,14 @@ argument only once matched, upstream's shape (uci.cpp:192-225).
 through
 the sink, then a `Nodes searched:` total on stdout. That total is what
 `./build.sh perft` greps.
+
+**The perft is a dispatch, not a keyword arm.** Upstream parses every argument first
+and only then tests `if (limits.perft)`, so a ZERO is not a perft at all but an
+ordinary search with no limit, and a bad argument later on the line is still an
+error: `go perft 2 depth zzz` terminates. Running the divide from inside the argument
+loop, on the keyword's mere presence, made `go perft 0` print a depth-zero divide of
+every root move — the same shape a GUI generates when a configured perft depth sits
+at its default.
 
 ## The option table
 
