@@ -159,6 +159,28 @@ if [[ ${MCFISH_EVAL_MATERIAL:-0} == 1 ]]; then
   CFLAGS_RELEASE+=(-DMCFISH_EVAL_MATERIAL)
 fi
 
+# The accumulator ABLATIONS, and the same rule applies: measurement knobs, never build
+# modes. Unlike MCFISH_EVAL_MATERIAL these are bit-exact -- all three builds search the
+# identical tree and bench the same node total -- which is what makes them comparable:
+# one workload, three amounts of work.
+#
+#   MCFISH_ACC_REFRESH_ONLY=1   rebuild the accumulator from the board at EVERY
+#                               evaluation instead of updating it incrementally
+#   MCFISH_NO_THREAT_RECORD=1   compile out do_move's dirty-threat recording; only
+#                               valid with the above, which never reads a record
+#
+# The pair prices the incremental path against the rebuild it replaces, and separates
+# what the RECORDING costs from what the delta BUYS. ../zfish f876cb5b measured the
+# same architecture at 26.1% cheaper there and ../rfish measured its own 7.1% dearer,
+# so the answer is a property of the data model and does not transfer -- it has to be
+# measured in each tree.
+if [[ ${MCFISH_ACC_REFRESH_ONLY:-0} == 1 ]]; then
+  CFLAGS_RELEASE+=(-DMCFISH_ACC_REFRESH_ONLY)
+fi
+if [[ ${MCFISH_NO_THREAT_RECORD:-0} == 1 ]]; then
+  CFLAGS_RELEASE+=(-DMCFISH_NO_THREAT_RECORD)
+fi
+
 # Stop unrolling at the 512-bit tiers, where it is a pure I-cache cost. Unrolling is
 # what makes the hot code big: at x86-64-avx512icl it accounts for 30% of .text
 # (296384 -> 208031 B) and 71% of the static zmm ops (6355 -> 1821), because the NNUE

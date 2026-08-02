@@ -249,6 +249,48 @@ inlines its transform and affine into one `simd.h` body while this tree keeps
 them apart; splitting that needs a finer instrument than callgrind's file
 attribution.
 
+### And what the delta itself is worth
+
+The section above prices the two *routes* against each other. The prior question —
+what the incremental accumulator is worth against not having one at all — is
+answered by two build-time ablations, which are measurement knobs and never build
+modes:
+
+```sh
+MCFISH_ACC_REFRESH_ONLY=1                             # rebuild from the board every eval
+MCFISH_ACC_REFRESH_ONLY=1 MCFISH_NO_THREAT_RECORD=1   # ... and stop recording the delta
+```
+
+The second refuses to compile without the first (`#error`), because a threat
+feature updated from a record nobody wrote is a different engine rather than the
+same one doing less bookkeeping. Both are **bit-exact**: all three binaries bench
+the same node total, so this is one tree measured at three amounts of work — the
+precondition `perf_counters` now enforces on every round, not just the first.
+
+`bench 16 1 13`, x86-64-sse41-popcnt, median of 5 rounds, with all three binaries
+benching the anchor node total (`./build.sh signature`):
+
+| variant | instructions | vs shipped |
+|---|---:|---:|
+| **A** incremental + recording (shipped) | 23,940,547,487 | 1.0000x |
+| **B** rebuild every eval + recording | 32,700,363,835 | 1.3659x |
+| **C** rebuild every eval, no recording | 31,954,458,837 | 1.3347x |
+
+- **The delta is worth 8.01e9 instructions** — C − A, or **25.1% cheaper** than
+  rebuilding.
+- **The recording costs 0.75e9** — B − C, 2.33% of the rebuild baseline and 3.12%
+  of the shipped binary. It is the smaller term by an order of magnitude.
+
+**The same architecture inverts across the ports, which is why this had to be
+measured here.** zfish measures its delta 26.1% cheaper and rfish measures its own
+**7.1% dearer** than a rebuild — a 33-point swing on what looks like one design.
+The explanation is the data model, not the recording: mcfish and zfish apply dirty
+records straight into the accumulator rows and never materialise a feature set
+outside a refresh, so the delta skips the whole active-set construction, while
+rfish's materialised list has to derive the child's set on the delta path too and
+pays the rebuild's dominant cost either way. mcfish landing within a point of
+zfish is the prediction that structure makes.
+
 ### The two records are byte-identical by contract
 
 The board zone writes `DirtyPiece` and `DirtyThreats`; the accumulator reads the

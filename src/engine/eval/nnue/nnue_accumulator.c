@@ -269,7 +269,7 @@ static bool state_requires_refresh(const NnueAccumulatorStack *stack,
 }
 
 // Walk down to the newest slot that is either already computed or forces a refresh.
-static size_t
+[[maybe_unused]] static size_t
 find_last_usable(int feature_kind, const NnueAccumulatorStack *stack, uint8_t perspective) {
     for (size_t current = stack_size(stack) - 1; current > 0; current--) {
         if (state_computed(stack, feature_kind, current, perspective)) {
@@ -999,12 +999,12 @@ hybrid_applicable(uint8_t perspective, const NnueAccumulatorStack *stack, const 
 // AccumulatorStack::evaluate_side. find_last_usable consults ONLY the HalfKA refresh
 // condition, because a threat refresh (a king move across the centre) is a subset of a
 // HalfKA refresh, so the combined accumulator always refreshes together.
-static void evaluate_side(uint8_t perspective,
-                          NnueAccumulatorStack *stack,
-                          const Position *pos,
-                          const NnueFeatureTransformer *ft,
-                          NnueRefreshCache *cache,
-                          size_t last_usable) {
+[[maybe_unused]] static void evaluate_side(uint8_t perspective,
+                                           NnueAccumulatorStack *stack,
+                                           const Position *pos,
+                                           const NnueFeatureTransformer *ft,
+                                           NnueRefreshCache *cache,
+                                           size_t last_usable) {
     const size_t size = stack_size(stack);
     const uint8_t king_square = nnue_king_square(pos, perspective);
 
@@ -1030,11 +1030,11 @@ static void evaluate_side(uint8_t perspective,
 // forward_update_incremental_both. The two perspectives can be usable from different
 // plies, so first catch the lagging one up alone; from there the remaining plies are
 // common to both and the shared step takes them, reading each ply's diff once.
-static void forward_update_both(NnueAccumulatorStack *stack,
-                                const Position *pos,
-                                const NnueFeatureTransformer *ft,
-                                size_t white_begin,
-                                size_t black_begin) {
+[[maybe_unused]] static void forward_update_both(NnueAccumulatorStack *stack,
+                                                 const Position *pos,
+                                                 const NnueFeatureTransformer *ft,
+                                                 size_t white_begin,
+                                                 size_t black_begin) {
     const size_t size = stack_size(stack);
     const uint8_t white_ksq = nnue_king_square(pos, WHITE);
     const uint8_t black_ksq = nnue_king_square(pos, BLACK);
@@ -1055,6 +1055,23 @@ void nnue_acc_evaluate(NnueAccumulatorStack *stack,
                        const Position *pos,
                        const NnueFeatureTransformer *ft,
                        NnueRefreshCache *cache) {
+#ifdef MCFISH_ACC_REFRESH_ONLY
+    // ABLATION, never a build mode (build.sh MCFISH_ACC_REFRESH_ONLY): rebuild both
+    // perspectives from the BOARD here and take neither incremental route, which prices
+    // the delta against the rebuild it replaces. refresh_combined writes the latest
+    // slot, so the value this evaluation reads is the same one the incremental path
+    // would have produced -- the bench node total is the check on that, and it must not
+    // move.
+    //
+    // BOTH routes have to be gated, not just one. zfish's equivalent gated its
+    // evaluate_side alone and left the shared-suffix walk running, so the ablation still
+    // updated incrementally on that path and its node count moved (f876cb5b). Here that
+    // is forward_update_both, and returning above the dispatch covers both by
+    // construction.
+    refresh_combined(WHITE, nnue_king_square(pos, WHITE), stack, pos, ft, cache);
+    refresh_combined(BLACK, nnue_king_square(pos, BLACK), stack, pos, ft, cache);
+    return;
+#else
     // Match upstream AccumulatorStack::evaluate: one combined (HalfKA + Threats) pass per
     // perspective, not one per (feature, perspective). When NEITHER perspective needs a
     // refresh the whole update is a forward walk, and the two walks share their suffix.
@@ -1070,6 +1087,7 @@ void nnue_acc_evaluate(NnueAccumulatorStack *stack,
         evaluate_side(WHITE, stack, pos, ft, cache, last_white);
         evaluate_side(BLACK, stack, pos, ft, cache, last_black);
     }
+#endif
 }
 
 // ---------------------------------------------------------------------------

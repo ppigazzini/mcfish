@@ -51,6 +51,25 @@ static void toggle_aux_keys(StateInfo *st, Piece pc, Square sq) {
 // scan see the right occupancy in each direction, so it is not free to move.
 // Golden: Stockfish/src/position.h:383-437.
 
+// ABLATION, never a build mode (build.sh MCFISH_NO_THREAT_RECORD): drop the per-square
+// SCAN that fills the dirty-threat record, and nothing else. pos_do_move still opens the
+// record -- clears it, stamps `us`/`prev_ksq`, snapshots the pawn pairs -- so every
+// structure downstream stays well-formed and the only thing removed is the work being
+// priced. Valid ONLY under MCFISH_ACC_REFRESH_ONLY, which rebuilds the accumulator from
+// the board and so reads no record; without it the threat features would be updated from
+// a delta nobody wrote, which measures a different engine rather than the same one doing
+// less bookkeeping.
+#ifdef MCFISH_NO_THREAT_RECORD
+    #ifndef MCFISH_ACC_REFRESH_ONLY
+        #error "MCFISH_NO_THREAT_RECORD requires MCFISH_ACC_REFRESH_ONLY: the record is read"
+    #endif
+    #define THREATS_RECORD_RAY(...) ((void) 0)
+    #define THREATS_RECORD_NO_RAY(...) ((void) 0)
+#else
+    #define THREATS_RECORD_RAY(...) threats_update_piece_ray(__VA_ARGS__)
+    #define THREATS_RECORD_NO_RAY(...) threats_update_piece_no_ray(__VA_ARGS__)
+#endif
+
 static void put_piece(Position *pos, Piece pc, Square s, DirtyThreats *dts) {
     pos->board[s] = pc;
     pos->by_type[ALL_PIECES] |= square_bb(s);
@@ -59,14 +78,14 @@ static void put_piece(Position *pos, Piece pc, Square s, DirtyThreats *dts) {
     pos->piece_count[pc]++;
 
     if (dts)
-        threats_update_piece_ray(pos, pc, true, s, dts, ALL_SQUARES_BB);
+        THREATS_RECORD_RAY(pos, pc, true, s, dts, ALL_SQUARES_BB);
 }
 
 static void remove_piece(Position *pos, Square s, DirtyThreats *dts) {
     const Piece pc = pos->board[s];
 
     if (dts)
-        threats_update_piece_ray(pos, pc, false, s, dts, ALL_SQUARES_BB);
+        THREATS_RECORD_RAY(pos, pc, false, s, dts, ALL_SQUARES_BB);
 
     pos->by_type[ALL_PIECES] ^= square_bb(s);
     pos->by_type[type_of_piece(pc)] ^= square_bb(s);
@@ -82,7 +101,7 @@ static void move_piece(Position *pos, Square from, Square to, DirtyThreats *dts)
     // Pass `from | to` as the no-rays mask so the mover's own vacated and occupied
     // squares do not register as a discovery.
     if (dts)
-        threats_update_piece_ray(pos, pc, false, from, dts, fromto);
+        THREATS_RECORD_RAY(pos, pc, false, from, dts, fromto);
 
     pos->by_type[ALL_PIECES] ^= fromto;
     pos->by_type[type_of_piece(pc)] ^= fromto;
@@ -91,7 +110,7 @@ static void move_piece(Position *pos, Square from, Square to, DirtyThreats *dts)
     pos->board[to] = pc;
 
     if (dts)
-        threats_update_piece_ray(pos, pc, true, to, dts, fromto);
+        THREATS_RECORD_RAY(pos, pc, true, to, dts, fromto);
 }
 
 // Replace the piece on S in place — the capture-and-promote square. The occupancy
@@ -103,12 +122,12 @@ static void swap_piece(Position *pos, Square s, Piece pc, DirtyThreats *dts) {
     remove_piece(pos, s, nullptr);
 
     if (dts)
-        threats_update_piece_no_ray(pos, old, false, s, dts, ALL_SQUARES_BB);
+        THREATS_RECORD_NO_RAY(pos, old, false, s, dts, ALL_SQUARES_BB);
 
     put_piece(pos, pc, s, nullptr);
 
     if (dts)
-        threats_update_piece_no_ray(pos, pc, true, s, dts, ALL_SQUARES_BB);
+        THREATS_RECORD_NO_RAY(pos, pc, true, s, dts, ALL_SQUARES_BB);
 }
 
 Bitboard pos_attackers_to_occ(const Position *pos, Square s, Bitboard occupied) {
