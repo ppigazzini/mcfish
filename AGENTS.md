@@ -218,7 +218,7 @@ or in zfish's fleet campaigns:
 | "Improving" on upstream. A cleaner formulation that moves a rounding boundary moves the node count. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
 | Integer semantics differ across C++/C at the edges, and upstream relies on wrapping in places. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
 | Comments are **imperative mood**; never pin a number a gate computes. | [docs/README.md](docs/README.md) |
-| `perf-budget` measures the EXISTING `build/mcfish` — rebuild at the target `MCFISH_ARCH` first, or an sse41 binary reads as a fake 2x regression against the native budget. | [docs/09-tooling-ci.md](docs/09-tooling-ci.md) |
+| `perf-budget` measures the EXISTING `build/mcfish`. The stamp rebuild and the tier-keyed budget close the old fake-2x-regression trap between tiers; what is left is a rebuild landing inside the timed step, so run `./build.sh build` first anyway. | [docs/09-tooling-ci.md](docs/09-tooling-ci.md) |
 | `tools/perf_callgrind.sh` prepends `bench` itself — pass only the bench ARGS, or it profiles a startup-only error run that looks plausible. | [docs/09-tooling-ci.md](docs/09-tooling-ci.md) |
 
 ## Commits
