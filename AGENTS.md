@@ -13,29 +13,42 @@ gets wrong before it has read either.
 gate compares mcfish against a pristine upstream build. Where mcfish and Stockfish
 disagree, Stockfish wins.
 
-## The sibling
+## The siblings
 
-`../zfish` is a **sibling**, not a source. mcfish began as a port of it — zfish is a
-bit-exact Zig port of the same golden, and Zig → C23 was close to mechanical — but
-**that relationship is over**: the two are peer ports now, each syncing to Stockfish
-on its own schedule. Three consequences an agent gets wrong before reading
+There are **three** peer ports of the same golden beside this one, and none of them
+is a source:
+
+| tree | language | what it is |
+|---|---|---|
+| `../zfish` | Zig | the tree mcfish was first ported FROM; that relationship is over |
+| `../rfish` | Rust | a peer port, swept four times into this tree |
+| `../fcfish` | C17 | a peer port written to parse under Frama-C |
+
+Four consequences an agent gets wrong before reading
 [tools/upstream/README.md](tools/upstream/README.md):
 
-- **Neither tree is behind the other.** There is no pin for zfish and `sync-status`
-  does not mention it. Most of either log is language work that will never have a
-  counterpart, so a "78 commits behind" line would be a false alarm by construction.
-  zfish does not pin mcfish either.
-- **Sweeps run BOTH ways, and the log does not tell you which.** The two cross-port
-  constantly and neither cites the other reliably. In the 2026-08-01 sweep the numa
-  insert, the `NumaPolicy` parse and the `setoption` grammar all turned out to flow
-  mcfish → zfish. Read the code, not the subjects.
-- **A measurement does not transfer, in either direction.** A win in one language's
-  codegen can be flat or negative in the other's — zfish's runBack inline won 1.0%
+- **No tree is behind another.** There is no pin for any sibling and `sync-status`
+  does not mention them. Most of any of those logs is language work that will never
+  have a counterpart, so a "78 commits behind" line would be a false alarm by
+  construction. None of them pins mcfish either.
+- **Sweeps run BOTH ways, and the log does not tell you which.** The trees
+  cross-port constantly and none of them cites the others reliably. In the
+  2026-08-01 sweep the numa insert, the `NumaPolicy` parse and the `setoption`
+  grammar all turned out to flow mcfish → zfish; the fuzz-lane split and the
+  whole-file tablebase harness flowed mcfish → rfish. Read the code, not the
+  subjects.
+- **A sibling finding is a hypothesis about this tree, not a bug report.** Probe it
+  against the oracle before writing a fix: of the eleven behaviours the fourth rfish
+  sweep named, seven were already correct here. `git log --grep=rfish` and
+  `--grep=zfish` find what each past sweep took and, in the bodies, what it probed
+  and left alone.
+- **A measurement does not transfer, in any direction.** A win in one language's
+  codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and check
   `__DEV/PERFORMANCE.md` first: it holds what has already been refuted.
 
-Only Stockfish is an authority. Where zfish and Stockfish disagree, that is a bug
-report for zfish.
+Only Stockfish is an authority. Where a sibling and Stockfish disagree, that is a bug
+report for the sibling.
 
 ## Known limitations
 
