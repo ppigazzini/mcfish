@@ -111,7 +111,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant — **and, since the tiers now run different ALGORITHMS, that those algorithms agree.** Upstream switches slider attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port follows; that makes this step the gate for a whole class of change, because it compares the vector path against the scalar path *on the same tree*. `signature` alone tests one tier and would pass over a wrong attack set at another. Run it on every ISA-gated commit. Not in `parity`: it is several full builds |
 | `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them — see [05-tablebases.md](05-tablebases.md) |
 | `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
-| `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, per ARCH | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
+| `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, keyed by the ISA TIER in the binary (`MCFISH_ARCH_STRING`, so `native` is filed as the tier it resolved to) and held to 0.05% | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
 | `sync-status` | compares `UPSTREAM_BASE` against the golden checkout, in BOTH directions | that the pin is honest: a checkout *behind* the pin is red (every grep of it then answers from source already ported past), a pin behind its checkout is a yellow report. Tracks the golden ONLY — `../zfish` is a sibling port with no pin here, see [`../tools/upstream/README.md`](../tools/upstream/README.md). Not a `parity` gate |
 | `upstream-map` / `upstream-nodes` | the declared-map audit and uncovered ratchet; the random-position node differential | see *Resyncing the pin* below. **LOCAL** — both need the pinned upstream tree |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
@@ -467,6 +467,16 @@ Tool-shape traps, each paid for:
   bullet used to warn about by hand. What it does not save you from is a rebuild
   landing *inside* the timed step and leaving the machine hot — run
   `./build.sh build` deliberately beforehand for that reason alone.
+- **The budget row is keyed by the tier in the binary, and the tolerance was set by
+  mutation.** `native` names a different ISA on every host, so a row filed under
+  that word is a number about one machine that the next one compares its binary
+  against; `MCFISH_ARCH_STRING` resolves it (`x86-64-avx512icl-class` here), and a
+  host whose tier has no row SKIPS at 127 rather than measuring against a stranger.
+  The 0.05% ceiling is ~2000x the measured spread of this bench — five runs span
+  under 0.00002% — and it is that tight because the previous 0.5% let a real one
+  through: forcing `pos_adjust_key50_of` out of line costs +0.238% with `signature`
+  green, which is precisely the class this gate exists for. Re-set it the same way
+  if it ever moves: a tolerance chosen by feel is a decoration.
 - Gates rebuild when the binary's stamp — a content hash of every source, header,
   the full compile command and the compiler's own version — no longer matches
   `$BIN.stamp`, not when the binary is merely older than a file. A touched-but-
