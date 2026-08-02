@@ -28,6 +28,13 @@ fail() { red "  $*"; fails=$((fails + 1)); }
 # Lint exactly the tracked pages: untracked scratch, build output and agent
 # worktrees are not documentation and carry no claims this gate owns.
 mapfile -t DOCS < <(git ls-files '*.md' | sort)
+# Every check below iterates DOCS, so an empty list is a green run over nothing --
+# the same vacuum the step floor guards. `git ls-files` answers empty rather than
+# failing outside a work tree, which is exactly when this would go quiet.
+if [[ ${#DOCS[@]} -eq 0 ]]; then
+  red "docs-lint: no tracked .md files found -- refusing to report on an empty set"
+  exit 2
+fi
 
 # Strip what must not be scanned, in this order:
 #   1. fenced code blocks  -- shell transcripts and examples, not prose claims
@@ -135,13 +142,31 @@ done
 
 # The step table in 09-tooling-ci.md claims to say what each step proves, so a step
 # added without a row is a feature nobody reading the docs can find.
-while read -r step; do
+#
+# GUARD THE EXTRACTION, NOT ONLY THE VERDICT. This reads build.sh as TEXT, keyed on
+# the last `case` and on one-line arms, so a reformat that puts a step name on its
+# own line, or a dispatcher moved out of this file, yields an EMPTY list -- and an
+# empty list means the loop below runs zero times and the gate reports OK while
+# covering nothing. That is not hypothetical: ../zfish's equivalent matched 5 of its
+# 77 steps for as long as it existed, green throughout, because its build file spells
+# most steps across three lines (zfish 108e7af6). A floor turns that silence into a
+# failure. Keep it just under the real count so adding steps never trips it and
+# losing the extraction always does.
+mapfile -t STEPS < <(sed -n "$(grep -n '^case ' build.sh | tail -1 | cut -d: -f1),\$p" build.sh \
+                     | grep -oE '^\s*[a-z][a-z0-9|-]*\)' | tr -d ' )' | tr '|' '\n' \
+                     | grep -v '^-' | sort -u)
+STEP_FLOOR=35
+if [[ ${#STEPS[@]} -lt $STEP_FLOOR ]]; then
+  red "docs-lint: parsed only ${#STEPS[@]} build.sh steps (floor $STEP_FLOOR)"
+  red "  the step extraction reads build.sh as text -- it has gone stale, not clean"
+  exit 2
+fi
+
+for step in "${STEPS[@]}"; do
   [[ -z $step ]] && continue
   grep -qF -- "$step" "${DOCS[@]}" \
     || fail "docs: ./build.sh '$step' is a real step but no tracked page mentions it"
-done < <(sed -n "$(grep -n '^case ' build.sh | tail -1 | cut -d: -f1),\$p" build.sh \
-         | grep -oE '^\s*[a-z][a-z0-9|-]*\)' | tr -d ' )' | tr '|' '\n' \
-         | grep -v '^-' | sort -u)
+done
 
 # ------------------------------------------------------------------ report
 
