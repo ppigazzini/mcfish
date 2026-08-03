@@ -102,6 +102,51 @@ for doc in "${DOCS[@]}"; do
            | grep -oE '\b(src|tools|tests|verify|scripts)/[A-Za-z0-9_.*/-]+' | sort -u)
 done
 
+# ------------------------------------ named paths IN BACKTICKS must exist too
+#
+# The check above reads PROSE only, because strip_noise deletes inline code spans
+# before it runs -- and a path in these pages is written `like/this.c` far more often
+# than bare, so the commoner spelling was the unheld one. Read the spans DIRECTLY,
+# the way the symbol check below does. Do NOT route this through strip_noise: that
+# helper deletes the very spans this reads, and the check would then scan nothing
+# and pass everything. ../zfish 26d197dd is the sibling's version of this widening.
+#
+# Require an EXTENSION. That is what confines this to FILE claims: a directory
+# (`src/engine/board/`) resolves against no file list, and every claim of that shape
+# in these pages names a family rather than a thing that can be renamed out from
+# under the prose. It is also why this needs no separate directory rule.
+#
+# THE SENTINEL: docs/11-writing.md has to be able to SPELL a dead reference in order
+# to rule on one. It uses the path below, which this repository guarantees never
+# exists -- and the guard under the loop enforces that guarantee, so the exemption
+# cannot quietly grow to cover a real file.
+PATH_SENTINEL=src/does/not/exist.c
+path_claims=0
+for doc in "${DOCS[@]}"; do
+  while IFS= read -r path; do
+    [[ -z $path ]] && continue
+    path_claims=$((path_claims + 1))
+    [[ $path == "$PATH_SENTINEL" ]] && continue
+    path_exists "$path" || fail "$doc: names a path that exists in no repo -> $path"
+  done < <(grep -ohE '`(src|tools|tests|verify|scripts|docs|build|resources|\.github)/[A-Za-z0-9_/.-]+\.[A-Za-z0-9]+`' \
+             "$doc" | tr -d '`' | sort -u)
+done
+
+# GUARD THE EXTRACTION, NOT ONLY ITS VERDICT -- the step floor's lesson, applied to
+# the subject it was learnt on. A typo in the pattern above finds nothing, and a
+# check that found nothing reports OK over everything.
+PATH_CLAIM_FLOOR=24
+if [[ $path_claims -lt $PATH_CLAIM_FLOOR ]]; then
+  red "docs-lint: extracted only $path_claims backticked path claims (floor $PATH_CLAIM_FLOOR)"
+  red "  the prose or the pattern changed shape -- refusing to report OK over nothing"
+  exit 2
+fi
+
+# An exemption that covers a real file is not an exemption. If the sentinel ever
+# resolves, the loop above has been skipping a live claim.
+path_exists "$PATH_SENTINEL" \
+  && fail "docs-lint: the dead-path sentinel $PATH_SENTINEL EXISTS -- its exemption is now a hole"
+
 # --------------------------------------------- no pinned signature in prose
 
 # The anchor moves on every intended behaviour change. A doc that quotes it is
@@ -175,4 +220,6 @@ if [[ $fails -ne 0 ]]; then
   exit 1
 fi
 
-green "docs-lint passed (${#DOCS[@]} files)"
+# Print the denominator, so coverage is legible in the pass line rather than
+# inferable from it -- the same reason the transcript gate prints its case count.
+green "docs-lint passed (${#DOCS[@]} files, $path_claims backticked path claims)"

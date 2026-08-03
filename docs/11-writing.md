@@ -71,9 +71,15 @@ Not "read it carefully" — run it. `grep -n` for a symbol, `printf 'uci\n' |
 ./build/mcfish` for a handshake. Several claims in the first draft of this set
 were false and each took seconds to disprove.
 
-`docs-lint` holds two classes of this automatically — a backticked `snake_case`
-symbol must exist somewhere in the tree, and every `build.sh` step must be
-mentioned by some page — so a rename or a new step cannot rot quietly.
+`docs-lint` holds three classes of this automatically — a backticked `snake_case`
+symbol must exist somewhere in the tree, a named path must resolve in one of the
+three repos these pages draw on, and every `build.sh` step must be mentioned by
+some page — so a rename or a new step cannot rot quietly. The path check reads
+both spellings, prose and backticked, but only where the claim carries a file
+**extension**: `src/engine/board/` names a family and resolves against nothing,
+so write the file if you want the gate to hold it. `src/does/not/exist.c` is the
+one path this repository guarantees never exists, reserved so this page can spell
+a dead reference; the gate fails if it ever becomes real.
 
 **Three classes stay out of its reach, and they are the common ones:** a real
 symbol attributed to the wrong *file*; a list with the wrong *count* or *order*,
