@@ -50,7 +50,10 @@ if [[ -n $want && $got == "$want" ]]; then
   exit 0
 fi
 
-red "NOT bit-exact yet."
-red "This is the expected state until the port completes — see docs/PORTING.md."
-red "Use ./build.sh port-status for the remaining work list."
+red "NOT bit-exact — mcfish does NOT reproduce upstream's bench signature."
+red "This is a REGRESSION. The port is complete, so a mismatch here is a behaviour"
+red "change in mcfish or a pin that moved under it — never an expected state."
+red "  ./build.sh sync-status              did upstream move past the pin?"
+red "  python3 tools/resync_worklist.py    if it did: who owns each changed file"
+red "  ./build.sh signature                if it did not: what moved the node count"
 exit 1
