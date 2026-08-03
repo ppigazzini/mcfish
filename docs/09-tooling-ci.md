@@ -145,6 +145,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*, and deliberately does not fetch, so that `build` never becomes a network dependency |
 | `net-fetch` | downloads the expected net into `resources/` and **sha256-verifies** it | nothing — it fetches. It is a separate step precisely so `net` can stay offline; this is what the CI lanes run before a gate that needs a net |
 | `simd-scalar` | rebuilds with `MCFISH_SIMD_SCALAR` — every vector type and intrinsic compiled out — and re-asserts the anchor | that `simd.h`'s two implementations are value-identical. In `parity`, and the only gate that can see a portable-spelling/scalar divergence |
+| `negative-control` | mutates the engine once per gate — a razor margin, the `d` command's `Checkers:` line, the knight under-promotion — and requires that gate to exit non-zero, then restores and requires it to pass | that a gate can FAIL. Every other gate's detection power is an assumption until something breaks the engine on purpose; two gates this month turned out to be incapable of failing at all. Both rig faults are distinguished from verdicts: a pattern that matches nothing exits 2, and a mutant that outruns `NEG_GATE_TIMEOUT` exits 2 rather than being credited as a detection. **LOCAL**, ~42s. The `simd-scalar` row is HELD — its mutant is unbounded (see below) |
 | `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant — **and, since the tiers now run different ALGORITHMS, that those algorithms agree.** Upstream switches slider attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port follows; that makes this step the gate for a whole class of change, because it compares the vector path against the scalar path *on the same tree*. `signature` alone tests one tier and would pass over a wrong attack set at another. Run it on every ISA-gated commit. Not in `parity`: it is several full builds |
 | `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them — see [05-tablebases.md](05-tablebases.md) |
 | `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
@@ -153,6 +154,24 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `upstream-map` / `upstream-nodes` | the declared-map audit and uncovered ratchet; the random-position node differential | see *Resyncing the pin* below. **LOCAL** — both need the pinned upstream tree |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
 | `signature-update` / `golden-update` / `tb-cursed-update` | re-derive an anchor | read the warning below before running any of them |
+
+### Why the `simd-scalar` mutant is held
+
+`negative-control`'s four rows are one per gate, and three of them cost seconds. The
+fourth does not, and the reason is a property of the mutant rather than of the gate:
+inverting the scalar activation clamp (`min` becomes `max`) hands the search an
+evaluation with no ceiling, so the mutated engine searches a tree that does not
+converge. Measured: the clean gate takes ~90s; the mutated one ran past **900s**
+without returning, twice — once for over 25 minutes before it was stopped by hand.
+
+The gate would have been right. It just never got to say so, which is why a timeout
+here is a rig fault and not a detection: crediting a gate for an experiment that never
+finished is exactly the "reported a comparison it never made" failure the transcript
+and corpus guards exist to stop.
+
+`./build.sh negative-control simd-scalar` still runs the row and reproduces that
+result. What is open is a **bounded** mutant for the scalar arm — one that changes a
+value without removing the search's ceiling.
 
 `parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `test`,
 `signature`, `simd-scalar`, `perft`, `golden`, `tb`.

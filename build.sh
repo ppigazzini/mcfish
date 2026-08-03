@@ -799,7 +799,7 @@ do_signature() {
   # dies with SIGPIPE and `set -o pipefail` propagates 141 -- making this test read
   # FALSE even when the message is present.
   local net_probe
-  net_probe=$(engine bench 1 2>&1 || true)
+  net_probe=$(engine bench 1 1 1 2>&1 || true)
   if grep -q 'was not loaded' <<< "$net_probe"; then
     red "no NNUE net reachable — the signature gate did NOT run."
     red "The anchor is defined with the net loaded; without it bench searches the"
@@ -897,7 +897,7 @@ do_perf_budget() {
   # Same net requirement as the signature gate: a fallback-eval run is a different tree
   # and a different instruction count -- meaningless against the budget.
   local net_probe
-  net_probe=$(engine bench 1 2>&1 || true)
+  net_probe=$(engine bench 1 1 1 2>&1 || true)
   if grep -q 'was not loaded' <<< "$net_probe"; then
     red "no NNUE net reachable — the perf-budget gate did NOT run (SKIPPED)."
     return 127
@@ -985,6 +985,168 @@ do_perf_budget_update() {
   green "perf-budget golden for '$(perf_budget_key)' set to $actual instructions (bench $PERF_BUDGET_BENCH, $nodes nodes)"
 }
 
+# --- negative-control: prove each correctness gate can actually FAIL --------------
+#
+# Every gate's power to detect a defect is an ASSUMPTION until something breaks the
+# engine on purpose and watches the gate go red. This tree has run that experiment
+# by hand, at the moment a gate was edited, and never again -- and twice this month a
+# gate turned out to be incapable of failing at all (an empty transcript corpus
+# scored as agreement; a docs check that read no subject). Mutation testing calls
+# this "seen to fail"; one representative mutant per gate is enough under the
+# competent-programmer hypothesis, which is what makes it cheap enough to gate.
+#
+# Each row applies ONE behavioural mutation, requires the named gate to exit
+# non-zero, restores the file, and requires the gate to pass again. The restore is
+# unconditional (an EXIT trap), and the run refuses to finish while any source is
+# still mutated.
+#
+# THE MUTATION MUST BE SEEN TO APPLY. A pattern that has rotted matches nothing, the
+# tree stays clean, the gate greens -- and that reads as "the gate failed to detect
+# it", which is a rig fault reported as a finding. Every row asserts the file
+# actually changed, and a row whose pattern no longer matches is exit 2, not a
+# verdict.
+#
+# Rows are <label>|<file>|<sed script>|<gate>. Keep one gate per row: the mutations
+# are deliberately narrow, so a row proves one gate's teeth and nothing else.
+#
+# The simd-scalar row targets the SCALAR arm, and that is not interchangeable with
+# the vector one: the gate builds with MCFISH_SIMD_SCALAR and holds THAT binary to
+# the anchor, so a mutation in the vector arm moves the anchor's own side and this
+# gate never sees it. Mutating the scalar body is also the sharper test, because it
+# is invisible to every other gate in the tree -- `signature` stays green, which is
+# precisely why this gate exists.
+#
+# The last field is `run` or `hold`. A `hold` row is NOT run by default and the run
+# says so rather than omitting it silently -- a row nobody sees is the lost test this
+# gate exists to prevent. `simd-scalar` is held because its mutant is UNBOUNDED, and
+# that is a measurement, not an opinion: inverting the activation clamp gives the
+# search an evaluation with no ceiling, and the mutated gate ran past 900s where the
+# clean gate takes ~90s. The row still works -- `./build.sh negative-control
+# simd-scalar` reproduces the rig fault -- and a bounded mutant for the scalar arm is
+# the open work, not a bigger timeout.
+NEGATIVE_CONTROL_ROWS=(
+  "razor margin 483->484%src/engine/search/search_common.c%s#483 + 318#484 + 318#%signature%run"
+  "d omits Checkers:%src/engine/board/fen.c%s#Checkers: #CheckersZ: #%golden%run"
+  "no knight under-promotion%src/engine/board/movegen.c%/make_move_typed(PROMOTION, from, to, KNIGHT)/d%perft%run"
+  "scalar min becomes max%src/engine/eval/nnue/simd.h%s#a.l\\[i\\] < b.l\\[i\\] ? a.l\\[i\\] : b.l\\[i\\]#a.l[i] > b.l[i] ? a.l[i] : b.l[i]#%simd-scalar%hold"
+)
+
+# Bound each mutated gate run. 900s clears every row measured here with room to
+# spare; a mutant that needs more is a mutant that hangs (see the rig-fault arm).
+NEG_GATE_TIMEOUT=${NEG_GATE_TIMEOUT:-900}
+
+NEG_BACKUP_DIR=""
+negative_control_restore() {
+  [[ -n $NEG_BACKUP_DIR && -d $NEG_BACKUP_DIR ]] || return 0
+  local f rel
+  while IFS= read -r f; do
+    rel=${f#"$NEG_BACKUP_DIR"/}
+    cp "$f" "$ROOT/$rel"
+  done < <(find "$NEG_BACKUP_DIR" -type f)
+  rm -rf "$NEG_BACKUP_DIR"
+  NEG_BACKUP_DIR=""
+}
+
+do_negative_control() {
+  local want=("$@")
+  NEG_BACKUP_DIR=$(mktemp -d)
+  trap negative_control_restore EXIT
+
+  local pass=0 fail=0 ran=0
+  local held=()
+  local row label file script gate
+  for row in "${NEGATIVE_CONTROL_ROWS[@]}"; do
+    # Fields are %-separated because every sed script here contains the characters a
+    # more obvious separator would use. The script itself is everything between the
+    # file and the LAST field, so it may contain % nowhere -- keep it that way.
+    label=${row%%\%*}
+    local rest=${row#*%}
+    file=${rest%%\%*}
+    rest=${rest#*%}
+    local mode=${rest##*\%}
+    rest=${rest%\%*}
+    script=${rest%\%*}
+    gate=${rest##*\%}
+
+    if [[ ${#want[@]} -gt 0 ]]; then
+      local keep=0 w
+      for w in "${want[@]}"; do [[ $w == "$gate" ]] && keep=1; done
+      [[ $keep == 0 ]] && continue
+    elif [[ $mode == hold ]]; then
+      held+=("$gate")
+      continue
+    fi
+
+    ran=$((ran + 1))
+    info "negative-control: $gate -- $label"
+
+    mkdir -p "$NEG_BACKUP_DIR/$(dirname "$file")"
+    cp "$file" "$NEG_BACKUP_DIR/$file"
+    sed -i "$script" "$file"
+    if cmp -s "$file" "$NEG_BACKUP_DIR/$file"; then
+      red "  the mutation did not apply -- '$script' matches nothing in $file."
+      red "  The pattern has rotted; this is a RIG FAULT, not a gate verdict."
+      negative_control_restore
+      trap - EXIT
+      return 2
+    fi
+
+    local rc=0
+    do_build > /dev/null 2>&1 || rc=$?
+    if [[ $rc -ne 0 ]]; then
+      red "  the mutated tree does not COMPILE -- the mutation is not behavioural."
+      negative_control_restore
+      trap - EXIT
+      return 2
+    fi
+
+    # BOUND THE MUTATED RUN. A mutant is a deliberately broken engine, and a broken
+    # engine does not always fail fast -- the scalar-min mutant turns the activation
+    # clamp into its opposite, and the resulting evaluation made `bench` run for over
+    # 25 minutes without returning. A gate that never answers is not a gate that
+    # failed, so a timeout is a RIG FAULT here and never a verdict: reporting it as a
+    # detection would credit the gate for an experiment that never finished.
+    rc=0
+    timeout "$NEG_GATE_TIMEOUT" bash -c "cd '$ROOT' && ./build.sh $gate" > /dev/null 2>&1 || rc=$?
+    if [[ $rc -eq 124 ]]; then
+      red "  the mutated $gate did not finish within ${NEG_GATE_TIMEOUT}s -- RIG FAULT."
+      red "  A mutant that hangs proves nothing. Choose one whose cost is bounded, or"
+      red "  raise NEG_GATE_TIMEOUT if this gate is legitimately that slow."
+      cp "$NEG_BACKUP_DIR/$file" "$file"
+      negative_control_restore
+      trap - EXIT
+      do_build > /dev/null 2>&1 || true
+      return 2
+    fi
+    if [[ $rc -eq 0 ]]; then
+      red "  FAIL  $gate PASSED a mutated engine -- it cannot see this class of defect"
+      fail=$((fail + 1))
+    else
+      printf '  \033[32mok\033[0m    %s went red (exit %d)\n' "$gate" "$rc"
+      pass=$((pass + 1))
+    fi
+
+    cp "$NEG_BACKUP_DIR/$file" "$file"
+    rm -f "$NEG_BACKUP_DIR/$file"
+  done
+
+  negative_control_restore
+  trap - EXIT
+
+  [[ $ran -gt 0 ]] || { red "negative-control: no rows selected -- compared NOTHING"; return 2; }
+
+  # Restore the binary the mutations built over, and prove the tree is clean again by
+  # running one gate green rather than by asserting it.
+  do_build > /dev/null 2>&1 || { red "negative-control: the restored tree does not build"; return 1; }
+  local rc=0
+  do_signature > /dev/null 2>&1 || rc=$?
+  [[ $rc -eq 0 ]] || { red "negative-control: the tree did NOT come back clean (signature exit $rc)"; return 1; }
+
+  [[ $fail -eq 0 ]] || { red "negative-control: $fail of $ran gate(s) passed a mutated engine"; return 1; }
+  [[ ${#held[@]} -eq 0 ]] || info "negative-control: HELD (not run by default): ${held[*]} -- see the row table"
+  green "negative-control: $ran of $ran gate(s) detected their mutation, tree restored"
+}
+
 do_simd_scalar() {
   # Build the engine with EVERY vector type and intrinsic compiled out, and require
   # the same bench anchor.
@@ -1005,13 +1167,17 @@ do_simd_scalar() {
   # This class of bug is invisible to every other gate: a vector operation that is
   # correct only under one backend's lowering benches a wrong number everywhere
   # else without a single diagnostic.
+  # The net probe is `bench 1 1 1`, not `bench 1`. Both answer the only question here --
+  # did the net load -- but `bench 1` sets HASH to 1 MB and then runs the FULL depth-13
+  # suite, so this gate used to run two complete benches on the slowest binary in the
+  # tree to ask a startup question. Measured on the vector build: 11.06s against 0.24s.
   info "simd-scalar: rebuilding with MCFISH_SIMD_SCALAR and re-asserting the anchor"
   mkdir -p build
   "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -DMCFISH_SIMD_SCALAR \
     -o build/mcfish-scalar "${SOURCES[@]}" -lm -lpthread
 
   local net_probe
-  net_probe=$(engine_at build/mcfish-scalar bench 1 2>&1 || true)
+  net_probe=$(engine_at build/mcfish-scalar bench 1 1 1 2>&1 || true)
   if grep -q 'was not loaded' <<< "$net_probe"; then
     red "no NNUE net reachable — the simd-scalar gate did NOT run."
     return 127
@@ -1984,6 +2150,7 @@ usage: ./build.sh <step> [args]
   tsan-search [d] [t] run a real search under ThreadSanitizer (the search-race baseline)
   bench [depth]      run the benchmark (default depth 13)
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
+  negative-control   mutate the engine and require each named gate to go RED
   arch-determinism   build every executable ISA tier and require one node count
   net                report where the NNUE net must be and how to obtain it
   net-fetch          download + sha256-verify the net -> resources/ (what CI runs)
@@ -2038,6 +2205,7 @@ case "${1:-build}" in
   perf-budget)      do_perf_budget ;;
   perf-budget-update) do_perf_budget_update ;;
   simd-scalar)      do_simd_scalar ;;
+  negative-control) shift; do_negative_control "$@" ;;
   arch-determinism) do_arch_determinism ;;
   signature-update) do_signature_update ;;
   perft)            do_perft ;;
