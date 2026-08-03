@@ -1,6 +1,9 @@
 #include "benchmark.h"
 
 #include "../engine/eval/evaluate.h"
+#ifdef MCFISH_ACC_STATS
+    #include "../engine/eval/nnue/nnue_accumulator.h"
+#endif
 #include "../engine/search/search.h"
 #include "../platform/clock.h"
 #include "bench_positions.h"
@@ -207,6 +210,27 @@ uint64_t benchmark_run(const char *args) {
             "Nodes searched  : %" PRIu64 "\n"
             "Nodes/second    : %" PRIu64 "\n",
             elapsed, nodes, nodes * 1000 / elapsed);
+
+#ifdef MCFISH_ACC_STATS
+    // Report which way up the stack each evaluation took, on the workload the engine
+    // actually searches. The suite asserts every path is REACHED; only a bench says
+    // which one carries the traffic, and a refresh is the dearest of the four by a
+    // wide margin -- it materialises the whole feature set where the others apply a
+    // diff. Naming what still forces one is what names the next lever.
+    //
+    // Counted for `bench` alone, which runs one worker: the counters are plain
+    // file-scope totals, and MCFISH_ACC_STATS is off in the shipped binary.
+    const NnueAccStats *const acc = nnue_acc_stats();
+    const uint64_t evals = acc->shared_walk + acc->split_walk;
+    fprintf(stderr,
+            "---------------------------\n"
+            "acc evaluate    : %" PRIu64 "\n"
+            "  shared walk   : %" PRIu64 " (%" PRIu64 " plies)\n"
+            "  split walk    : %" PRIu64 "\n"
+            "  hybrid        : %" PRIu64 "\n"
+            "  refresh       : %" PRIu64 "\n",
+            evals, acc->shared_walk, acc->shared_step, acc->split_walk, acc->hybrid, acc->refresh);
+#endif
 
     return nodes;
 }
