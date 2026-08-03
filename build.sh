@@ -607,7 +607,7 @@ do_upstream_transcript() {
     red "upstream-transcript: no cases at tools/cases/transcript/*.uci -- compared NOTHING"
     return 1
   }
-  local ok=0 accepted=0 failed=0 script name
+  local ok=0 accepted=0 failed=0 rig=0 script name
   for script in "${cases[@]}"; do
     name=$(basename "$script" .uci)
     # `|| true` on both: a case may drive the engine to a deliberate non-zero exit
@@ -617,6 +617,23 @@ do_upstream_transcript() {
       | transcript_normalize > "$dir/mc"; } || true
     { { cat "$script"; sleep 5; } | ( cd "$(dirname "$oracle")" && "$oracle" ) 2>&1 \
       | transcript_normalize > "$dir/up"; } || true
+
+    # TWO BLANK SIDES COMPARE EQUAL, and that is a rig fault rather than an
+    # agreement. Every way a side can fail blanks it to nothing -- an engine that
+    # dies before its banner, a failing `cd` into the resources dir, a
+    # transcript_normalize filter that eats both outputs at once -- and `diff` of two
+    # empty files is silent, so the case scores `ok` having compared nothing. Unlike
+    # `golden` next door, this gate records no exit status in what it diffs, so the
+    # blank is not distinguishable downstream; it has to be caught here. No case this
+    # gate drives is legitimately empty on both sides, because every one of them
+    # reaches at least the engine banner. ONE side blank stays a DIFF -- that is the
+    # gate working. Guards the case that 01e0b71c's empty-CORPUS check cannot see;
+    # ../zfish a4f0b6e9 is the sibling's version.
+    if [[ ! -s $dir/mc && ! -s $dir/up ]]; then
+      red "  RIG   $name -- BOTH engines produced no output; nothing was compared"
+      rig=$((rig + 1))
+      continue
+    fi
 
     local raw
     raw=$(diff "$dir/mc" "$dir/up" | grep -E '^[<>]' || true)
@@ -635,6 +652,17 @@ do_upstream_transcript() {
   done
   rm -rf "$dir"
 
+  # Report the rig BEFORE the verdict: a run that compared nothing must not publish
+  # the standing of the cases it did compare, whichever way that standing went. Red
+  # rather than ../zfish's exit 2 -- this driver has two codes, 127 for a gate whose
+  # TOOL is missing and 1 for a gate that failed, and a rig fault is not a missing
+  # tool. The empty-corpus guard above returns 1 for the same reason.
+  [[ $rig -eq 0 ]] || {
+    red "upstream-transcript: $rig of ${#cases[@]} case(s) compared NOTHING -- rig fault"
+    red "  Both engines printed nothing. Check that $BIN and the oracle at"
+    red "  $oracle each run, and that $RESOURCES_DIR is reachable."
+    return 1
+  }
   [[ $failed -eq 0 ]] || {
     red "upstream-transcript: $failed case(s) diverge from the golden"
     red "  Fix mcfish, or add an ARGUED line to $known naming what retires it."
