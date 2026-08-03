@@ -85,10 +85,12 @@ CFLAGS_COMMON=(
 #
 #   x86-64-sse41-popcnt  matches the oracle's ARCH, so an instruction or nps
 #                        differential against UPSTREAM compares code, not ISA.
-#   native               what the engine should actually ship as, and the only
-#                        honest basis for comparing against a natively-built port.
+#   native               the widest tier this host can execute -- what the engine
+#                        should ship as here, and the only honest basis for comparing
+#                        against a natively-built port. It NAMES a tier below rather
+#                        than emitting host-specific code; see the ladder.
 #
-# Getting this wrong is not a small error. A native build on this host is
+# Getting this wrong is not a small error. A native build on this host selects
 # x86-64-avx512icl with VNNI -- a single vpdpbusd does the whole u8xi8 dot product
 # that the SSE4.1 path needs pmaddubsw + pmaddwd + paddd for. An nps number taken
 # with SSE4.1 on one side and AVX-512 on the other measures the tier and not the
@@ -99,45 +101,75 @@ CFLAGS_COMMON=(
 # The node count must not move across tiers -- the evaluation is integer-exact, so
 # it is arch-invariant by construction. `./build.sh arch-determinism` is what checks
 # that claim instead of trusting it.
+# `native` SELECTS one of the enumerated tiers below; it never asks the compiler what
+# this host is. `-march=native` would make the emitted code a property of the machine
+# that ran the build -- clang resolves it to a -target-cpu (znver4 here) with tuning and
+# ISA extensions no tier name records, so two hosts sharing a label would ship different
+# binaries and every per-tier number would silently mean "whatever box took it". The
+# ladder is upstream's own ARCH set, so a tier name is a complete description of the
+# code, both engines can be built at the SAME named ISA, and a standing filed under one
+# is reproducible anywhere. ../zfish resolves native the same way, for the same reason.
+#
+# The floor is deliberate: a host with avx512f but no VNNI takes avx512, and one with
+# no avx512 at all takes avx2. That may leave an extension unused where `-march=native`
+# would have taken it. Reproducibility is worth more than the last extension here --
+# every gate, budget and Elo standing in this tree compares across builds.
+detect_arch_tier() {
+  local f=/proc/cpuinfo
+  if grep -qw avx512_vbmi2 $f 2>/dev/null && grep -qw avx512_bitalg $f 2>/dev/null \
+     && grep -qw avx512_vnni $f 2>/dev/null; then echo avx512icl
+  elif grep -qw avx512_vnni $f 2>/dev/null; then echo vnni512
+  elif grep -qw avx512f $f 2>/dev/null;     then echo avx512
+  elif grep -qw avx2 $f 2>/dev/null;        then echo avx2
+  else echo sse41; fi
+}
 MCFISH_ARCH=${MCFISH_ARCH:-sse41}
+# Keep what the caller asked for: only the report distinguishes `native` from the tier
+# it chose, and every other consumer wants the concrete tier.
+MCFISH_ARCH_SELECTOR=$MCFISH_ARCH
+[[ $MCFISH_ARCH == native ]] && MCFISH_ARCH=$(detect_arch_tier)
+
+# Upstream's implication chain, mirrored: each tier is every flag the ones below it
+# carry, plus its own (Stockfish src/Makefile, the `findstring -<tier>` blocks and the
+# per-feature CXXFLAGS below them). Written out per tier rather than accumulated, so a
+# tier is readable in one line and cannot inherit a flag by accident.
 case "$MCFISH_ARCH" in
   sse41)   CFLAGS_ARCH=(-msse -msse2 -msse3 -mssse3 -msse4.1 -mpopcnt) ;;
   avx2)    CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt) ;;
+  avx512)  CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
+                        -mavx512vl) ;;
   # Mirror upstream's x86-64-vnni512 tier so the two engines can be compared at the
-  # SAME named ISA: everything avx2 has, plus the avx512 foundation and VNNI. This is
-  # one tier BELOW a full icl host (`native` adds vbmi2/bitalg/ifma and friends there).
+  # SAME named ISA: everything avx2 has, plus the avx512 foundation and VNNI.
   vnni512) CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
                         -mavx512vl -mavx512vnni) ;;
-  native)  CFLAGS_ARCH=(-march=native) ;;
-  *)       red "unknown MCFISH_ARCH: $MCFISH_ARCH (want sse41, avx2, vnni512 or native)"; exit 2 ;;
+  # Upstream's top x86-64 tier. vbmi2/bitalg/ifma/vpopcntdq are what the ICL-gated
+  # threat and move-sorting paths compile against, so this is the tier that builds
+  # them by NAME -- before this existed they were reachable only through -march=native
+  # on a capable host, which is to say only by accident of the build machine.
+  avx512icl) CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
+                          -mavx512vl -mavx512vnni -mavx512cd -mavx512ifma -mavx512vbmi
+                          -mavx512vbmi2 -mavx512vpopcntdq -mavx512bitalg -mvpclmulqdq
+                          -mgfni -mvaes) ;;
+  *)       red "unknown MCFISH_ARCH: $MCFISH_ARCH (want sse41, avx2, avx512, vnni512, avx512icl or native)"; exit 2 ;;
 esac
 
-# Resolve what `-march=native` means on THIS host, so recorded standings can name
-# the concrete tier ("vnni512") instead of the mutable label "native" -- a number
-# filed under "native" stops meaning anything the day the hardware changes.
-native_tier_label() {
-  if grep -qw avx512_vbmi2 /proc/cpuinfo 2>/dev/null \
-     && grep -qw avx512_bitalg /proc/cpuinfo 2>/dev/null; then echo "x86-64-avx512icl-class"
-  elif grep -qw avx512_vnni /proc/cpuinfo 2>/dev/null; then echo "x86-64-vnni512-class"
-  elif grep -qw avx512f /proc/cpuinfo 2>/dev/null;     then echo "x86-64-avx512-class"
-  elif grep -qw avx2 /proc/cpuinfo 2>/dev/null;        then echo "x86-64-avx2-class"
-  else echo "x86-64-sse-class"; fi
-}
 arch_report_label() {
-  if [[ $MCFISH_ARCH == native ]]; then echo "native ($(native_tier_label))"
+  if [[ $MCFISH_ARCH_SELECTOR == native ]]; then echo "native ($MCFISH_ARCH)"
   else echo "$MCFISH_ARCH"; fi
 }
 
 # Name the tier IN THE BINARY, the way upstream's Makefile passes -DARCH. The
 # `compiler` command reports it, and a bug report pastes that block verbatim -- so
 # the one thing it must not do is guess. Upstream's own labels, so the two engines'
-# blocks are comparable line for line; `native` resolves to the concrete tier
-# rather than the mutable word, for the reason native_tier_label exists.
+# blocks are comparable line for line. There is no `native` case and no `-class`
+# suffix any more: the selector resolved to a real tier above, and the label is that
+# tier's upstream name, which now fully describes the code.
 case "$MCFISH_ARCH" in
-  sse41)   MCFISH_ARCH_STRING=x86-64-sse41-popcnt ;;
-  avx2)    MCFISH_ARCH_STRING=x86-64-avx2 ;;
-  vnni512) MCFISH_ARCH_STRING=x86-64-vnni512 ;;
-  native)  MCFISH_ARCH_STRING=$(native_tier_label) ;;
+  sse41)     MCFISH_ARCH_STRING=x86-64-sse41-popcnt ;;
+  avx2)      MCFISH_ARCH_STRING=x86-64-avx2 ;;
+  avx512)    MCFISH_ARCH_STRING=x86-64-avx512 ;;
+  vnni512)   MCFISH_ARCH_STRING=x86-64-vnni512 ;;
+  avx512icl) MCFISH_ARCH_STRING=x86-64-avx512icl ;;
 esac
 CFLAGS_ARCH+=("-DMCFISH_ARCH_STRING=\"$MCFISH_ARCH_STRING\"")
 
@@ -190,7 +222,7 @@ fi
 # to the wide tiers: at sse41 the same loops are a quarter of the width and the
 # unrolled form is far smaller, and that tier has not been measured.
 case "$MCFISH_ARCH" in
-  vnni512 | native) CFLAGS_RELEASE+=(-fno-unroll-loops) ;;
+  avx512 | vnni512 | avx512icl) CFLAGS_RELEASE+=(-fno-unroll-loops) ;;
 esac
 
 # -fno-sanitize-recover is load-bearing: without it UBSan PRINTS a diagnostic and
@@ -793,37 +825,15 @@ PERF_BUDGET_TOL=${PERF_BUDGET_TOL:-0.0005}
 
 # Key a budget row by the tier IN THE BINARY, never by the word that selected it.
 # `native` names a different ISA on every host, so a row recorded under it is a
-# number about one machine that the next machine will compare its own binary
-# against. MCFISH_ARCH_STRING is already the resolved tier (`native` becomes
-# `x86-64-avx512icl-class`), so a row is portable by construction and a host with no
-# matching row SKIPS -- loudly, at 127 -- instead of measuring against a stranger.
-#
-# THE CLASS LABEL IS NOT THE BINARY, and for `native` alone that gap is load-bearing.
-# The three pinned tiers are fixed `-m` flag lists, so there the string does decide
-# the code emitted. `native` is `-march=native`, while its label comes from two
-# cpuinfo flags: this Zen 4 box classes as `x86-64-avx512icl-class` and clang
-# resolves the same build to `-target-cpu znver4`. An Intel Ice Lake host classes
-# IDENTICALLY, builds a different binary, and would compare against this box's row --
-# the exact substitution the paragraph above exists to refuse. So carry the resolved
-# target-cpu in the native key, and let a foreign host find no row.
-#
-# Fail CLOSED. An unresolvable target-cpu keys `unknown-cpu`, which matches nothing and
-# reads as "no budget recorded" at 127. Falling back to the bare class would restore the
-# silent cross-host comparison at precisely the moment it cannot be ruled out.
-native_target_cpu() {
-  local cpu=""
-  cpu=$({ "$CC" -march=native -### -x c /dev/null 2>&1 || true; } \
-        | tr ' ' '\n' | grep -Fx -A1 '"-target-cpu"' | tail -1 | tr -d '"') || cpu=""
-  [[ -n $cpu && $cpu != -target-cpu ]] || cpu=unknown-cpu
-  printf '%s' "$cpu"
-}
-perf_budget_key() {
-  if [[ $MCFISH_ARCH == native ]]; then
-    printf '%s+%s' "$MCFISH_ARCH_STRING" "$(native_target_cpu)"
-  else
-    printf '%s' "$MCFISH_ARCH_STRING"
-  fi
-}
+# number about one machine that the next machine will compare its own binary against.
+# MCFISH_ARCH_STRING is a resolved tier by the time this runs, and since `native`
+# SELECTS an enumerated tier rather than asking the compiler about the host, the tier
+# name is a complete description of the binary: two hosts that resolve to the same
+# tier build the same code and their counts are comparable, while a host that
+# resolves elsewhere finds no row and SKIPS -- loudly, at 127 -- instead of measuring
+# against a stranger. That is a property of the arch ladder above, so nothing is
+# needed here beyond using the string.
+perf_budget_key() { printf '%s' "$MCFISH_ARCH_STRING"; }
 
 # Compile the counter (same cache perf_counters.sh uses) and read $BIN's median retired
 # instruction count on the fixed bench. Echoes "INSTRUCTIONS <n>\nNODES <n>", or returns 3
@@ -875,16 +885,16 @@ do_perf_budget() {
   budget=$(grep -v '^#' "$PERF_BUDGET_GOLDEN" | awk -v a="$(perf_budget_key)" '$1==a{print $2}' || true)
   if [[ -z $budget ]]; then
     info "perf-budget: no budget recorded for tier '$(perf_budget_key)'."
-    # A file written before the key became the tier string holds `sse41`/`native`
-    # rows, and one written before the native key carried its target-cpu holds a bare
-    # `<class>` row. Say so rather than leaving a bare "no budget": the number is
-    # still good, it is only filed under a name that cannot be compared across hosts.
+    # Older files hold rows this key no longer produces: a bare `sse41`/`native` from
+    # before the key was the tier string, and a `<class>`/`<class>+<target-cpu>` from
+    # when `native` still meant -march=native. Say so rather than leaving a bare "no
+    # budget": those numbers describe a build this tree cannot make any more.
     if grep -qv '^#' "$PERF_BUDGET_GOLDEN" \
        && grep -v '^#' "$PERF_BUDGET_GOLDEN" \
-          | awk -v a="$MCFISH_ARCH" -v s="$MCFISH_ARCH_STRING" \
-                '$1==a||$1==s{found=1} END{exit !found}'; then
-      info "  a LEGACY row for '$MCFISH_ARCH'/'$MCFISH_ARCH_STRING' is present --"
-      info "  re-record it: the key now names the binary, not the host's ISA class"
+          | awk '$1 ~ /^(native|sse41|avx2|avx512|vnni512|avx512icl)$/ || $1 ~ /-class/ {
+                   found=1 } END { exit !found }'; then
+      info "  a LEGACY row is present, keyed by a name this build no longer emits --"
+      info "  re-record it: the key is the tier, and the tier now describes the code"
     fi
     info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
     return 127
@@ -919,10 +929,10 @@ do_perf_budget_update() {
     { echo "# mcfish retired-instruction budget: median count on 'bench $PERF_BUDGET_BENCH',"
       echo "# per ISA TIER. Deterministic (~0.00002% spread), toolchain-specific: re-derive"
       echo "# on a clang upgrade or an intended perf change. One line per tier:"
-      echo "# <key> <count> -- the tier IN the binary, so a row means the same thing on"
-      echo "# every host and a foreign tier finds none rather than matching. A pinned tier"
-      echo "# keys on its fixed -m flag list; -march=native keys <class>+<target-cpu>,"
-      echo "# because one ISA class covers hosts whose native builds differ."
+      echo "# <tier> <count> -- the tier IN the binary, so a row means the same thing on"
+      echo "# every host and a foreign tier finds none rather than matching. Every tier is"
+      echo "# a fixed -m flag list, including the one \`native\` selects, so the name is a"
+      echo "# complete description of the code the count was taken over."
       echo "# A regression that leaves the node signature ($nodes) untouched shows up ONLY here."
     } > "$PERF_BUDGET_GOLDEN"
   }
@@ -991,11 +1001,17 @@ do_arch_determinism() {
   #
   # Gate each tier on host capability rather than assuming: a tier the CPU cannot
   # execute would SIGILL and read as a failure of the port.
+  #
+  # Name every tier. `native` used to sit at the end of this list as the only way to
+  # reach the widest code the host could run; it is an ALIAS for one of these now, so
+  # listing it would build a duplicate and test nothing the alias target does not.
   local expected tiers=(sse41)
   expected=$(grep -v '^#' tools/signature.golden | tr -d '[:space:]')
   grep -qw avx2 /proc/cpuinfo && tiers+=(avx2)
+  grep -qw avx512f /proc/cpuinfo && tiers+=(avx512)
   grep -qw avx512_vnni /proc/cpuinfo && tiers+=(vnni512)
-  tiers+=(native)
+  grep -qw avx512_vbmi2 /proc/cpuinfo && grep -qw avx512_bitalg /proc/cpuinfo \
+    && grep -qw avx512_vnni /proc/cpuinfo && tiers+=(avx512icl)
 
   info "arch-determinism: ${tiers[*]} must all bench $expected"
   local tier actual failed=0

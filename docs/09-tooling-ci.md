@@ -417,6 +417,36 @@ printed some lines.
 Keep the list minimal, and read it as a list of things no golden guards. Every
 field added here is a field that can drift forever without a gate noticing.
 
+## The arch ladder, and why `native` is a selector
+
+`MCFISH_ARCH` picks one of five tiers, each a fixed `-m` flag list mirroring
+upstream's own `ARCH` set: `sse41`, `avx2`, `avx512`, `vnni512`, `avx512icl`. A
+sixth spelling, `native`, is **not** a sixth tier — it reads `/proc/cpuinfo` and
+selects the widest of the five this host can execute, then builds exactly that.
+
+It is deliberately not `-march=native`. Host-specific codegen makes the emitted code
+a property of the machine that ran the build: clang resolves `-march=native` to a
+`-target-cpu` (`znver4` on this box) carrying tuning and extensions no tier name
+records, so two hosts reporting the same tier would ship different binaries and every
+per-tier number — budget row, instruction ratio, Elo standing — would quietly mean
+"whatever box took it". Selecting among named tiers makes the tier name a complete
+description of the code, which is what lets a standing be reproduced elsewhere and
+both engines be built at the SAME named ISA. `../zfish` resolves `native` the same
+way, through `detectArchFromCpu` into an enumerated `archConfigFor`.
+
+The floor is deliberate too: a host with `avx512f` but no VNNI takes `avx512`, and
+one without AVX-512 takes `avx2`, even where `-march=native` would have found one
+more extension. That is not free, and the size is worth knowing before anyone
+proposes reversing it: on this Zen 4 host the named `x86-64-avx512icl` build retires
+**+1.38%** more instructions than the `-march=native`/znver4 build it replaced, over
+the same bench at the same node count. Reproducibility across builds is worth more
+than the last extension here — every gate, budget and standing in this tree is a
+comparison, and none of them survive a binary that varies with the machine.
+
+`arch-determinism` builds every tier the host can execute and requires one node
+count from all of them, which is what keeps the widening honest; `native` is absent
+from that list because it is an alias and would only build a duplicate.
+
 ## Local-only measurement tooling
 
 Eight tools in `tools/` that are **not** `./build.sh` steps and **not** gates.
@@ -528,20 +558,12 @@ Tool-shape traps, each paid for:
 - **The budget row is keyed by the tier in the binary, and the tolerance was set by
   mutation.** `native` names a different ISA on every host, so a row filed under
   that word is a number about one machine that the next one compares its binary
-  against; `MCFISH_ARCH_STRING` resolves it (`x86-64-avx512icl-class` here), and a
+  against; `MCFISH_ARCH_STRING` is the resolved tier (`x86-64-avx512icl` here), and a
   host whose tier has no row SKIPS at 127 rather than measuring against a stranger.
-  **The class label alone is not the binary, though, and for `native` that gap is
-  the whole point of the key.** The three pinned tiers are fixed `-m` flag lists, so
-  there the string does decide the code emitted; `native` is `-march=native` while
-  its label comes from two cpuinfo flags, and this Zen 4 box classes as
-  `x86-64-avx512icl-class` while clang resolves the build to `-target-cpu znver4`.
-  An Intel Ice Lake host classes identically and builds a different binary, so the
-  native key carries the target-cpu as well and a foreign host finds no row. The
-  file is gitignored and per-host, so the substitution needs a shared checkout or a
-  changed machine rather than a `git pull` — the key is cheap and the failure is
-  silent, which is the trade. An unresolvable target-cpu keys `unknown-cpu` and
-  matches nothing: this fails closed, because falling back to the bare class would
-  restore the silent comparison exactly when it cannot be ruled out.
+  This works because **`native` selects an enumerated tier rather than emitting
+  host-specific code** — see *The arch ladder* below. Were it `-march=native`, the
+  tier name would not describe the binary and the key would be a promise the file
+  could not keep.
   The 0.05% ceiling is ~2000x the measured spread of this bench — five runs span
   under 0.00002% — and it is that tight because the previous 0.5% let a real one
   through: forcing `pos_adjust_key50_of` out of line costs +0.238% with `signature`
