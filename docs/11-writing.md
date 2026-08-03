@@ -72,9 +72,14 @@ Not "read it carefully" — run it. `grep -n` for a symbol, `printf 'uci\n' |
 were false and each took seconds to disprove.
 
 `docs-lint` holds three classes of this automatically — a backticked `snake_case`
-symbol must exist somewhere in the tree, a named path must resolve in one of the
-three repos these pages draw on, and every `build.sh` step must be mentioned by
-some page — so a rename or a new step cannot rot quietly. The path check reads
+symbol must exist somewhere in the tree, a named path must resolve in this repo's
+**index** or in the Stockfish golden beside it, and every `build.sh` step must be
+mentioned by some page — so a rename or a new step cannot rot quietly. Resolving
+against the index rather than the working directory is what makes the verdict a
+fact about the tree a reader clones: a file left behind by a rename is dead to
+them however present it is to you. Its one hole is stated rather than hidden — a
+path `.gitignore` names is exempt, because it documents the tool that writes it,
+so a dead *ignored* path is checked by nothing. The path check reads
 both spellings, prose and backticked, but only where the claim carries a file
 **extension**: `src/engine/board/` names a family and resolves against nothing,
 so write the file if you want the gate to hold it. `src/does/not/exist.c` is the
