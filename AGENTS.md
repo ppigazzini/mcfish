@@ -39,9 +39,14 @@ Four consequences an agent gets wrong before reading
   subjects.
 - **A sibling finding is a hypothesis about this tree, not a bug report.** Probe it
   against the oracle before writing a fix: of the eleven behaviours the fourth rfish
-  sweep named, seven were already correct here. `git log --grep=rfish` and
-  `--grep=zfish` find what each past sweep took and, in the bodies, what it probed
-  and left alone.
+  sweep named, seven were already correct here, and the fifth (2026-08-03, rfish's
+  NNUE campaign) took **nothing** — the hop-by-hop walk-back, the king-move hybrid
+  and the per-perspective refresh set were already upstream's shape here, and its
+  remaining wins are Rust bounds-check removal with no C analogue. Most of that
+  sweep flowed the OTHER way: rfish's instruction budget, its `native` tier
+  selector and its compared-nothing guard each cite a mcfish commit. `git log
+  --grep=rfish` and `--grep=zfish` find what each past sweep took and, in the
+  bodies, what it probed and left alone.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and check
