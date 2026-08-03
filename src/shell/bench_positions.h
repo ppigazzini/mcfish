@@ -10,11 +10,11 @@
 // record, some with a `moves ...` suffix, to be prefixed with `position fen `.
 // uci_bench.c composes the script from them.
 //
-// NOTE: `src/shell/benchmark.c` still carries `BenchFens`, a REDUCED 16-position
-// set that pins tools/signature.golden today. The two are deliberately separate:
-// this one is upstream's, that one is mcfish's current anchor. Cutting the
-// signature over to this table is an intended behaviour change and moves the
-// golden — see docs/PORTING.md on re-deriving it.
+// This table IS what pins tools/signature.golden: `benchmark_run` composes its
+// script from `BenchDefaults` and nothing else. Adding, removing or reordering a
+// line moves the anchor and invalidates every comparison against upstream, so
+// re-derive it with `./build.sh signature-update` on a green gate and say in the
+// commit what moved it.
 //
 // Golden: upstream `benchmark.cpp:31` (Defaults).
 
