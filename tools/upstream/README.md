@@ -58,11 +58,13 @@ the rules follow from that:
   because its gain was Zig's missing TBAA forcing reloads that clang+LTO never
   paid. A width or an inline is tuned for the language, tier and tree it was
   measured on. Re-measure or do not take it.
-- **Refutations are the durable output of a sweep.** `__DEV/PERFORMANCE.md` holds
-  the ledger: `3d1ea031` runBack inline, `7b8a8b10` the THP skip, `0bfbf31c` the
-  contiguous layer arena, the movepick pawn-history hoist, the fused refresh
-  threat pass. `e15c4565` was reverted in zfish itself (`bb6fd153`). Search the
-  ledger before re-deriving any of them.
+- **Refutations are the durable output of a sweep, and the commit log is where they
+  live.** Each one is recorded in the body of the mcfish commit that measured it and
+  refused it, so `git log --grep=zfish --grep=rfish` is the ledger — searchable, and
+  it moves with the tree. Already refuted here: zfish `3d1ea031` runBack inline,
+  `7b8a8b10` the THP skip, `0bfbf31c` the contiguous layer arena, the movepick
+  pawn-history hoist, the fused refresh threat pass. `e15c4565` was reverted in
+  zfish itself (`bb6fd153`). Search before re-deriving any of them.
 
 There is no bookmark file for "how far the sibling has been read". A peer sweep
 compares the two trees as they stand rather than replaying a range, and `git log

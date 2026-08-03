@@ -193,6 +193,22 @@ fi
 path_exists "$PATH_SENTINEL" \
   && fail "docs-lint: the dead-path sentinel $PATH_SENTINEL EXISTS -- its exemption is now a hole"
 
+# -------------------------- no shipped file names the gitignored dev area
+#
+# That directory is working state, not repository surface. It is gitignored, so a path
+# under it resolves for its author and for nobody else -- and a shipped file naming one
+# sends every other reader to something their checkout does not contain. That is not
+# hypothetical: the finish-line gate spent two weeks telling a failing porter to read a
+# page that had been moved there, and the move's own dewiring could not see the citation
+# because it lived in a .sh. Only .gitignore may say the word.
+#
+# Two files are exempt and both are structural: .gitignore declares the directory, and
+# this one carries the pattern that finds it.
+while IFS= read -r hit; do
+  [[ -z $hit ]] && continue
+  fail "$hit: names __DEV -- no shipped file may cite the gitignored dev area"
+done < <(git grep -In '__DEV' -- . ':!.gitignore' ':!tools/docs_lint.sh' | cut -d: -f1,2 | sort -u)
+
 # --------------------------------------------- no pinned signature in prose
 
 # The anchor moves on every intended behaviour change. A doc that quotes it is
