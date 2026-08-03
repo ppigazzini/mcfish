@@ -12,12 +12,19 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Docs here legitimately name paths in THREE repos: mcfish's own tree, the zfish
-# port source, and the Stockfish golden. A path is a valid claim if it resolves in
-# any of them. Checking only mcfish would flag every upstream citation -- and the
-# whole repo is about porting, so those citations are the common case, not the
-# exception.
-SEARCH_ROOTS=(. ../Stockfish ../zfish)
+# Docs here legitimately name paths in TWO repos: mcfish's own tree and the Stockfish
+# golden. A path is a valid claim if it resolves in either. Checking only mcfish would
+# flag every upstream citation -- the whole repo is about porting, so those citations
+# are the common case, not the exception.
+#
+# ../zfish was a third root and is NOT one any more. Nothing in these pages needed it
+# -- every claim resolves here or in the golden -- and carrying it meant a claim about
+# THIS tree could be answered by a sibling that happens to hold the same path. That
+# was live, not theoretical: docs/09 names `tools/instr_budget.golden`, which this
+# repo gitignores as per-machine, and the gate was green on a box missing it purely
+# because ../zfish had run its own budget. A sibling is not evidence about this tree,
+# which is the rule AGENTS.md states for findings and holds for paths too.
+SIBLING_ROOTS=(../Stockfish)
 
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -58,9 +65,46 @@ code_spans() {
     | grep -oE '`[a-z][a-z0-9]*(_[a-z0-9]+)+`' | tr -d '`'
 }
 
+# Answer "does this path exist" against the TREE, not the working directory. `[[ -e ]]`
+# reads local state, so the verdict depended on what a checkout happened to hold, in two
+# opposite and silent directions: a file a rename leaves behind is green here and DEAD in
+# a fresh clone, and a path .gitignore deliberately excludes could never be green anywhere.
+# ../rfish took a red CI run on the first class (its 3ac1b08); ../zfish closed both before
+# either bit (25976c37).
+#
+# EXEMPT AN IGNORED PATH. One the repository decided not to carry is a doc naming the tool
+# that WRITES it -- `tools/instr_budget.golden` is per-machine by design -- rather than a
+# claim about a tracked file. That exemption is a hole and is stated rather than hidden: a
+# dead IGNORED path is checked by nothing here.
+#
+# Take the index ONCE into a set. This answers every link target and every path claim, and
+# a `git` per lookup is the difference between a gate you run and one you skip. The two git
+# calls below are the MISS path only, where `--error-unmatch` normalises a pathspec so a
+# link written `docs/../AGENTS.md` still resolves.
+#
+# NO FILESYSTEM FALLBACK, because there is no case that could reach one. ../zfish's
+# version carries a "not a git checkout" arm that resolves against the filesystem and says
+# so; here DOCS comes from `git ls-files` too, so a tarball export refuses at exit 2 on the
+# empty-page guard above before any path is resolved. Verified by running this gate inside
+# `git archive HEAD | tar -x`: "no tracked .md files found", exit 2. An arm that cannot run
+# is not a safety net, it is a claim nobody checks.
+declare -A TRACKED=()
+while IFS= read -r tracked_path; do TRACKED["$tracked_path"]=1; done < <(git ls-files)
+
+in_this_tree() {
+  local p=${1#./}
+  [[ -n ${TRACKED[$p]+set} ]] && return 0
+  git ls-files --error-unmatch -- "$p" >/dev/null 2>&1 && return 0
+  git check-ignore -q -- "$p"
+}
+
+# This tree answers first, and a sibling only for what this tree does not own -- an
+# upstream citation. The golden is a foreign checkout, so it stays on the filesystem:
+# its index is not this gate's business, and a golden mid-rebase must not redden mcfish.
 path_exists() {
   local p=$1 root
-  for root in "${SEARCH_ROOTS[@]}"; do
+  in_this_tree "$p" && return 0
+  for root in "${SIBLING_ROOTS[@]}"; do
     [[ -e "$root/$p" ]] && return 0
   done
   return 1
@@ -79,7 +123,9 @@ for doc in "${DOCS[@]}"; do
     path=${target%%#*}
     [[ -z $path ]] && continue
 
-    [[ -e "$dir/$path" ]] || fail "$doc: dead link -> $target"
+    # Same resolver as the path claims: a link into the tree is a path claim that a
+    # reader clicks, and it rots on a rename the same way.
+    in_this_tree "$dir/$path" || fail "$doc: dead link -> $target"
   done < <(strip_noise "$doc" | grep -oE '\]\([^)]+\)' | sed -E 's/^\]\(//; s/\)$//')
 done
 
