@@ -148,7 +148,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant — **and, since the tiers now run different ALGORITHMS, that those algorithms agree.** Upstream switches slider attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port follows; that makes this step the gate for a whole class of change, because it compares the vector path against the scalar path *on the same tree*. `signature` alone tests one tier and would pass over a wrong attack set at another. Run it on every ISA-gated commit. Not in `parity`: it is several full builds |
 | `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them — see [05-tablebases.md](05-tablebases.md) |
 | `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
-| `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, keyed by the ISA TIER in the binary (`MCFISH_ARCH_STRING`, so `native` is filed as the tier it resolved to, plus the `-target-cpu` clang picked for it) and held to 0.05% | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
+| `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, keyed by the ISA TIER in the binary (`MCFISH_ARCH_STRING`, so `native` is filed as the tier it selected) and held to 0.05% | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
 | `sync-status` | compares `UPSTREAM_BASE` against the golden checkout, in BOTH directions | that the pin is honest: a checkout *behind* the pin is red (every grep of it then answers from source already ported past), a pin behind its checkout is a yellow report. Tracks the golden ONLY — `../zfish` is a sibling port with no pin here, see [`../tools/upstream/README.md`](../tools/upstream/README.md). Not a `parity` gate |
 | `upstream-map` / `upstream-nodes` | the declared-map audit and uncovered ratchet; the random-position node differential | see *Resyncing the pin* below. **LOCAL** — both need the pinned upstream tree |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
@@ -426,26 +426,27 @@ selects the widest of the five this host can execute, then builds exactly that.
 
 It is deliberately not `-march=native`. Host-specific codegen makes the emitted code
 a property of the machine that ran the build: clang resolves `-march=native` to a
-`-target-cpu` (`znver4` on this box) carrying tuning and extensions no tier name
-records, so two hosts reporting the same tier would ship different binaries and every
+`-target-cpu` — `znver4` on a Zen 4 host — carrying tuning and extensions no tier
+name records, so two hosts reporting the same tier would ship different binaries
+and every
 per-tier number — budget row, instruction ratio, Elo standing — would quietly mean
 "whatever box took it". Selecting among named tiers makes the tier name a complete
 description of the code, which is what lets a standing be reproduced elsewhere and
 both engines be built at the SAME named ISA. `../zfish` resolves `native` the same
 way, through `detectArchFromCpu` into an enumerated `archConfigFor`.
 
-The floor is deliberate too: a host with `avx512f` but no VNNI takes `avx512`, and
-one without AVX-512 takes `avx2`, even where `-march=native` would have found one
-more extension. That is not free, and the size is worth knowing before anyone
-proposes reversing it: on this Zen 4 host the named `x86-64-avx512icl` build retires
-**+1.38%** more instructions than the `-march=native`/znver4 build it replaced, over
-the same bench at the same node count. Reproducibility across builds is worth more
-than the last extension here — every gate, budget and standing in this tree is a
-comparison, and none of them survive a binary that varies with the machine.
+The floor is deliberate: a host with `avx512f` but no VNNI takes `avx512`, and one
+without AVX-512 takes `avx2`, even where `-march=native` would find one more
+extension. **That costs instructions wherever the host is tuned for more than its
+tier names**, and the size is a measurement, not a guess:
+[`../tools/perf_counters.sh`](../tools/perf_counters.sh) against a `-march=native`
+build settles it for a given box. It is paid deliberately — every gate, budget and
+standing here is a comparison across builds, and none survive a binary that varies
+with the machine that compiled it.
 
-`arch-determinism` builds every tier the host can execute and requires one node
-count from all of them, which is what keeps the widening honest; `native` is absent
-from that list because it is an alias and would only build a duplicate.
+`arch-determinism` builds every tier the host can execute and requires one node count
+from all of them, which is what keeps the widening honest. `native` is absent from
+that list: it is an alias for one of the five and would only build a duplicate.
 
 ## Local-only measurement tooling
 
@@ -488,9 +489,8 @@ parity while a 13% gap sits in front of it.
 `perf_counters.sh` drives both binaries interleaved over hardware counters
 (`perf_event_open`, so the absent `perf` CLI does not matter), pinned to one core,
 and reports the **median of per-round paired ratios**. It is the only tool here
-that reads instructions on avx2 and native/vnni512 — where callgrind SIGILLs on the
-AVX-512 EVEX prefix — and the only one that can *see* an IPC gap rather than infer
-one.
+that reads instructions at avx2 and at the AVX-512 tiers — where callgrind SIGILLs on
+the EVEX prefix — and the only one that can *see* an IPC gap rather than infer one.
 
 **The workload is a precondition, and it is enforced on every round, not just the
 first.** Both modes parse `Nodes searched` out of each run and refuse to report if
