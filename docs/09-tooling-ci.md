@@ -148,7 +148,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant — **and, since the tiers now run different ALGORITHMS, that those algorithms agree.** Upstream switches slider attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port follows; that makes this step the gate for a whole class of change, because it compares the vector path against the scalar path *on the same tree*. `signature` alone tests one tier and would pass over a wrong attack set at another. Run it on every ISA-gated commit. Not in `parity`: it is several full builds |
 | `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them — see [05-tablebases.md](05-tablebases.md) |
 | `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
-| `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, keyed by the ISA TIER in the binary (`MCFISH_ARCH_STRING`, so `native` is filed as the tier it resolved to) and held to 0.05% | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
+| `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, keyed by the ISA TIER in the binary (`MCFISH_ARCH_STRING`, so `native` is filed as the tier it resolved to, plus the `-target-cpu` clang picked for it) and held to 0.05% | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
 | `sync-status` | compares `UPSTREAM_BASE` against the golden checkout, in BOTH directions | that the pin is honest: a checkout *behind* the pin is red (every grep of it then answers from source already ported past), a pin behind its checkout is a yellow report. Tracks the golden ONLY — `../zfish` is a sibling port with no pin here, see [`../tools/upstream/README.md`](../tools/upstream/README.md). Not a `parity` gate |
 | `upstream-map` / `upstream-nodes` | the declared-map audit and uncovered ratchet; the random-position node differential | see *Resyncing the pin* below. **LOCAL** — both need the pinned upstream tree |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
@@ -530,6 +530,18 @@ Tool-shape traps, each paid for:
   that word is a number about one machine that the next one compares its binary
   against; `MCFISH_ARCH_STRING` resolves it (`x86-64-avx512icl-class` here), and a
   host whose tier has no row SKIPS at 127 rather than measuring against a stranger.
+  **The class label alone is not the binary, though, and for `native` that gap is
+  the whole point of the key.** The three pinned tiers are fixed `-m` flag lists, so
+  there the string does decide the code emitted; `native` is `-march=native` while
+  its label comes from two cpuinfo flags, and this Zen 4 box classes as
+  `x86-64-avx512icl-class` while clang resolves the build to `-target-cpu znver4`.
+  An Intel Ice Lake host classes identically and builds a different binary, so the
+  native key carries the target-cpu as well and a foreign host finds no row. The
+  file is gitignored and per-host, so the substitution needs a shared checkout or a
+  changed machine rather than a `git pull` — the key is cheap and the failure is
+  silent, which is the trade. An unresolvable target-cpu keys `unknown-cpu` and
+  matches nothing: this fails closed, because falling back to the bare class would
+  restore the silent comparison exactly when it cannot be ruled out.
   The 0.05% ceiling is ~2000x the measured spread of this bench — five runs span
   under 0.00002% — and it is that tight because the previous 0.5% let a real one
   through: forcing `pos_adjust_key50_of` out of line costs +0.238% with `signature`
