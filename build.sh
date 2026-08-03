@@ -564,8 +564,19 @@ do_upstream_transcript() {
   # Strip comments and blanks into a patterns-only file first.
   grep -vE '^\s*(#|$)' "$known" > "$dir/known" || true
   [[ -s $dir/known ]] || printf '%s\n' '$^' > "$dir/known"
+  # Hold the case list before driving it. `failed` is the only thing this gate can
+  # return non-zero on, so an empty glob would report "0 identical" and exit 0 -- and
+  # worse than a bare zero, bash leaves the unmatched pattern as a literal, `cat`
+  # fails on it, both engines read empty stdin, and their identical nothing counts as
+  # an `ok`. A gate that passes having compared no transcripts reads exactly like one
+  # that compared them all. Same reasoning as assert_fuzz_executed, one gate over.
+  local cases=(tools/cases/transcript/*.uci)
+  [[ -e ${cases[0]:-} ]] || {
+    red "upstream-transcript: no cases at tools/cases/transcript/*.uci -- compared NOTHING"
+    return 1
+  }
   local ok=0 accepted=0 failed=0 script name
-  for script in tools/cases/transcript/*.uci; do
+  for script in "${cases[@]}"; do
     name=$(basename "$script" .uci)
     # `|| true` on both: a case may drive the engine to a deliberate non-zero exit
     # (the malformed-input one does, on both engines), and under `set -euo pipefail`
@@ -597,7 +608,7 @@ do_upstream_transcript() {
     red "  Fix mcfish, or add an ARGUED line to $known naming what retires it."
     return 1
   }
-  green "upstream-transcript: $ok identical, $accepted with known divergences only"
+  green "upstream-transcript: $ok identical, $accepted with known divergences only (${#cases[@]} cases)"
 }
 
 # Elide only what the machine decides. Anything else is a claim about behaviour.
