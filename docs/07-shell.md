@@ -505,8 +505,8 @@ data with no search, no stdio and no dependency, and its invariant is that table
 identity: changing an entry is a behaviour change that cannot be compared against
 upstream afterwards.
 
-`BenchFens` and `BenchFenCount` are exported from `benchmark.h` so other harnesses
-can walk the same position set. `benchmark.c` drives the run **through the engine's
+`BenchDefaults` and `BenchDefaultsCount` are exported from `bench_positions.h` so other
+harnesses can walk the same script. `benchmark.c` drives the run **through the engine's
 own UCI surface** (`uci_execute`), handing every script line to the same dispatcher a
 GUI's input reaches, so the signature measures the shipped command path rather than a
 private one that could drift from it.
