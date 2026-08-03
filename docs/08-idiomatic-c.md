@@ -598,6 +598,13 @@ the point, its disassembly. Search the log before re-deriving one.
 EVEX encodings fold an unaligned memory operand, so above sse41 the aligned and
 the portable spelling compile to the same binary, byte for byte.
 
+`native` in the *measured* column is not a tier: it is whichever of the five the
+measuring host selected, so a cell reading `native` is a number about that box's
+widest tier and carries to another only if that host selects the same one. See
+[the arch ladder](09-tooling-ci.md#the-arch-ladder-and-why-native-is-a-selector),
+and re-measure rather than assume — a win at one tier can be flat or negative at
+another, which is why each row names the tier at all.
+
 | spelling | owner | mechanism | measured |
 | --- | --- | --- | --- |
 | `static inline` body in a header, over extern state | `tt_probe` in [`tt.h`](../src/engine/search/tt.h), the per-node seams in [`search_common.h`](../src/engine/search/search_common.h) | *[Split files at the cold seam](#split-files-at-the-cold-seam-keep-hot-bodies-in-headers)* | native −0.29% and −0.33%, super-additive once every seam is inline |

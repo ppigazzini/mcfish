@@ -9,7 +9,7 @@ Audience: anyone editing these docs.
 ## The set
 
 `README.md` is the index — GitHub renders it for the folder, so it is what a
-reader lands on. The rest are `00-`…`09-`, numbered by **reading
+reader lands on. The rest are `00-`…`11-`, numbered by **reading
 order**, not importance: a contributor works down from the architecture into a
 zone. The prefix is the only ordinal.
 
