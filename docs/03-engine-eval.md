@@ -291,6 +291,41 @@ rfish's materialised list has to derive the child's set on the delta path too an
 pays the rebuild's dominant cost either way. mcfish landing within a point of
 zfish is the prediction that structure makes.
 
+### Which way up the stack the traffic actually goes
+
+The suite asserts each of the four routes is **reached**, which is a different claim
+from which one carries the work. `MCFISH_ACC_STATS=1` compiles the counters into the
+engine and makes `bench` print them — bit-exact and off by default, the macro
+compiling to nothing in the shipped binary:
+
+```sh
+MCFISH_ACC_STATS=1 ./build.sh build && (cd resources && ../build/mcfish bench 16 1 13)
+```
+
+On the anchor workload, one worker, benching the anchor node total:
+
+| route | count | share of evaluations |
+|---|---:|---:|
+| shared walk (both perspectives forward) | 648,476 | 66.4% |
+| split walk (one pass per perspective) | 327,935 | 33.6% |
+| hybrid king move | 24,382 | — |
+| refresh | 328,307 | — |
+
+The shared walk takes two thirds of all evaluations and averages **1.23 plies**, so
+the common case is one ply of forward diff for both sides at once. A split walk runs
+`evaluate_side` **twice**, and the two side-evaluations under those 327,935 splits
+divide into 328,307 refreshes, 24,382 hybrids and 303,181 plain one-side walks.
+
+**A refresh is the dearest of the four** — it materialises the whole feature set
+where the others apply a diff — so what still forces one is where a lever would be.
+The hybrid covers 6.9% of them, and that share is **upstream's own**: its
+`evaluate_side` takes the hybrid only from `accumulators[size - 2]`, the immediate
+parent, which is what this tree does. `../rfish` reports a 43% share, from a
+deliberate divergence — it walks the hybrid back up to three plies and reports
+17% when restricted to the parent as upstream restricts it. That option is real,
+value-identical and **not upstream's**, so it is recorded here as a measured
+choice rather than taken.
+
 ### The two records are byte-identical by contract
 
 The board zone writes `DirtyPiece` and `DirtyThreats`; the accumulator reads the

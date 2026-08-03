@@ -213,6 +213,17 @@ if [[ ${MCFISH_NO_THREAT_RECORD:-0} == 1 ]]; then
   CFLAGS_RELEASE+=(-DMCFISH_NO_THREAT_RECORD)
 fi
 
+# MCFISH_ACC_STATS=1 compiles the accumulator path counters into the ENGINE binary and
+# makes `bench` print them. The test and tsan binaries already carry them, and the suite
+# asserts each of the four ways up the stack is REACHED -- which is a different claim
+# from which one carries the traffic. Only a bench answers that, and a refresh is the
+# dearest of the four by a wide margin, so what still forces one is where the next lever
+# is. Bit-exact and off by default: the macro compiles to nothing in the shipped binary,
+# and the anchor is unchanged with it on.
+if [[ ${MCFISH_ACC_STATS:-0} == 1 ]]; then
+  CFLAGS_RELEASE+=(-DMCFISH_ACC_STATS)
+fi
+
 # Stop unrolling at the 512-bit tiers, where it is a pure I-cache cost. Unrolling is
 # what makes the hot code big: at x86-64-avx512icl it accounts for 30% of .text
 # (296384 -> 208031 B) and 71% of the static zmm ops (6355 -> 1821), because the NNUE
