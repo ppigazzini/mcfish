@@ -786,7 +786,33 @@ PERF_BUDGET_TOL=${PERF_BUDGET_TOL:-0.0005}
 # against. MCFISH_ARCH_STRING is already the resolved tier (`native` becomes
 # `x86-64-avx512icl-class`), so a row is portable by construction and a host with no
 # matching row SKIPS -- loudly, at 127 -- instead of measuring against a stranger.
-perf_budget_key() { printf '%s' "$MCFISH_ARCH_STRING"; }
+#
+# THE CLASS LABEL IS NOT THE BINARY, and for `native` alone that gap is load-bearing.
+# The three pinned tiers are fixed `-m` flag lists, so there the string does decide
+# the code emitted. `native` is `-march=native`, while its label comes from two
+# cpuinfo flags: this Zen 4 box classes as `x86-64-avx512icl-class` and clang
+# resolves the same build to `-target-cpu znver4`. An Intel Ice Lake host classes
+# IDENTICALLY, builds a different binary, and would compare against this box's row --
+# the exact substitution the paragraph above exists to refuse. So carry the resolved
+# target-cpu in the native key, and let a foreign host find no row.
+#
+# Fail CLOSED. An unresolvable target-cpu keys `unknown-cpu`, which matches nothing and
+# reads as "no budget recorded" at 127. Falling back to the bare class would restore the
+# silent cross-host comparison at precisely the moment it cannot be ruled out.
+native_target_cpu() {
+  local cpu=""
+  cpu=$({ "$CC" -march=native -### -x c /dev/null 2>&1 || true; } \
+        | tr ' ' '\n' | grep -Fx -A1 '"-target-cpu"' | tail -1 | tr -d '"') || cpu=""
+  [[ -n $cpu && $cpu != -target-cpu ]] || cpu=unknown-cpu
+  printf '%s' "$cpu"
+}
+perf_budget_key() {
+  if [[ $MCFISH_ARCH == native ]]; then
+    printf '%s+%s' "$MCFISH_ARCH_STRING" "$(native_target_cpu)"
+  else
+    printf '%s' "$MCFISH_ARCH_STRING"
+  fi
+}
 
 # Compile the counter (same cache perf_counters.sh uses) and read $BIN's median retired
 # instruction count on the fixed bench. Echoes "INSTRUCTIONS <n>\nNODES <n>", or returns 3
@@ -839,11 +865,15 @@ do_perf_budget() {
   if [[ -z $budget ]]; then
     info "perf-budget: no budget recorded for tier '$(perf_budget_key)'."
     # A file written before the key became the tier string holds `sse41`/`native`
-    # rows. Say so rather than leaving a bare "no budget": the number is still good,
-    # it is only filed under a name that cannot be compared across hosts.
+    # rows, and one written before the native key carried its target-cpu holds a bare
+    # `<class>` row. Say so rather than leaving a bare "no budget": the number is
+    # still good, it is only filed under a name that cannot be compared across hosts.
     if grep -qv '^#' "$PERF_BUDGET_GOLDEN" \
-       && grep -v '^#' "$PERF_BUDGET_GOLDEN" | awk -v a="$MCFISH_ARCH" '$1==a{found=1} END{exit !found}'; then
-      info "  a LEGACY row for '$MCFISH_ARCH' is present -- re-record it under the tier string"
+       && grep -v '^#' "$PERF_BUDGET_GOLDEN" \
+          | awk -v a="$MCFISH_ARCH" -v s="$MCFISH_ARCH_STRING" \
+                '$1==a||$1==s{found=1} END{exit !found}'; then
+      info "  a LEGACY row for '$MCFISH_ARCH'/'$MCFISH_ARCH_STRING' is present --"
+      info "  re-record it: the key now names the binary, not the host's ISA class"
     fi
     info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
     return 127
@@ -878,8 +908,10 @@ do_perf_budget_update() {
     { echo "# mcfish retired-instruction budget: median count on 'bench $PERF_BUDGET_BENCH',"
       echo "# per ISA TIER. Deterministic (~0.00002% spread), toolchain-specific: re-derive"
       echo "# on a clang upgrade or an intended perf change. One line per tier:"
-      echo "# <MCFISH_ARCH_STRING> <count> -- the tier IN the binary, so a row means the"
-      echo "# same thing on every host and a foreign tier finds none rather than matching."
+      echo "# <key> <count> -- the tier IN the binary, so a row means the same thing on"
+      echo "# every host and a foreign tier finds none rather than matching. A pinned tier"
+      echo "# keys on its fixed -m flag list; -march=native keys <class>+<target-cpu>,"
+      echo "# because one ISA class covers hosts whose native builds differ."
       echo "# A regression that leaves the node signature ($nodes) untouched shows up ONLY here."
     } > "$PERF_BUDGET_GOLDEN"
   }
