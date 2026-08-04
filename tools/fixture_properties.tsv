@@ -1,0 +1,70 @@
+# The property list: every behaviour the engine BRANCHES on, and the fixture that
+# presents it. Checked by `./build.sh fixture-coverage`.
+#
+# WHY THIS FILE EXISTS. A test's input domain is not the arguments it passes, it is
+# every property the code discriminates on -- and a fixture set is only as good as the
+# list of properties it was partitioned over. Nothing in this tree wrote that list
+# down, so "does the differential cover Chess960?" was a question nobody could answer
+# without reading four directories. Now it is a row, and a row that stops being true
+# is a red gate.
+#
+# WHAT THE GATE CAN AND CANNOT CHECK. It checks that the OWNER exists, that the
+# FIXTURE exists, and that the WITNESS still matches inside the fixture -- so a
+# fixture that stops presenting its property (the option line deleted, the position
+# rewritten, the test renamed) reddens. It CANNOT check that presenting the property
+# exercises the owner's branch: that needs coverage, which this tree does not collect.
+# Read a row as "this fixture is where that property is presented", never as "that
+# branch is tested".
+#
+# Format: <property>\t<owner>\t<fixture>\t<witness>
+#   property  the thing the engine branches on, in kebab-case
+#   owner     the source file that branches on it (must exist)
+#   fixture   the file that presents it (must exist)
+#   witness   an extended regex that MUST match inside the fixture
+#
+# Adding a fixture without adding a row is a gate failure, in both directions: a
+# property with no fixture is an untested branch, and a case file under no property is
+# a fixture nobody can say what it represents.
+chess960-castling	src/engine/board/position.c	tools/cases/chess960.uci	UCI_Chess960 value true
+chess960-bench	src/engine/board/position.c	src/shell/bench_positions.c	UCI_Chess960
+chess960-fen-shredder	src/engine/board/fen.c	tools/cases/fenstream.uci	w HEhe
+castling-standard	src/engine/board/movegen.c	tools/perft.table	r3k2r/p1ppqpb1
+castling-uci-move	src/engine/board/uci_move.c	tests/test_main.c	e1g1 is castling
+en-passant	src/engine/board/movegen.c	tools/perft.table	8/2p5/3p4/KP5r
+under-promotion	src/engine/board/movegen.c	tools/perft.table	r3k2r/Pppp1ppp
+promotion-encoding	src/engine/board/uci_move.c	tests/test_main.c	promotions encode distinctly
+rule50-draw	src/engine/board/repetition.c	tests/test_main.c	50-move rule detected
+rule50-key-adjust	src/engine/board/position.c	tools/cases/key50.uci	position fen
+repetition-draw	src/engine/board/repetition.c	tests/test_main.c	threefold repetition detected
+terminal-mate	src/engine/search/search_main.c	tools/cases/gomate.uci	mate 1
+check-evasion	src/engine/board/legality.c	tests/test_main.c	double check
+tablebase-root-probe	src/platform/tablebase.c	tools/cases/tb.fens	[KQRBNPkqrbnp0-9/]+ w
+multipv	src/engine/search/search_emit.c	tools/cases/transcript/multipv.uci	MultiPV value 3
+searchmoves	src/engine/search/root_move_build.c	tools/cases/searchmoves.uci	searchmoves
+threads-multi	src/platform/worker_pool.c	tests/test_main.c	spawn four threads
+numa-policy	src/platform/numa.c	tools/cases/transcript/numa_policy.uci	NumaPolicy value
+numa-cpu-list	src/platform/numa.c	tools/cases/transcript/numa_list.uci	NumaPolicy value
+accumulator-routes	src/engine/eval/nnue/nnue_accumulator.c	tests/test_main.c	nnue accumulator update paths
+simd-scalar-equivalence	src/engine/eval/nnue/simd.h	tests/test_main.c	scalar reference
+hash-alloc-failure	src/engine/search/tt.c	tools/cases/hashfail.uci	Hash value 999999
+hash-newgame-clear	src/engine/search/tt.c	tools/cases/newgame.uci	ucinewgame
+net-swap-at-runtime	src/engine/eval/nnue/network.c	tools/cases/netswap.uci	EvalFile
+eval-command	src/engine/eval/evaluate.c	tools/cases/eval.uci	eval
+eval-transcript	src/engine/eval/evaluate.c	tools/cases/transcript/eval.uci	eval
+board-display	src/engine/board/fen.c	tools/cases/board.uci	position startpos
+board-display-transcript	src/engine/board/fen.c	tools/cases/transcript/board.uci	d
+fen-boundary	src/engine/board/fen.c	tools/cases/fenboundary.uci	position fen
+fen-malformed	src/engine/board/fen.c	tools/cases/errors.uci	not-a-fen
+fen-malformed-transcript	src/engine/board/fen.c	tools/cases/transcript/errors.uci	boguscommand
+position-move-list	src/engine/board/position.c	tools/cases/positionparse.uci	moves e2e4
+go-grammar	src/shell/uci.c	tools/cases/gogrammar.uci	go depth
+go-argument-width	src/shell/uci.c	tools/cases/gowidth.uci	18446744073709551615
+go-depth-transcript	src/shell/uci.c	tools/cases/transcript/go_depth.uci	go depth
+go-fen-transcript	src/shell/uci.c	tools/cases/transcript/go_fen.uci	go depth
+go-nodes-limit	src/engine/search/search_control.c	tools/cases/transcript/go_nodes.uci	go nodes
+go-perft	src/shell/uci.c	tools/cases/perft.uci	go perft
+search-depth	src/engine/search/search_main.c	tools/cases/search.uci	go depth
+uci-handshake	src/shell/uci.c	tools/cases/handshake.uci	uci
+uci-handshake-transcript	src/shell/uci.c	tools/cases/transcript/handshake.uci	uci
+compiler-banner	src/shell/uci.c	tools/cases/compiler.uci	compiler
+random-legal-positions	src/engine/search/search_main.c	tools/upstream_nodes.py	random
