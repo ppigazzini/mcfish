@@ -1047,6 +1047,11 @@ negative_control_restore() {
   NEG_BACKUP_DIR=""
 }
 
+do_fixture_coverage() {
+  info "fixture-coverage: property list vs the fixture sets"
+  bash tools/fixture_coverage.sh
+}
+
 do_negative_control() {
   local want=("$@")
   NEG_BACKUP_DIR=$(mktemp -d)
@@ -2093,6 +2098,7 @@ do_parity() {
   do_fmt || { [[ $? -eq 127 ]] && skipped+=(fmt) || return 1; }
 
   do_docs_lint
+  do_fixture_coverage
   do_test
 
   # Signature exits 127 when no net is reachable, for the same reason fmt does when
@@ -2150,6 +2156,7 @@ usage: ./build.sh <step> [args]
   tsan-search [d] [t] run a real search under ThreadSanitizer (the search-race baseline)
   bench [depth]      run the benchmark (default depth 13)
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
+  fixture-coverage   hold the property list to the fixtures, both directions
   negative-control   mutate the engine and require each named gate to go RED
   arch-determinism   build every executable ISA tier and require one node count
   net                report where the NNUE net must be and how to obtain it
@@ -2205,6 +2212,7 @@ case "${1:-build}" in
   perf-budget)      do_perf_budget ;;
   perf-budget-update) do_perf_budget_update ;;
   simd-scalar)      do_simd_scalar ;;
+  fixture-coverage) do_fixture_coverage ;;
   negative-control) shift; do_negative_control "$@" ;;
   arch-determinism) do_arch_determinism ;;
   signature-update) do_signature_update ;;
