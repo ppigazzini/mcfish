@@ -1099,6 +1099,81 @@ negative_control_restore() {
 # does is prove each one still RUNS and still prints the interface its callers read.
 # That is the difference between a tool that works and a tool nobody has run since the
 # toolchain moved.
+# --- lane-coverage: every gate runs somewhere, or says why not -------------------
+#
+# "A lane that is in no gate is not a lane" was a rule enforced by somebody
+# remembering it, and four differentials had quietly stopped being lanes -- including
+# `upstream-parity`, the finish line. Now the rule is the gate: every step build.sh
+# dispatches must appear in a workflow, in `parity`, or in the excused list below with
+# a reason. A new step joins one of the three or this goes red.
+#
+# The excused list is the hole, so it is short and each line is argued. It expires in
+# one direction by construction: a step named here that ALSO appears in a workflow is
+# a stale excuse, and that is reported too.
+LANE_EXCUSED=(
+  "bench:a command, not a gate -- it asserts nothing"
+  "clean:removes artefacts; nothing to assert"
+  "engine-standalone:a link probe for the engine zone, subsumed by zone-check in parity"
+  "fmt-fix:the writing half of fmt, which parity runs"
+  "golden-update:refuses by default (do_golden_update); golden-audit --write replaces it"
+  "help:prints the step list"
+  "material-eval:a MEASUREMENT knob, not a gate -- it builds an engine that plays badly on purpose"
+  "pgo:a build mode; the anchor is asserted by signature on the shipped one"
+  "perf-budget:LOCAL -- needs perf_event_open, which CI containers refuse, and the golden is per-machine"
+  "perf-budget-update:writes that per-machine golden"
+  "counter-validate:LOCAL -- needs perf_event_open"
+  "signature-update:re-derives the anchor; signature is what asserts it"
+  "tb-update:re-derives the tb golden; tb is what asserts it"
+  "tb-cursed:needs the 5-man tables (tb-fetch 5), too large for a lane"
+  "tb-cursed-update:re-derives that golden"
+)
+
+do_lane_coverage() {
+  info "lane-coverage: every step in a workflow, in parity, or excused"
+
+  mapfile -t ALL_STEPS < <(sed -n "$(grep -n '^case ' build.sh | tail -1 | cut -d: -f1),\$p" build.sh \
+                           | grep -oE '^\s*[a-z][a-z0-9|-]*\)' | tr -d ' )' | tr '|' '\n' \
+                           | grep -v '^-' | sort -u)
+  # The same floor the docs gate carries, for the same reason: this reads build.sh as
+  # TEXT, and an extraction that silently shrinks reports OK over nothing.
+  if [[ ${#ALL_STEPS[@]} -lt 35 ]]; then
+    red "lane-coverage: parsed only ${#ALL_STEPS[@]} steps (floor 35) -- the extraction went stale"
+    return 2
+  fi
+
+  local wf_text parity_text
+  # STRIP THE COMMENTS. A step NAMED in a workflow comment is not a step the workflow
+  # RUNS -- `golden-update` is discussed in one and dispatched by none, and counting
+  # that as a lane would excuse exactly the step this tree most wants excused.
+  wf_text=$(cat .github/workflows/*.yml 2>/dev/null | sed -E 's/(^|[[:space:]])#.*$//')
+  parity_text=$(sed -n '/^do_parity()/,/^}/p' build.sh)
+
+  local unlaned=0 stale=0 step reason excused
+  for step in "${ALL_STEPS[@]}"; do
+    [[ -z $step || $step == "help" ]] && continue
+    excused=""
+    for e in "${LANE_EXCUSED[@]}"; do [[ ${e%%:*} == "$step" ]] && excused=${e#*:}; done
+
+    if grep -qE "build\.sh $step\b" <<< "$wf_text" \
+       || grep -qE "do_${step//-/_}\b" <<< "$parity_text"; then
+      [[ -n $excused ]] && {
+        red "  STALE EXCUSE  $step is excused but DOES run in a lane -- delete the excuse"
+        stale=$((stale + 1))
+      }
+      continue
+    fi
+    if [[ -n $excused ]]; then
+      continue
+    fi
+    red "  NO LANE  $step runs nowhere -- add it to a workflow or excuse it with a reason"
+    unlaned=$((unlaned + 1))
+  done
+
+  [[ $stale -eq 0 ]] || { red "lane-coverage: $stale stale excuse(s)"; return 1; }
+  [[ $unlaned -eq 0 ]] || { red "lane-coverage: $unlaned step(s) run in no lane"; return 1; }
+  green "lane-coverage: ${#ALL_STEPS[@]} steps, every one in a lane or excused with a reason"
+}
+
 do_tools_smoke() {
   info "tools-smoke: every tool no other lane invokes"
   local fails=0
@@ -2367,6 +2442,8 @@ do_parity() {
 
   do_docs_lint
   do_fixture_coverage
+  do_lane_coverage
+  do_tools_smoke
   do_test
 
   # Signature exits 127 when no net is reachable, for the same reason fmt does when
@@ -2426,6 +2503,7 @@ usage: ./build.sh <step> [args]
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
   async-check        stop/ponderhit invariants on a RUNNING search
   tools-smoke        assert every tool no other lane invokes still runs
+  lane-coverage      every step runs in a lane, or is excused with a reason
   counter-validate   LOCAL: check a perf counter against two known bottlenecks
   fixture-coverage   hold the property list to the fixtures, both directions
   negative-control   mutate the engine and require each named gate to go RED
@@ -2485,6 +2563,7 @@ case "${1:-build}" in
   simd-scalar)      do_simd_scalar ;;
   async-check)      do_async_check ;;
   tools-smoke)      do_tools_smoke ;;
+  lane-coverage)    do_lane_coverage ;;
   counter-validate) do_counter_validate ;;
   fixture-coverage) do_fixture_coverage ;;
   negative-control) shift; do_negative_control "$@" ;;

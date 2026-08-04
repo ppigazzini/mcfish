@@ -145,6 +145,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `net` | names the `.nnue` this build expects, lists the directories the engine searches, prints the download command, and says whether the file is present | nothing — it *reports*, and deliberately does not fetch, so that `build` never becomes a network dependency |
 | `net-fetch` | downloads the expected net into `resources/` and **sha256-verifies** it | nothing — it fetches. It is a separate step precisely so `net` can stay offline; this is what the CI lanes run before a gate that needs a net |
 | `simd-scalar` | rebuilds with `MCFISH_SIMD_SCALAR` — every vector type and intrinsic compiled out — and re-asserts the anchor | that `simd.h`'s two implementations are value-identical. In `parity`, and the only gate that can see a portable-spelling/scalar divergence |
+| `lane-coverage` | every step `build.sh` dispatches must appear in a workflow, in `parity`, or in an excused list with a reason | that **a lane in no gate is not a lane** — a rule that was enforced by somebody remembering it until four differentials quietly stopped being lanes, `upstream-parity` (the finish line) among them. The excused list is the hole, so it expires in its own direction: a step excused that *does* run is reported as a stale excuse. In `parity` |
 | `tools-smoke` | runs every tool that no other lane invokes and asserts it still prints the interface its callers read | that a tool nobody runs has not rotted. It had: `valgrind.sh`'s header claimed the search was single-threaded and `Threads` accepted and ignored — false since Lazy-SMP landed, and it survived because nothing ran the file |
 | `counter-validate` | drives [`../tools/perf_counter_validate.c`](../tools/perf_counter_validate.c)'s two loops under the counter harness and asserts the **separation**: a latency-bound serial chain must report IPC near 1, a throughput-bound one 3+ | that a counter means what its name says on *this* host. An instrument is a hypothesis until checked against a known answer, and two conclusions in this tree have died here. Running the validator alone proves nothing — it prints one checksum; it is a **workload**, and the measurement is what a counter says about it. **LOCAL**: needs `perf_event_open` |
 | `async-check` | drives a REAL interrupted search and asserts invariants: a stopped search returns exactly one **legal** bestmove and leaves an engine that still answers `isready`; a `stop` with no search running answers nothing; `quit` mid-search exits | the only instrument that reaches the interrupted-search path. A `stop` inside a running search ends it wherever the clock got to — the final info line's node count moved 443388 → 460932 between two runs of one binary — so no byte-golden can hold it. **LOCAL**, ~6s |
@@ -177,7 +178,8 @@ and corpus guards exist to stop.
 result. What is open is a **bounded** mutant for the scalar arm — one that changes a
 value without removing the search's ceiling.
 
-`parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `fixture-coverage`, `test`,
+`parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `fixture-coverage`,
+`lane-coverage`, `tools-smoke`, `test`,
 `signature`, `simd-scalar`, `perft`, `golden`, `tb`.
 
 `tools/tb.golden` is **oracle-derived**: `./build.sh tb-update` regenerates it by
