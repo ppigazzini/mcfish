@@ -400,10 +400,11 @@ no gate would fail. Delete the decay term entirely and the addition itself becom
 signed overflow, which is undefined behaviour that UBSan in `./build.sh test` sees
 only if a test searches deep enough to reach it.
 
-`history.c` must not depend on `search.c`'s `Stack` layout, so the caller gathers
-what each update needs into a `HistoryStack` first: `frames[k]` is `(ss - 1 - k)`,
-so `frames` is the walk from `ss` and `frames + 1` is the walk from `ss - 1`. Get
-that offset wrong and the update credits the wrong ply.
+`history.c` owns the tables and not the walk: the stack-walking updates
+(`search_update_continuation_histories` and the quiet/all-stats updates around it)
+live in the search zone, as upstream keeps them in `search.cpp`. That is what stops
+`history.c` depending on `search.c`'s `Stack` layout. The walk offsets are the part
+to get right — the update at `ss` credits a different ply from the one at `ss - 1`.
 
 The block is cleared per `go`. Upstream clears it on `ucinewgame` instead; the live
 UCI layer has no hook for that, which is a shell gap — see
