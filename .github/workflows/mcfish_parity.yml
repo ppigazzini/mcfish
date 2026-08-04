@@ -132,6 +132,32 @@ jobs:
           CC: clang-${{ env.CLANG_VERSION }}
         run: ./build.sh parity
 
+      # The three gates that need the net and the binary but not the oracle, so they
+      # belong in the BLOCKING lane rather than the weekly one. Each ran in no lane
+      # at all before this.
+      #
+      # `arch-determinism` is the sharpest of the three: `signature` builds ONE tier
+      # while the NNUE kernels are tier-dependent, so the gate that covers the
+      # anchor's blind spot was itself uncovered.
+      - name: Every ISA tier reproduces the anchor
+        env:
+          CC: clang-${{ env.CLANG_VERSION }}
+        run: ./build.sh arch-determinism
+
+      # Invariants on the interrupted-search path, which no golden can hold.
+      - name: stop/ponderhit invariants
+        env:
+          CC: clang-${{ env.CLANG_VERSION }}
+        run: ./build.sh async-check
+
+      # Prove the gates above can FAIL. ~42s: it mutates the engine once per gate,
+      # requires that gate to go red, and restores. A mutation harness that only ever
+      # runs on a developer's box is a claim about the gates, not a check on them.
+      - name: Gates must be able to fail (mutation)
+        env:
+          CC: clang-${{ env.CLANG_VERSION }}
+        run: ./build.sh negative-control
+
 
   # Sanitizer lane. `parity` already builds the TEST binary with -fsanitize=address,undefined
   # (see do_test in build.sh), but the tests only drive the engine zone -- they never run the
@@ -343,10 +369,13 @@ jobs:
       # Release build (memcheck needs no instrumentation), shallow bench: valgrind
       # is ~30x, so depth is what the budget buys. Error-exitcode turns any finding
       # into a red job.
-      - name: Bench under memcheck
+      # Drive tools/valgrind.sh rather than a second hand-rolled invocation. Two paths
+      # to one answer is how they drift: this job checked a single-threaded bench while
+      # the script -- which nothing ran -- had a Threads=2 session waiting for the day
+      # Lazy-SMP landed. It landed, and only the unrun path covered it.
+      - name: Memcheck, single- and multi-threaded
         run: |
           set -euo pipefail
           CC="clang-$CLANG_VERSION" ./build.sh build
           cd resources
-          valgrind --error-exitcode=99 --leak-check=full --errors-for-leak-kinds=definite \
-            ../build/mcfish bench 16 1 6
+          VG_DEPTH=8 bash ../tools/valgrind.sh ../build/mcfish
