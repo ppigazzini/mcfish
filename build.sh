@@ -648,6 +648,8 @@ do_upstream_transcript() {
 
     local raw
     raw=$(diff "$dir/mc" "$dir/up" | grep -E '^[<>]' || true)
+    printf '%s\n' "$raw" >> "$dir/all_diffs"
+
     local unexplained
     unexplained=$(printf '%s\n' "$raw" | grep -v '^$' | grep -vEf "$dir/known" || true)
 
@@ -661,7 +663,44 @@ do_upstream_transcript() {
       failed=$((failed + 1))
     fi
   done
+
+  # EXPIRE THE ALLOWLIST. Every entry is a claim that mcfish may differ from the
+  # golden, and an entry whose cause is gone hides nothing while still reading as an
+  # accepted divergence -- which is how a filter outlives its gap and the gate quietly
+  # stops comparing real output. So each EXPIRING pattern must have MATCHED something
+  # in this run; if it did not, the divergence is retired and the line must go.
+  #
+  # PERMANENT entries are exempt (the engine's own identity will never converge), and
+  # an UNTAGGED entry fails: the tag is the author deciding which of the two it is.
+  local stale=0 untagged=0 pat tag n
+  while IFS= read -r pat; do
+    [[ -z $pat ]] && continue
+    tag=$(grep -B1 -xF -- "$pat" "$ROOT/$known" | head -1 | grep -oE '^#= [A-Z]+' | awk '{print $2}' || true)
+    n=$(grep -cE -- "$pat" "$dir/all_diffs" 2>/dev/null || true)
+    case "$tag" in
+      PERMANENT) printf '  note  %-52.52s permanent, seen %s\n' "$pat" "$n" ;;
+      EXPIRING)
+        if [[ ${n:-0} -eq 0 ]]; then
+          red "  STALE $pat"
+          red "        tagged EXPIRING and matched NOTHING in this run -- the divergence"
+          red "        it accepts is gone. Delete the entry; it now hides nothing."
+          stale=$((stale + 1))
+        else
+          printf '  note  %-52.52s expiring, seen %s\n' "$pat" "$n"
+        fi ;;
+      *)
+        red "  UNTAGGED $pat"
+        red "        every entry needs '#= EXPIRING' or '#= PERMANENT' on the line above it"
+        untagged=$((untagged + 1)) ;;
+    esac
+  done < "$dir/known"
   rm -rf "$dir"
+
+  [[ $untagged -eq 0 ]] || { red "upstream-transcript: $untagged untagged allowlist entr(ies)"; return 1; }
+  [[ $stale -eq 0 ]] || {
+    red "upstream-transcript: $stale allowlist entr(ies) no longer describe anything"
+    return 1
+  }
 
   # Report the rig BEFORE the verdict: a run that compared nothing must not publish
   # the standing of the cases it did compare, whichever way that standing went. Red
@@ -1474,6 +1513,26 @@ do_golden() {
   done
 
   [[ $fails -eq 0 ]] || { red "golden: $fails case(s) drifted"; return 1; }
+
+  # EXPIRE normalize()'s ONE declared gap. Its other substitutions elide what the
+  # MACHINE decides -- timings, the toolchain, the processor list, the NUMA suffix --
+  # and those can never retire. The replica backing is different: it is elided because
+  # mcfish holds the net in ordinary process memory and says `Local memory.` where
+  # upstream maps it system-wide, and that difference RETIRES the day the network
+  # registers for NUMA replication. An elision whose subject has gone stops comparing
+  # real output while still reading as a declared gap, so the subject is asserted here
+  # rather than remembered: normalize()'s own header says to delete the line first and
+  # let the gate go red, which is a process control where this is a mechanical one.
+  local raw_replica
+  raw_replica=$({ engine < "$ROOT/tools/cases/newgame.uci" 2>&1; } | grep -c 'Network replica' || true)
+  if [[ ${raw_replica:-0} -eq 0 ]]; then
+    red "golden: normalize() elides the replica BACKING word, and mcfish no longer prints"
+    red "  a 'Network replica' line at all. The elision now has no subject -- either the"
+    red "  line was lost (a regression the elision is hiding) or replication landed and"
+    red "  the elision must be deleted so the two sides are compared in full."
+    return 1
+  fi
+
   green "golden gate passed"
 }
 
