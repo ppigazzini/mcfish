@@ -252,7 +252,13 @@ int main(int argc, char **argv) {
         size_t sextra = (size_t) argc - 4;
         char **sargv = calloc(sextra + 2, sizeof *sargv);
         double *ins = calloc(sr, sizeof *ins);
-        if (sargv == NULL || ins == NULL) {
+        // Cycles as well as instructions, because IPC is what identifies a
+        // bottleneck: `counter-validate` drives two loops whose bottleneck is known
+        // from first principles and checks the counter responds the way each demands.
+        // Instructions alone cannot tell a latency-bound loop from a throughput-bound
+        // one -- both retire the same ops.
+        double *cyc = calloc(sr, sizeof *cyc);
+        if (sargv == NULL || ins == NULL || cyc == NULL) {
             fprintf(stderr, "error: out of memory building the run vector\n");
             return 2;
         }
@@ -264,6 +270,7 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < sr; i++) {
             Counters c = run_once(sargv, 0);
             ins[i] = (double) c.instructions;
+            cyc[i] = (double) c.cycles;
             if (i == 0) {
                 nodes = c.nodes;
                 continue;
@@ -293,6 +300,7 @@ int main(int argc, char **argv) {
             return 3;
         }
         printf("INSTRUCTIONS %.0f\n", median(ins, sr));
+        printf("CYCLES %.0f\n", median(cyc, sr));
         printf("NODES %lu\n", (unsigned long) nodes);
         return 0;
     }
