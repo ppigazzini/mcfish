@@ -67,4 +67,7 @@ search-depth	src/engine/search/search_main.c	tools/cases/search.uci	go depth
 uci-handshake	src/shell/uci.c	tools/cases/handshake.uci	uci
 uci-handshake-transcript	src/shell/uci.c	tools/cases/transcript/handshake.uci	uci
 compiler-banner	src/shell/uci.c	tools/cases/compiler.uci	compiler
-random-legal-positions	src/engine/search/search_main.c	tools/upstream_nodes.py	random
+random-legal-positions	src/engine/search/search_main.c	tools/upstream_nodes.py	class_random
+differential-chess960	src/engine/board/position.c	tools/upstream_nodes.py	class_chess960
+differential-rule50	src/engine/board/repetition.c	tools/upstream_nodes.py	class_rule50
+differential-endgame	src/platform/tablebase.c	tools/upstream_nodes.py	class_endgame
