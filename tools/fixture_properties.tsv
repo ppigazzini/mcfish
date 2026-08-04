@@ -46,6 +46,7 @@ searchmoves	src/engine/search/root_move_build.c	tools/cases/searchmoves.uci	sear
 threads-multi	src/platform/worker_pool.c	tests/test_main.c	spawn four threads
 numa-policy	src/platform/numa.c	tools/cases/transcript/numa_policy.uci	NumaPolicy value
 numa-cpu-list	src/platform/numa.c	tools/cases/transcript/numa_list.uci	NumaPolicy value
+numa-invalid-policy	src/platform/numa.c	tools/cases/transcript/numa_invalid.uci	not-a-policy
 accumulator-routes	src/engine/eval/nnue/nnue_accumulator.c	tests/test_main.c	nnue accumulator update paths
 simd-scalar-equivalence	src/engine/eval/nnue/simd.h	tests/test_main.c	scalar reference
 hash-alloc-failure	src/engine/search/tt.c	tools/cases/hashfail.uci	Hash value 999999

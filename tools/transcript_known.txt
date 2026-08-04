@@ -8,9 +8,22 @@
 # needs a reason that survives being read aloud, and it must name what would retire it.
 # An entry that outlives its cause turns the gate into decoration, exactly as the
 # normalize() filter in build.sh did for the thread info strings.
+#
+# EVERY ENTRY CARRIES A TAG on the line above it, and the gate enforces it:
+#
+#   #= EXPIRING   this divergence must STILL OCCUR. If the run sees it zero times the
+#                 cause is gone, the entry is now hiding nothing, and the gate goes RED
+#                 so the line is deleted. This is what stops a filter outliving its gap.
+#   #= PERMANENT  a difference that will never retire (the engine's own identity).
+#                 Exempt from the must-still-occur check, and that exemption is the
+#                 only hole here -- so PERMANENT needs an argument, not a preference.
+#
+# An untagged entry is a FAILURE, not a default: the tag is the author deciding which
+# of the two this is, and that decision is the whole point.
 
 # The engine identifies itself. mcfish is a different engine and says so; matching this
 # would mean claiming to be Stockfish. Never retired.
+#= PERMANENT
 ^[<>] id name
 
 # The net replica line is now EMITTED on both sides, in the same place and once per
@@ -28,12 +41,24 @@
 # RETIRE by registering the network for NUMA replication (AGENTS.md names it as open),
 # after which the count follows the node count and the backing may genuinely match --
 # not by widening this back to the whole line.
+#= EXPIRING
 ^[<>] info string Network replica [0-9]+: (Local|Shared) memory\.$
 
 # After a REJECTED NumaPolicy, upstream still reports a per-node binding while mcfish
 # reports none, though both print the same rejection line and the same `Available
 # processors`. The difference is upstream's internal `customAffinity` flag, which
 # suggests_binding_threads short-circuits on (numa.h:756-768) and which is not
-# observable in the config string. Reachable only by sending an invalid policy value.
-# RETIRE by deciding which side is right and matching it -- not by widening this line.
-^[<>] info string Using [0-9]+ threads? with NUMA node thread binding
+# observable in the config string. Reachable only by sending an invalid policy value,
+# which tools/cases/transcript/numa_invalid.uci now does -- before it existed this
+# entry accepted a divergence NO case reached, so the gate was neither comparing the
+# behaviour nor able to notice it changing.
+#
+# ONE ENTRY PER SIDE, each pinning the thread count the case sets. A single
+# both-sides pattern would also swallow a real divergence -- mcfish saying `Using 3
+# threads` against upstream's `Using 2` would match it twice and read as accepted --
+# which is the same shape as the replica entry's own history above.
+# RETIRE by deciding which side is right and matching it -- not by widening these.
+#= EXPIRING
+^< info string Using 2 threads$
+#= EXPIRING
+^> info string Using 2 threads with NUMA node thread binding
