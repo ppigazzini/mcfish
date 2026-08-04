@@ -154,7 +154,8 @@ Two details that make the contract cheap to honour:
   [`../tests/test_main.c`](../tests/test_main.c)'s `test_nnue_accumulator_paths`
   runs — see [the four update paths](#the-four-update-paths) below.
 
-`AccDepth` counts plies above the root so a push can never run past the arena. The
+`NNUE_MAX_STACK_SIZE` bounds the per-ply slots so a push can never run past the
+arena — one root slot plus one per ply. The
 search's `ply >= MAX_PLY` guard already bounds it; the check exists so a future
 caller that loses that guard degrades to a stale evaluation rather than writing
 outside the arena.

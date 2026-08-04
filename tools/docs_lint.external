@@ -1,0 +1,21 @@
+# Symbols the docs may name that this tree does not contain.
+#
+# The symbol checks assert that a backticked identifier exists somewhere in the tree,
+# which is what catches a rename the prose did not follow. A few names legitimately
+# fail that: a platform API mcfish does not call, named while explaining what a port
+# to that platform would need.
+#
+# KEEP THIS SHORT AND ARGUED, on the same terms as tools/transcript_known.txt: every
+# line is a hole in a gate, so it needs a reason that survives being read aloud.
+#
+# EXPIRING BY CONSTRUCTION: an entry here that turns out to EXIST in the tree fails
+# the gate. That is the direction this list rots in -- a symbol gets implemented, the
+# exemption stops describing anything, and it silently starts covering the rename it
+# was never meant to cover.
+#
+# One name per line, '#' comments and blanks ignored.
+
+# Windows' high-resolution clock, named in 06-platform.md's account of what a Windows
+# port would need for `now_ms`. mcfish is POSIX-only and calls clock_gettime; if this
+# ever appears in the tree, the port happened and the exemption must go.
+QueryPerformanceCounter

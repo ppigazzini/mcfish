@@ -65,6 +65,17 @@ code_spans() {
     | grep -oE '`[a-z][a-z0-9]*(_[a-z0-9]+)+`' | tr -d '`'
 }
 
+# The same, for CamelCase. `BenchFens` survived in TWO shipped files -- a header
+# comment and docs/07-shell.md -- describing a table that had not existed for weeks,
+# because the scan above holds snake_case only and every type, table and struct name
+# in this tree is CamelCase. Require TWO capitalised words: one capitalised word is
+# prose far more often than an identifier ("Position", "Move", "Hash"), and upstream's
+# own single-word type names would flag on every citation.
+camel_spans() {
+  awk 'BEGIN{f=0} /^```/{f=!f; next} !f{print}' "$1" \
+    | grep -oE '`[A-Z][a-z0-9]+([A-Z][A-Za-z0-9]*)+`' | tr -d '`'
+}
+
 # Answer "does this path exist" against the TREE, not the working directory. `[[ -e ]]`
 # reads local state, so the verdict depended on what a checkout happened to hold, in two
 # opposite and silent directions: a file a rename leaves behind is green here and DEAD in
@@ -233,6 +244,18 @@ fi
 # list, so a doc may name a tool by its filename (`nps_ab`) or a build.sh function
 # (`do_parity`) as well as a C symbol. Only tokens containing an underscore are
 # checked: a bare word is prose far more often than it is an identifier.
+# Symbols the docs may name that the tree does not contain -- a platform API named
+# while explaining a port, and nothing else. Each is argued in the file, and the list
+# EXPIRES in its own direction: an entry that turns out to exist fails below, because
+# a stale exemption silently starts covering the rename it was never meant to cover.
+declare -A EXTERNAL_OK=()
+if [[ -f tools/docs_lint.external ]]; then
+  while IFS= read -r ext; do
+    [[ -z $ext || $ext == \#* ]] && continue
+    EXTERNAL_OK["$ext"]=1
+  done < <(grep -vE '^\s*(#|$)' tools/docs_lint.external)
+fi
+
 symbol_corpus=$(
   git ls-files | grep -E '\.(c|h|sh|py|yml)$' | xargs cat 2>/dev/null
   git ls-files
@@ -243,6 +266,20 @@ for doc in "${DOCS[@]}"; do
     grep -qw -- "$sym" <<< "$symbol_corpus" \
       || fail "$doc: names a symbol that exists nowhere in the tree -> $sym"
   done < <(code_spans "$doc" | sort -u)
+
+  while read -r sym; do
+    [[ -z $sym ]] && continue
+    [[ -n ${EXTERNAL_OK[$sym]+set} ]] && continue
+    grep -qw -- "$sym" <<< "$symbol_corpus" \
+      || fail "$doc: names a CamelCase symbol that exists nowhere in the tree -> $sym"
+  done < <(camel_spans "$doc" | sort -u)
+done
+
+# The exemption list expires in its own direction: an entry that EXISTS in the tree is
+# no longer an exemption, it is a hole aimed at a live symbol.
+for ext in "${!EXTERNAL_OK[@]}"; do
+  grep -qw -- "$ext" <<< "$symbol_corpus" \
+    && fail "tools/docs_lint.external exempts '$ext', which now EXISTS in the tree -- delete the line"
 done
 
 # ------------------------------------------- every build.sh step is documented
@@ -268,6 +305,31 @@ if [[ ${#STEPS[@]} -lt $STEP_FLOOR ]]; then
   red "  the step extraction reads build.sh as text -- it has gone stale, not clean"
   exit 2
 fi
+
+# ------------------------------- a cited ./build.sh step must be a real step
+#
+# The reverse of the check below, and the one that would have caught `port-status`:
+# that step was deleted when the port apparatus was retired, and two shipped surfaces
+# went on telling a reader to run it -- one of them the finish-line gate's own failure
+# message, which is read at exactly the moment somebody needs it to be true. Prose is
+# checked against the dispatch table rather than against a second list.
+#
+# Read the citations from the same pages the rest of this gate owns, plus the tool and
+# workflow comments, because that is where both survivors lived.
+# ONLY BACKTICKED OR QUOTED CITATIONS. `./build.sh` also appears mid-sentence --
+# "every ./build.sh step runs the engine from here", "run ./build.sh first" -- and a
+# bare scan reads the next English word as a step name. A citation someone is meant to
+# TYPE is written in backticks in a page or inside a quoted string in a script, which
+# is exactly where both survivors of the port-apparatus retirement lived.
+mapfile -t CITED_STEPS < <(
+  { cat "${DOCS[@]}"; git ls-files 'tools/*.sh' 'tools/**/*.sh' '.github/workflows/*.yml' | xargs cat 2>/dev/null; } \
+    | grep -oE '[`"]\./build\.sh [a-z][a-z0-9-]*' | awk '{print $2}' | sort -u
+)
+for step in "${CITED_STEPS[@]}"; do
+  [[ -z $step ]] && continue
+  printf '%s\n' "${STEPS[@]}" | grep -qxF -- "$step" \
+    || fail "a shipped file says './build.sh $step', which is not a step build.sh dispatches"
+done
 
 for step in "${STEPS[@]}"; do
   [[ -z $step ]] && continue
