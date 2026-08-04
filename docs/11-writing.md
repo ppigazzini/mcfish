@@ -71,8 +71,9 @@ Not "read it carefully" — run it. `grep -n` for a symbol, `printf 'uci\n' |
 ./build/mcfish` for a handshake. Several claims in the first draft of this set
 were false and each took seconds to disprove.
 
-`docs-lint` holds three classes of this automatically — a backticked `snake_case`
-symbol must exist somewhere in the tree, a named path must resolve in this repo's
+`docs-lint` holds four classes of this automatically — a backticked `snake_case`
+**or CamelCase** symbol must exist somewhere in the tree, a cited `./build.sh <step>`
+must be a step the dispatch table actually has, a named path must resolve in this repo's
 **index** or in the Stockfish golden beside it, and every `build.sh` step must be
 mentioned by some page — so a rename or a new step cannot rot quietly. Resolving
 against the index rather than the working directory is what makes the verdict a
