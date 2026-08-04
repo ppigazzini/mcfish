@@ -1067,7 +1067,7 @@ NEGATIVE_CONTROL_ROWS=(
   "razor margin 483->484%src/engine/search/search_common.c%s#483 + 318#484 + 318#%signature%run"
   "d omits Checkers:%src/engine/board/fen.c%s#Checkers: #CheckersZ: #%golden%run"
   "no knight under-promotion%src/engine/board/movegen.c%/make_move_typed(PROMOTION, from, to, KNIGHT)/d%perft%run"
-  "scalar min becomes max%src/engine/eval/nnue/simd.h%s#a.l\\[i\\] < b.l\\[i\\] ? a.l\\[i\\] : b.l\\[i\\]#a.l[i] > b.l[i] ? a.l[i] : b.l[i]#%simd-scalar%hold"
+  "scalar shift off by one%src/engine/eval/nnue/simd.h%s#(Elem) (a.l\[i\] >> s)#(Elem) (a.l[i] >> (s + 1))#%simd-scalar%run"
 )
 
 # Bound each mutated gate run. 900s clears every row measured here with room to
@@ -2084,6 +2084,48 @@ do_sync_status() {
       git -C "$dir" log --oneline --reverse "$pin..HEAD" | sed 's/^/      /'
     fi
   done
+
+  # UPSTREAM_TARGET is the SHA the port is aiming AT while catching up to a moving
+  # upstream; UPSTREAM_BASE is what the tree claims to match today. Equal means the
+  # port is not chasing anything. Until now nothing read the target at all, so a pin
+  # advanced without its partner -- or a target left pointing at a commit the golden
+  # no longer has -- was a file nobody would notice, which is how UPSTREAM_BASE itself
+  # once sat five commits stale while reading as authoritative.
+  local target_file=tools/upstream/UPSTREAM_TARGET
+  if [[ ! -f $target_file ]]; then
+    red "  UPSTREAM_TARGET is missing -- the pin pair is incomplete"
+    rc=1
+  else
+    local target base
+    target=$(tr -d '[:space:]' < "$target_file")
+    base=$(tr -d '[:space:]' < tools/upstream/UPSTREAM_BASE)
+    if [[ -z $target ]]; then
+      red "  UPSTREAM_TARGET is empty"
+      rc=1
+    elif [[ $target == "$base" ]]; then
+      green "  target: equal to the base at ${base:0:9} -- the port is chasing nothing"
+    elif [[ -d ../Stockfish/.git ]] && ! git -C ../Stockfish cat-file -e "${target}^{commit}" 2>/dev/null; then
+      red "  UPSTREAM_TARGET ${target:0:9} is not a commit in ../Stockfish"
+      rc=1
+    else
+      # BOTH DIRECTIONS, as for the pin itself. A target AHEAD of the base is the
+      # normal mid-catch-up state. A target the base has already passed is a defect:
+      # you cannot be aiming at a commit you have ported past, and the file would
+      # quietly describe a finish line behind you.
+      local t_ahead t_behind
+      t_ahead=$(git -C ../Stockfish rev-list --count "${base}..${target}" 2>/dev/null || echo 0)
+      t_behind=$(git -C ../Stockfish rev-list --count "${target}..${base}" 2>/dev/null || echo 0)
+      if [[ ${t_ahead:-0} -gt 0 ]]; then
+        printf '  \033[33mtarget: %s, %s commit(s) ahead of the base -- the port is mid-catch-up\033[0m\n' \
+          "${target:0:9}" "$t_ahead"
+      else
+        red "  UPSTREAM_TARGET ${target:0:9} is BEHIND the base by ${t_behind} commit(s)"
+        red "      The base is what the tree already matches, so a target behind it"
+        red "      names a finish line this port has passed. Advance it or delete it."
+        rc=1
+      fi
+    fi
+  fi
 
   # There is nothing else to check. This tree holds no upstream mirrors: the
   # copies of tests/ and scripts/ were deleted rather than kept in step, because

@@ -150,7 +150,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `counter-validate` | drives [`../tools/perf_counter_validate.c`](../tools/perf_counter_validate.c)'s two loops under the counter harness and asserts the **separation**: a latency-bound serial chain must report IPC near 1, a throughput-bound one 3+ | that a counter means what its name says on *this* host. An instrument is a hypothesis until checked against a known answer, and two conclusions in this tree have died here. Running the validator alone proves nothing — it prints one checksum; it is a **workload**, and the measurement is what a counter says about it. **LOCAL**: needs `perf_event_open` |
 | `async-check` | drives a REAL interrupted search and asserts invariants: a stopped search returns exactly one **legal** bestmove and leaves an engine that still answers `isready`; a `stop` with no search running answers nothing; `quit` mid-search exits | the only instrument that reaches the interrupted-search path. A `stop` inside a running search ends it wherever the clock got to — the final info line's node count moved 443388 → 460932 between two runs of one binary — so no byte-golden can hold it. **LOCAL**, ~6s |
 | `fixture-coverage` | [`../tools/fixture_coverage.sh`](../tools/fixture_coverage.sh) holds [`../tools/fixture_properties.tsv`](../tools/fixture_properties.tsv) to the tree | that the input domain is written down. Each row names a property the engine branches on, the file that branches, the fixture that presents it and a **witness** regex that must still match — so a fixture which stops presenting its property reddens. Fires in BOTH directions: a property with no fixture, and a `cases/*.uci` no row claims. In `parity`. **Limit**: it cannot prove the branch is exercised — that needs coverage data this tree does not collect |
-| `negative-control` | mutates the engine once per gate — a razor margin, the `d` command's `Checkers:` line, the knight under-promotion — and requires that gate to exit non-zero, then restores and requires it to pass | that a gate can FAIL. Every other gate's detection power is an assumption until something breaks the engine on purpose; two gates this month turned out to be incapable of failing at all. Both rig faults are distinguished from verdicts: a pattern that matches nothing exits 2, and a mutant that outruns `NEG_GATE_TIMEOUT` exits 2 rather than being credited as a detection. **LOCAL**, ~42s. The `simd-scalar` row is HELD — its mutant is unbounded (see below) |
+| `negative-control` | mutates the engine once per gate — a razor margin, the `d` command's `Checkers:` line, the knight under-promotion — and requires that gate to exit non-zero, then restores and requires it to pass | that a gate can FAIL. Every other gate's detection power is an assumption until something breaks the engine on purpose; two gates this month turned out to be incapable of failing at all. Both rig faults are distinguished from verdicts: a pattern that matches nothing exits 2, and a mutant that outruns `NEG_GATE_TIMEOUT` exits 2 rather than being credited as a detection. **LOCAL**, ~100s for all four rows. Nothing is held; the `simd-scalar` mutant had to be bounded first (see below) |
 | `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant — **and, since the tiers now run different ALGORITHMS, that those algorithms agree.** Upstream switches slider attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port follows; that makes this step the gate for a whole class of change, because it compares the vector path against the scalar path *on the same tree*. `signature` alone tests one tier and would pass over a wrong attack set at another. Run it on every ISA-gated commit. Not in `parity`: it is several full builds |
 | `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them — see [05-tablebases.md](05-tablebases.md) |
 | `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
@@ -160,23 +160,24 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
 | `signature-update` / `golden-update` / `tb-cursed-update` | re-derive an anchor | read the warning below before running any of them |
 
-### Why the `simd-scalar` mutant is held
+### The mutant must be bounded, not merely wrong
 
-`negative-control`'s four rows are one per gate, and three of them cost seconds. The
-fourth does not, and the reason is a property of the mutant rather than of the gate:
-inverting the scalar activation clamp (`min` becomes `max`) hands the search an
-evaluation with no ceiling, so the mutated engine searches a tree that does not
-converge. Measured: the clean gate takes ~90s; the mutated one ran past **900s**
-without returning, twice — once for over 25 minutes before it was stopped by hand.
+`negative-control`'s four rows are one per gate, and the `simd-scalar` row is the one
+that taught the rule. Its first mutant inverted the scalar activation clamp (`min`
+becomes `max`), which hands the search an evaluation with **no ceiling** — so the
+mutated engine searched a tree that does not converge. The clean gate takes ~90s; the
+mutated one ran past **900s** twice, once for over 25 minutes, without returning a
+verdict. The gate would have been right. It never got to say so.
 
-The gate would have been right. It just never got to say so, which is why a timeout
-here is a rig fault and not a detection: crediting a gate for an experiment that never
-finished is exactly the "reported a comparison it never made" failure the transcript
-and corpus guards exist to stop.
+That is why a timeout here is a **rig fault** and never a detection: crediting a gate
+for an experiment that did not finish is the same defect as reporting a comparison
+that was never made.
 
-`./build.sh negative-control simd-scalar` still runs the row and reproduces that
-result. What is open is a **bounded** mutant for the scalar arm — one that changes a
-value without removing the search's ceiling.
+The replacement shifts the scalar right-shift one bit further, which **scales** the
+evaluation instead of unbounding it. The engine stays a sane chess engine searching a
+different tree, the scalar build benches a different total, and the gate reddens in
+35s. The rule generalises to any mutant aimed at an evaluation: **perturb the value,
+do not remove the bound.**
 
 `parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `fixture-coverage`,
 `lane-coverage`, `tools-smoke`, `test`,
