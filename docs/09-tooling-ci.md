@@ -1043,4 +1043,23 @@ over time instead of re-testing the same positions every run.
 comparison outright, naming which side is wrong, if the net-fetch or
 oracle-build steps produced two engines running different nets.
 
+It drives **four position classes**, because a random walk from the start
+position reaches exactly one kind of position and an engine branches on many —
+so a Chess960 castling divergence, a tablebase-range endgame or a position at
+the 50-move boundary was unreachable by this probe however many positions it
+drew. The classes come from
+[`../tools/fixture_properties.tsv`](../tools/fixture_properties.tsv):
+
+| class | how it is reached | why the walk cannot |
+|---|---|---|
+| `random` | 12 random legal plies from the start | — |
+| `chess960` | a rejection-sampled legal back rank, then the same walk, with `UCI_Chess960` set on **both** engines | the walk only ever starts from the standard array |
+| `rule50` | the same walk, then the halfmove clock wound to 90–99 | 12 plies from the start leave the counter near zero every time |
+| `endgame` | the FENs in [`../tools/cases/tb.fens`](../tools/cases/tb.fens) | random play does not trade down, and constructing few-man positions here would need a legality model with nothing to check it against |
+
+Each class is reported with its own count, and a class that produced **no**
+positions exits 2 rather than being summed into a passing total — an empty class
+reads as coverage and compared nothing. `--classes` selects a subset; an unknown
+name is refused rather than silently narrowing the run.
+
 Every job in this file runs weekly.
