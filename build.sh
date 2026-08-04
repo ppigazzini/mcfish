@@ -1047,6 +1047,109 @@ negative_control_restore() {
   NEG_BACKUP_DIR=""
 }
 
+# --- tools-smoke: a tool no lane runs rots exactly like a lane in no gate --------
+#
+# Four tools in tools/ were invoked by NOTHING -- not build.sh, not a workflow, not
+# another tool. Three now have callers (valgrind.sh from the memcheck lane,
+# perf_counter_validate below, and this step for the rest); this is the argument for
+# why that mattered: valgrind.sh's own header claimed the search was single-threaded
+# and `Threads` accepted and ignored, a claim that stopped being true when Lazy-SMP
+# landed and survived because nothing ran the file.
+#
+# A profiler wrapper cannot be GATED -- there is no verdict to assert -- so what this
+# does is prove each one still RUNS and still prints the interface its callers read.
+# That is the difference between a tool that works and a tool nobody has run since the
+# toolchain moved.
+do_tools_smoke() {
+  info "tools-smoke: every tool no other lane invokes"
+  local fails=0
+
+  # perf_delta.py: the startup-subtracted counter standing. Its --help is the contract
+  # its callers read, and it must still name the `#R` line format it consumes.
+  # Capture, THEN grep. Under `pipefail` a tool that exits non-zero -- which a usage
+  # message does by design -- fails the whole pipeline, so `if tool | grep` would
+  # report every one of these broken no matter what they printed.
+  local out
+  out=$(python3 tools/perf_delta.py --help 2>&1 || true)
+  if grep -q '#R' <<< "$out"; then
+    printf '  \033[32mok\033[0m    perf_delta.py --help names its input format\n'
+  else
+    red "  perf_delta.py: --help no longer describes the #R lines it parses"; fails=$((fails + 1))
+  fi
+
+  # perf_sample.sh: refuses without a binary, and its usage names the CWD requirement
+  # (resources/), which is the part everyone gets wrong first.
+  out=$(bash tools/perf_sample.sh 2>&1 || true)
+  if grep -q 'CWD=resources' <<< "$out"; then
+    printf '  \033[32mok\033[0m    perf_sample.sh prints its usage and its CWD rule\n'
+  else
+    red "  perf_sample.sh: no usage line, or it stopped naming the CWD requirement"; fails=$((fails + 1))
+  fi
+
+  # perf_counter_validate: the instrument that decides whether a counter can be
+  # believed. Compiling it is the smoke; RUNNING it is `./build.sh counter-validate`,
+  # which needs perf_event_open and is therefore local-only.
+  if "$CC" -O2 "${CFLAGS_COMMON[@]}" -o build/perf_counter_validate \
+       tools/perf_counter_validate.c > /dev/null 2>&1; then
+    printf '  \033[32mok\033[0m    perf_counter_validate compiles\n'
+  else
+    red "  perf_counter_validate: does not compile"; fails=$((fails + 1))
+  fi
+
+  [[ $fails -eq 0 ]] || { red "tools-smoke: $fails tool(s) broken"; return 1; }
+  green "tools-smoke: 3 of 3 unlaned tools still run and print their interface"
+}
+
+# Check the counter against two bottlenecks known from first principles. An
+# instrument is a hypothesis until something confirms it, and two conclusions in this
+# tree have died here.
+#
+# RUNNING THE VALIDATOR ALONE PROVES NOTHING -- it prints one checksum. The validator
+# is a WORKLOAD, and the measurement is what a counter says about it:
+#
+#   chain  one serial dependency chain of 3-cycle multiplies. Latency-bound by
+#          construction, so IPC pins near 1.
+#   ilp    four independent chains. Throughput-bound, so IPC runs to 3+.
+#
+# If the counter does not separate those two, it does not mean what its name says on
+# this host, and nothing may be built on it. LOCAL: needs perf_event_open.
+do_counter_validate() {
+  mkdir -p build
+  "$CC" -O2 "${CFLAGS_COMMON[@]}" -o build/perf_counter_validate tools/perf_counter_validate.c \
+    || { red "counter-validate: the validator does not compile"; return 1; }
+
+  local counter="${TMPDIR:-/tmp}/mcfish_perf_counters"
+  if [[ ! -x $counter || tools/perf_counters.c -nt $counter ]]; then
+    "$CC" -O2 "${CFLAGS_COMMON[@]}" -Werror -o "$counter" tools/perf_counters.c \
+      || { red "counter-validate: the counter harness does not compile"; return 1; }
+  fi
+
+  info "counter-validate: IPC against two known bottlenecks"
+  local out ipc_chain ipc_ilp
+  out=$("$counter" --single "$ROOT/build/perf_counter_validate" 3 2>&1) || {
+    info "counter-validate: perf_event_open unavailable on this host -- SKIPPED."
+    return 127
+  }
+  ipc_chain=$(awk '/^INSTRUCTIONS/{i=$2} /^CYCLES/{c=$2} END{ if (c>0) printf "%.2f", i/c; else print "0" }' <<< "$out")
+  out=$("$counter" --single "$ROOT/build/perf_counter_validate" 3 ilp 2>&1) || {
+    red "counter-validate: the ilp round failed"; return 1; }
+  ipc_ilp=$(awk '/^INSTRUCTIONS/{i=$2} /^CYCLES/{c=$2} END{ if (c>0) printf "%.2f", i/c; else print "0" }' <<< "$out")
+
+  printf '  chain (latency-bound, expect ~1)    IPC %s\n' "$ipc_chain"
+  printf '  ilp   (throughput-bound, expect 3+) IPC %s\n' "$ipc_ilp"
+
+  # The assertion is the SEPARATION, not either absolute: a counter that reports the
+  # same IPC for both is not measuring what its name claims, whatever the value.
+  awk -v a="$ipc_chain" -v b="$ipc_ilp" 'BEGIN{
+    if (a <= 0 || b <= 0) { print "counter-validate: read zero cycles -- the counter is dead"; exit 1 }
+    if (a > 1.6)  { printf "counter-validate: the LATENCY-bound loop reports IPC %.2f -- above 1.6 it is not measuring a serial chain\n", a; exit 1 }
+    if (b < 2.5)  { printf "counter-validate: the THROUGHPUT-bound loop reports IPC %.2f -- below 2.5 it cannot separate the two\n", b; exit 1 }
+    if (b / a < 2.0) { printf "counter-validate: ilp/chain is %.2f -- the counter does not separate the bottlenecks\n", b/a; exit 1 }
+  }' || return 1
+
+  green "counter-validate: the counter separates latency from throughput"
+}
+
 do_async_check() {
   need_binary
   # The METAMORPHIC half of the async surface. `stop` and `ponderhit` have transcript
@@ -1374,7 +1477,42 @@ do_golden() {
   green "golden gate passed"
 }
 
+# REFUSE A GOLDEN THE ENGINE PRODUCED, unless someone says so out loud.
+#
+# This step drives MCFISH and writes what it printed. That makes every golden it
+# touches a PHOTOGRAPH OF MCFISH: it pins a defect exactly as faithfully as it pins
+# correct behaviour, and the gate then passes BECAUSE the engine is wrong. It has
+# already happened here -- `board.golden` recorded a `d` with no `Checkers:` line and
+# `errors.golden` recorded three invalid FENs producing no diagnostic at all, both
+# green for as long as they existed (tools/GOLDEN_PROVENANCE.md).
+#
+# `./build.sh golden-audit --write` is the regenerator to reach for: it drives the
+# pristine ORACLE, so the golden it leaves behind is adjudicated by construction. The
+# two commands sit one keystroke apart and their diffs look identical, which is
+# exactly why the wrong one needs to be harder to run than the right one.
+#
+# The escape hatch stays, because one case can legitimately need it -- a case upstream
+# cannot be driven through at all -- and a gate with no override gets worked around
+# rather than argued with. It just has to be deliberate.
 do_golden_update() {
+  if [[ ${MCFISH_GOLDEN_UPDATE_FROM_MCFISH:-0} != 1 ]]; then
+    red "golden-update drives MCFISH, so it writes a photograph of mcfish, not a reference."
+    red ""
+    red "  Use this instead -- it drives the pristine oracle:"
+    red "      ./build.sh golden-audit --write            # every case that differs"
+    red "      ./build.sh golden-audit --write <case>     # just one"
+    red ""
+    red "  If this case genuinely cannot be driven through upstream, say so on purpose:"
+    red "      MCFISH_GOLDEN_UPDATE_FROM_MCFISH=1 ./build.sh golden-update"
+    red "  and record WHY in the commit body -- tools/GOLDEN_PROVENANCE.md is the page."
+    return 2
+  fi
+  red "golden-update: writing goldens FROM MCFISH by explicit override."
+  red "  Every golden written here is a photograph of this binary, not upstream's bytes."
+  do_golden_update_impl
+}
+
+do_golden_update_impl() {
   need_binary
   for script in tools/cases/*.uci; do
     local name
@@ -2228,6 +2366,8 @@ usage: ./build.sh <step> [args]
   bench [depth]      run the benchmark (default depth 13)
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
   async-check        stop/ponderhit invariants on a RUNNING search
+  tools-smoke        assert every tool no other lane invokes still runs
+  counter-validate   LOCAL: check a perf counter against two known bottlenecks
   fixture-coverage   hold the property list to the fixtures, both directions
   negative-control   mutate the engine and require each named gate to go RED
   arch-determinism   build every executable ISA tier and require one node count
@@ -2285,6 +2425,8 @@ case "${1:-build}" in
   perf-budget-update) do_perf_budget_update ;;
   simd-scalar)      do_simd_scalar ;;
   async-check)      do_async_check ;;
+  tools-smoke)      do_tools_smoke ;;
+  counter-validate) do_counter_validate ;;
   fixture-coverage) do_fixture_coverage ;;
   negative-control) shift; do_negative_control "$@" ;;
   arch-determinism) do_arch_determinism ;;

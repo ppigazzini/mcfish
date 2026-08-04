@@ -14,11 +14,12 @@
 # reliable. (The race half is `./build.sh tsan`, not this: the TT has benign data races by
 # design that a race gate would flag.)
 #
-# ON `Threads`: the loop below sets it, but mcfish's search is still single-threaded --
-# `Threads` is accepted and ignored (see docs/04-multithreading.md). The second session is
-# therefore an OPTION-PATH test, not a concurrency test, and it will stay one until the
-# search is actually driven across workers. It is written as a loop now so that it starts
-# covering the real thing the day that lands, rather than being remembered then.
+# ON `Threads`: the loop below runs a REAL concurrency session. This note used to say the
+# opposite -- that the search was single-threaded and `Threads` accepted and ignored, so the
+# second session was an option-path test "until the search is actually driven across
+# workers". That day came: Lazy-SMP is wired and `Threads` builds a worker set
+# (docs/04-multithreading.md). The claim survived because nothing ran this script, which is
+# the whole argument for giving a tool a lane.
 #
 # Usage: valgrind.sh <binary>   (run from the dir holding the net: mcfish -> resources/)
 set -u
