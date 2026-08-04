@@ -7,6 +7,25 @@ writes stdout, or knows the protocol exists.
 Audience: shell contributors. The zone rule this page depends on is in
 [00-architecture.md](00-architecture.md).
 
+### `stop` and `ponderhit`: what is adjudicated, and what cannot be
+
+Both have transcript cases (`tools/cases/transcript/stop.uci`, `ponderhit.uci`), and
+what those adjudicate is the **piped** form: the gate sends the whole script at once,
+so the command overtakes the search and both engines return the same cut-short
+answer. That is a real comparison against upstream and it is byte-exact.
+
+It is not the interesting path. A `stop` that lands inside a **running** search ends
+it wherever the clock got to, and the node count on the final `info` line moves run to
+run — measured at 443388 and 460932 on two consecutive runs of the same binary. No
+golden can hold that, and eliding the count would delete the only part that carries
+information.
+
+`./build.sh async-check` covers it on invariants instead: exactly one bestmove, that
+move legal in the position, the engine still answering `isready`, and `quit` during a
+search actually exiting. Those hold whatever the clock did, and they need no reference
+— which is why they are the right shape here rather than an mcfish-authored
+expectation of upstream's output.
+
 ## The split
 
 The zone is decomposed into single-responsibility modules, each owning one thing and
