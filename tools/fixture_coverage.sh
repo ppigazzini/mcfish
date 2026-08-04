@@ -70,6 +70,18 @@ for row in "${ROWS[@]}"; do
     || fail "$property: $fixture no longer presents it -- witness /$witness/ matches nothing"
 done
 
+# A .uci fixture IS engine input. Both drivers pipe the file at the engine raw, so a
+# `#` line is not a comment -- it is a command, the engine answers "Unknown command",
+# and the case diverges for a reason that has nothing to do with what it tests. Every
+# case in the tree already follows this; the convention was just never written down
+# anywhere a newcomer would meet it before losing an hour to it.
+for f in tools/cases/*.uci tools/cases/transcript/*.uci; do
+  [[ -e $f ]] || continue
+  if grep -qE '^\s*#' "$f"; then
+    fail "$f has a '#' line -- a .uci file is piped RAW, so that is engine input, not a comment"
+  fi
+done
+
 # Direction 2: every case file must be spoken for.
 unclassified=0
 for f in tools/cases/*.uci tools/cases/transcript/*.uci; do

@@ -1047,6 +1047,77 @@ negative_control_restore() {
   NEG_BACKUP_DIR=""
 }
 
+do_async_check() {
+  need_binary
+  # The METAMORPHIC half of the async surface. `stop` and `ponderhit` have transcript
+  # cases (tools/cases/transcript/), and those adjudicate what piped driving produces:
+  # the command overtakes the search and both engines return the same cut-short answer.
+  # What no byte-golden can hold is a stop that lands inside a RUNNING search -- it ends
+  # wherever the clock got to, and the final info line's node count moves run to run
+  # (measured: 443388 then 460932 on two consecutive runs of one binary).
+  #
+  # So this gate asserts INVARIANTS instead of values, which needs no reference at all:
+  # a search that is stopped still answers with exactly one legal bestmove and leaves an
+  # engine that is still alive. Those hold whatever the clock did. This is not an
+  # mcfish-authored expectation of upstream's OUTPUT -- it is a property of the UCI
+  # contract, and it is the only instrument that reaches the interrupted-search path.
+  info "async-check: stop/ponderhit invariants on a RUNNING search"
+
+  local legal
+  legal=$(printf 'position startpos\ngo perft 1\nquit\n' \
+          | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/$BIN" ) 2>&1 \
+          | grep -oE '^[a-h][1-8][a-h][1-8][qrbn]?:' | tr -d ':')
+  [[ -n $legal ]] || { red "async-check: could not read the legal move list -- rig fault"; return 2; }
+
+  local fails=0
+
+  # 1. A stop inside a running search: exactly one bestmove, and it is legal.
+  local out bm n
+  out=$({ printf 'position startpos\ngo infinite\n'; sleep 2; printf 'stop\nisready\nquit\n'; sleep 1; } \
+        | ( cd "$ROOT/$RESOURCES_DIR" && timeout 60 "$ROOT/$BIN" ) 2>&1 || true)
+  n=$(grep -cE '^bestmove ' <<< "$out" || true)
+  bm=$(grep -E '^bestmove ' <<< "$out" | head -1 | awk '{print $2}' || true)
+  if [[ $n -ne 1 ]]; then
+    red "  stop: expected exactly one bestmove, got $n"; fails=$((fails + 1))
+  elif ! grep -qx -- "$bm" <<< "$legal"; then
+    red "  stop: bestmove '$bm' is not legal in the position"; fails=$((fails + 1))
+  elif ! grep -q '^readyok' <<< "$out"; then
+    red "  stop: the engine did not answer isready afterwards"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    stop ended a running search with one legal bestmove (%s)\n' "$bm"
+  fi
+
+  # 2. A bare stop with no search running emits NO bestmove and leaves the engine up.
+  #    Upstream ignores it; an engine that answered here would be inventing a move.
+  out=$(printf 'position startpos\nstop\nisready\nquit\n' \
+        | ( cd "$ROOT/$RESOURCES_DIR" && timeout 30 "$ROOT/$BIN" ) 2>&1 || true)
+  # `grep -c` exits 1 on zero matches and zero is what this probe ASSERTS, so the
+  # `|| true` is load-bearing: without it `set -e` turns the passing case into a fail.
+  n=$(grep -cE '^bestmove ' <<< "$out" || true)
+  if [[ $n -ne 0 ]]; then
+    red "  idle stop: emitted $n bestmove line(s) with no search running"; fails=$((fails + 1))
+  elif ! grep -q '^readyok' <<< "$out"; then
+    red "  idle stop: the engine did not answer isready afterwards"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    a stop with no search running answers nothing and stays up\n'
+  fi
+
+  # 3. quit during a running search terminates. The timeout is the assertion: before
+  #    `go` ran off the UCI thread this would have hung, and a hang in CI reads as an
+  #    infrastructure flake rather than as the engine ignoring quit.
+  local rc=0
+  { printf 'position startpos\ngo infinite\n'; sleep 2; printf 'quit\n'; } \
+    | ( cd "$ROOT/$RESOURCES_DIR" && timeout 30 "$ROOT/$BIN" ) > /dev/null 2>&1 || rc=$?
+  if [[ $rc -eq 124 ]]; then
+    red "  quit: the engine did not exit within 30s of quit during a search"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    quit during a running search exits\n'
+  fi
+
+  [[ $fails -eq 0 ]] || { red "async-check: $fails invariant(s) broken"; return 1; }
+  green "async-check: 3 of 3 invariants hold on the interrupted-search path"
+}
+
 do_fixture_coverage() {
   info "fixture-coverage: property list vs the fixture sets"
   bash tools/fixture_coverage.sh
@@ -2156,6 +2227,7 @@ usage: ./build.sh <step> [args]
   tsan-search [d] [t] run a real search under ThreadSanitizer (the search-race baseline)
   bench [depth]      run the benchmark (default depth 13)
   simd-scalar        rebuild with the scalar SIMD path and re-assert the anchor
+  async-check        stop/ponderhit invariants on a RUNNING search
   fixture-coverage   hold the property list to the fixtures, both directions
   negative-control   mutate the engine and require each named gate to go RED
   arch-determinism   build every executable ISA tier and require one node count
@@ -2212,6 +2284,7 @@ case "${1:-build}" in
   perf-budget)      do_perf_budget ;;
   perf-budget-update) do_perf_budget_update ;;
   simd-scalar)      do_simd_scalar ;;
+  async-check)      do_async_check ;;
   fixture-coverage) do_fixture_coverage ;;
   negative-control) shift; do_negative_control "$@" ;;
   arch-determinism) do_arch_determinism ;;

@@ -1,0 +1,4 @@
+position startpos
+go ponder depth 6
+ponderhit
+isready

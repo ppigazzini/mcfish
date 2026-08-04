@@ -40,6 +40,8 @@ terminal-mate	src/engine/search/search_main.c	tools/cases/gomate.uci	mate 1
 check-evasion	src/engine/board/legality.c	tests/test_main.c	double check
 tablebase-root-probe	src/platform/tablebase.c	tools/cases/tb.fens	[KQRBNPkqrbnp0-9/]+ w
 multipv	src/engine/search/search_emit.c	tools/cases/transcript/multipv.uci	MultiPV value 3
+async-stop	src/shell/uci.c	tools/cases/transcript/stop.uci	go infinite
+async-ponderhit	src/shell/uci.c	tools/cases/transcript/ponderhit.uci	ponderhit
 searchmoves	src/engine/search/root_move_build.c	tools/cases/searchmoves.uci	searchmoves
 threads-multi	src/platform/worker_pool.c	tests/test_main.c	spawn four threads
 numa-policy	src/platform/numa.c	tools/cases/transcript/numa_policy.uci	NumaPolicy value
