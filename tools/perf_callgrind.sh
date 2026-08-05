@@ -40,9 +40,15 @@ command -v valgrind >/dev/null || { echo "error: valgrind not installed" >&2; ex
 [ -x "$BIN" ] || { echo "error: $BIN is not executable" >&2; exit 1; }
 
 echo "# callgrind: $BIN bench ${BENCH_ARGS[*]}  -> $OUT"
-valgrind --tool=callgrind --callgrind-out-file="$OUT" --cache-sim=yes --branch-sim=yes \
-  "$BIN" bench ${BENCH_ARGS[*]} 2>&1 |
+# Keep the raw run so the node count can be recorded beside the profile. The
+# profile itself carries no workload identity, and every ratio taken from it is
+# void if the two trees differ -- so `perf_callgrind_delta.py` reads this sidecar
+# and refuses rather than trusting the caller to have checked by eye.
+RAW=$(valgrind --tool=callgrind --callgrind-out-file="$OUT" --cache-sim=yes --branch-sim=yes \
+  "$BIN" bench ${BENCH_ARGS[*]} 2>&1)
+printf '%s\n' "$RAW" |
   grep -E "Nodes searched|I   refs|I1  misses|D   refs|D1  misses|LLd misses|D1  miss rate|Branches|Mispredicts"
+printf '%s\n' "$RAW" | grep -oP 'Nodes searched\s*:\s*\K[0-9]+' > "$OUT.nodes" || true
 
 echo
 echo "# node count above MUST match the other engine's, or the trees differ and every"
