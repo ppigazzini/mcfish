@@ -669,6 +669,21 @@ reordering — and expect the effect to change sign between tiers.
   deterministic and does **not** convert to cycles. It stands as fidelity with
   upstream — cite it that way, never as nps.
 
+**Outlining the movepick stage setups is NOT MEASURED here, and the sign to
+expect is negative.** The two siblings ran the identical change and disagree:
+`../rfish ae7766d` marks its three `MovePicker` stage setups `#[inline(never)]`
+and measures −0.81% instructions at avx2, and `../zfish 710b5c26` ported it
+verbatim, reproduced the mechanism exactly, and measured it **positive** on both
+tiers — the frame it was supposed to shrink went 744 → 24 bytes and the
+instruction count still rose. The reason does not travel: LLVM had already merged
+the three move buffers into ONE frame allocated by a single `sub`, whose
+immediate is free at either size, so there was nothing to save and the three
+call/ret pairs plus argument setup and reloads are the whole delta. rfish's win
+is the ~30-instruction Rust prologue it removed, which this tree does not have
+either. That is the same mechanism as the `noinline` entry above, which this tree
+DID measure. **Measure it here before taking it, or do not take it** — this
+paragraph is a predicted sign, not a result.
+
 ## Measurement discipline
 
 The port is allowed to be slow. It is not allowed to be a guess.

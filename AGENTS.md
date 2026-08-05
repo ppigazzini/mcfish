@@ -47,6 +47,18 @@ Four consequences an agent gets wrong before reading
   selector and its compared-nothing guard each cite a mcfish commit. `git log
   --grep=rfish` and `--grep=zfish` find what each past sweep took and, in the
   bodies, what it probed and left alone.
+- **A whole class can be closed here and still hide one hole.** The sixth sweep
+  (2026-08-05) probed both siblings' corrupt-table hardening — four bounds across
+  `zfish 741f8ffc/3883af90/6a5596de` and `rfish 6b252a1`. Three were already
+  bounded here (the empty lead-pawn collection, the group walk past `size`, and
+  the range-checked geometry accessors in `encode.h`), and the fourth was a live
+  out-of-bounds — but **not where either sibling hit it**. Both siblings trap
+  inside the tablebase zone, which is bounded here; the unbounded consumer in this
+  tree is one zone over, in the search's root ranking, and no sibling names it.
+  Take the CLASS as the hypothesis, then find this tree's own consumers of it.
+  rfish's 2026-08-05 NNUE work again took nothing: its tiered fold tile cites
+  mcfish's `ROW_TILE_WIDTH` as the source, and its constant-trip-count win is Rust
+  slices carrying no length past a borrow — C arrays already carry their extent.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
