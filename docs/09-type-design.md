@@ -60,6 +60,16 @@ The struct tier is used where the enum tier cannot reach — see
 It costs nothing in layout, and where it is used the layout is pinned by
 `static_assert` rather than assumed.
 
+**The struct tier plus `constexpr` is what substitutes for a compile-time
+parameter.** Both sibling ports close a whole class of transposition — a value and
+the constant it is combined with, passed adjacently — by making the constant a
+`comptime` parameter or a const generic. C has neither. But a one-member struct
+whose values are `constexpr`, one per consumer, is strictly stronger than a named
+integer: the constant is still folded, and the type makes both directions of the
+swap a hard error. `HistLimit` is the worked example, and it compiles to a
+byte-identical `.text`. A bare `constexpr int` would not do it — it names the value
+and leaves both parameters `int`, which is a rename dressed as a guarantee.
+
 **C's third option is absent.** WG14's strong-typedef proposal (`_Newtype`, the
 `[[strong]]` attribute) would give a distinct type that still participates in
 arithmetic, which is exactly what a score or a key would need. It is a proposal
@@ -330,6 +340,12 @@ Each has been made to fail on purpose, and the errors counted.
   file assigned straight to a `TbFile`.
 - The Syzygy side-to-move and the table file, transposed at the DTZ read.
 - A correction counter read through a field the row's key did not select.
+- A history bonus and the table's gravity clamp, transposed. Upstream cannot
+  express that swap because its limit is a template parameter, one per
+  `StatsEntry` instantiation; C has no compile-time parameter, but `HistLimit` —
+  a one-member struct whose seven values are `constexpr`, one per table — makes
+  both directions a hard error, and so does passing the bare literal the call
+  sites used to carry.
 - A `Bitboard` where a `Key` belongs is *not* on this list, and that is the point
   of the next section.
 - A non-exhaustive switch over `ScoreKind`, under `-Wswitch`.
@@ -379,18 +395,6 @@ boundary or not at all is the rule, and this is the case that earned it.
 comparison between two of them in different units. What holds here is a separate
 *producer* for the wall clock, not a separate type.
 
-**A history bonus and the table's clamp.** `stats_update(entry, bonus, d)` and
-`shared_stats_update(entry, bonus, d)` take two adjacent `int`s across eighteen call
-sites, and the clamp is a literal at the call — five distinct values. A swap does not
-fail: it clamps by one and divides by the other, producing a differently shaped
-gravity curve and so a different move ordering. Both sibling ports closed this by
-making the clamp a **compile-time parameter**, which C does not have, so neither fix
-ports. Naming the clamp with a `constexpr` or an enum would leave both parameters
-`int` and stop nothing — a rename dressed as a guarantee. The honest option is one
-update wrapper per table, each carrying its own clamp, and that is a real change on a
-per-node path, so it needs a measurement rather than a signature. **Known and not
-fixed.**
-
 **Boolean provenance at a call site.** `cut_node` is a bare `bool` passed
 positionally, and `cont_hist_page(h, in_check, capture, pc, to)` takes two
 adjacent booleans — either pair transposable, and a transposition still selects a
@@ -424,7 +428,10 @@ source.
    the consumer is a rename, not a guarantee — say so instead of shipping it.
 4. Pick the tier honestly. `enum : T` if the value is an index or a tag and you
    want it to stay usable in arithmetic; a one-member `struct` if you need the
-   confusion to be a hard error, and then pin the layout with `static_assert`.
+   confusion to be a hard error, and then pin the layout with `static_assert`. If
+   the value is a per-consumer constant, make it `constexpr` of that struct type —
+   one constant per consumer, not one shared by everything that happens to use the
+   same number.
 5. **Make the mutation fail.** Break the code on purpose in the way the type is
    meant to stop, build it, and record the compile errors. Arguing that it would
    fail is not watching it fail.
