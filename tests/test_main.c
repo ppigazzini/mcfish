@@ -551,10 +551,10 @@ static void test_draw_detection(void) {
     CHECK(pos_is_draw(&pos, 8), "threefold repetition detected");
 
     // The 50-move rule fires on the halfmove clock alone.
-    pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - - 100 60", false, &st);
+    CHECK(pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - - 100 60", false, &st), "setup: clock at 100");
     CHECK(pos_is_draw(&pos, 0), "50-move rule detected");
 
-    pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - - 99 60", false, &st);
+    CHECK(pos_set(&pos, "4k3/8/8/8/8/8/8/4K3 w - - 99 60", false, &st), "setup: clock at 99");
     CHECK(!pos_is_draw(&pos, 0), "99 plies is not yet a draw");
 }
 
