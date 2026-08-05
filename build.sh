@@ -58,33 +58,44 @@ detect_std_flag() {
 
 STD_FLAG=$(detect_std_flag)
 
-# Promote enum/enum confusion to an error where the compiler can see it.
+# Promote the two conversions that break a domain type into errors.
 #
 # The C23 `typedef enum : uint8_t` is this port's newtype: `Square`, `Piece`,
-# `Color`, `Direction` and the rest are distinct types with a fixed width, and
-# clang already diagnoses an implicit conversion between two of them. But it
-# diagnoses it as a WARNING under a build that is not -Werror, so a `Direction`
-# reaching a `Square` parameter printed a line and produced a binary -- which is
-# an advisory, not a guarantee. Promoting just this one warning is what makes the
-# enum tier load-bearing, and the tree is already clean under it.
+# `Color`, `Direction`, `TbFile`, `TbStm` and the rest are distinct types with a
+# fixed width, and clang already diagnoses the two ways into one of them. But it
+# diagnoses them as WARNINGS under a build that is not -Werror, so a `Direction`
+# reaching a `Square` parameter printed a line and produced a binary -- an
+# advisory, not a guarantee. These two promotions are what make the enum tier
+# load-bearing, and the tree is clean under both:
 #
-# Probe rather than pin: the spelling is clang's, and gcc rejects the whole
-# option with `no option '-Wimplicit-enum-enum-cast'` rather than ignoring it, so
-# hardcoding it would break the second-compiler lane. gcc has no equivalent, so
-# under gcc the enum tier stays advisory and only the clang lane enforces it.
+#   implicit-enum-enum-cast   one domain type reaching another's parameter
+#   implicit-int-conversion   a raw narrowing integer entering a domain type
+#
+# The second is the one that matters for a fold: `edge_distance` maps eight board
+# files onto four table files, and without it an unconverted board file reaches
+# `TbFile` for the price of a warning. Neither stops an EXPLICIT cast, which is
+# the point -- a conversion should be a line a reviewer can see.
+#
+# Probe rather than pin: both spellings are clang's, and gcc rejects each option
+# outright (`no option '-Wimplicit-enum-enum-cast'`) rather than ignoring it, so
+# hardcoding them would break the second-compiler lane. gcc has no equivalent for
+# either, so under gcc the enum tier stays advisory and only the clang lane
+# enforces it.
 #
 # `-Wassign-enum` is deliberately NOT promoted: `attacks.c`'s KnightSteps and
 # KingSteps are `Direction` arrays of literal offsets, and a Direction is any
 # signed step rather than only the eight the enum names.
-detect_enum_flag() {
-  local f=-Werror=implicit-enum-enum-cast
-  if echo 'int main(void){return 0;}' \
-     | "$CC" "$STD_FLAG" "$f" -x c - -o /dev/null > /dev/null 2>&1; then
-    echo "$f"
-  fi
+detect_enum_flags() {
+  local f
+  for f in -Werror=implicit-enum-enum-cast -Werror=implicit-int-conversion; do
+    if echo 'int main(void){return 0;}' \
+       | "$CC" "$STD_FLAG" "$f" -x c - -o /dev/null > /dev/null 2>&1; then
+      echo "$f"
+    fi
+  done
 }
 
-ENUM_FLAG=$(detect_enum_flag)
+mapfile -t ENUM_FLAGS < <(detect_enum_flags)
 
 # -lpthread on every link line. src/platform/thread*.c and numa.c call
 # pthread_create, pthread_mutex_* and sched_setaffinity directly. It links today
@@ -98,7 +109,7 @@ CFLAGS_COMMON=(
   "$STD_FLAG"
   -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-prototypes
   -Wconversion -Wsign-conversion -Wno-unused-parameter
-  ${ENUM_FLAG:+"$ENUM_FLAG"}
+  "${ENUM_FLAGS[@]}"
   -Isrc
   -D_POSIX_C_SOURCE=200809L
 )
