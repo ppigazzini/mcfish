@@ -59,6 +59,17 @@ Four consequences an agent gets wrong before reading
   rfish's 2026-08-05 NNUE work again took nothing: its tiered fold tile cites
   mcfish's `ROW_TILE_WIDTH` as the source, and its constant-trip-count win is Rust
   slices carrying no length past a borrow — C arrays already carry their extent.
+- **A sibling's GATE is a hypothesis about what this tree does not instrument.**
+  The seventh sweep (2026-08-06) took rfish's `a469772`, which gates that its net
+  survives `export_net`, and asked the same question here. The answer was larger
+  than the question: mcfish had no writer at all — no `export_net`, no
+  `Network::save`, no LEB128 encoder — and pulling that thread found that the UCI
+  dispatch had never been diffed against upstream's arm for arm. Four commands
+  were missing or wrong (`export_net`, `help`/`license`, `#` comment lines, and
+  the unknown-command reply quoting the token instead of the line), each visible
+  in one `printf` and none of them caught by any gate. When a sibling builds an
+  instrument, check what this tree points at that surface — not only whether the
+  same defect is here.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
