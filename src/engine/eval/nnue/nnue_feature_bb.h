@@ -18,6 +18,7 @@
 #ifndef MCFISH_NNUE_FEATURE_BB_H
 #define MCFISH_NNUE_FEATURE_BB_H
 
+#include <stdbit.h>
 #include <stdint.h>
 
 enum : uint8_t {
@@ -64,7 +65,7 @@ static inline uint8_t nnue_bb_color_of(uint8_t piece) { return (uint8_t) (piece 
 static inline uint64_t nnue_bb_square(unsigned square) { return (uint64_t) 1 << square; }
 
 static inline uint8_t nnue_bb_popcount(uint64_t bitboard) {
-    return (uint8_t) __builtin_popcountll(bitboard);
+    return (uint8_t) stdc_count_ones(bitboard);
 }
 
 // Pop and return the least significant square. UNDEFINED on an empty board, as the
