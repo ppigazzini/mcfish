@@ -3,18 +3,18 @@
 
 #include "nnue_feature_bb.h"
 
-static const int8_t RookDirs[4] = { NNUE_BB_NORTH, NNUE_BB_SOUTH, NNUE_BB_EAST, NNUE_BB_WEST };
+static constexpr int8_t RookDirs[4] = { NNUE_BB_NORTH, NNUE_BB_SOUTH, NNUE_BB_EAST, NNUE_BB_WEST };
 
-static const int8_t BishopDirs[4] = { NNUE_BB_NORTH_EAST, NNUE_BB_SOUTH_EAST, NNUE_BB_SOUTH_WEST,
-                                      NNUE_BB_NORTH_WEST };
+static constexpr int8_t BishopDirs[4] = { NNUE_BB_NORTH_EAST, NNUE_BB_SOUTH_EAST,
+                                          NNUE_BB_SOUTH_WEST, NNUE_BB_NORTH_WEST };
 
-static const int8_t QueenDirs[8] = { NNUE_BB_NORTH,      NNUE_BB_SOUTH,      NNUE_BB_EAST,
-                                     NNUE_BB_WEST,       NNUE_BB_NORTH_EAST, NNUE_BB_SOUTH_EAST,
-                                     NNUE_BB_SOUTH_WEST, NNUE_BB_NORTH_WEST };
+static constexpr int8_t QueenDirs[8] = { NNUE_BB_NORTH,      NNUE_BB_SOUTH,      NNUE_BB_EAST,
+                                         NNUE_BB_WEST,       NNUE_BB_NORTH_EAST, NNUE_BB_SOUTH_EAST,
+                                         NNUE_BB_SOUTH_WEST, NNUE_BB_NORTH_WEST };
 
-static const int8_t KnightSteps[8] = { -17, -15, -10, -6, 6, 10, 15, 17 };
+static constexpr int8_t KnightSteps[8] = { -17, -15, -10, -6, 6, 10, 15, 17 };
 
-static const int8_t KingSteps[8] = { -9, -8, -7, -1, 1, 7, 8, 9 };
+static constexpr int8_t KingSteps[8] = { -9, -8, -7, -1, 1, 7, 8, 9 };
 
 uint64_t nnue_bb_shift(int8_t dir, uint64_t bitboard) {
     switch (dir) {

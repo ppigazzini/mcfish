@@ -12,8 +12,8 @@ typedef struct {
 static WinRateParams win_rate_params(int material) {
     const int clamped = material < 17 ? 17 : (material > 78 ? 78 : material);
     const double m = (double) clamped / 58.0;
-    static const double as[4] = { -72.32565836, 185.93832038, -144.58862193, 416.44950446 };
-    static const double bs[4] = { 83.86794042, -136.06112997, 69.98820887, 47.62901433 };
+    static constexpr double as[4] = { -72.32565836, 185.93832038, -144.58862193, 416.44950446 };
+    static constexpr double bs[4] = { 83.86794042, -136.06112997, 69.98820887, 47.62901433 };
     const double a = (((as[0] * m + as[1]) * m + as[2]) * m) + as[3];
     const double b = (((bs[0] * m + bs[1]) * m + bs[2]) * m) + bs[3];
     return (WinRateParams) { a, b };

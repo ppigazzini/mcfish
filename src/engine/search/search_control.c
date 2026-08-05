@@ -51,7 +51,7 @@ void check_time(SearchCtx *ctx) {
 
 // Sentinel the mean-squared score starts at (-VALUE_INFINITE^2). Held as an int
 // because that is the width upstream keeps it in.
-static const int32_t RootMeanSqSentinel = -(VALUE_INFINITE * VALUE_INFINITE);
+static constexpr int32_t RootMeanSqSentinel = -(VALUE_INFINITE * VALUE_INFINITE);
 
 void root_update(SearchCtx *ctx,
                  Move move,

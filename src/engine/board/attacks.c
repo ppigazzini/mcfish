@@ -57,8 +57,8 @@ static_assert(sizeof(DualMagic) == 64, "DualMagic must stay one cache line");
 static alignas(64) uint8_t RankAttacks[FILE_NB][64];
 #endif
 
-static const Direction RookDirs[4] = { NORTH, EAST, SOUTH, WEST };
-static const Direction BishopDirs[4] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
+static constexpr Direction RookDirs[4] = { NORTH, EAST, SOUTH, WEST };
+static constexpr Direction BishopDirs[4] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
 
 static int magic_slot(PieceType pt) { return pt == ROOK ? 1 : 0; }
 
@@ -116,7 +116,7 @@ static uint64_t prng_sparse_rand(Prng *p) {
     return prng_rand64(p) & prng_rand64(p) & prng_rand64(p);
 }
 
-static const uint64_t MagicSeeds[8] = { 728, 10316, 55013, 32803, 12281, 15100, 16645, 255 };
+static constexpr uint64_t MagicSeeds[8] = { 728, 10316, 55013, 32803, 12281, 15100, 16645, 255 };
 
 // Index a square's attack block. Mirror upstream's USE_PEXT split (upstream
 // `bitboard.h: Magic::index`): with BMI2 available, `pext` compresses the
@@ -286,8 +286,8 @@ void attacks_init(void) {
 #ifdef __AVX2__
     init_dual_magics();
 #endif
-    static const Direction KnightSteps[8] = { 17, 15, 10, 6, -6, -10, -15, -17 };
-    static const Direction KingSteps[8] = { 9, 8, 7, 1, -1, -7, -8, -9 };
+    static constexpr Direction KnightSteps[8] = { 17, 15, 10, 6, -6, -10, -15, -17 };
+    static constexpr Direction KingSteps[8] = { 9, 8, 7, 1, -1, -7, -8, -9 };
 
     init_magics(ROOK, RookTable);
     init_magics(BISHOP, BishopTable);

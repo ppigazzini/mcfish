@@ -209,7 +209,7 @@ static inline Move make_move_typed(MoveType t, Square from, Square to, PieceType
 }
 
 static inline Value piece_value(PieceType pt) {
-    static const Value v[PIECE_TYPE_NB] = {
+    static constexpr Value v[PIECE_TYPE_NB] = {
         0, PAWN_VALUE, KNIGHT_VALUE, BISHOP_VALUE, ROOK_VALUE, QUEEN_VALUE, 0
     };
     return v[pt];
@@ -220,7 +220,7 @@ static inline Value piece_value(PieceType pt) {
 // piece_on(). The colour bit selects a mirrored half, so the `& 7` a
 // PieceType lookup would need never happens on that hot path.
 static inline Value piece_value_of(Piece pc) {
-    static const Value v[PIECE_NB] = {
+    static constexpr Value v[PIECE_NB] = {
         0, PAWN_VALUE, KNIGHT_VALUE, BISHOP_VALUE, ROOK_VALUE, QUEEN_VALUE, 0, 0,
         0, PAWN_VALUE, KNIGHT_VALUE, BISHOP_VALUE, ROOK_VALUE, QUEEN_VALUE, 0, 0
     };

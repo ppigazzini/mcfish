@@ -9,7 +9,7 @@
 
 #include <string.h>
 
-static const TbProbeResult Unavailable = {
+static constexpr TbProbeResult Unavailable = {
     .available = 0, .wdl = 0, .wdl_state = 0, .dtz = 0, .dtz_state = 0
 };
 

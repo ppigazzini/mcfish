@@ -20,7 +20,7 @@
 // Index the piece values by PIECE, not by PieceType: the capture and evasion
 // scorers read `PieceValue[pos.piece_on(to))]` straight off the board, so the
 // table repeats for the black half and leaves the two encoding gaps at 0.
-static const int PieceValues[PIECE_NB] = {
+static constexpr int PieceValues[PIECE_NB] = {
     0, 208, 781, 825, 1276, 2538, 0, 0, 0, 208, 781, 825, 1276, 2538, 0, 0,
 };
 

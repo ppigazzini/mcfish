@@ -13,17 +13,17 @@
 // Piece and square names come from the board zone's types.h, whose encoding is the one
 // this indexer is written in (color << 3 | type, squares A1..H8).
 
-static const uint8_t AllPieces[12] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
-                                       B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
+static constexpr uint8_t AllPieces[12] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
+                                           B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
 
 // --- the constant tables ----------------------------------------------------------
 
-static const uint32_t PieceSquareIndex[2][16] = {
+static constexpr uint32_t PieceSquareIndex[2][16] = {
     { 0, 0, 128, 256, 384, 512, 640, 0, 0, 64, 192, 320, 448, 576, 640, 0 },
     { 0, 64, 192, 320, 448, 576, 640, 0, 0, 0, 128, 256, 384, 512, 640, 0 },
 };
 
-static const uint32_t KingBuckets[64] = {
+static constexpr uint32_t KingBuckets[64] = {
     28 * NNUE_PS_NB, 29 * NNUE_PS_NB, 30 * NNUE_PS_NB, 31 * NNUE_PS_NB, 31 * NNUE_PS_NB,
     30 * NNUE_PS_NB, 29 * NNUE_PS_NB, 28 * NNUE_PS_NB, 24 * NNUE_PS_NB, 25 * NNUE_PS_NB,
     26 * NNUE_PS_NB, 27 * NNUE_PS_NB, 27 * NNUE_PS_NB, 26 * NNUE_PS_NB, 25 * NNUE_PS_NB,
@@ -42,12 +42,12 @@ static const uint32_t KingBuckets[64] = {
 // Mirror the file when the king stands on the queen side, so the bucketed feature space
 // only has to cover half the board. The half tables and the full tables disagree on which
 // half is mirrored, which is upstream's convention, not a transcription slip.
-static const uint32_t OrientTblHalf[64] = {
+static constexpr uint32_t OrientTblHalf[64] = {
     7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0,
     7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0,
 };
 
-static const int8_t OrientTblFull[64] = {
+static constexpr int8_t OrientTblFull[64] = {
     0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7,
     0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7,
 };
@@ -55,11 +55,13 @@ static const int8_t OrientTblFull[64] = {
 // A pawn's diagonal threats target only knights and rooks — pawn-pawn relationships
 // live in the PP_3Wide feature set — so a pawn has 4 valid targets (two types, two
 // colours), not 6.
-static const int32_t NumValidTargets[16] = { 0, 4, 10, 8, 8, 10, 0, 0, 0, 4, 10, 8, 8, 10, 0, 0 };
+static constexpr int32_t NumValidTargets[16] = {
+    0, 4, 10, 8, 8, 10, 0, 0, 0, 4, 10, 8, 8, 10, 0, 0
+};
 
 // Map (attacker type, attacked type) to its slot, -1 for a pair the feature set excludes.
 // The pawn row keeps only KNIGHT (slot 0) and ROOK (slot 1).
-static const int32_t FullMap[6][6] = {
+static constexpr int32_t FullMap[6][6] = {
     { -1, 0, -1, 1, -1, -1 }, { 0, 1, 2, 3, 4, -1 }, { 0, 1, 2, 3, -1, -1 },
     { 0, 1, 2, 3, -1, -1 },   { 0, 1, 2, 3, 4, -1 }, { -1, -1, -1, -1, -1, -1 },
 };

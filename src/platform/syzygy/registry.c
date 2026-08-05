@@ -15,10 +15,10 @@
 // Index piece types as upstream does: 1 = pawn .. 6 = king, black = 8 | type.
 enum : uint8_t { PT_PAWN = 1, PT_KING = 6 };
 
-static const char PieceChar[] = " PNBRQK";
-static const uint8_t WdlMagic[4] = { 0x71, 0xE8, 0x23, 0x5D };
-static const uint8_t DtzMagic[4] = { 0xD7, 0x66, 0x0C, 0xA5 };
-static const char SepChar = ':';  // Linux is the only supported target
+static constexpr char PieceChar[] = " PNBRQK";
+static constexpr uint8_t WdlMagic[4] = { 0x71, 0xE8, 0x23, 0x5D };
+static constexpr uint8_t DtzMagic[4] = { 0xD7, 0x66, 0x0C, 0xA5 };
+static constexpr char SepChar = ':';  // Linux is the only supported target
 
 enum : size_t { HASH_SIZE = 1 << 12, HASH_MASK = HASH_SIZE - 1 };  // upstream TBTables::Size
 
