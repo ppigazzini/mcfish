@@ -267,13 +267,13 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             const int diff = eval_diff(ss1->static_eval, ss->static_eval);
             stats_update(
               &h->main_history[(size_t) flip_color(us) * HIST_UINT16 + (size_t) ss1->current_move],
-              diff * 11, 7183);
+              diff * 11, HIST_LIMIT_MAIN);
             if (!tt_hit && type_of_piece(piece_on(pos, (Square) prev_sq)) != PAWN
                 && move_type(ss1->current_move) != PROMOTION) {
                 const Square psq = (Square) prev_sq;
                 SharedStat *const row = pawn_history_row(h, pos->st->pawn_key);
                 shared_stats_update(&row[(size_t) piece_on(pos, psq) * SQUARE_NB + (size_t) psq],
-                                    diff * 13, 8192);
+                                    diff * 13, HIST_LIMIT_PAWN);
             }
         }
 
@@ -640,16 +640,16 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         search_update_continuation_histories(ss1, prev_pc, psq, prior_conthist_scale(scaled_bonus));
         stats_update(
           &h->main_history[(size_t) flip_color(us) * HIST_UINT16 + (size_t) ss1->current_move],
-          prior_mainhist_scale(scaled_bonus), 7183);
+          prior_mainhist_scale(scaled_bonus), HIST_LIMIT_MAIN);
         if (type_of_piece(prev_pc) != PAWN && move_type(ss1->current_move) != PROMOTION) {
             SharedStat *const row = pawn_history_row(h, pos->st->pawn_key);
             shared_stats_update(&row[(size_t) prev_pc * SQUARE_NB + (size_t) psq],
-                                prior_pawnhist_scale(scaled_bonus), 8192);
+                                prior_pawnhist_scale(scaled_bonus), HIST_LIMIT_PAWN);
         }
     } else if (prior_capture && prev_sq != (int) SQ_NONE) {
         const Square psq = (Square) prev_sq;
         stats_update(capture_entry(h, piece_on(pos, psq), psq, type_of_piece(captured_piece(pos))),
-                     892, 10692);
+                     892, HIST_LIMIT_CAPTURE);
     }
 
     if (pv_node)
