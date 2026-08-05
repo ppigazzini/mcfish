@@ -1194,6 +1194,14 @@ do_lane_coverage() {
 # expires in three directions: the golden gone from the tree, a case file appearing
 # that covers it, or an owner that does not NAME the golden. An owner is a claim that
 # something reads the file, and a claim nothing witnesses is just a name.
+#
+# A LOCAL golden is absent from a fresh checkout by design -- `instr_budget.golden` is
+# per-machine and gitignored, so it is present for whoever recorded one and missing
+# everywhere else. Absence therefore cannot mean "retired" on its own, and reading it
+# that way split this gate by machine: green where the file happened to sit, red in
+# CI. `.gitignore` is what tells the two apart, and it is a fact in the tree rather
+# than a second list -- so an absent golden must be ignored ON PURPOSE, and its owner
+# must still name it. Retiring one means deleting the row, the file AND its ignore.
 GOLDEN_OWNERS=(
   "signature.golden:build.sh:the bench anchor -- do_signature diffs it; no UCI case can produce a node count"
   "tb.golden:build.sh:do_tb's Syzygy discovery and root probe, which need a SyzygyPath rather than a case script"
@@ -1244,13 +1252,29 @@ do_golden_coverage() {
     owned=$((owned + 1))
   done
 
-  # An owner row for a golden that is gone is the third expiry direction.
+  # An owner row for a golden that is gone is the third expiry direction -- unless the
+  # golden is gitignored, which is the one way absence is a design and not a deletion.
+  local absent=0
   for row in "${GOLDEN_OWNERS[@]}"; do
     name=${row%%:*}
-    [[ -f tools/$name ]] || {
+    [[ -f tools/$name ]] && continue
+    if ! command -v git >/dev/null 2>&1 || ! git rev-parse --git-dir >/dev/null 2>&1; then
+      red "golden-coverage: $name is absent and no git here can say whether that is by design"
+      return 2
+    fi
+    if ! git check-ignore -q "tools/$name"; then
       red "  ROW MISSING   $name is owned but not in the tree -- delete the row with the golden"
       fails=$((fails + 1))
-    }
+      continue
+    fi
+    # Absent by design still owes the witness the present ones owe.
+    owner=${row#*:}; reason=${owner#*:}; owner=${owner%%:*}
+    if [[ ! -f $owner ]] || ! grep -q "$name" "$owner"; then
+      red "  UNWITNESSED   $name claims owner $owner, which does not name it"
+      fails=$((fails + 1))
+      continue
+    fi
+    absent=$((absent + 1))
   done
 
   # DECLARED -> TREE, without an engine. do_golden catches this too, but only after a
@@ -1265,7 +1289,7 @@ do_golden_coverage() {
   done
 
   [[ $fails -eq 0 ]] || { red "golden-coverage: $fails unclaimed or stale golden(s)"; return 1; }
-  green "golden-coverage: $((cased + owned)) goldens ($cased read by a case, $owned by an owner row)"
+  green "golden-coverage: $((cased + owned)) goldens ($cased read by a case, $owned by an owner row, $absent owned and gitignored)"
 }
 
 do_tools_smoke() {
