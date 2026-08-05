@@ -25,7 +25,6 @@
 #include "encode.h"
 #include "tables.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

@@ -20,7 +20,6 @@
 #include "thread_runtime.h"
 
 #include <pthread.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 // Size every spawned thread's stack, rather than inheriting the platform default.

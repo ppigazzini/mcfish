@@ -15,7 +15,6 @@
 #define MCFISH_THREAD_RUNTIME_H
 
 #include <pthread.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct {

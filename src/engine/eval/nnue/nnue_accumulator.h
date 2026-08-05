@@ -33,7 +33,6 @@
 #ifndef MCFISH_NNUE_ACCUMULATOR_H
 #define MCFISH_NNUE_ACCUMULATOR_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

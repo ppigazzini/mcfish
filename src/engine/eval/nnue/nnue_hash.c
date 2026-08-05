@@ -4,7 +4,6 @@
 #include "nnue_common.h"
 #include "nnue_parse.h"
 
-#include <stdbool.h>
 
 #define NNUE_HASH_COMBINE_MAGIC ((size_t) 0x9e3779b9)
 

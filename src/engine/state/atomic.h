@@ -25,7 +25,6 @@
 #define MCFISH_ATOMIC_H
 
 #include <stdatomic.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct {

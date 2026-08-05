@@ -35,7 +35,6 @@
 #include "../search/search_types.h"
 #include "../search/timeman.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

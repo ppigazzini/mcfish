@@ -22,7 +22,6 @@
 #include "nnue_architecture.h"
 #include "nnue_common.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

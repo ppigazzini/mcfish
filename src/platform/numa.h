@@ -23,7 +23,6 @@
 #ifndef MCFISH_NUMA_H
 #define MCFISH_NUMA_H
 
-#include <stdbool.h>
 #include <stddef.h>
 
 // Bound the CPU index the array-backed cpu->node map will accept. Upstream's map is a
