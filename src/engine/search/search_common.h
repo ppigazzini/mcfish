@@ -29,11 +29,16 @@
 // Name the depths that are not depths. DEPTH_QS is the quiescence entry depth;
 // the other two are the TT's "no entry" and "entry with no search behind it"
 // markers (upstream types.h).
-enum : int32_t {
-    DEPTH_QS = 0,
-    DEPTH_UNSEARCHED = -2,
-    DEPTH_NONE = -3,
-};
+//
+// `constexpr int32_t`, not an anonymous enum. These are named integers that the
+// search does arithmetic with, never an enumeration: nothing switches on them and
+// no variable has their type. An anonymous enum gave each block its own unnamed
+// TYPE, so the assertion below compared two unrelated ones -- which gcc reports as
+// `-Wenum-compare` and clang does not, on a comparison that is in fact correct.
+// A constexpr scalar is still a constant expression, so the assertion still holds.
+static constexpr int32_t DEPTH_QS = 0;
+static constexpr int32_t DEPTH_UNSEARCHED = -2;
+static constexpr int32_t DEPTH_NONE = -3;
 
 // tt.h carries the same value as DEPTH_ENTRY_OFFSET because it cannot include this
 // header without a cycle. Hold the two spellings together.
