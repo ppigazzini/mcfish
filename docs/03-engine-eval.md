@@ -359,7 +359,7 @@ mode:
   scalar path by a written correctness argument rather than by sharing one C
   expression — see [08-idiomatic-c.md](08-idiomatic-c.md)'s ISA-gated-paths
   section. **A machine without the ISA must still produce the same node count**,
-  which is exactly what the gcc lane in [09-tooling-ci.md](09-tooling-ci.md) and
+  which is exactly what the gcc lane in [10-tooling-ci.md](10-tooling-ci.md) and
   `./build.sh simd-scalar`/`arch-determinism` exist to catch, exceptions included.
 - **The affine accumulation is exact int32 with no rounding and no overflow**,
   because inputs are bounded by 127 and weights by 128. Integer addition therefore
@@ -518,7 +518,7 @@ standalone `eval` must refresh from the board rather than inherit a search's dif
 The trace's exact bytes are pinned by the `eval` golden, which is derived **from
 the oracle** — see [`../tools/cases/eval.uci`](../tools/cases/eval.uci),
 [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md) and
-[09-tooling-ci.md](09-tooling-ci.md). Because it is oracle-derived, regenerating it
+[10-tooling-ci.md](10-tooling-ci.md). Because it is oracle-derived, regenerating it
 from mcfish would convert a red gate into a recorded bug; regenerate it from the
 oracle or not at all.
 
@@ -533,4 +533,4 @@ oracle or not at all.
   [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE) — the target,
   not merely a current total. What the anchor cannot prove is faithfulness off the
   fixed bench list; that is the per-position differential's job. See
-  [09-tooling-ci.md](09-tooling-ci.md).
+  [10-tooling-ci.md](10-tooling-ci.md).

@@ -9,14 +9,14 @@ Audience: anyone editing these docs.
 ## The set
 
 `README.md` is the index — GitHub renders it for the folder, so it is what a
-reader lands on. The rest are `00-`…`11-`, numbered by **reading
+reader lands on. The rest are `00-`…`12-`, numbered by **reading
 order**, not importance: a contributor works down from the architecture into a
 zone. The prefix is the only ordinal.
 
 Each page owns one subsystem and names its **audience** in the index table. A page
 describes **what this codebase does** — not what upstream does, not what a chess
 engine does in general. Anything a reader could get from the Chess Programming
-Wiki belongs in [10-references.md](10-references.md) as a link.
+Wiki belongs in [11-references.md](11-references.md) as a link.
 
 ### Naming a module that does not exist here yet
 
@@ -149,8 +149,8 @@ who broke it.
 | [06-platform.md](06-platform.md) | `src/platform/` | hot — the engine→platform edge moves as seams land |
 | [07-shell.md](07-shell.md) | `src/shell/` | hot — `engine.c` owns the session, `uci.c` the transport over it |
 | [08-idiomatic-c.md](08-idiomatic-c.md) | the C23 patterns, the porting patterns, the measurement discipline | cold |
-| [09-tooling-ci.md](09-tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
-| [10-references.md](10-references.md) | external links | cold |
+| [10-tooling-ci.md](10-tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
+| [11-references.md](11-references.md) | external links | cold |
 | this page | the rules | cold |
 
 Cold does not mean unowned. It means the claim outlives a release, so when it *is*

@@ -151,7 +151,7 @@ nothing — never report it as a pass.
 ## Performance work
 
 Read [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) (porting patterns,
-measurement discipline) and [docs/09-tooling-ci.md](docs/09-tooling-ci.md)
+measurement discipline) and [docs/10-tooling-ci.md](docs/10-tooling-ci.md)
 (measurement tooling and its blind spots) before proposing any optimisation —
 they carry every rule this tree has paid to learn, and each perf commit carries
 its measured evidence in its body: **the commit log is the ledger; search it
@@ -237,8 +237,8 @@ or in zfish's fleet campaigns:
 | "Improving" on upstream. A cleaner formulation that moves a rounding boundary moves the node count. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
 | Integer semantics differ across C++/C at the edges, and upstream relies on wrapping in places. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
 | Comments are **imperative mood**; never pin a number a gate computes. | [docs/README.md](docs/README.md) |
-| `perf-budget` measures the EXISTING `build/mcfish`. The stamp rebuild and the tier-keyed budget close the old fake-2x-regression trap between tiers; what is left is a rebuild landing inside the timed step, so run `./build.sh build` first anyway. | [docs/09-tooling-ci.md](docs/09-tooling-ci.md) |
-| `tools/perf_callgrind.sh` prepends `bench` itself — pass only the bench ARGS, or it profiles a startup-only error run that looks plausible. | [docs/09-tooling-ci.md](docs/09-tooling-ci.md) |
+| `perf-budget` measures the EXISTING `build/mcfish`. The stamp rebuild and the tier-keyed budget close the old fake-2x-regression trap between tiers; what is left is a rebuild landing inside the timed step, so run `./build.sh build` first anyway. | [docs/10-tooling-ci.md](docs/10-tooling-ci.md) |
+| `tools/perf_callgrind.sh` prepends `bench` itself — pass only the bench ARGS, or it profiles a startup-only error run that looks plausible. | [docs/10-tooling-ci.md](docs/10-tooling-ci.md) |
 
 ## Commits
 

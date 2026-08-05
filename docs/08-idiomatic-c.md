@@ -5,7 +5,7 @@ build system, and — because it is the daily work of this repo — the recurrin
 patterns for expressing upstream's C++ constructs in C23.
 
 Audience: hot-path and build contributors. The gates that hold these rules are in
-[09-tooling-ci.md](09-tooling-ci.md).
+[10-tooling-ci.md](10-tooling-ci.md).
 
 **Path convention on this page.** A Stockfish golden is written relative to
 Stockfish's `src/`, as *upstream `nnue/network.cpp`*. That is not a path in this
@@ -56,7 +56,7 @@ specification is already written down: **"identical to Stockfish"**. It is
 checked directly and end to end by `./build.sh upstream-parity` against a
 pristine upstream build, by `./build.sh perft` as a total check on move
 generation, by the property suite under ASan+UBSan, and by the signature and
-golden-diff gates — all described in [09-tooling-ci.md](09-tooling-ci.md). Those
+golden-diff gates — all described in [10-tooling-ci.md](10-tooling-ci.md). Those
 assert the property that actually matters here, over the whole engine rather than
 over leaf helpers.
 
@@ -201,7 +201,7 @@ one long specialized hot body is the shape the measurements chose.
 The mechanism, so the rule survives its author: link-time optimisation inlines
 across translation-unit boundaries under explicit size budgets and skips most
 other cross-module optimisations — a boundary is cheap for cold code and a real
-optimisation fence for hot code ([10-references.md](10-references.md),
+optimisation fence for hot code ([11-references.md](11-references.md),
 "Translation units, LTO and layout"). Keep per-file translation units and solve
 hot visibility with header bodies: a merged-unit build and global
 inline-threshold flags both trade this tree's selective control for a blunt
@@ -601,7 +601,7 @@ the portable spelling compile to the same binary, byte for byte.
 `native` in the *measured* column is not a tier: it is whichever of the five the
 measuring host selected, so a cell reading `native` is a number about that box's
 widest tier and carries to another only if that host selects the same one. See
-[the arch ladder](09-tooling-ci.md#the-arch-ladder-and-why-native-is-a-selector),
+[the arch ladder](10-tooling-ci.md#the-arch-ladder-and-why-native-is-a-selector),
 and re-measure rather than assume — a win at one tier can be flat or negative at
 another, which is why each row names the tier at all.
 
@@ -759,7 +759,7 @@ is void by construction; removal is not.
 whose bottleneck is known — one dependency chain, one independent-ILP loop — and a
 counter that does not respond the way the bottleneck demands does not mean what its
 name says on this host. Two conclusions in this tree have died to this; see
-[09-tooling-ci.md](09-tooling-ci.md#a-counter-is-a-hypothesis-until-it-is-validated).
+[10-tooling-ci.md](10-tooling-ci.md#a-counter-is-a-hypothesis-until-it-is-validated).
 
 **Run the call-count parity test FIRST.** `perf_fingerprint.py compare --calls` is
 inlining-immune and answers "do we run Stockfish's algorithm?". On the spine it comes

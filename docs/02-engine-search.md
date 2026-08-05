@@ -660,4 +660,4 @@ depth 1 **off the root only**: the root still walks each move so the per-move sp
 it prints stays comparable with upstream's `go perft`. The counts it produces are
 gated two ways — by `test_perft` in the unit suite and by
 [`../tools/perft.table`](../tools/perft.table) via `./build.sh perft`. See
-[09-tooling-ci.md](09-tooling-ci.md).
+[10-tooling-ci.md](10-tooling-ci.md).
