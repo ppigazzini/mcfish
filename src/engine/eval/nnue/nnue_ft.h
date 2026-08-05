@@ -16,15 +16,19 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "nnue_common.h"
 #include "nnue_feature.h"
-
-#define NNUE_ROUND_UP(value, alignment) ((((value) + (alignment) - 1) / (alignment)) * (alignment))
 
 // NNUE_HALF_DIMENSIONS and NNUE_PSQT_BUCKETS are NOT redeclared here:
 // nnue_architecture.h is the single authority for every network dimension, and
 // two copies drift the day the architecture changes.
 enum : size_t {
-    NNUE_ALIGN = 64,
+    // Derived, not restated. This is the cache line `nnue_common.h` already owns,
+    // and the two must not be separately editable: the parse side lays the blob
+    // out with NNUE_CACHE_LINE_SIZE and the accessors below read it back with
+    // this one, so a difference between them puts every weight at an offset
+    // nothing reads from.
+    NNUE_ALIGN = NNUE_CACHE_LINE_SIZE,
 
     NNUE_FT_BIASES_BYTES = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
     NNUE_FT_PSQ_WEIGHTS_BYTES =
@@ -40,14 +44,14 @@ enum : size_t {
       (size_t) NNUE_THREAT_AND_PAIR_DIMENSIONS * NNUE_PSQT_BUCKETS * sizeof(int32_t),
 
     NNUE_FT_BIASES_OFFSET = 0,
-    NNUE_FT_PSQ_WEIGHTS_OFFSET = NNUE_ROUND_UP(NNUE_FT_BIASES_BYTES, NNUE_ALIGN),
+    NNUE_FT_PSQ_WEIGHTS_OFFSET = NNUE_CEIL_TO_MULTIPLE(NNUE_FT_BIASES_BYTES, NNUE_ALIGN),
     NNUE_FT_THREAT_WEIGHTS_OFFSET =
-      NNUE_ROUND_UP(NNUE_FT_PSQ_WEIGHTS_OFFSET + NNUE_FT_PSQ_WEIGHTS_BYTES, NNUE_ALIGN),
-    NNUE_FT_PSQT_WEIGHTS_OFFSET =
-      NNUE_ROUND_UP(NNUE_FT_THREAT_WEIGHTS_OFFSET + NNUE_FT_THREAT_WEIGHTS_BYTES, NNUE_ALIGN),
+      NNUE_CEIL_TO_MULTIPLE(NNUE_FT_PSQ_WEIGHTS_OFFSET + NNUE_FT_PSQ_WEIGHTS_BYTES, NNUE_ALIGN),
+    NNUE_FT_PSQT_WEIGHTS_OFFSET = NNUE_CEIL_TO_MULTIPLE(
+      NNUE_FT_THREAT_WEIGHTS_OFFSET + NNUE_FT_THREAT_WEIGHTS_BYTES, NNUE_ALIGN),
     NNUE_FT_THREAT_PSQT_WEIGHTS_OFFSET =
-      NNUE_ROUND_UP(NNUE_FT_PSQT_WEIGHTS_OFFSET + NNUE_FT_PSQT_WEIGHTS_BYTES, NNUE_ALIGN),
-    NNUE_FT_BLOB_BYTES = NNUE_ROUND_UP(
+      NNUE_CEIL_TO_MULTIPLE(NNUE_FT_PSQT_WEIGHTS_OFFSET + NNUE_FT_PSQT_WEIGHTS_BYTES, NNUE_ALIGN),
+    NNUE_FT_BLOB_BYTES = NNUE_CEIL_TO_MULTIPLE(
       NNUE_FT_THREAT_PSQT_WEIGHTS_OFFSET + NNUE_FT_THREAT_PSQT_WEIGHTS_BYTES, NNUE_ALIGN),
 };
 

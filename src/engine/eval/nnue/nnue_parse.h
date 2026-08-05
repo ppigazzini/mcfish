@@ -121,4 +121,31 @@ nnue_weight_index_scrambled(size_t i, size_t padded_input, size_t output_dims) {
                                     size_t weights_len,
                                     size_t *consumed);
 
+// Hold the two copies of the feature-transformer layout to each other.
+//
+// This blob's offsets are computed TWICE from the same architecture constants:
+// here as `NNUE_FT_*_OFF`, which is where `nnue_parse.c` WRITES each region, and
+// in `nnue_ft.h` as `NNUE_FT_*_OFFSET`, which is where `nnue_ft.c`'s accessors
+// READ it back. Two derivations of one layout, in two headers, with no consumer
+// in common -- so a change to either one alone puts every weight at an offset
+// nothing reads from.
+//
+// That failure is silent in the worst way: the net still loads, every gate still
+// runs, and the evaluation is a plausible wrong number. Only the bench signature
+// notices, and only to say that something moved.
+//
+// `nnue_ft.h` is included for exactly this. These assertions are the reason the
+// two spellings are allowed to coexist at all; delete one derivation and they go
+// with it.
+#include "nnue_ft.h"
+
+static_assert(NNUE_FT_BIASES_OFF == NNUE_FT_BIASES_OFFSET, "FT biases offset");
+static_assert(NNUE_FT_WEIGHTS_OFF == NNUE_FT_PSQ_WEIGHTS_OFFSET, "FT psq weights offset");
+static_assert(NNUE_FT_THREAT_WEIGHTS_OFF == NNUE_FT_THREAT_WEIGHTS_OFFSET,
+              "FT threat weights offset");
+static_assert(NNUE_FT_PSQT_WEIGHTS_OFF == NNUE_FT_PSQT_WEIGHTS_OFFSET, "FT psqt weights offset");
+static_assert(NNUE_FT_THREAT_PSQT_WEIGHTS_OFF == NNUE_FT_THREAT_PSQT_WEIGHTS_OFFSET,
+              "FT threat psqt weights offset");
+static_assert(NNUE_FT_TOTAL_BYTES == NNUE_FT_BLOB_BYTES, "FT blob size");
+
 #endif  // MCFISH_NNUE_PARSE_H
