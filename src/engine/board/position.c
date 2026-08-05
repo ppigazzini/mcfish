@@ -334,8 +334,7 @@ bool pos_set_reason(
             if (f > 8)
                 FEN_FAIL("Invalid FEN. Invalid file reached.");
         } else {
-            static const char *tokens = " PNBRQK  pnbrqk";
-            const char *hit = strchr(tokens, *p);
+            const char *hit = strchr(PieceToChar, *p);
             if (!hit || *p == ' ')
                 FEN_FAIL_CH("Invalid FEN. Invalid piece: %c", *p);
             if (f >= 8)
@@ -344,7 +343,7 @@ bool pos_set_reason(
                 FEN_FAIL("Invalid FEN. Invalid rank reached.");
             if (++num_pieces > 32)
                 FEN_FAIL("Invalid FEN. More than 32 pieces on the board.");
-            put_piece(pos, (Piece) (hit - tokens), make_square(f, r), nullptr);
+            put_piece(pos, (Piece) (hit - PieceToChar), make_square(f, r), nullptr);
             ++f;
         }
     }
