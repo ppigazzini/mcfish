@@ -432,6 +432,27 @@ static void cmd_uci(void) {
     uci_output_write("\nuciok\n");
 }
 
+// Print upstream's help blurb, byte for byte (uci.cpp:175-183).
+//
+// It names STOCKFISH rather than this port, and deliberately: the text is a citation
+// of the project this is a clone of, it points at that project's README, and the
+// goldens are adjudicated against the oracle -- a paraphrase would be a divergence the
+// gate reports on every run. The identity line `uci_loop` prints is the one place the
+// port names itself. Both files the last sentence promises are shipped here too.
+//
+// The leading and trailing blank lines are upstream's: the literal opens with a
+// newline and closes with one, and `sync_endl` adds a second.
+static void cmd_help(void) {
+    uci_output_write(
+      "\nStockfish is a powerful chess engine for playing and analyzing."
+      "\nIt is released as free software licensed under the GNU GPLv3 License."
+      "\nStockfish is normally used with a graphical user interface (GUI) and implements"
+      "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."
+      "\nFor any further information, visit https://github.com/official-stockfish/Stockfish#readme"
+      "\nor read the corresponding README.md and Copying.txt files distributed along with this "
+      "program.\n\n");
+}
+
 // Execute one command line. Return false on `quit`.
 static bool execute(char *line) {
     char *cmd = line;
@@ -535,6 +556,9 @@ static bool execute(char *line) {
         benchmark_run(args);
     } else if (strcmp(cmd, "compiler") == 0) {
         cmd_compiler();
+    } else if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "help") == 0
+               || strcmp(cmd, "--license") == 0 || strcmp(cmd, "license") == 0) {
+        cmd_help();
     } else {
         // Quote the WHOLE line, not the token: upstream prints the `cmd` it read
         // (uci.cpp:182), so `positon startpos` comes back in full and the operator can

@@ -219,12 +219,13 @@ is why `strtok` is usable at all.
 | `eval` | Print the evaluation trace via `evaluate_trace`. |
 | `compiler` | Print the clang or gcc version and `__STDC_VERSION__` the binary was built with. |
 | `ponderhit` | Clear the ponder flag, so a `go ponder` search begins enforcing its time limits. |
+| `help`, `--help`, `license`, `--license` | Print upstream's blurb, byte for byte — including its blank first and last lines, and its own name. The text is a citation of the project this is a clone of and points at that project's README; the identity line `uci_loop` prints is the one place the port names itself. |
 | a blank line, or one whose first word starts with `#` | Nothing at all — not even the drain. Upstream hangs every arm off `!token.empty() && token[0] != '#'`, so a commented script can be piped at the engine; the shell returns before `engine_end_search`, so a comment between two `go` lines cannot end a search either. |
 | anything else | Print `Unknown command: '<line>'. Type help for more information.`, quoting the **whole line** as typed — indent included — not the first word. |
 
-One honest note on that last row: the message names a `help` command, and **there
-is no `help` handler** — typing `help` prints the unknown-command message about
-itself.
+The `help` that last row names is a command that answers, which it was not until
+`tools/cases/shell.uci` went in: the message advertised a handler that did not exist,
+so typing `help` printed the unknown-command message about itself.
 
 `go` runs the search **off the UCI thread**. `go_line` hands the search to worker 0's
 OS thread through `search_go_start` and returns, so the loop keeps reading stdin
