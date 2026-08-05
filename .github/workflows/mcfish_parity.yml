@@ -254,20 +254,68 @@ jobs:
   # This job also independently re-validates the diagnostics: gcc's -Wconversion /
   # -Wsign-conversion / -Wshadow findings differ from clang's, so it surfaces sloppiness
   # clang happens not to warn about.
+  #
+  # PINNED TO TWO VERSIONS, not to the runner's default. The default `gcc` is whatever
+  # the image ships and it moves without warning -- it moved from 13 to 14 under this
+  # very workflow, so the comment here described gcc-13's `-std=c2x` fallback while the
+  # lane was actually exercising gcc-14 on `-std=c23`. A lane whose subject drifts is a
+  # lane that stops testing what it claims.
+  #
+  # The two entries are not redundant, and the matrix says why in the `std` column:
+  # `detect_std_flag` prefers `-std=c23` and falls back to `-std=c2x`, and gcc-13 is the
+  # ONLY compiler in this repo's set that takes the fallback path. Drop gcc-13 and that
+  # branch of the probe is never executed by CI again.
   gcc:
-    name: Linux x86-64 parity (gcc)
+    name: Linux x86-64 parity (${{ matrix.cc }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      # Both versions always run: a failure on one is a fact about that toolchain and
+      # says nothing about the other, and cancelling the sibling hides half the answer.
+      fail-fast: false
+      matrix:
+        include:
+          - cc: gcc-13
+            std: -std=c2x
+            # gcc 13 predates the -std=c23 spelling; this is the fallback branch.
+            rejects: -std=c23
+          - cc: gcc-14
+            std: -std=c23
+            rejects: ''
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Use the runner's default gcc. build.sh probes for the C23 flag this compiler
-      # spells (`-std=c23`, falling back to gcc-13's `-std=c2x` -- the same language,
-      # different spelling) and hard-fails if neither is accepted, so no version pin is
-      # needed here. Verified locally: gcc 13.3 builds this tree clean and reproduces the
-      # clang signature exactly.
-      - name: Show the gcc version under test
-        run: gcc --version
+      # Install explicitly rather than trusting the image to carry both.
+      - name: Install ${{ matrix.cc }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ${{ matrix.cc }}
+          ${{ matrix.cc }} --version
+
+      # Assert this entry still exercises the branch of detect_std_flag it exists for.
+      # Without this the matrix degenerates silently: if a gcc-13 point release ever
+      # learned `-std=c23`, both rows would take the same branch and the fallback would
+      # go untested while the matrix still claimed to cover it.
+      - name: Assert the C23 flag this compiler spells
+        run: |
+          set -euo pipefail
+          probe() { echo 'int main(void){return 0;}' | ${{ matrix.cc }} "$1" -x c - -o /dev/null; }
+          probe '${{ matrix.std }}' \
+            || { echo "FAIL: ${{ matrix.cc }} does not accept ${{ matrix.std }}" >&2; exit 1; }
+          if [ -n '${{ matrix.rejects }}' ]; then
+            ! probe '${{ matrix.rejects }}' 2>/dev/null \
+              || { echo "FAIL: ${{ matrix.cc }} now accepts ${{ matrix.rejects }}; this row no longer covers detect_std_flag's fallback branch -- repin the matrix" >&2; exit 1; }
+          fi
+
+      # The enum tier is a promoted DIAGNOSTIC, so it is only as real as the flag the
+      # compiler accepts. detect_enum_flags probes and silently omits what is rejected,
+      # which is correct behaviour and also a way for this lane to go advisory without
+      # anyone noticing. gcc spells it -Wenum-conversion; assert it is still there.
+      - name: Assert the enum tier is enforceable on this compiler
+        run: |
+          echo 'int main(void){return 0;}' \
+            | ${{ matrix.cc }} ${{ matrix.std }} -Werror=enum-conversion -x c - -o /dev/null \
+            || { echo "FAIL: ${{ matrix.cc }} no longer accepts -Werror=enum-conversion; the enum tier is advisory on this lane" >&2; exit 1; }
 
       # The signature gate below runs the engine, which aborts without the net (see the parity
       # job's note). Fetch + cache it here too.
@@ -282,9 +330,9 @@ jobs:
       # Release build only (not `parity`): the fmt/zone-check/golden gates are
       # compiler-independent and the clang lane already owns them. What this lane uniquely
       # tests is that gcc can compile the tree at all, under the same strict flags.
-      - name: Build with gcc
+      - name: Build with ${{ matrix.cc }}
         env:
-          CC: gcc
+          CC: ${{ matrix.cc }}
         run: ./build.sh build
 
       # do_signature reuses the binary already in build/ (need_binary only rebuilds when it
@@ -293,14 +341,14 @@ jobs:
       # compiler: a mismatch means UB, per the job comment above.
       - name: Signature must match the clang-derived anchor
         env:
-          CC: gcc
+          CC: ${{ matrix.cc }}
         run: ./build.sh signature
 
       # Movegen is the other place a UB-driven divergence would show up as wrong numbers
       # rather than a crash, and perft is a total check on it. Cheap, so run it here too.
-      - name: Perft under the gcc build
+      - name: Perft under the ${{ matrix.cc }} build
         env:
-          CC: gcc
+          CC: ${{ matrix.cc }}
         run: ./build.sh perft
 
   # Race gate, named as zfish names its equivalent lane. `parity` cannot see a data

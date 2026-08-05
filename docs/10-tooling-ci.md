@@ -952,6 +952,24 @@ Runs on every push and PR, with four jobs:
   This lane is the reason the `packed struct` and wrapping-arithmetic rules in
   [08-idiomatic-c.md](08-idiomatic-c.md) are rules and not preferences.
 
+  **It is a matrix over two pinned versions, `gcc-13` and `gcc-14`, not the
+  runner's default.** The default moved from 13 to 14 underneath this workflow
+  while its own comment still described gcc-13, so the lane was not testing what
+  it claimed. The two rows are not redundant: `detect_std_flag` prefers
+  `-std=c23` and falls back to `-std=c2x`, and gcc-13 is the only compiler in this
+  repo's set that takes the fallback — drop it and that branch of the probe is
+  never executed by CI again. Each row asserts the flag it is there to exercise
+  **and** that the other version's flag is still refused, so the matrix cannot
+  quietly degenerate into two identical rows.
+
+  Each row also asserts that its compiler still accepts
+  `-Werror=enum-conversion`. That flag is how the enum tier described in
+  [09-type-design.md](09-type-design.md) is enforced on this lane, and
+  `detect_enum_flags` **silently omits** any spelling the compiler rejects —
+  correct behaviour, and also a way for the lane to become advisory with nothing
+  going red. `fail-fast` is off, because a failure on one toolchain is a fact
+  about that toolchain and says nothing about the other.
+
 ### `mcfish_perft.yml` — nightly deep perft
 
 The push lane's perft is capped by a sub-minute budget, and depth is what perft
