@@ -61,6 +61,7 @@ gcc-13 and gcc-14 — rather than by reading a support table.
 | `alignas` / `alignof` | **used** | no `<stdalign.h>` behind them |
 | `bool`/`true`/`false` | **used** | keywords; `<stdbool.h>` deleted |
 | `stdc_count_ones` | **used** | identical codegen to the builtin, at every tier |
+| `stdc_bit_ceil_ull` | **used** | replaced a hand-rolled guard + `clz` + shift, identical codegen |
 | `[static N]` | **used** | on the only fixed-extent array parameters here |
 | `stdc_trailing_zeros` / `stdc_leading_zeros` | **refused** | defined at zero, which costs one instruction per call at sse41 on `pop_lsb`; the precondition already excludes zero |
 | `unreachable()` | **refused** | it converts a reachable bug into undefined behaviour; the engine prefers a wrong answer it can gate over UB it cannot |
@@ -68,9 +69,30 @@ gcc-13 and gcc-14 — rather than by reading a support table.
 | `_BitInt(N)` | **refused** | nothing here needs a width the fixed-size types lack, and it changes promotion rules under a bit-exact anchor |
 | `#embed` | **refused** | the net and the tablebases are runtime inputs by design |
 | `auto` | **refused** | these files are read side by side with upstream's C++; an inferred type costs the reader the comparison |
-| `typeof` / `_Generic` | **not applicable** | the two rounding macros are used in enum initialisers, so only a macro works there; nothing else has a double-evaluation hazard |
-| `<stdckdint.h>` | **not applicable** | every allocation size is already bounded before it is computed — the Syzygy parser refuses out-of-range headers, and spin options are range-checked |
+| `typeof` / `_Generic` | **not applicable** | the one rounding macro is used in enum initialisers and `static_assert`s, which no inline function can supply — C has no `constexpr` FUNCTION. Nothing else has a double-evaluation hazard |
+| `<stdckdint.h>` | **not applicable**, re-checked | see below |
 | binary literals, digit separators, `{}` empty init | **available, unused** | conforming on all three (checked with `-pedantic-errors`); no site currently reads better for them |
+
+**Why there is no checked arithmetic here**, since "we parse untrusted files and
+never call a checked-arithmetic macro" is the kind of claim that should look wrong
+until it is explained. The parsers **refuse before they compute**, rather than
+computing and then detecting overflow, which is the stronger of the two patterns:
+
+- `decode.c` rejects a block or span log `>= 64` before `1 << log`, so a raw file
+  byte cannot drive the shift out of range; it rejects an inverted or oversized
+  symbol-length pair before the width arithmetic; and `base64_size` is therefore
+  `<= 63` and `symlen_size <= 65535` by construction, so neither the
+  `* sizeof(uint64_t)` nor the `+ 1` can wrap.
+- `nnue_parse.c` checks `blob_len` against the header size *before* subtracting
+  it, so the length cannot underflow to a huge `size_t`.
+- Every spin option is range-validated against its own min and max before it
+  reaches `tt_resize`, so the megabyte-to-bytes multiply is bounded by the option
+  table rather than by the value a GUI sent.
+
+That audit covers shifts and subtractions, not only multiplications. The first
+pass looked at `alloc(a * b)` sites alone and would have missed both of the first
+two. A checked-arithmetic macro would add a second check after a value that is
+already refused, which is ceremony rather than safety.
 
 The two refusals worth remembering are the shape of the rule: `stdc_count_ones`
 and `stdc_trailing_zeros` arrived in the same header on the same day, and one is
