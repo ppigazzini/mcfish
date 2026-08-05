@@ -105,6 +105,8 @@ void search_shutdown(void) {
 uint64_t search_last_nodes_searched(void) { return LastNodesSearched; }
 void search_reset_last_nodes_searched(void) { LastNodesSearched = 0; }
 
+int32_t search_hashfull(int32_t max_age) { return tt_hashfull(max_age); }
+
 // ---- the option seam ----------------------------------------------------
 //
 // Answer with upstream's defaults for the options that steer the search. The

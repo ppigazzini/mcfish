@@ -166,6 +166,11 @@ void search_shutdown(void);
 uint64_t search_last_nodes_searched(void);
 void search_reset_last_nodes_searched(void);
 
+// Report the transposition table's fill in permille, counting only entries no older
+// than MAX_AGE generations. The `info` line reports age 0; `speedtest` samples 0 and
+// 999, which is "this search" against "everything the game has touched".
+int32_t search_hashfull(int32_t max_age);
+
 // Count the leaves of the legal move tree at DEPTH, printing the per-move split.
 uint64_t perft(Position *pos, int depth, bool root);
 

@@ -13,10 +13,12 @@
 #include "../platform/tablebase.h"
 #include "benchmark.h"
 #include "engine.h"
+#include "speedtest.h"
 #include "uci_output.h"
 #include "ucioption.h"
 
 #include <ctype.h>
+#include <stdarg.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -351,71 +353,105 @@ static void cmd_flip(void) {
 // then the narrowing SSE tiers, POPCNT last. Each entry is gated on the macro the
 // compiler defines for the flag build.sh passed, so the line describes THIS binary
 // rather than what the tier is nominally supposed to have.
-static void cmd_compiler(void) {
-    uci_output_printf("\nCompiled by                : ");
+// Append to BUF at *POS, never past LEN. One helper so the block below reads as the
+// sequence of fields it is rather than as bounds arithmetic.
+[[gnu::format(printf, 4, 5)]] static void
+append(char *buf, size_t len, size_t *pos, const char *fmt, ...) {
+    if (*pos >= len)
+        return;
+    va_list args;
+    va_start(args, fmt);
+    const int n = vsnprintf(buf + *pos, len - *pos, fmt, args);
+    va_end(args);
+    if (n > 0)
+        *pos += (size_t) n < len - *pos ? (size_t) n : len - *pos - 1;
+}
+
+void uci_compiler_info(char *buf, size_t buf_len) {
+    size_t pos = 0;
+    buf[0] = '\0';
+
+    append(buf, buf_len, &pos, "\nCompiled by                : ");
 #if defined(__clang__)
-    uci_output_printf("clang++ %d.%d.%d", __clang_major__, __clang_minor__, __clang_patchlevel__);
+    append(buf, buf_len, &pos, "clang++ %d.%d.%d", __clang_major__, __clang_minor__,
+           __clang_patchlevel__);
 #elif defined(__GNUC__)
-    uci_output_printf("g++ (GNUC) %d.%d.%d", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+    append(buf, buf_len, &pos, "g++ (GNUC) %d.%d.%d", __GNUC__, __GNUC_MINOR__,
+           __GNUC_PATCHLEVEL__);
 #else
-    uci_output_printf("Unknown compiler (unknown version)");
+    append(buf, buf_len, &pos, "Unknown compiler (unknown version)");
 #endif
 #if defined(__linux__)
-    uci_output_printf(" on Linux");
+    append(buf, buf_len, &pos, " on Linux");
 #elif defined(__APPLE__)
-    uci_output_printf(" on Apple");
+    append(buf, buf_len, &pos, " on Apple");
 #elif defined(_WIN64)
-    uci_output_printf(" on Microsoft Windows 64-bit");
+    append(buf, buf_len, &pos, " on Microsoft Windows 64-bit");
 #else
-    uci_output_printf(" on unknown system");
+    append(buf, buf_len, &pos, " on unknown system");
 #endif
 
-    uci_output_printf("\nCompilation architecture   : ");
+    append(buf, buf_len, &pos, "\nCompilation architecture   : ");
 #if defined(MCFISH_ARCH_STRING)
-    uci_output_printf("%s", MCFISH_ARCH_STRING);
+    append(buf, buf_len, &pos, "%s", MCFISH_ARCH_STRING);
 #else
-    uci_output_printf("(undefined architecture)");
+    append(buf, buf_len, &pos, "(undefined architecture)");
 #endif
 
-    uci_output_printf("\nCompilation settings       : %s", sizeof(void *) == 8 ? "64bit" : "32bit");
+    append(buf, buf_len, &pos, "\nCompilation settings       : %s",
+           sizeof(void *) == 8 ? "64bit" : "32bit");
 #if defined(__AVX512VBMI2__) && defined(__AVX512BITALG__)
-    uci_output_printf(" AVX512ICL");
+    append(buf, buf_len, &pos, " AVX512ICL");
 #endif
 #if defined(__AVX512VNNI__)
-    uci_output_printf(" VNNI");
+    append(buf, buf_len, &pos, " VNNI");
 #endif
 #if defined(__AVX512F__)
-    uci_output_printf(" AVX512");
+    append(buf, buf_len, &pos, " AVX512");
 #endif
 #if defined(__BMI2__)
-    uci_output_printf(" BMI2");
+    append(buf, buf_len, &pos, " BMI2");
 #endif
 #if defined(__AVX2__)
-    uci_output_printf(" AVX2");
+    append(buf, buf_len, &pos, " AVX2");
 #endif
 #if defined(__SSE4_1__)
-    uci_output_printf(" SSE41");
+    append(buf, buf_len, &pos, " SSE41");
 #endif
 #if defined(__SSSE3__)
-    uci_output_printf(" SSSE3");
+    append(buf, buf_len, &pos, " SSSE3");
 #endif
 #if defined(__SSE2__)
-    uci_output_printf(" SSE2");
+    append(buf, buf_len, &pos, " SSE2");
 #endif
 #if defined(__POPCNT__)
-    uci_output_printf(" POPCNT");
+    append(buf, buf_len, &pos, " POPCNT");
 #endif
 #if !defined(NDEBUG)
-    uci_output_printf(" DEBUG");
+    append(buf, buf_len, &pos, " DEBUG");
 #endif
 
-    uci_output_printf("\nCompiler __VERSION__ macro : ");
+    append(buf, buf_len, &pos, "\nCompiler __VERSION__ macro : ");
 #ifdef __VERSION__
-    uci_output_printf("%s", __VERSION__);
+    append(buf, buf_len, &pos, "%s", __VERSION__);
 #else
-    uci_output_printf("(undefined macro)");
+    append(buf, buf_len, &pos, "(undefined macro)");
 #endif
-    uci_output_printf("\n\n");
+    // ONE trailing newline, not two. Upstream's `compiler_info()` ends there and its
+    // two callers add what they need: the `compiler` command's `sync_endl` makes the
+    // blank line below, and `speedtest` writes its next field straight on.
+    append(buf, buf_len, &pos, "\n");
+}
+
+void uci_engine_version(char *buf, size_t buf_len) {
+    snprintf(buf, buf_len, "%s %s", ENGINE_NAME, ENGINE_VERSION);
+}
+
+static void cmd_compiler(void) {
+    char info[COMPILER_INFO_MAX];
+    uci_compiler_info(info, sizeof info);
+    uci_output_write(info);
+    uci_output_write("\n");
 }
 
 static void cmd_uci(void) {
@@ -556,6 +592,11 @@ static bool execute(char *line) {
         benchmark_run(args);
     } else if (strcmp(cmd, "compiler") == 0) {
         cmd_compiler();
+    } else if (strcmp(cmd, "speedtest") == 0) {
+        // Upstream spells the command through a constant (`BenchmarkCommand`) and
+        // reports it back in the invocation echo; the name is the only place it
+        // appears, so it is spelled here and in speedtest.c's two echo lines.
+        speedtest_run(args);
     } else if (strcmp(cmd, "export_net") == 0) {
         // One token, as `is >> filename` reads (uci.cpp:165-172): a path with a space
         // in it is cut at the space on both engines, and no argument at all means the
