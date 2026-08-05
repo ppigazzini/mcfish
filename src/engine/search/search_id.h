@@ -19,9 +19,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Emit the "currmove" line only past this many nodes, as upstream does.
-enum : uint64_t { ID_NODES_LIMIT_OUTPUT = 10000000 };
-
 // Order RootMoves descending by (score, previous_score).
 bool root_less(const RootMove *a, const RootMove *b);
 

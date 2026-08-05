@@ -39,6 +39,12 @@ enum : int32_t {
 // header without a cycle. Hold the two spellings together.
 static_assert(DEPTH_ENTRY_OFFSET == DEPTH_NONE, "the TT depth bias is DEPTH_NONE");
 
+// Emit the "currmove" line only past this many nodes, as upstream does. Both the
+// ID loop and the root node body gate on it, so it is declared once here rather
+// than beside either of them: two declarations drift, and a threshold that drifts
+// changes which info lines a GUI sees without moving a single node count.
+enum : uint64_t { ID_NODES_LIMIT_OUTPUT = 10000000 };
+
 // Index by Piece, not PieceType: the search reads it straight off `board[sq]`,
 // where the black pieces sit at 9..14.
 extern const int32_t PieceValueByPiece[PIECE_NB];
