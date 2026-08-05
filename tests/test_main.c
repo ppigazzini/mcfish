@@ -31,6 +31,9 @@
 #include "../src/engine/search/tt.h"
 #include "../src/engine/eval/nnue/simd.h"
 #include "../src/platform/numa.h"
+#include "../src/platform/syzygy/decode.h"
+#include "../src/platform/syzygy/encode.h"
+#include "../src/platform/syzygy/wdl.h"
 #include "../src/platform/thread_pool.h"
 
 #include <stdatomic.h>
@@ -1173,6 +1176,70 @@ static void test_search_step_margins(void) {
           "clamped below at a quarter of the limit, got %d", multicut_correction_bonus(-30000, 60));
 }
 
+// ------------------------------------------------- syzygy WDL score domain
+
+// Pin the domain `wdl.h` promises for a WDL probe: a score in -2..2.
+//
+// The value a probe returns is one the FILE decided -- a btree leaf on the
+// compressed path, `min_sym_len` verbatim on the single-value one -- and until
+// `do_probe_table` bounded it, nothing between the mapped bytes and the score
+// did. A stored byte of 255 left the probe as a WDL score of 253, and the root
+// ranking then read `WdlToRank[wdl + 2]` five entries wide.
+//
+// Construct the table rather than corrupt a file: this is the one place the
+// whole hostile-file path can be driven with no mapping, no registry generation
+// and no dependence on which table the fetch step happened to install. The
+// single-value branch is the shortest route to a value the file chose, because
+// `decode_pairs` returns `min_sym_len` before it reads a single compressed bit.
+static void test_syzygy_wdl_score_domain(void) {
+    banner("syzygy WDL score domain");
+
+    encode_init_geometry();
+
+    // KQvK with white to move: no pawns, three men, and a unique piece, so the
+    // probe takes the piece-encoding branch and never asks for a lead pawn.
+    Position pos;
+    StateInfo si;
+    if (!pos_set(&pos, "8/8/8/8/8/2K5/3Q4/7k w - - 0 1", false, &si)) {
+        CHECK(false, "KQvK fen must parse");
+        return;
+    }
+
+    TBTable t;
+    memset(&t, 0, sizeof t);
+    t.key = syzygy_position_key(&pos);
+    t.key2 = t.key + 1;  // not symmetric, so a white-to-move probe takes side 0
+    t.piece_count = 3;
+    t.has_pawns = false;
+    t.has_unique_pieces = true;
+    t.sides = 2;
+
+    PairsData *const d = tbtable_get(&t, false, 0, 0);
+    d->flags = TB_FLAG_SINGLE_VALUE;
+    d->group_len[0] = 3;  // all three men in one group; group_len[1] == 0 ends the walk
+    d->group_idx[0] = 1;
+
+    // Every value a WDL file can hold survives, mapped to its score.
+    for (int32_t stored = 0; stored <= 4; ++stored) {
+        d->min_sym_len = (uint8_t) stored;
+        int32_t state = PROBE_OK;
+        const int32_t score = do_probe_table(&pos, &t, false, 0, &state);
+        CHECK(state != PROBE_FAIL, "stored %d is a WDL outcome and must probe", stored);
+        CHECK(score == stored - 2, "stored %d maps to score %d, got %d", stored, stored - 2, score);
+    }
+
+    // Nothing else does. 255 is the byte that reached the ranking as -253.
+    static const uint8_t Invented[] = { 5, 6, 127, 128, 200, 255 };
+    for (size_t i = 0; i < sizeof Invented / sizeof Invented[0]; ++i) {
+        d->min_sym_len = Invented[i];
+        int32_t state = PROBE_OK;
+        const int32_t score = do_probe_table(&pos, &t, false, 0, &state);
+        CHECK(state == PROBE_FAIL, "stored %u is no WDL outcome and must be refused",
+              (unsigned) Invented[i]);
+        CHECK(score == 0, "a refused probe yields 0, got %d", score);
+    }
+}
+
 static void test_numa_from_string(void) {
     banner("numa policy strings");
 
@@ -1345,6 +1412,7 @@ int main(void) {
     test_search_step_margins();
     test_movepick_poison();
     test_nnue_parse_poison();
+    test_syzygy_wdl_score_domain();
     test_numa_from_string();
     test_numa_config_shape();
     test_thread_pool();
