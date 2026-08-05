@@ -41,6 +41,41 @@ only thing that constrains the choice is that both compilers in
 [`../.github/workflows/mcfish_parity.yml`](../.github/workflows/mcfish_parity.yml)
 accept it.
 
+### Which of them this tree actually uses, and which it refuses
+
+"In scope" is not "adopt everything". A feature earns its place by stating an
+intent more directly or by closing a defect, and three below are refused on
+measurement rather than taste. The verdicts are the result of walking the whole
+feature set against the tree, and each was checked by compiling — on clang,
+gcc-13 and gcc-14 — rather than by reading a support table.
+
+| feature | verdict | why |
+|---|---|---|
+| `nullptr` | **used** | the null pointer with a type |
+| `enum : T` | **used** | the newtype tier; see [09-type-design.md](09-type-design.md) |
+| `constexpr` | **used** | every constant table; refuses a runtime initialiser |
+| `[[nodiscard]]` | **used** | enforced as an error, not advisory |
+| `[[maybe_unused]]` | **used** | the escape hatch for a fixed callback signature |
+| `[[fallthrough]]` | **used** | an intentional switch fallthrough |
+| bare `static_assert` | **used** | layout and width contracts |
+| `alignas` / `alignof` | **used** | no `<stdalign.h>` behind them |
+| `bool`/`true`/`false` | **used** | keywords; `<stdbool.h>` deleted |
+| `stdc_count_ones` | **used** | identical codegen to the builtin, at every tier |
+| `[static N]` | **used** | on the only fixed-extent array parameters here |
+| `stdc_trailing_zeros` / `stdc_leading_zeros` | **refused** | defined at zero, which costs one instruction per call at sse41 on `pop_lsb`; the precondition already excludes zero |
+| `unreachable()` | **refused** | it converts a reachable bug into undefined behaviour; the engine prefers a wrong answer it can gate over UB it cannot |
+| `[[unsequenced]]` / `[[reproducible]]` | **refused** | no compiler here implements them — clang and both gccs warn and ignore |
+| `_BitInt(N)` | **refused** | nothing here needs a width the fixed-size types lack, and it changes promotion rules under a bit-exact anchor |
+| `#embed` | **refused** | the net and the tablebases are runtime inputs by design |
+| `auto` | **refused** | these files are read side by side with upstream's C++; an inferred type costs the reader the comparison |
+| `typeof` / `_Generic` | **not applicable** | the two rounding macros are used in enum initialisers, so only a macro works there; nothing else has a double-evaluation hazard |
+| `<stdckdint.h>` | **not applicable** | every allocation size is already bounded before it is computed — the Syzygy parser refuses out-of-range headers, and spin options are range-checked |
+| binary literals, digit separators, `{}` empty init | **available, unused** | conforming on all three (checked with `-pedantic-errors`); no site currently reads better for them |
+
+The two refusals worth remembering are the shape of the rule: `stdc_count_ones`
+and `stdc_trailing_zeros` arrived in the same header on the same day, and one is
+free while the other is not. Only disassembly separates them.
+
 **That rules out a deductive verifier as a gate**, and it is worth saying why so
 the question is not reopened. A source-analysing prover has to parse the tree
 with its own front end, and no current one parses this dialect: Frama-C 33.0~beta
