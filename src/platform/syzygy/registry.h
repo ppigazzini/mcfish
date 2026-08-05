@@ -22,6 +22,7 @@
 #define MCFISH_SYZYGY_REGISTRY_H
 
 #include "../thread_runtime.h"
+#include "encode.h"
 #include "tables.h"
 
 #include <stdbool.h>
@@ -75,9 +76,26 @@ size_t registry_found_dtz(void);
 // Find the table serving KEY, or nullptr.
 TBTable *registry_get(uint64_t key);
 
+// Which side's half of a two-sided WDL table a probe reads.
+//
+// This is the side to move in the TABLE's frame, not the position's:
+// `do_probe_table` flips it when the table stores the mirrored configuration, so
+// it is `pos->side_to_move ^ swap` rather than `pos->side_to_move`. It is a
+// distinct type from `Color` for that reason and from `TbFile` for a sharper one
+// — the two used to be adjacent `size_t` parameters of `tbtable_get`, and a
+// transposition there stays in range through `stm % t->sides` and reads a real
+// sub-table of the wrong side.
+typedef enum : uint8_t {
+    TB_STM_WHITE = 0,
+    TB_STM_BLACK = 1,
+} TbStm;
+
+// Name the stored side at INDEX, for the parse loops that walk `sides` directly.
+static inline TbStm tb_stm_at(size_t index) { return (TbStm) index; }
+
 // Select one PairsData: WDL uses items[stm % sides][f], DTZ is one-sided.
 // Mirror upstream `entry->get(stm, f)`.
-PairsData *tbtable_get(TBTable *t, bool dtz, size_t stm, size_t f);
+PairsData *tbtable_get(TBTable *t, bool dtz, TbStm stm, TbFile f);
 
 // Map and parse T's file on first use. Return false — permanently, for this
 // registry generation — when the file is missing, truncated or corrupt.

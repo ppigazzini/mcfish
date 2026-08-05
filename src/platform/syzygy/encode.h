@@ -35,6 +35,35 @@ static inline int32_t off_a1h8(unsigned sq) { return (int32_t) (sq >> 3) - (int3
 // index for a leading pawn.
 static inline size_t edge_distance(unsigned f) { return f < 7u - f ? f : 7u - f; }
 
+// Which of a pawnful table's four per-file sub-tables a position uses.
+//
+// This is NOT a board file. A board file is one of eight, a table file one of
+// four, and `edge_distance` is the fold between them. Both spaces were `size_t`,
+// so a board file reaching the sub-table lookup compiled and read a real
+// sub-table of the wrong file — and a tablebase reports its verdict as fact, not
+// as an estimate, so the wrong answer is a confident one.
+//
+// The tag width is `uint8_t` but the range is the bound of the arrays it indexes:
+// `TBTable::items[side][file]` and `dtz_items[0][file]` are four wide.
+typedef enum : uint8_t {
+    TB_FILE_A = 0,
+    TB_FILE_B = 1,
+    TB_FILE_C = 2,
+    TB_FILE_D = 3,
+} TbFile;
+
+// Fold a board file (0..7) into the table file it selects. The ONLY route between
+// the two spaces — every other conversion is a bug.
+static inline TbFile tb_file_of_board_file(unsigned board_file) {
+    return (TbFile) edge_distance(board_file);
+}
+
+// Name the table file at INDEX, for the parse loops that walk the four sub-tables
+// directly. Every caller is a loop bounded by the table's own `max_file`, which
+// `registry.c` sets to 3 for a pawnful table and 0 otherwise, so this reconstructs
+// an index the parser produced rather than checking one a caller computed.
+static inline TbFile tb_file_at(size_t index) { return (TbFile) index; }
+
 // Read the geometry tables through a range check. A well-formed table never
 // indexes outside them, so an out-of-range read means a corrupt file: yield 0 and
 // let the caller's probe come out unusable rather than read past the array.
