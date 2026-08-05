@@ -379,6 +379,18 @@ boundary or not at all is the rule, and this is the case that earned it.
 comparison between two of them in different units. What holds here is a separate
 *producer* for the wall clock, not a separate type.
 
+**A history bonus and the table's clamp.** `stats_update(entry, bonus, d)` and
+`shared_stats_update(entry, bonus, d)` take two adjacent `int`s across eighteen call
+sites, and the clamp is a literal at the call — five distinct values. A swap does not
+fail: it clamps by one and divides by the other, producing a differently shaped
+gravity curve and so a different move ordering. Both sibling ports closed this by
+making the clamp a **compile-time parameter**, which C does not have, so neither fix
+ports. Naming the clamp with a `constexpr` or an enum would leave both parameters
+`int` and stop nothing — a rename dressed as a guarantee. The honest option is one
+update wrapper per table, each carrying its own clamp, and that is a real change on a
+per-node path, so it needs a measurement rather than a signature. **Known and not
+fixed.**
+
 **Boolean provenance at a call site.** `cut_node` is a bare `bool` passed
 positionally, and `cont_hist_page(h, in_check, capture, pc, to)` takes two
 adjacent booleans — either pair transposable, and a transposition still selects a
