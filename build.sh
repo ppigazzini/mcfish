@@ -58,36 +58,46 @@ detect_std_flag() {
 
 STD_FLAG=$(detect_std_flag)
 
-# Promote the two conversions that break a domain type into errors.
+# Promote the conversions that break a domain type into errors.
 #
 # The C23 `typedef enum : uint8_t` is this port's newtype: `Square`, `Piece`,
 # `Color`, `Direction`, `TbFile`, `TbStm` and the rest are distinct types with a
-# fixed width, and clang already diagnoses the two ways into one of them. But it
-# diagnoses them as WARNINGS under a build that is not -Werror, so a `Direction`
-# reaching a `Square` parameter printed a line and produced a binary -- an
-# advisory, not a guarantee. These two promotions are what make the enum tier
-# load-bearing, and the tree is clean under both:
+# fixed width, and both compilers already diagnose a confusion between two of
+# them. But they diagnose it as a WARNING under a build that is not -Werror, so a
+# `Direction` reaching a `Square` parameter printed a line and produced a binary
+# -- an advisory, not a guarantee. These promotions are what make the enum tier
+# load-bearing, and the tree is clean under every one of them:
 #
-#   implicit-enum-enum-cast   one domain type reaching another's parameter
+#   enum-conversion           one domain type reaching another's parameter (gcc,
+#                             and clang accepts the spelling too)
+#   implicit-enum-enum-cast   the same, clang's own spelling
 #   implicit-int-conversion   a raw narrowing integer entering a domain type
 #
-# The second is the one that matters for a fold: `edge_distance` maps eight board
+# The third is the one that matters for a fold: `edge_distance` maps eight board
 # files onto four table files, and without it an unconverted board file reaches
-# `TbFile` for the price of a warning. Neither stops an EXPLICIT cast, which is
-# the point -- a conversion should be a line a reviewer can see.
+# `TbFile` for the price of a warning. None of them stops an EXPLICIT cast, which
+# is the point -- a conversion should be a line a reviewer can see.
 #
-# Probe rather than pin: both spellings are clang's, and gcc rejects each option
-# outright (`no option '-Wimplicit-enum-enum-cast'`) rather than ignoring it, so
-# hardcoding them would break the second-compiler lane. gcc has no equivalent for
-# either, so under gcc the enum tier stays advisory and only the clang lane
-# enforces it.
+# Probe rather than pin, because coverage is NOT the same on both compilers and
+# an unrecognised `-Werror=` is a hard error rather than a no-op:
+#
+#   gcc 13.3 / 14.2   -Wenum-conversion only. It is already on under -Wall here
+#                     and catches enum-to-enum; gcc has NO int-to-enum narrowing
+#                     diagnostic, so that half stays advisory on this lane.
+#   clang             all three spellings, so both halves are enforced.
+#
+# Measured on this host with gcc-13 (`-std=c2x`), gcc-14 (`-std=c23`) and clang,
+# by compiling a confusion rather than by reading flag lists: gcc reports
+# `implicit conversion from 'TB' to 'TA' [-Wenum-conversion]` and stays silent on
+# the int-to-enum case. Re-measure rather than assume when a toolchain moves.
 #
 # `-Wassign-enum` is deliberately NOT promoted: `attacks.c`'s KnightSteps and
 # KingSteps are `Direction` arrays of literal offsets, and a Direction is any
 # signed step rather than only the eight the enum names.
 detect_enum_flags() {
   local f
-  for f in -Werror=implicit-enum-enum-cast -Werror=implicit-int-conversion; do
+  for f in -Werror=enum-conversion -Werror=implicit-enum-enum-cast \
+           -Werror=implicit-int-conversion; do
     if echo 'int main(void){return 0;}' \
        | "$CC" "$STD_FLAG" "$f" -x c - -o /dev/null > /dev/null 2>&1; then
       echo "$f"

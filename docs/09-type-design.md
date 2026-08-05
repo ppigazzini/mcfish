@@ -45,13 +45,17 @@ The enum tier is the port's workhorse: `Square`, `Piece`, `PieceType`, `Color`,
 `Direction`, `MoveType`, `CastlingRights`, `NodeType`, `ScoreKind`, `Bound`,
 `TbFile` and `TbStm` are all of this shape. Two facts about it are load-bearing:
 
-- **It is a diagnostic, not a language rule.** `-Wimplicit-enum-enum-cast` and
-  `-Wimplicit-int-conversion` are what reject a confusion, and both are ordinary
-  warnings. The release build is not `-Werror`, so until they were promoted the
-  whole enum layer was an advisory nobody was required to read. `build.sh` now
-  promotes exactly those two, probing for them because gcc rejects the option
-  spellings outright — under the second-compiler lane the enum tier stays
-  advisory, and that limit is real rather than theoretical.
+- **It is a diagnostic, not a language rule.** A warning is what rejects a
+  confusion, and the release build is not `-Werror`, so until they were promoted
+  the whole enum layer was an advisory nobody was required to read. `build.sh` now
+  promotes them, probing each spelling because an unrecognised `-Werror=` is a hard
+  error rather than a no-op.
+- **Coverage differs by compiler, and only one half is portable.** Enum-to-enum is
+  caught by both — clang spells it `-Wimplicit-enum-enum-cast`, gcc spells it
+  `-Wenum-conversion` — so that half is enforced on every lane. Int-to-enum
+  narrowing has **no gcc diagnostic at all**, so under the second compiler a raw
+  integer still enters a domain type for free. Measured on gcc 13.3 and 14.2 by
+  compiling the confusion, not by reading flag lists.
 - **Neither promotion stops an explicit cast**, which is deliberate. A narrowing
   conversion is sometimes correct; it should be a line a reviewer can see.
 
@@ -402,9 +406,12 @@ real plane of the continuation table. Both values are legal in every combination
 so this is provenance rather than an illegal state, and it sits on a per-node path
 where the cost rule predicts a real if small cost. Recorded as known, not fixed.
 
-**Anything under gcc.** Both promotions are clang spellings that gcc rejects
-outright, so the second-compiler lane builds with the enum tier as warnings only.
-The struct tier is the only one that holds in both.
+**A raw integer entering a domain type, under gcc.** Enum-to-enum is enforced on
+every lane — gcc has `-Wenum-conversion` and it is promoted alongside clang's
+spelling. Int-to-enum narrowing is not: gcc 13.3 and 14.2 emit nothing for it, so
+on the second-compiler lane an unconverted board file still reaches a `TbFile`
+silently. The struct tier has no such asymmetry, because it is language rather
+than diagnostics.
 
 **The bug classes that have cost this port the most**, none of which is a typing
 problem: integer semantics under conversion, two generators emitting the same set
