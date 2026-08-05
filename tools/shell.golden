@@ -1,0 +1,20 @@
+<engine banner>
+
+Stockfish is a powerful chess engine for playing and analyzing.
+It is released as free software licensed under the GNU GPLv3 License.
+Stockfish is normally used with a graphical user interface (GUI) and implements
+the Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc.
+For any further information, visit https://github.com/official-stockfish/Stockfish#readme
+or read the corresponding README.md and Copying.txt files distributed along with this program.
+
+
+Stockfish is a powerful chess engine for playing and analyzing.
+It is released as free software licensed under the GNU GPLv3 License.
+Stockfish is normally used with a graphical user interface (GUI) and implements
+the Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc.
+For any further information, visit https://github.com/official-stockfish/Stockfish#readme
+or read the corresponding README.md and Copying.txt files distributed along with this program.
+
+Unknown command: 'frobnicate with several words'. Type help for more information.
+Unknown command: '   indented typo here'. Type help for more information.
+exit=0
