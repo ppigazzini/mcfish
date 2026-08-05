@@ -35,6 +35,7 @@ gate battery cover them.
 | [`evaluate.c`](../src/engine/eval/evaluate.c) | the dispatch, the NNUE runtime state, the arena ownership, the scaling, the traces, the classical fallback |
 | [`network.c`](../src/engine/eval/nnue/network.c) | the net object, the load path, the verify report, the forward-pass entry |
 | [`nnue_parse.c`](../src/engine/eval/nnue/nnue_parse.c) | the `.nnue` parse primitives and the transformer's in-memory byte layout |
+| [`nnue_write.c`](../src/engine/eval/nnue/nnue_write.c) | the `.nnue` **write** primitives — the byte sink, the little-endian scalars and the LEB128 encoder `export_net` emits through. The mirror of `nnue_parse.c`, and the hazard is the mirroring: a read order and a write order are two statements of one format with nothing in the source relating them, and no gate that reads what the engine CONSUMES can see them diverge. `./build.sh net-roundtrip` is the weld |
 | [`nnue_weight_storage.c`](../src/engine/eval/nnue/nnue_weight_storage.c) | the weight buffers and the loaded-net identity |
 | [`nnue_hash.c`](../src/engine/eval/nnue/nnue_hash.c) | the architecture hashes and the MurmurHash2-64A content hashes |
 | [`nnue_ft.c`](../src/engine/eval/nnue/nnue_ft.c) | the feature-transformer blob layout and its typed accessors |
