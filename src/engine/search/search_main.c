@@ -15,10 +15,6 @@
 #include "../board/repetition.h"
 #include "../board/score.h"
 
-// Emit the "currmove" line only once the search is long enough for it to be
-// worth reading (upstream's 10M-node threshold).
-enum : uint64_t { ID_NODES_LIMIT_OUTPUT = 10000000 };
-
 // Enter the picker at the TT stage only when the TT move is usable, but keep
 // `tt_move` set either way so the generated list still filters it out.
 static void mp_set_main_stage(MovePicker *mp, const Position *pos, Move tt_move, int depth) {
