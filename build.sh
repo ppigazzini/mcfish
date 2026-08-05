@@ -1174,6 +1174,100 @@ do_lane_coverage() {
   green "lane-coverage: ${#ALL_STEPS[@]} steps, every one in a lane or excused with a reason"
 }
 
+# --- golden-coverage: every golden is read by something ------------------------
+#
+# `lane-coverage` holds every build STEP to a lane. Nothing held the other half of
+# the battery: a golden is a photograph, and a photograph nobody diffs is a file, not
+# a check. The failure is silent by construction -- the gate that stopped reading a
+# golden is not the gate that goes red -- so an orphaned `tools/*.golden` would sit
+# in the tree looking exactly like a live one.
+#
+# `do_golden` already enforces CASE -> GOLDEN: it globs `tools/cases/*.uci` and goes
+# red on a case with no golden. This asks the other direction, which nothing did:
+# every golden IN THE TREE must be claimed, by a case file or by an owner row.
+#
+# THE UNIVERSE IS GLOBBED FROM THE TREE, NEVER LISTED. A second list of goldens would
+# rot in exactly the way this gate exists to catch, which is why `lane-coverage`
+# derives its step set from the dispatch table rather than from a table of its own.
+#
+# An owner row is the allowance for a golden no `.uci` case can produce, and it
+# expires in three directions: the golden gone from the tree, a case file appearing
+# that covers it, or an owner that does not NAME the golden. An owner is a claim that
+# something reads the file, and a claim nothing witnesses is just a name.
+GOLDEN_OWNERS=(
+  "signature.golden:build.sh:the bench anchor -- do_signature diffs it; no UCI case can produce a node count"
+  "tb.golden:build.sh:do_tb's Syzygy discovery and root probe, which need a SyzygyPath rather than a case script"
+  "tb_cursed.golden:build.sh:do_tb_cursed, LOCAL -- needs the 5-man tables tb-fetch does not get by default"
+  "instr_budget.golden:build.sh:do_perf_budget, LOCAL -- a retired-instruction budget needs perf_event_open, which CI containers refuse, and the count is per-machine"
+)
+
+do_golden_coverage() {
+  info "golden-coverage: every golden read by a gate, every case backed by a golden"
+  local fails=0 owned=0 cased=0
+
+  # TREE -> CLAIMED. Glob, never list.
+  local path name owner reason row claimed
+  for path in tools/*.golden; do
+    [[ -e $path ]] || { red "golden-coverage: no tools/*.golden at all -- the glob went stale"; return 2; }
+    name=$(basename "$path")
+    claimed=""; owner=""; reason=""
+    for row in "${GOLDEN_OWNERS[@]}"; do
+      [[ ${row%%:*} == "$name" ]] || continue
+      owner=${row#*:}; reason=${owner#*:}; owner=${owner%%:*}
+    done
+
+    if [[ -f tools/cases/${name%.golden}.uci ]]; then
+      [[ -n $owner ]] && {
+        red "  STALE OWNER   $name has an owner row AND a UCI case -- delete the row"
+        fails=$((fails + 1))
+      }
+      cased=$((cased + 1))
+      continue
+    fi
+
+    if [[ -z $owner ]]; then
+      red "  UNCLAIMED     $name is read by no case and no owner -- wire it to a gate or delete it"
+      fails=$((fails + 1))
+      continue
+    fi
+    if [[ -z $reason ]]; then
+      red "  NO REASON     $name is owned by $owner with no argument -- say why it needs a row"
+      fails=$((fails + 1))
+      continue
+    fi
+    # WITNESS the claim. An owner that never names the golden is not reading it.
+    if [[ ! -f $owner ]] || ! grep -q "$name" "$owner"; then
+      red "  UNWITNESSED   $name claims owner $owner, which does not name it"
+      fails=$((fails + 1))
+      continue
+    fi
+    owned=$((owned + 1))
+  done
+
+  # An owner row for a golden that is gone is the third expiry direction.
+  for row in "${GOLDEN_OWNERS[@]}"; do
+    name=${row%%:*}
+    [[ -f tools/$name ]] || {
+      red "  ROW MISSING   $name is owned but not in the tree -- delete the row with the golden"
+      fails=$((fails + 1))
+    }
+  done
+
+  # DECLARED -> TREE, without an engine. do_golden catches this too, but only after a
+  # build; here it is a link a lane needing no binary can check.
+  local script case_name
+  for script in tools/cases/*.uci; do
+    case_name=$(basename "$script" .uci)
+    [[ -f tools/${case_name}.golden ]] || {
+      red "  NO GOLDEN     case $case_name has no tools/${case_name}.golden"
+      fails=$((fails + 1))
+    }
+  done
+
+  [[ $fails -eq 0 ]] || { red "golden-coverage: $fails unclaimed or stale golden(s)"; return 1; }
+  green "golden-coverage: $((cased + owned)) goldens ($cased read by a case, $owned by an owner row)"
+}
+
 do_tools_smoke() {
   info "tools-smoke: every tool no other lane invokes"
   local fails=0
@@ -2485,6 +2579,7 @@ do_parity() {
   do_docs_lint
   do_fixture_coverage
   do_lane_coverage
+  do_golden_coverage
   do_tools_smoke
   do_test
 
@@ -2546,6 +2641,7 @@ usage: ./build.sh <step> [args]
   async-check        stop/ponderhit invariants on a RUNNING search
   tools-smoke        assert every tool no other lane invokes still runs
   lane-coverage      every step runs in a lane, or is excused with a reason
+  golden-coverage    every golden is read by a gate, or owned with a reason
   counter-validate   LOCAL: check a perf counter against two known bottlenecks
   fixture-coverage   hold the property list to the fixtures, both directions
   negative-control   mutate the engine and require each named gate to go RED
@@ -2606,6 +2702,7 @@ case "${1:-build}" in
   async-check)      do_async_check ;;
   tools-smoke)      do_tools_smoke ;;
   lane-coverage)    do_lane_coverage ;;
+  golden-coverage)  do_golden_coverage ;;
   counter-validate) do_counter_validate ;;
   fixture-coverage) do_fixture_coverage ;;
   negative-control) shift; do_negative_control "$@" ;;
