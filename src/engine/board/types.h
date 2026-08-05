@@ -178,6 +178,18 @@ enum : int32_t {
     ROOK_VALUE = 1276,
     QUEEN_VALUE = 2538,
 };
+// Render the Piece encoding as characters: index i is the FEN character for the
+// Piece whose value is i, so the two directions are the same table read forwards
+// and backwards. `fen.c` writes with `PieceToChar[pc]`; `position.c` parses with
+// `strchr(PieceToChar, c)` and takes the offset as the Piece.
+//
+// ONE owner, because the round-trip is the contract `fen.h` states and neither
+// direction can check it alone. The two used to be separate literals in two files,
+// and a character added to one is a FEN this engine emits and cannot read back.
+// The gaps at 7 and 8 are the holes in `color << 3 | type`, and they are spaces so
+// that `strchr` finds them -- every caller rejects a space before using the hit.
+static constexpr char PieceToChar[PIECE_NB + 1] = " PNBRQK  pnbrqk";
+
 static inline Color color_of_piece(Piece pc) { return (Color) (pc >> 3); }
 static inline PieceType type_of_piece(Piece pc) { return (PieceType) (pc & 7); }
 static inline Piece make_piece(Color c, PieceType pt) { return (Piece) ((c << 3) + pt); }

@@ -5,7 +5,6 @@
 
 // Map a piece code to its FEN letter. Index by the engine's piece encoding, so the
 // two unused codes (7, 8) are the two spaces in the middle.
-static constexpr char PieceToChar[] = " PNBRQK  pnbrqk";
 
 void pos_fen(const Position *pos, char *buf) {
     int n = 0;
