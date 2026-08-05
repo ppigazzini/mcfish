@@ -47,7 +47,7 @@ static void stable_sort_squares(uint8_t *sq, size_t n) {
 // flags say the class already stores plies — and add one.
 static int32_t
 map_score_dtz(const TBTable *t, const PairsData *d, int32_t value, int32_t wdl, bool *ok) {
-    static const size_t WdlMap[5] = { 1, 3, 0, 2, 0 };  // index by wdl + 2
+    static constexpr size_t WdlMap[5] = { 1, 3, 0, 2, 0 };  // index by wdl + 2
 
     const uint8_t flags = d->flags;
     if (flags & TB_FLAG_MAPPED) {

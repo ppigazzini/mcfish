@@ -62,7 +62,7 @@ typedef struct {
 // Return the descriptor for layer IDX of a stack: fc_0 1024->32, fc_1 64->32,
 // fc_2 128->1. IDX must be < NNUE_LAYERS_PER_STACK.
 static inline NnueLayerDims nnue_layer_dims(size_t idx) {
-    static const NnueLayerDims Dims[NNUE_LAYERS_PER_STACK] = {
+    static constexpr NnueLayerDims Dims[NNUE_LAYERS_PER_STACK] = {
         { 1024, 32 },
         { 64, 32 },
         { 128, 1 },
@@ -72,14 +72,14 @@ static inline NnueLayerDims nnue_layer_dims(size_t idx) {
 
 // Return sizeof(AffineTransform::biases) for layer IDX: OutputDimensions int32.
 static inline size_t nnue_layer_biases_bytes(size_t idx) {
-    static const size_t Bytes[NNUE_LAYERS_PER_STACK] = { 128, 128, 4 };
+    static constexpr size_t Bytes[NNUE_LAYERS_PER_STACK] = { 128, 128, 4 };
     return Bytes[idx];
 }
 
 // Return sizeof(AffineTransform::weights) for layer IDX: PaddedInputDimensions *
 // OutputDimensions int8, stored in the SSSE3-scrambled order.
 static inline size_t nnue_layer_weights_bytes(size_t idx) {
-    static const size_t Bytes[NNUE_LAYERS_PER_STACK] = { 32768, 2048, 128 };
+    static constexpr size_t Bytes[NNUE_LAYERS_PER_STACK] = { 32768, 2048, 128 };
     return Bytes[idx];
 }
 

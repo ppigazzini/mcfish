@@ -93,9 +93,10 @@ enum {
     AFFINE_NNZ_LIST_SLOTS = AFFINE_NNZ_MAX_GROUPS + 32,
 };
 
-alignas(64) static const uint16_t AffineNnzSeq[32] = { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
-                                                       11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-                                                       22, 23, 24, 25, 26, 27, 28, 29, 30, 31 };
+alignas(64) static constexpr uint16_t AffineNnzSeq[32] = { 0,  1,  2,  3,  4,  5,  6,  7,
+                                                           8,  9,  10, 11, 12, 13, 14, 15,
+                                                           16, 17, 18, 19, 20, 21, 22, 23,
+                                                           24, 25, 26, 27, 28, 29, 30, 31 };
 
 // Expand WORDS bitset words into ascending group indices; return how many there are.
 static inline size_t affine_nnz_expand(uint16_t *list, const uint64_t *nnz, size_t words) {

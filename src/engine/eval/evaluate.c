@@ -312,7 +312,7 @@ nnue_scaled_value(const Position *pos, int32_t psqt, int32_t positional, int opt
 // relative to piece_value: they order candidate squares, they do not decide
 // material. The pawn table's push gradient and the king's back-rank preference
 // are what keep the placeholder eval from shuffling.
-static const int8_t PSQT[PIECE_TYPE_NB][SQUARE_NB] = {
+static constexpr int8_t PSQT[PIECE_TYPE_NB][SQUARE_NB] = {
     [PAWN] = {
           0,   0,   0,   0,   0,   0,   0,   0,
          -5,  -3,  -3, -10, -10,  -3,  -3,  -5,

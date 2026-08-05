@@ -1229,7 +1229,7 @@ static void test_syzygy_wdl_score_domain(void) {
     }
 
     // Nothing else does. 255 is the byte that reached the ranking as -253.
-    static const uint8_t Invented[] = { 5, 6, 127, 128, 200, 255 };
+    static constexpr uint8_t Invented[] = { 5, 6, 127, 128, 200, 255 };
     for (size_t i = 0; i < sizeof Invented / sizeof Invented[0]; ++i) {
         d->min_sym_len = Invented[i];
         int32_t state = PROBE_OK;
