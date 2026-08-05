@@ -477,7 +477,7 @@ that list: it is an alias for one of the five and would only build a duplicate.
 
 ## Local-only measurement tooling
 
-Eight tools in `tools/` that are **not** `./build.sh` steps and **not** gates.
+Nine tools in `tools/` that are **not** `./build.sh` steps and **not** gates.
 They measure the host they run on, and a shared, thermally-uncontrolled CI runner
 cannot carry a performance verdict — so they are deliberately kept out of
 `parity` and out of the workflows.
@@ -490,6 +490,7 @@ cannot carry a performance verdict — so they are deliberately kept out of
 | [`../tools/perf_sample.sh`](../tools/perf_sample.sh) | which SYMBOL burns the cycles — a `perf record` with no `perf`, every tier |
 | [`../tools/perf_fingerprint.py`](../tools/perf_fingerprint.py) | per-function attribution, and the call-count parity test |
 | [`../tools/perf_delta.py`](../tools/perf_delta.py) | startup-subtracted WORK counts (instructions, macro-ops) from `perf_counters` absolutes. Not for speed — see below |
+| [`../tools/perf_callgrind_delta.py`](../tools/perf_callgrind_delta.py) | startup-subtracted **cache and branch** table from four `perf_callgrind.sh` profiles. Deterministic, so it is the one instrument that can attribute an IPC gap on a loaded box |
 | [`../tools/perf_counter_validate.c`](../tools/perf_counter_validate.c) | whether a counter counts what its name says, against two known bottlenecks |
 | [`../tools/valgrind.sh`](../tools/valgrind.sh) | memcheck: invalid access, bad free, definite leak |
 
