@@ -16,8 +16,10 @@ static inline size_t cuckoo_h1(Key key) { return (size_t) (key & 0x1FFFULL); }
 static inline size_t cuckoo_h2(Key key) { return (size_t) ((key >> 16) & 0x1FFFULL); }
 
 void repetition_init(const Key (*zobrist_psq)[SQUARE_NB], Key zobrist_side) {
-    static const Piece init_pieces[12] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
-                                           B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
+    static constexpr Piece init_pieces[12] = {
+        W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
+        B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING
+    };
 
     Zobrist_side_key = zobrist_side;
     memset(Cuckoo, 0, sizeof Cuckoo);

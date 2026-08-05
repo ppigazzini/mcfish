@@ -20,7 +20,7 @@
     #define NNUE_HAVE_MMAP 1
 #endif
 
-static const char InternalDir[] = "<internal>";
+static constexpr char InternalDir[] = "<internal>";
 
 // Describe the .nnue header: the version, the architecture hash the file commits
 // to, and the free-text description that follows it.
@@ -106,9 +106,9 @@ static bool read_header(const uint8_t *bytes, size_t len, size_t *offset, Header
 // nnue_accumulator.c: nothing but `signature` and `simd-scalar` holds them together.
 static void permute_packus_order(void *data, size_t elem_bytes, size_t count) {
     #if defined(__AVX512BW__)
-    static const size_t order[8] = { 0, 2, 4, 6, 1, 3, 5, 7 };
+    static constexpr size_t order[8] = { 0, 2, 4, 6, 1, 3, 5, 7 };
     #else
-    static const size_t order[8] = { 0, 2, 1, 3, 4, 6, 5, 7 };
+    static constexpr size_t order[8] = { 0, 2, 1, 3, 4, 6, 5, 7 };
     #endif
     const size_t block = 8 * elem_bytes;
     const size_t chunk = 8 * block;
@@ -330,7 +330,7 @@ static void load_user_net(const char *dir, size_t dir_len, const char *name, siz
 static void load_internal(void) {
     nnue_mark_initialized();
 
-    static const uint8_t EmbeddedStub[1] = { 0 };
+    static constexpr uint8_t EmbeddedStub[1] = { 0 };
     (void) load_network_bytes(EmbeddedStub, sizeof EmbeddedStub, NETWORK_DEFAULT_EVAL_FILE_NAME,
                               sizeof(NETWORK_DEFAULT_EVAL_FILE_NAME) - 1);
 }

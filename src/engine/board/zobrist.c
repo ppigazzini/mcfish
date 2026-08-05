@@ -26,8 +26,8 @@ void zobrist_init(void) {
     // Upstream iterates a 12-element Pieces[] (position.cpp:59-60, :123-125);
     // drawing for the gaps too would consume 128 extra PRNG values and shift every
     // key from B_PAWN onward away from upstream's table.
-    static const Piece Pieces[12] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
-                                      B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
+    static constexpr Piece Pieces[12] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
+                                          B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
 
     for (int i = 0; i < 12; ++i)
         for (Square sq = SQ_A1; sq <= SQ_H8; ++sq)

@@ -22,10 +22,10 @@ enum : int32_t {
     WDL_WIN = 2,
 };
 
-static const int32_t WdlToRank[5] = { -MAX_DTZ, -MAX_DTZ + 101, 0, MAX_DTZ - 101, MAX_DTZ };
+static constexpr int32_t WdlToRank[5] = { -MAX_DTZ, -MAX_DTZ + 101, 0, MAX_DTZ - 101, MAX_DTZ };
 
-static const int32_t WdlToValue[5] = { -VALUE_MATE + MAX_PLY + 1, VALUE_DRAW - 2, VALUE_DRAW,
-                                       VALUE_DRAW + 2, VALUE_MATE - MAX_PLY - 1 };
+static constexpr int32_t WdlToValue[5] = { -VALUE_MATE + MAX_PLY + 1, VALUE_DRAW - 2, VALUE_DRAW,
+                                           VALUE_DRAW + 2, VALUE_MATE - MAX_PLY - 1 };
 
 // Hold a throwaway board the root ranking replays its moves on, anchored at the
 // root FEN, so a probe never mutates the position the search owns.

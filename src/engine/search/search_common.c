@@ -445,7 +445,7 @@ void search_update_sel_depth(SearchCtx *ctx, int ply) {
 // read from either engine's tables precisely so the two sides cannot drift: the
 // trees must stay identical or the differential is void.
 static Value material_only_eval(const Position *pos) {
-    static const int weight[QUEEN + 1] = { 0, 100, 320, 330, 500, 900 };
+    static constexpr int weight[QUEEN + 1] = { 0, 100, 320, 330, 500, 900 };
     const Color us = pos->side_to_move;
     const Color them = flip_color(us);
     int v = 0;
@@ -513,7 +513,7 @@ static inline int stat_malus(int depth) {
 
 // Index the continuation-history positive-consistency multipliers by the running
 // positive_count in search_update_continuation_histories.
-static const int CmhcMultipliers[7] = { 94, 103, 110, 106, 119, 126, 121 };
+static constexpr int CmhcMultipliers[7] = { 94, 103, 110, 106, 119, 126, 121 };
 
 // Compute the per-entry continuation-history update delta.
 //
@@ -533,7 +533,7 @@ typedef struct {
     int w;
 } ConthistBonus;
 
-static const ConthistBonus ConthistBonuses[6] = {
+static constexpr ConthistBonus ConthistBonuses[6] = {
     { 1, 1040 }, { 2, 780 }, { 3, 290 }, { 4, 502 }, { 5, 132 }, { 6, 418 },
 };
 
