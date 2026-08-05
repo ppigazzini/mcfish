@@ -55,6 +55,8 @@
 #include "../src/engine/search/option_source.h"
 #include "../src/engine/search/root_move_build.h"
 #include "../src/engine/search/tb_source.h"
+#include "../src/platform/syzygy/registry.h"
+#include "../src/platform/syzygy/wdl.h"
 #include "../src/platform/tablebase.h"
 
 #include <stdio.h>
@@ -92,6 +94,33 @@ static const Config Configs[] = {
 enum { CONFIG_COUNT = (int) (sizeof Configs / sizeof Configs[0]) };
 
 static char TbDir[64];
+
+// Count what each iteration REACHED, not that it ran.
+//
+// libFuzzer's executed-input total is the only floor this lane had, and it cannot
+// tell a decoder exercised thousands of times from a `set` that refused every file:
+// the driver supplies the magic, so an input that dies on a length check still
+// counts as an execution. Three counts split that -- rounds, the files `set` parsed,
+// and the probes that answered -- and each gets its own floor in build.sh.
+//
+// ../rfish dd0df54 records the same defect in its own sweep, from ../zfish 741f8ffc,
+// which found its floor "met almost entirely by answers carrying scores no file can
+// hold". PARSED is read from the registry rather than inferred from the probe,
+// because a probe reports one FAIL whether `set` refused the file or the decoder
+// declined to answer, and those are the two rates that must not be added together.
+static uint64_t Rounds = 0;
+static uint64_t Parsed = 0;
+static uint64_t Answered = 0;
+
+// Report the counts as libFuzzer reports its own totals: one line, on exit, for
+// build.sh to hold to a floor. A crash aborts and prints nothing, which is correct --
+// a crashed run is a finding, not a rate.
+static void report_counts(void) {
+    fprintf(stderr, "fuzz-tb-file: rounds %llu parsed %llu answered %llu\n",
+            (unsigned long long) Rounds, (unsigned long long) Parsed,
+            (unsigned long long) Answered);
+    fflush(stderr);
+}
 
 // Point the engine's option seam at upstream's Syzygy defaults. `search_common.c`
 // leaves these reading zero for a zone linked without a shell, and a zero
@@ -161,6 +190,10 @@ int LLVMFuzzerInitialize(int *argc, char ***argv) {
     TbProbeFen = tablebase_probe_fen;
     TbProbeWdlPos = tablebase_probe_wdl_pos;
 
+    if (atexit(report_counts) != 0) {
+        abort();  // a lane whose counts are never printed has no floor
+    }
+
     memcpy(TbDir, "/tmp/mcfish-fuzz-tb-XXXXXX", sizeof "/tmp/mcfish-fuzz-tb-XXXXXX");
     if (mkdtemp(TbDir) == nullptr) {
         abort();  // no directory, no target: fail loudly rather than fuzz nothing
@@ -201,13 +234,25 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
 
     tablebase_init(TbDir, strlen(TbDir));
-    (void) tablebase_probe_fen(cfg->fen, strlen(cfg->fen), false);
+    ++Rounds;
+    const TbProbeResult probe = tablebase_probe_fen(cfg->fen, strlen(cfg->fen), false);
+    if (probe.available != 0) {
+        ++Answered;
+    }
 
     // Rank the root as a `go` does. The probe above ends at the score; this is
     // what INDEXES with it. See the header.
     Position pos;
     StateInfo si;
     if (pos_set(&pos, cfg->fen, false, &si)) {
+        // Ask the REGISTRY whether `set` accepted the WDL file, which the probe's
+        // own answer cannot tell apart from a decoder that declined. `base` is left
+        // null unless map_file and `set` both succeeded (registry.c:585).
+        const TBTable *const t = registry_get(syzygy_position_key(&pos));
+        if (t != nullptr && t->base != nullptr) {
+            ++Parsed;
+        }
+
         ExtMove list[MAX_MOVES];
         const size_t n = (size_t) (generate_legal(&pos, list) - list);
         Move moves[MAX_MOVES];
