@@ -377,6 +377,8 @@ SOURCES=(
   src/platform/syzygy/decode.c
   src/platform/syzygy/wdl.c
   src/shell/bench_positions.c
+  src/shell/speedtest.c
+  src/shell/speedtest_positions.c
   src/shell/benchmark.c
   src/shell/ucioption.c
   src/shell/syzygy_option.c
@@ -1546,6 +1548,67 @@ do_counter_validate() {
   }' || return 1
 
   green "counter-validate: the counter separates latency from throughput"
+}
+
+# --- speedtest-check: the one command whose OUTPUT nothing else can pin ------------
+#
+# `speedtest` reports a throughput, so every number in it is a property of this
+# machine at this moment: no golden can hold it, and `normalize()` elides nothing that
+# would make one possible. That is exactly the shape of surface this tree has twice
+# found rotting -- an output path no instrument reads -- so what CAN be asserted is
+# asserted: the run completes, it drives every position in the table, and the report
+# carries all sixteen of its fields with a positive node count under them.
+#
+# The workload is the table's own, at the smallest budget that still runs it: one
+# second across 258 positions. That is ~4 ms per search, which measures nothing about
+# throughput and everything about whether the command works.
+#
+# The POSITION COUNT is the sharp half. It comes from the table rather than from a
+# literal here, so a game dropped from `speedtest_positions.c` -- which no other gate
+# reads at all -- fails this instead of quietly shortening the run.
+do_speedtest_check() {
+  need_binary
+
+  local out expected
+  expected=$(grep -cE '^    "' src/shell/speedtest_positions.c)
+  info "speedtest-check: the report's shape over $expected positions"
+
+  # stderr carries the whole report; stdout carries only the option echo.
+  out=$(engine speedtest 1 8 1 2>&1 >/dev/null | tr '\r' '\n') || {
+    red "speedtest-check: the run did not complete"; return 1; }
+
+  local fails=0 label
+  for label in "Version" "Compiled by" "Compilation architecture" "Compilation settings" \
+               "Compiler __VERSION__ macro" "Large pages" "User invocation" \
+               "Filled invocation" "Available processors" "Thread count" "Thread binding" \
+               "TT size \[MiB\]" "Hash max, avg \[per mille\]" "Total nodes searched" \
+               "Total search time \[s\]" "Nodes/second"; do
+    grep -qE "^$label +:" <<< "$out" || { red "  missing report field: $label"; fails=$((fails + 1)); }
+  done
+
+  # The invocation echo is two different strings and the difference is the feature:
+  # what was typed against what ran. `1 8 1` fills every field, so here they agree.
+  grep -qF "User invocation            : speedtest 1 8 1" <<< "$out" \
+    || { red "  the user invocation is not echoed back"; fails=$((fails + 1)); }
+  grep -qF "Filled invocation          : speedtest 1 8 1" <<< "$out" \
+    || { red "  the filled invocation is not echoed back"; fails=$((fails + 1)); }
+
+  local last nodes
+  last=$(grep -oE '^Position [0-9]+/[0-9]+' <<< "$out" | tail -1)
+  if [[ $last != "Position $expected/$expected" ]]; then
+    red "  the run ended at '$last', not at position $expected/$expected --"
+    red "  either it stopped early or the position table changed size"
+    fails=$((fails + 1))
+  fi
+
+  nodes=$(grep -E '^Total nodes searched' <<< "$out" | grep -oE '[0-9]+$')
+  if [[ -z ${nodes:-} || $nodes -le 0 ]]; then
+    red "  the report claims ${nodes:-no} nodes searched -- it measured nothing"
+    fails=$((fails + 1))
+  fi
+
+  [[ $fails -eq 0 ]] || { red "speedtest-check: $fails problem(s)"; return 1; }
+  green "speedtest-check: $expected positions, 16 report fields, $nodes nodes"
 }
 
 do_async_check() {
@@ -2837,6 +2900,7 @@ do_parity() {
   # let a fallback-tree node count read as an anchor comparison.
   do_signature || { [[ $? -eq 127 ]] && skipped+=(signature) || return 1; }
   do_net_roundtrip || { [[ $? -eq 127 ]] && skipped+=(net-roundtrip) || return 1; }
+  do_speedtest_check
   do_simd_scalar || { [[ $? -eq 127 ]] && skipped+=(simd-scalar) || return 1; }
 
   do_perft
@@ -2901,6 +2965,7 @@ usage: ./build.sh <step> [args]
   signature          assert the bench node count vs tools/signature.golden
   net-roundtrip      export the net and require it back byte-identical
                      (the only gate on the WRITING side of the .nnue format)
+  speedtest-check    drive `speedtest` and assert its report's shape
   perf-budget        LOCAL: assert retired instructions vs tools/instr_budget.golden
                      (catches an nps regression the node signature is blind to)
   perft              assert perft counts vs tools/perft.table
@@ -2953,6 +3018,7 @@ case "${1:-build}" in
   perf-budget-update) do_perf_budget_update ;;
   simd-scalar)      do_simd_scalar ;;
   async-check)      do_async_check ;;
+  speedtest-check)  do_speedtest_check ;;
   tools-smoke)      do_tools_smoke ;;
   lane-coverage)    do_lane_coverage ;;
   golden-coverage)  do_golden_coverage ;;
