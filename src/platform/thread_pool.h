@@ -23,7 +23,6 @@
 #include "thread.h"
 #include "thread_runtime.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

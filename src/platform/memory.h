@@ -16,7 +16,6 @@
 #ifndef MCFISH_MEMORY_H
 #define MCFISH_MEMORY_H
 
-#include <stdbool.h>
 #include <stddef.h>
 
 // Return SIZE bytes aligned to ALIGNMENT, or nullptr. ALIGNMENT must be a power of two

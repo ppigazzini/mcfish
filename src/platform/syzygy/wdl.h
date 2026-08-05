@@ -19,7 +19,6 @@
 #include "../../engine/board/position.h"
 #include "../../engine/board/types.h"
 
-#include <stdbool.h>
 #include <stdint.h>
 
 // Define upstream's ProbeState.

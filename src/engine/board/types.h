@@ -8,7 +8,6 @@
 #ifndef MCFISH_TYPES_H
 #define MCFISH_TYPES_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

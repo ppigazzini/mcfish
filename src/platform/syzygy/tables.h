@@ -15,7 +15,6 @@
 #ifndef MCFISH_SYZYGY_TABLES_H
 #define MCFISH_SYZYGY_TABLES_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
