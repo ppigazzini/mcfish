@@ -39,7 +39,7 @@ typedef enum : uint8_t {
 // (types.h:241); search_common.h owns that name alongside DEPTH_QS and
 // DEPTH_UNSEARCHED and cannot be included here without a cycle, so carry the same
 // value under the name the offset has upstream today.
-enum : int32_t { DEPTH_ENTRY_OFFSET = -3 };
+static constexpr int32_t DEPTH_ENTRY_OFFSET = -3;
 
 // Hold one position, in ten bytes (tt.cpp:62). The field order is the order
 // tt_probe reads them in, because memory is fastest sequentially, and tt_save
