@@ -294,6 +294,20 @@ do_probe_table(const Position *pos, TBTable *t, bool dtz, int32_t wdl_score, int
         }
         return mapped;
     }
+    // Bound the score where it is born, not at each place that indexes with it.
+    // `raw` is a value the FILE decided — a btree leaf on the compressed path,
+    // `min_sym_len` verbatim on the single-value one — and nothing below
+    // re-derives it. A WDL file holds five outcomes, so anything outside 0..4 is
+    // a corrupt table rather than a score. It reaches `dtz_before_zeroing`,
+    // `sign_of` and the root ranking's `WdlToRank[wdl + 2]`, and only the last
+    // happened to trap; refuse it once, here, where every consumer is downstream.
+    // Upstream indexes unchecked, its own writer having produced the file; here
+    // the input is a binary blob from a mirror, so a corrupt one must be an
+    // answer. The bound is slack for anything upstream's writer emits.
+    if (raw < 0 || raw > 4) {
+        *state = PROBE_FAIL;
+        return 0;
+    }
     return raw - 2;  // map_score<WDL>
 }
 

@@ -35,12 +35,26 @@
 // it chose, and releases the registry at the end rather than leaving a
 // generation for the next input to inherit.
 //
+// An iteration then RANKS the root, because the probe is not the only consumer
+// of a score the file decided. `tablebase_probe_fen` ends at the value; the root
+// ranking indexes two five-entry tables with it (`WdlToRank[wdl + 2]`,
+// `WdlToValue[score_wdl + 2]`), and that surface belonged to no tablebase lane
+// while this driver stopped at the probe. Reach it through `root_moves_build`
+// for the same reason the probe is reached through `tablebase_init` rather than
+// through `set`: it is the engine's own entry point, and a corrupt file reaches
+// it on every `go`. Extend this half whenever a new consumer reads an answer the
+// file decided.
+//
 // Golden: none. This is test infrastructure, not a port.
 
 #include "../src/engine/board/attacks.h"
 #include "../src/engine/board/bitboard.h"
+#include "../src/engine/board/movegen.h"
 #include "../src/engine/board/position.h"
 #include "../src/engine/board/threats.h"
+#include "../src/engine/search/option_source.h"
+#include "../src/engine/search/root_move_build.h"
+#include "../src/engine/search/tb_source.h"
 #include "../src/platform/tablebase.h"
 
 #include <stdio.h>
@@ -78,6 +92,15 @@ static const Config Configs[] = {
 enum { CONFIG_COUNT = (int) (sizeof Configs / sizeof Configs[0]) };
 
 static char TbDir[64];
+
+// Point the engine's option seam at upstream's Syzygy defaults. `search_common.c`
+// leaves these reading zero for a zone linked without a shell, and a zero
+// cardinality short-circuits the ranking before it probes anything -- so without
+// this the second half of each iteration would run no engine code at all. These
+// are the four values `src/shell/syzygy_option.c` installs.
+static int fuzz_probe_depth(void) { return 1; }
+static int fuzz_probe_limit(void) { return 7; }
+static bool fuzz_rule50(void) { return true; }
 
 // Build "<TbDir>/<stem><ext>" into OUT.
 static void tb_path(char *out, size_t out_len, const char *stem, const char *ext) {
@@ -131,6 +154,13 @@ int LLVMFuzzerInitialize(int *argc, char ***argv) {
     attacks_init();
     threats_init();
 
+    OptionSyzygyProbeDepth = fuzz_probe_depth;
+    OptionSyzygyProbeLimit = fuzz_probe_limit;
+    OptionSyzygy50MoveRule = fuzz_rule50;
+    TbMaxCardinality = tablebase_max_cardinality;
+    TbProbeFen = tablebase_probe_fen;
+    TbProbeWdlPos = tablebase_probe_wdl_pos;
+
     memcpy(TbDir, "/tmp/mcfish-fuzz-tb-XXXXXX", sizeof "/tmp/mcfish-fuzz-tb-XXXXXX");
     if (mkdtemp(TbDir) == nullptr) {
         abort();  // no directory, no target: fail loudly rather than fuzz nothing
@@ -172,6 +202,23 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     tablebase_init(TbDir, strlen(TbDir));
     (void) tablebase_probe_fen(cfg->fen, strlen(cfg->fen), false);
+
+    // Rank the root as a `go` does. The probe above ends at the score; this is
+    // what INDEXES with it. See the header.
+    Position pos;
+    StateInfo si;
+    if (pos_set(&pos, cfg->fen, false, &si)) {
+        ExtMove list[MAX_MOVES];
+        const size_t n = (size_t) (generate_legal(&pos, list) - list);
+        Move moves[MAX_MOVES];
+        for (size_t i = 0; i < n; ++i) {
+            moves[i] = list[i].move;
+        }
+        RootMoveList built;
+        if (root_moves_build(&pos, cfg->fen, false, moves, n, &built)) {
+            root_moves_free(&built);
+        }
+    }
 
     // Release this generation before the next input inherits it: the mappings and
     // the parse arena both live until the following init, and a fuzzer that hands

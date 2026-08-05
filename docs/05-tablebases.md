@@ -292,14 +292,27 @@ for that half, in two lanes. One calls `decode_set_sizes` and `decode_pairs`
 directly, carving the file-backed regions exactly as `set` does so a reported
 crash is one a real `.rtbw` could cause; it is fast enough to explore header
 shapes, and it is the lane that found the three decoder bugs. The other writes
-real files, points a real `SyzygyPath` at them and probes — a thousand times
-slower, and the only one that runs `set`, `set_groups`, `set_dtz_map` and
-`map_file` rather than a model of them. It is seeded from the 3-man set when
-`./build.sh tb-fetch` has been run, so mutation starts from a table that parses.
+real files, points a real `SyzygyPath` at them, probes, and then ranks the root —
+a thousand times slower, and the only one that runs `set`, `set_groups`,
+`set_dtz_map` and `map_file` rather than a model of them. It is seeded from the
+3-man set when `./build.sh tb-fetch` has been run, so mutation starts from a
+table that parses.
 
-Treat the bounds in `decode.c` and `registry.c` as load bearing: the three bugs
-that gate found on its first run had survived a hand-written bounds pass that
-reads as complete.
+**The probe is not the only consumer of a score the file decided.** The
+whole-file lane stopped at `tablebase_probe_fen` — the value — while the ROOT
+RANKING is what indexes with it, through the five-entry `WdlToRank[wdl + 2]` and
+`WdlToValue[]` in `root_move_build.c`. That surface belonged to no tablebase
+lane, and an unbounded score reached it as a negative index. The lane now drives
+`root_moves_build` over the same position for the same reason it reaches the
+probe through `tablebase_init` rather than through `set`: it is the engine's own
+entry point, and a corrupt file reaches it on every `go`. Extend the lane
+whenever a new consumer reads a probe's answer.
+
+Treat the bounds in `decode.c`, `registry.c` and `wdl.c` as load bearing: the
+three bugs that gate found on its first run had survived a hand-written bounds
+pass that reads as complete, and the fourth — the WDL score itself, which
+`wdl.h` had promised was in -2..2 and nothing enforced — survived because no
+lane drove the code that indexed with it.
 
 ## Gaps
 
