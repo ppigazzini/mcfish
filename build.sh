@@ -2021,6 +2021,51 @@ assert_fuzz_executed() {
   info "$label executed $n inputs (floor $floor)"
 }
 
+# Assert a fuzz lane REACHED the code it exists to cover, rather than merely
+# executing.
+#
+# `assert_fuzz_executed` counts what libFuzzer ran. It cannot tell a decoder
+# exercised thousands of times from a `set` that refused every file: the whole-file
+# driver supplies the magic itself, so an input dying on a length check counts as an
+# execution exactly like one that walked the decoder. The floor was therefore
+# insensitive to the one regression it exists to catch -- a parse that starts
+# refusing everything reads as a clean run.
+#
+# tools/fuzz_tb_file.c prints its own three counts on exit and this holds each to a
+# floor. PARSED comes from the registry, not from the probe, because a probe reports
+# one FAIL whether the parse refused the file or the decoder declined to answer, and
+# adding those two rates together is how the distinction gets lost. The line missing
+# entirely is a failure too: it means the run never reached its own summary.
+#
+# ../rfish dd0df54 and ../zfish 741f8ffc found the same defect in their own sweeps.
+assert_fuzz_reached() {
+  local log=$1 parsed_per_sec=$2 answered_per_sec=$3 seconds=$4
+  local line rounds parsed answered floor_p floor_a
+  line=$(grep -E '^fuzz-tb-file: rounds [0-9]+ parsed [0-9]+ answered [0-9]+$' "$log" | tail -1)
+  if [[ -z $line ]]; then
+    red "fuzz-tb whole-file lane: no reach counts in the run -- it never printed its summary"
+    return 1
+  fi
+  read -r rounds parsed answered < <(awk '{print $3, $5, $7}' <<< "$line")
+
+  floor_p=$((parsed_per_sec * seconds)); [[ $floor_p -lt 1 ]] && floor_p=1
+  floor_a=$((answered_per_sec * seconds)); [[ $floor_a -lt 1 ]] && floor_a=1
+
+  if [[ $parsed -lt $floor_p ]]; then
+    red "fuzz-tb whole-file lane: $parsed file(s) parsed, floor $floor_p -- the lane"
+    red "  wrote and executed, but the parse accepted almost nothing, so the decoder"
+    red "  and everything below it went unexercised."
+    return 1
+  fi
+  if [[ $answered -lt $floor_a ]]; then
+    red "fuzz-tb whole-file lane: $answered probe(s) answered, floor $floor_a -- files"
+    red "  parsed but no probe produced a value, so no consumer of one ran."
+    return 1
+  fi
+  info "fuzz-tb whole-file lane reached $rounds rounds / $parsed parsed / $answered answered"
+  info "  (floors $floor_p parsed, $floor_a answered)"
+}
+
 # Coverage-guided, in-process fuzzing of the real search -- the gap
 # tools/uci_fuzz.py cannot close, because that lane drives the shipped binary's
 # stdin over a pipe, so a mutation spends most of its budget on the UCI parser
@@ -2144,6 +2189,7 @@ do_fuzz_tb() {
     -max_total_time="$seconds" -timeout=8 -print_funcs=0 -print_final_stats=1 "$corpus" \
     2>&1 | tee build/fuzz-tb-file.log
   assert_fuzz_executed "fuzz-tb whole-file lane" build/fuzz-tb-file.log 2 "$seconds"
+  assert_fuzz_reached build/fuzz-tb-file.log 1 1 "$seconds"
 
   green "fuzz-tb clean: ${seconds}s per lane, no crash, no hang"
 }
