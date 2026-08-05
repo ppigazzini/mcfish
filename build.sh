@@ -58,6 +58,34 @@ detect_std_flag() {
 
 STD_FLAG=$(detect_std_flag)
 
+# Promote enum/enum confusion to an error where the compiler can see it.
+#
+# The C23 `typedef enum : uint8_t` is this port's newtype: `Square`, `Piece`,
+# `Color`, `Direction` and the rest are distinct types with a fixed width, and
+# clang already diagnoses an implicit conversion between two of them. But it
+# diagnoses it as a WARNING under a build that is not -Werror, so a `Direction`
+# reaching a `Square` parameter printed a line and produced a binary -- which is
+# an advisory, not a guarantee. Promoting just this one warning is what makes the
+# enum tier load-bearing, and the tree is already clean under it.
+#
+# Probe rather than pin: the spelling is clang's, and gcc rejects the whole
+# option with `no option '-Wimplicit-enum-enum-cast'` rather than ignoring it, so
+# hardcoding it would break the second-compiler lane. gcc has no equivalent, so
+# under gcc the enum tier stays advisory and only the clang lane enforces it.
+#
+# `-Wassign-enum` is deliberately NOT promoted: `attacks.c`'s KnightSteps and
+# KingSteps are `Direction` arrays of literal offsets, and a Direction is any
+# signed step rather than only the eight the enum names.
+detect_enum_flag() {
+  local f=-Werror=implicit-enum-enum-cast
+  if echo 'int main(void){return 0;}' \
+     | "$CC" "$STD_FLAG" "$f" -x c - -o /dev/null > /dev/null 2>&1; then
+    echo "$f"
+  fi
+}
+
+ENUM_FLAG=$(detect_enum_flag)
+
 # -lpthread on every link line. src/platform/thread*.c and numa.c call
 # pthread_create, pthread_mutex_* and sched_setaffinity directly. It links today
 # without this ONLY because glibc >= 2.34 folded the pthread symbols into libc --
@@ -70,6 +98,7 @@ CFLAGS_COMMON=(
   "$STD_FLAG"
   -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-prototypes
   -Wconversion -Wsign-conversion -Wno-unused-parameter
+  ${ENUM_FLAG:+"$ENUM_FLAG"}
   -Isrc
   -D_POSIX_C_SOURCE=200809L
 )
