@@ -163,12 +163,12 @@ TBTable *registry_get(uint64_t key) {
     return nullptr;
 }
 
-PairsData *tbtable_get(TBTable *t, bool dtz, size_t stm, size_t f) {
-    const size_t file = t->has_pawns ? f : 0;
+PairsData *tbtable_get(TBTable *t, bool dtz, TbStm stm, TbFile f) {
+    const size_t file = t->has_pawns ? (size_t) f : 0;
     if (dtz) {
         return &t->dtz_items[0][file];
     }
-    return &t->items[stm % t->sides][file];
+    return &t->items[(size_t) stm % t->sides][file];
 }
 
 // Build the canonical stem: one char per piece, with 'v' inserted before the
@@ -411,7 +411,7 @@ set_dtz_map(TBTable *t, const uint8_t *buf, size_t buf_len, size_t *pos, size_t 
     const size_t map_base = *pos;
 
     for (size_t f = 0; f <= max_file; ++f) {
-        PairsData *d = tbtable_get(t, true, 0, f);
+        PairsData *d = tbtable_get(t, true, TB_STM_WHITE, tb_file_at(f));
         if ((d->flags & TB_FLAG_MAPPED) == 0) {
             continue;
         }
@@ -459,7 +459,7 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
 
     for (size_t f = 0; f <= max_file; ++f) {
         for (size_t i = 0; i < sides; ++i) {
-            memset(tbtable_get(t, dtz, i, f), 0, sizeof(PairsData));
+            memset(tbtable_get(t, dtz, tb_stm_at(i), tb_file_at(f)), 0, sizeof(PairsData));
         }
 
         if (!need(pos, (size_t) 1 + (pp ? 1u : 0u), buf_len)) {
@@ -477,13 +477,13 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
                 return false;
             }
             for (size_t i = 0; i < sides; ++i) {
-                tbtable_get(t, dtz, i, f)->pieces[k] =
+                tbtable_get(t, dtz, tb_stm_at(i), tb_file_at(f))->pieces[k] =
                   (uint8_t) (i != 0 ? buf[pos] >> 4 : buf[pos] & 0xF);
             }
             pos += 1;
         }
         for (size_t i = 0; i < sides; ++i) {
-            set_groups(tbtable_get(t, dtz, i, f), e, order[i], f);
+            set_groups(tbtable_get(t, dtz, tb_stm_at(i), tb_file_at(f)), e, order[i], f);
         }
     }
 
@@ -491,7 +491,8 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
 
     for (size_t f = 0; f <= max_file; ++f) {
         for (size_t i = 0; i < sides; ++i) {
-            if (!decode_set_sizes(tbtable_get(t, dtz, i, f), buf, buf_len, &pos, registry_alloc)) {
+            if (!decode_set_sizes(tbtable_get(t, dtz, tb_stm_at(i), tb_file_at(f)), buf, buf_len,
+                                  &pos, registry_alloc)) {
                 return false;
             }
         }
@@ -510,7 +511,7 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
     // and doubling it cannot leave a 64-bit size_t.
     for (size_t f = 0; f <= max_file; ++f) {
         for (size_t i = 0; i < sides; ++i) {
-            PairsData *d = tbtable_get(t, dtz, i, f);
+            PairsData *d = tbtable_get(t, dtz, tb_stm_at(i), tb_file_at(f));
             size_t span;
             if (__builtin_mul_overflow(d->sparse_index_size, sizeof(SparseEntry), &span)
                 || !need(pos, span, buf_len)) {
@@ -522,7 +523,7 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
     }
     for (size_t f = 0; f <= max_file; ++f) {
         for (size_t i = 0; i < sides; ++i) {
-            PairsData *d = tbtable_get(t, dtz, i, f);
+            PairsData *d = tbtable_get(t, dtz, tb_stm_at(i), tb_file_at(f));
             const size_t span = (size_t) d->block_length_size * 2;
             if (!need(pos, span, buf_len)) {
                 return false;
@@ -534,7 +535,7 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
     for (size_t f = 0; f <= max_file; ++f) {
         for (size_t i = 0; i < sides; ++i) {
             pos = (pos + 0x3F) & ~(size_t) 0x3F;  // 64-byte alignment
-            PairsData *d = tbtable_get(t, dtz, i, f);
+            PairsData *d = tbtable_get(t, dtz, tb_stm_at(i), tb_file_at(f));
             size_t span;
             if (__builtin_mul_overflow((size_t) d->blocks_num, d->sizeof_block, &span)
                 || !need(pos, span, buf_len)) {

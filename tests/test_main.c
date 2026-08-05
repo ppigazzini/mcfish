@@ -1214,7 +1214,7 @@ static void test_syzygy_wdl_score_domain(void) {
     t.has_unique_pieces = true;
     t.sides = 2;
 
-    PairsData *const d = tbtable_get(&t, false, 0, 0);
+    PairsData *const d = tbtable_get(&t, false, TB_STM_WHITE, TB_FILE_A);
     d->flags = TB_FLAG_SINGLE_VALUE;
     d->group_len[0] = 3;  // all three men in one group; group_len[1] == 0 ends the walk
     d->group_idx[0] = 1;

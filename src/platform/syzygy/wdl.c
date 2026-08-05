@@ -83,7 +83,7 @@ do_probe_table(const Position *pos, TBTable *t, bool dtz, int32_t wdl_score, int
     uint8_t pieces_arr[TB_PIECES];
     size_t size = 0;
     size_t lead_pawns_cnt = 0;
-    size_t tb_file = 0;
+    TbFile tb_file = TB_FILE_A;
 
     if (popcount_bb(pieces(pos)) > TB_PIECES || (size_t) t->piece_count > TB_PIECES) {
         *state = PROBE_FAIL;
@@ -100,11 +100,12 @@ do_probe_table(const Position *pos, TBTable *t, bool dtz, int32_t wdl_score, int
     const bool swap = symmetric_btm || black_stronger;
     const uint8_t flip_color = swap ? 8u : 0u;
     const uint8_t flip_squares = swap ? 56u : 0u;
-    const size_t stm = (size_t) (swap ? 1 : 0) ^ stm_pos;
+    const TbStm stm = (TbStm) ((swap ? 1u : 0u) ^ stm_pos);
 
     Bitboard lead_pawns = 0;
     if (t->has_pawns) {
-        const uint8_t pc = (uint8_t) (tbtable_get(t, dtz, 0, 0)->pieces[0] ^ flip_color);
+        const uint8_t pc =
+          (uint8_t) (tbtable_get(t, dtz, TB_STM_WHITE, TB_FILE_A)->pieces[0] ^ flip_color);
         const Color lead_color = (Color) (pc >> 3);
         lead_pawns = pos->by_color[lead_color] & pos->by_type[PAWN];
         Bitboard b = lead_pawns;
@@ -129,7 +130,7 @@ do_probe_table(const Position *pos, TBTable *t, bool dtz, int32_t wdl_score, int
         squares[0] = squares[maxi];
         squares[maxi] = tmp;
 
-        tb_file = edge_distance(sq_file(squares[0]));
+        tb_file = tb_file_of_board_file(sq_file(squares[0]));
     }
 
     // Treat a DTZ table as one-sided: when the stored side is not the side to
@@ -137,7 +138,7 @@ do_probe_table(const Position *pos, TBTable *t, bool dtz, int32_t wdl_score, int
     if (dtz) {
         const uint8_t flags = tbtable_get(t, true, stm, tb_file)->flags;
         const bool stm_ok =
-          ((size_t) (flags & TB_FLAG_STM) == stm) || (t->key == t->key2 && !t->has_pawns);
+          ((size_t) (flags & TB_FLAG_STM) == (size_t) stm) || (t->key == t->key2 && !t->has_pawns);
         if (!stm_ok) {
             *state = PROBE_CHANGE_STM;
             return 0;
