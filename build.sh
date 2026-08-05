@@ -94,10 +94,29 @@ STD_FLAG=$(detect_std_flag)
 # `-Wassign-enum` is deliberately NOT promoted: `attacks.c`'s KnightSteps and
 # KingSteps are `Direction` arrays of literal offsets, and a Direction is any
 # signed step rather than only the eight the enum names.
+#
+# Two more ride along, both the same shape one level up -- an annotation is only
+# as strong as the diagnostic that enforces it:
+#
+#   unused-result     39 functions here carry `[[nodiscard]]`. It was a warning,
+#                     so discarding a `registry_map_wdl` or `pos_set` result
+#                     compiled -- and two did, in the test suite, where a rejected
+#                     FEN would have left the next assertion reading a stale
+#                     position.
+#   unused-parameter  this was SUPPRESSED tree-wide by `-Wno-unused-parameter`,
+#                     the only suppression in the set. It hid nothing: zero
+#                     findings on all three compilers. A dead suppression is worse
+#                     than none, because it also covers everything written next.
+#                     C23's `[[maybe_unused]]` is the per-parameter escape, and
+#                     the tree already uses it where a signature is fixed by a
+#                     callback contract.
+#
+# All three compilers accept both, and the tree is clean under each.
 detect_enum_flags() {
   local f
   for f in -Werror=enum-conversion -Werror=implicit-enum-enum-cast \
-           -Werror=implicit-int-conversion; do
+           -Werror=implicit-int-conversion -Werror=unused-result \
+           -Werror=unused-parameter; do
     if echo 'int main(void){return 0;}' \
        | "$CC" "$STD_FLAG" "$f" -x c - -o /dev/null > /dev/null 2>&1; then
       echo "$f"
@@ -118,7 +137,7 @@ LIBS=(-lm -lpthread)
 CFLAGS_COMMON=(
   "$STD_FLAG"
   -Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-prototypes
-  -Wconversion -Wsign-conversion -Wno-unused-parameter
+  -Wconversion -Wsign-conversion
   "${ENUM_FLAGS[@]}"
   -Isrc
   -D_POSIX_C_SOURCE=200809L
