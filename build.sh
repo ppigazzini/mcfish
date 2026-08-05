@@ -1672,8 +1672,21 @@ do_simd_scalar() {
   # tree to ask a startup question. Measured on the vector build: 11.06s against 0.24s.
   info "simd-scalar: rebuilding with MCFISH_SIMD_SCALAR and re-asserting the anchor"
   mkdir -p build
-  "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -DMCFISH_SIMD_SCALAR \
-    -o build/mcfish-scalar "${SOURCES[@]}" -lm -lpthread
+
+  # Delete the previous binary FIRST, and check the compile's exit status.
+  #
+  # Neither was done, and together they made this gate unable to fail: a build
+  # error left `build/mcfish-scalar` holding the last GOOD binary, which then
+  # benched the anchor and reported "vector and scalar paths agree". The gate was
+  # green on a tree that did not compile. It surfaced only on a clean CI checkout,
+  # where no stale binary existed and the node count came back empty -- so the
+  # machine with no history caught what the developer's box hid.
+  rm -f build/mcfish-scalar
+  if ! "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_RELEASE[@]}" -DMCFISH_SIMD_SCALAR \
+       -o build/mcfish-scalar "${SOURCES[@]}" -lm -lpthread; then
+    red "simd-scalar: the scalar build does not compile — the gate did NOT run."
+    return 1
+  fi
 
   local net_probe
   net_probe=$(engine_at build/mcfish-scalar bench 1 1 1 2>&1 || true)
