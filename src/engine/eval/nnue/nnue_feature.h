@@ -22,7 +22,6 @@
 #define MCFISH_NNUE_FEATURE_H
 
 #include "nnue_architecture.h"
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

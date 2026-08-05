@@ -20,7 +20,6 @@
 
 #include "../../board/position.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

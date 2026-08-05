@@ -18,7 +18,6 @@
 
 #include "worker_layout.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 
 // Collect what the constructor receives: the references the engine shares, plus this

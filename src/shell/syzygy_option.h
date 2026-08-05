@@ -10,7 +10,6 @@
 #ifndef MCFISH_SYZYGY_OPTION_H
 #define MCFISH_SYZYGY_OPTION_H
 
-#include <stdbool.h>
 
 // Bind the option and probe seams to this module. Call once at startup, before
 // the first `go`: until it runs the engine reads the neutral defaults (probe

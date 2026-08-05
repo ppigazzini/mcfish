@@ -30,7 +30,6 @@
 #include "../state/worker_layout.h"
 
 #include <stdatomic.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 // Run one unit of work on a worker's thread. A null context is legal.
