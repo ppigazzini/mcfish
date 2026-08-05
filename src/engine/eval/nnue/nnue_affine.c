@@ -5,6 +5,7 @@
 
 #include "nnue_affine.h"
 
+#include <stdbit.h>
 #include <string.h>
 
 #include "simd.h"
@@ -112,7 +113,7 @@ static inline size_t affine_nnz_expand(uint16_t *list, const uint64_t *nnz, size
         for (unsigned h = 0; h < 2; h++) {
             const __mmask32 m = (__mmask32) (uint32_t) (bits >> (32 * h));
             _mm512_storeu_si512((void *) (list + n), _mm512_maskz_compress_epi16(m, idx));
-            n += (size_t) __builtin_popcount((unsigned) m);
+            n += (size_t) stdc_count_ones((unsigned) m);
             idx = _mm512_add_epi16(idx, inc);
         }
     }
@@ -128,7 +129,7 @@ static inline size_t affine_nnz_expand(uint16_t *list, const uint64_t *nnz, size
             const __mmask16 m = (__mmask16) (uint16_t) (bits >> (16 * h));
             _mm512_mask_cvtepi32_storeu_epi16((void *) (list + n), 0xFFFF,
                                               _mm512_maskz_compress_epi32(m, idx));
-            n += (size_t) __builtin_popcount((unsigned) m);
+            n += (size_t) stdc_count_ones((unsigned) m);
             idx = _mm512_add_epi32(idx, inc);
         }
     }
