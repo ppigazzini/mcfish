@@ -166,17 +166,17 @@ void history_update_correction(Histories *h,
                                int bonus) {
     const StateInfo *const st = pos->st;
 
-    shared_stats_update(corr_pawn_entry(h, st, us), bonus, CORRECTION_HISTORY_LIMIT);
-    shared_stats_update(corr_minor_entry(h, st, us), bonus * 150 / 128, CORRECTION_HISTORY_LIMIT);
+    shared_stats_update(corr_pawn_entry(h, st, us), bonus, HIST_LIMIT_CORRECTION);
+    shared_stats_update(corr_minor_entry(h, st, us), bonus * 150 / 128, HIST_LIMIT_CORRECTION);
     shared_stats_update(corr_nonpawn_white_entry(h, st, us), bonus * 186 / 128,
-                        CORRECTION_HISTORY_LIMIT);
+                        HIST_LIMIT_CORRECTION);
     shared_stats_update(corr_nonpawn_black_entry(h, st, us), bonus * 186 / 128,
-                        CORRECTION_HISTORY_LIMIT);
+                        HIST_LIMIT_CORRECTION);
 
     if (is_ok(prev_move)) {
         const Square to = move_to(prev_move);
         const size_t idx = (size_t) piece_on(pos, to) * SQUARE_NB + (size_t) to;
-        stats_update(&cont_corr2[idx], bonus * 130 / 128, CORRECTION_HISTORY_LIMIT);
-        stats_update(&cont_corr4[idx], bonus * 70 / 128, CORRECTION_HISTORY_LIMIT);
+        stats_update(&cont_corr2[idx], bonus * 130 / 128, HIST_LIMIT_CORRECTION);
+        stats_update(&cont_corr4[idx], bonus * 70 / 128, HIST_LIMIT_CORRECTION);
     }
 }

@@ -554,7 +554,7 @@ void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, 
 
         const int delta =
           conthist_delta(bonus, ConthistBonuses[b].w, positive_count, ConthistBonuses[b].i);
-        shared_stats_update(entry, delta, 30000);
+        shared_stats_update(entry, delta, HIST_LIMIT_CONTINUATION);
     }
 }
 
@@ -568,15 +568,15 @@ void search_update_quiet_histories(
     SharedStat *pawn_entry =
       &pawn_history_row(h, pos->st->pawn_key)[(size_t) pc * SQUARE_NB + (size_t) to];
 
-    stats_update(main_entry, bonus, 7183);
+    stats_update(main_entry, bonus, HIST_LIMIT_MAIN);
 
     if (ss->ply < LOW_PLY_HISTORY_SIZE) {
         int16_t *lowply_entry = &h->low_ply_history[(size_t) ss->ply * HIST_UINT16 + raw];
-        stats_update(lowply_entry, quiet_low_ply_scale(bonus), 7183);
+        stats_update(lowply_entry, quiet_low_ply_scale(bonus), HIST_LIMIT_LOW_PLY);
     }
 
     search_update_continuation_histories(ss, pc, to, quiet_cont_scale(bonus));
-    shared_stats_update(pawn_entry, quiet_pawn_scale(bonus), 8192);
+    shared_stats_update(pawn_entry, quiet_pawn_scale(bonus), HIST_LIMIT_PAWN);
 }
 
 void search_update_all_stats(SearchCtx *ctx,
@@ -620,7 +620,7 @@ void search_update_all_stats(SearchCtx *ctx,
         const Piece moved_pc = piece_on(pos, move_from(best_move));
         const Square to = move_to(best_move);
         stats_update(capture_entry(h, moved_pc, to, hist_piece_type_on(pos, to)),
-                     bonus * 1427 / 1024, 10692);
+                     bonus * 1427 / 1024, HIST_LIMIT_CAPTURE);
     }
 
     if (prev_sq != SQ_NONE && (ss - 1)->move_count == 1 + (int) (ss - 1)->tt_hit
@@ -635,7 +635,7 @@ void search_update_all_stats(SearchCtx *ctx,
         const Piece moved_pc = piece_on(pos, move_from(move));
         const Square to = move_to(move);
         stats_update(capture_entry(h, moved_pc, to, hist_piece_type_on(pos, to)),
-                     -malus * 1489 / 1024, 10692);
+                     -malus * 1489 / 1024, HIST_LIMIT_CAPTURE);
     }
 }
 
