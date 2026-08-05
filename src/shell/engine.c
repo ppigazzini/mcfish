@@ -64,6 +64,8 @@ void engine_render_options(char *buf, size_t buf_len) { engine_options_render(bu
 
 void engine_report_net(void) { engine_nnue_report(); }
 
+void engine_export_net(const char *filename) { engine_nnue_export(filename); }
+
 void engine_report_threads(void) {
     if (EmitInfo == nullptr)
         return;

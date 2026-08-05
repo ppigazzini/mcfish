@@ -49,6 +49,15 @@ void engine_nnue_report(void) {
     EmitLine(line);
 }
 
+// Announce the export on the PLAIN line sink, not the info one: upstream writes all
+// four outcomes with sync_cout, so a GUI sees a bare line rather than `info string`.
+void engine_nnue_export(const char *filename) {
+    char *const message = eval_nnue_save(filename);
+    if (EmitLine != nullptr)
+        EmitLine(message != nullptr ? message : "Failed to export a net");
+    eval_nnue_free_message(message);
+}
+
 // Refuse to run without a usable net, as upstream does (nnue/network.cpp:165-187,
 // reached from `go`, `perft` and `eval`). The message is upstream's five lines
 // verbatim, including the file name and the download URL.

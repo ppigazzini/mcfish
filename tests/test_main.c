@@ -23,6 +23,7 @@
 #include "../src/engine/eval/nnue/nnue_architecture.h"
 #include "../src/engine/eval/nnue/nnue_feature.h"
 #include "../src/engine/eval/nnue/nnue_parse.h"
+#include "../src/engine/eval/nnue/nnue_write.h"
 #include "../src/engine/eval/nnue/nnue_weight_storage.h"
 #include "../src/engine/search/history.h"
 #include "../src/engine/search/movepick.h"
@@ -1389,6 +1390,104 @@ static void test_thread_pool(void) {
     CHECK(thread_pool_num_threads(&pool) == 0, "churn leaves the pool empty");
 }
 
+// The LEB128 encoder against the decoder that reads it back, and against the eight
+// encodings the format's sign rule fixes.
+//
+// `net-roundtrip` covers this end to end, but only over ONE net's values and only on
+// a machine that has the net; this pins the boundaries a 95 MB file may never contain
+// and runs under the sanitizers. The eight literals are the sharp half: the rule that
+// a group ending with bit 0x40 set continues unless the remainder is -1 is what
+// decides whether 64 takes one byte or two, and getting it wrong produces a file of
+// exactly the right LENGTH with the wrong bytes in it.
+static void test_nnue_leb_roundtrip(void) {
+    banner("nnue LEB128 encode/decode");
+
+    static constexpr int32_t Values[] = { 0,      1,       -1,        63,        64,
+                                          -64,    -65,     127,       -128,      8191,
+                                          -8192,  8192,    -8193,     INT16_MAX, INT16_MIN,
+                                          123456, -123456, INT32_MAX, INT32_MIN };
+    static constexpr size_t Count = sizeof Values / sizeof Values[0];
+
+    // Two bytes for 64 and one for -64: the same magnitude, and the sign rule splits
+    // them. A run without the continuation bit set encodes both as one byte and every
+    // length still matches, which is why the BYTES are asserted and not just the
+    // count.
+    static constexpr struct {
+        int32_t value;
+        size_t len;
+        uint8_t bytes[2];
+    } Fixed[] = {
+        { 0, 1, { 0x00, 0x00 } },   { 1, 1, { 0x01, 0x00 } },   { -1, 1, { 0x7f, 0x00 } },
+        { 63, 1, { 0x3f, 0x00 } },  { 64, 2, { 0xc0, 0x00 } },  { -64, 1, { 0x40, 0x00 } },
+        { -65, 2, { 0xbf, 0x7f } }, { 127, 2, { 0xff, 0x00 } }, { -128, 2, { 0x80, 0x7f } },
+    };
+
+    FILE *const mem = tmpfile();
+    if (mem == nullptr) {
+        CHECK(false, "tmpfile() for the encoder test");
+        return;
+    }
+
+    for (size_t i = 0; i < sizeof Fixed / sizeof Fixed[0]; ++i) {
+        NnueWriter w = { .out = mem, .ok = true };
+        const int32_t v = Fixed[i].value;
+        rewind(mem);
+        nnue_write_leb_i32(&w, &v, 1);
+        CHECK(w.ok, "writing %d succeeds", v);
+        CHECK(nnue_leb_bytes_i32(&v, 1) == Fixed[i].len, "%d measures %zu bytes", v, Fixed[i].len);
+
+        uint8_t got[4] = { 0 };
+        rewind(mem);
+        CHECK(fread(got, 1, Fixed[i].len, mem) == Fixed[i].len, "%d reads back its bytes", v);
+        CHECK(memcmp(got, Fixed[i].bytes, Fixed[i].len) == 0,
+              "%d encodes to the bytes the format fixes", v);
+    }
+
+    // int32 values, then the int16-representable ones at the narrower width: the two
+    // entry points share one encoder, so this asserts the sign extension a narrower
+    // element goes through rather than a second implementation.
+    int16_t narrow[Count];
+    size_t narrow_count = 0;
+    for (size_t i = 0; i < Count; ++i)
+        if (Values[i] >= INT16_MIN && Values[i] <= INT16_MAX)
+            narrow[narrow_count++] = (int16_t) Values[i];
+
+    NnueWriter w = { .out = mem, .ok = true };
+    rewind(mem);
+    nnue_write_leb_i32(&w, Values, Count);
+    nnue_write_leb_i16(&w, narrow, narrow_count);
+    CHECK(w.ok, "the mixed-width run writes");
+    fflush(mem);
+
+    const size_t wide_bytes = nnue_leb_bytes_i32(Values, Count);
+    const size_t narrow_bytes = nnue_leb_bytes_i16(narrow, narrow_count);
+    uint8_t encoded[512] = { 0 };
+    CHECK(wide_bytes + narrow_bytes <= sizeof encoded, "the run fits the read buffer");
+    rewind(mem);
+    CHECK(fread(encoded, 1, wide_bytes + narrow_bytes, mem) == wide_bytes + narrow_bytes,
+          "the measured length is the written length");
+    fclose(mem);
+
+    int32_t wide_out[Count];
+    size_t consumed = 0;
+    CHECK(nnue_decode_leb_i32(encoded, wide_bytes, wide_out, Count, &consumed),
+          "the int32 run decodes");
+    CHECK(consumed == wide_bytes, "the int32 run consumes exactly what it measured");
+    for (size_t i = 0; i < Count; ++i)
+        CHECK(wide_out[i] == Values[i], "int32 value %zu round-trips (%d != %d)", i, wide_out[i],
+              Values[i]);
+
+    int16_t narrow_out[Count];
+    consumed = 0;
+    CHECK(
+      nnue_decode_leb_i16(encoded + wide_bytes, narrow_bytes, narrow_out, narrow_count, &consumed),
+      "the int16 run decodes");
+    CHECK(consumed == narrow_bytes, "the int16 run consumes exactly what it measured");
+    for (size_t i = 0; i < narrow_count; ++i)
+        CHECK(narrow_out[i] == narrow[i], "int16 value %zu round-trips (%d != %d)", i,
+              (int) narrow_out[i], (int) narrow[i]);
+}
+
 int main(void) {
     bitboards_init();
     attacks_init();
@@ -1412,6 +1511,7 @@ int main(void) {
     test_search_step_margins();
     test_movepick_poison();
     test_nnue_parse_poison();
+    test_nnue_leb_roundtrip();
     test_syzygy_wdl_score_domain();
     test_numa_from_string();
     test_numa_config_shape();

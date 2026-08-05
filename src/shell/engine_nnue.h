@@ -27,6 +27,11 @@ void engine_nnue_reload(const char *eval_file);
 // Announce the resident net (or the classical fallback) through the sink.
 void engine_nnue_report(void);
 
+// Write the resident net back out to FILENAME, or -- when FILENAME is nullptr -- to
+// the build's default name, which is refused unless the resident net is that one.
+// Announce the outcome through the line sink, as upstream prints it.
+void engine_nnue_export(const char *filename);
+
 // Terminate the process unless a usable net is loaded, printing upstream's five error
 // lines to stderr, naming the file that failed.
 void engine_nnue_verify(void);

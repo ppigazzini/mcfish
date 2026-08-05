@@ -208,6 +208,17 @@ bool eval_nnue_load(const char *root_directory, const char *evalfile_path) {
     return NetLoaded;
 }
 
+char *eval_nnue_save(const char *filename) {
+    const NetworkSaveResult result = network_save(filename);
+    // The outcome is the LINE, as upstream's is: `Engine::save_network` prints
+    // whichever of the four messages applies and returns nothing a caller branches on
+    // (engine.cpp:318). A null message is an allocation failure, and the shell says so
+    // rather than printing nothing.
+    return result.message;
+}
+
+void eval_nnue_free_message(char *message) { network_free_message(message); }
+
 bool eval_nnue_available(void) { return NetLoaded; }
 
 uint64_t eval_network_generation(void) { return NetGeneration; }
