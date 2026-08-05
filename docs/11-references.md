@@ -1,7 +1,7 @@
 # References
 
 Links only. Anything a reader could learn from one of these does not belong in
-the rest of this set — see [11-writing.md](11-writing.md).
+the rest of this set — see [12-writing.md](12-writing.md).
 
 Audience: all developers.
 
@@ -53,6 +53,74 @@ everything here.
   behaviour, with per-version notes.
 - [clang diagnostics reference][clang-diag] — what each flag in the warning set
   actually catches.
+
+## Type theory and type design
+
+Background for [09-type-design.md](09-type-design.md). Six groups, each here for
+one job; two of them are carried to mark a **limit** rather than to support a
+claim, and neither is a claim that this port implements anything.
+
+**What a type denotes.** The frame the design page assumes — a type is a set of
+values, and membership is construction.
+
+- [Harper, *Practical Foundations for Programming Languages*, 2nd ed.][pfpl] —
+  the textbook treatment of sum types, refinement, and what a type does and does
+  not carry.
+
+**Boolean blindness.** The argument for replacing a boolean with a named
+alternative, and the one to make when proposing one: a boolean gives 2ⁿ states for
+*n* meanings, and branching on it loses what was tested.
+
+- [Harper, "Boolean Blindness"][boolblind] — *"There is no information carried by
+  a Boolean beyond its value. To make use of one you have to know its
+  provenance."* This is what `NodeType` rests on, and what `cut_node` still
+  violates knowingly.
+
+**Units of measure.** The line the clock's two units would need. Kennedy's design
+gives *unit polymorphism* — a function generic in the unit it returns — which is
+exactly the property a `Depth` type would need and cannot have.
+
+- [Kennedy, "Types for Units-of-Measure"][kennedy] — the reference treatment,
+  still the reference. Library-level encodings in other languages give the
+  checking and lose the inference.
+
+**Strong typedefs in C specifically.** The thing C does not yet have, and the
+reason this port's enum tier is a promoted warning rather than a language rule.
+
+- [WG14 N3320, "strong-typedef"][n3320] — `_Newtype` and the `[[strong]]`
+  attribute: a distinct type with the same representation that still propagates
+  through arithmetic. **A proposal, implemented by no compiler this port builds
+  with.** Watch it; do not plan on it.
+- [MISRA C essential type model][misra-essential] — the industrial precedent for
+  the same idea enforced by a checker rather than by the compiler.
+
+**The zero-cost-abstraction claim, and where it fails.** Carried as a limit. The
+usual argument is that a wrapper compiles away; the measured finding across the
+sibling ports is that it compiles away *when the value is carried* and perturbs
+register allocation when many instances are live in one large function.
+
+- [Stroustrup, "Foundations of C++"][zero-overhead] — the canonical statement of
+  the principle the cost rule qualifies.
+
+**Cost in the type system.** Carried as a limit, with its refutation attached.
+This is the research line that would answer "why can't the compiler tell me what
+this type will cost".
+
+- [Hoffmann & Jost, "Two decades of automatic amortized resource
+  analysis"][aara] — types carry *potential*; the type system performs the
+  physicist's method of amortized analysis. **The limit is total:** AARA bounds
+  algorithmic resource use — allocations, steps, heap — not register pressure
+  inside an inlined function, which is what every regression these ports measured
+  actually was. Do not cite it as applicable until it can say something about this
+  tree.
+
+[pfpl]: https://www.cs.cmu.edu/~rwh/pfpl.html
+[boolblind]: https://existentialtype.wordpress.com/2011/03/15/boolean-blindness/
+[kennedy]: https://www.microsoft.com/en-us/research/publication/types-for-units-of-measure-theory-and-practice/
+[n3320]: https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3320.htm
+[misra-essential]: https://misra.org.uk/
+[zero-overhead]: https://www.stroustrup.com/ETAPS-corrected-draft.pdf
+[aara]: https://www.cs.cmu.edu/~janh/assets/pdf/HoffmannJ21.pdf
 
 ## Translation units, LTO and layout
 

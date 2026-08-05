@@ -1,6 +1,6 @@
 Replace the oracle's evaluation with the same material sum MCFISH_EVAL_MATERIAL uses.
 
-This is the OTHER half of the spine-isolation workload. docs/09-tooling-ci.md has
+This is the OTHER half of the spine-isolation workload. docs/10-tooling-ci.md has
 said "patch the oracle with the same formula" since the knob landed, but shipped no
 patch, so every spine measurement re-derived it by hand -- and the whole point of
 writing the weights out in both engines is that the two cannot drift. A recipe in

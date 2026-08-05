@@ -3,7 +3,7 @@
 How the code is structured: the three zones, how they depend on each other, how
 that dependency is enforced in C, which files are actually in the binary, and how
 one search flows through them. For the build and the gate battery see
-[09-tooling-ci.md](09-tooling-ci.md); for the C patterns behind the hot path see
+[10-tooling-ci.md](10-tooling-ci.md); for the C patterns behind the hot path see
 [08-idiomatic-c.md](08-idiomatic-c.md). Per-file detail lives in each header's
 leading comment block.
 
@@ -139,7 +139,7 @@ binary over a pipe, so it covers the parser and the command loop
 differential driver — start position, random legal moves, node counts diffed
 against the oracle at every depth — already exists and is **not** on the
 list above: it drives two separate UCI subprocesses, so it needs no library
-boundary at all. See [09-tooling-ci.md](09-tooling-ci.md).
+boundary at all. See [10-tooling-ci.md](10-tooling-ci.md).
 
 ### Does the seam layer cost performance?
 
