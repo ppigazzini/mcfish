@@ -515,7 +515,7 @@ upstream's own `Bench:` for the SHA pinned in
 [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE), and the
 whole port exists to reach it. The anchor's job is narrower: stop a refactor
 changing behaviour silently today. The gate, the trap in regenerating it, and the
-distinction are in [09-tooling-ci.md](09-tooling-ci.md).
+distinction are in [10-tooling-ci.md](10-tooling-ci.md).
 
 The bench position set is kept **verbatim** from upstream because it is the position
 set the eventual differential comparison runs on. The ported

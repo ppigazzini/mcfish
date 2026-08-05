@@ -326,7 +326,7 @@ lane drove the code that indexed with it.
   absent. Its golden mixes provenance — oracle-pinned probe results over two
   self-golden node totals — and `./build.sh tb-cursed-update` re-derives only the
   latter, refusing outright if the former has moved. See
-  [09-tooling-ci.md](09-tooling-ci.md).
+  [10-tooling-ci.md](10-tooling-ci.md).
 - **The material key is local.** Upstream looks tables up by
   `Position::material_key`; mcfish's `Position` carries none, so `registry.c`
   hashes the piece counts with a private fixed-seed table. Only self-consistency

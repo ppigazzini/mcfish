@@ -2571,7 +2571,7 @@ do_tb_cursed() {
 # and is what says the prober is right; the node legs below it are a self-golden that
 # only pins the time-check-counter phase. Regenerating both together would let a real
 # prober regression be written straight into the expectation -- the exact laundering
-# docs/09-tooling-ci.md describes. So the probe half is a precondition here, not an
+# docs/10-tooling-ci.md describes. So the probe half is a precondition here, not an
 # output.
 do_tb_cursed_update() {
   need_binary
@@ -2742,7 +2742,7 @@ usage: ./build.sh <step> [args]
   tb-update          re-derive tools/tb.golden FROM THE ORACLE
   tb-cursed-update   re-derive the tb-cursed node legs (refuses on a bad WDL/DTZ half)
 
-Read docs/09-tooling-ci.md before regenerating any golden: doing so on a red
+Read docs/10-tooling-ci.md before regenerating any golden: doing so on a red
 gate pins the defect instead of fixing it.
 EOF
 }
