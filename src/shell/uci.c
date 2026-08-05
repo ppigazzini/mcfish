@@ -438,9 +438,12 @@ static bool execute(char *line) {
     while (*cmd == ' ' || *cmd == '\t')
         ++cmd;
 
-    // Snapshot the line before strtok chops it: a critical-error diagnostic quotes
-    // the command as the operator typed it.
-    snprintf(CurrentCmd, sizeof CurrentCmd, "%s", cmd);
+    // Snapshot the line before strtok chops it: a critical-error diagnostic and the
+    // unknown-command reply both quote the command as the operator typed it. Snapshot
+    // `line` rather than the token, indent included -- upstream assigns `currentCmd`
+    // the whole getline result before it extracts a token (uci.cpp:106-107), so the
+    // leading whitespace it prints back is the whitespace that was typed.
+    snprintf(CurrentCmd, sizeof CurrentCmd, "%s", line);
     for (char *e = CurrentCmd; *e; ++e)
         if (*e == '\n' || *e == '\r') {
             *e = '\0';
@@ -454,6 +457,17 @@ static bool execute(char *line) {
         *args = '\0';
         ++args;
     }
+
+    // A blank line and a `#` line are not commands: upstream reaches neither the
+    // dispatch nor its unknown-command reply for them, because every arm hangs off
+    // `!token.empty() && token[0] != '#'` (uci.cpp:181, added by 5346f1c6c so a
+    // commented script can be piped at the engine). Answer them where upstream does
+    // -- by doing nothing at all. Returning HERE rather than from the else-chain
+    // below is what makes that true: the chain is entered past `engine_end_search()`,
+    // so a comment between two `go` lines would otherwise drain a running search
+    // while printing nothing, and a script's comments would change its search.
+    if (*cmd == '\0' || *cmd == '#')
+        return true;
 
     // The four commands a GUI sends DURING a search -- stop, quit, isready, ponderhit --
     // answer without draining it: that is the whole point of running the search off this
@@ -521,8 +535,12 @@ static bool execute(char *line) {
         benchmark_run(args);
     } else if (strcmp(cmd, "compiler") == 0) {
         cmd_compiler();
-    } else if (*cmd) {
-        uci_output_printf("Unknown command: '%s'. Type help for more information.\n", cmd);
+    } else {
+        // Quote the WHOLE line, not the token: upstream prints the `cmd` it read
+        // (uci.cpp:182), so `positon startpos` comes back in full and the operator can
+        // see the typo in the reply. The empty and `#` lines the same upstream arm
+        // excludes have already returned above.
+        uci_output_printf("Unknown command: '%s'. Type help for more information.\n", CurrentCmd);
     }
 
     return true;
@@ -559,12 +577,16 @@ void uci_loop(int argc, char **argv) {
     engine_init(argc > 0 ? argv[0] : nullptr);
 
     // Join the argv words into one command so `mcfish go depth 5` behaves as if that
-    // line were typed, then exit without entering the loop.
+    // line were typed, then exit without entering the loop. Each word carries a
+    // TRAILING space, as upstream's `cmd += argv[i] + " "` does (uci.cpp:97): every
+    // parser reads the same tokens either way, but the unknown-command reply quotes
+    // the line it was handed, so `mcfish frobnicate` must come back with the space
+    // upstream shows.
     if (argc > 1) {
         char line[4096] = { 0 };
         int n = 0;
         for (int i = 1; i < argc && n < (int) sizeof line - 2; ++i)
-            n += snprintf(line + n, sizeof line - (size_t) n, "%s%s", i > 1 ? " " : "", argv[i]);
+            n += snprintf(line + n, sizeof line - (size_t) n, "%s ", argv[i]);
         execute(line);
         engine_shutdown();
         return;
