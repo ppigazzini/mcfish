@@ -45,6 +45,17 @@ enum {
 // Round N up to a multiple of BASE (ceil_to_multiple, nnue_common.h:101). Both
 // arguments must already be `size_t`; the layout constants below depend on it
 // staying an integer-constant expression.
+//
+// This is the ONE owner of the operation. `nnue_ft.h` carried a byte-identical
+// second copy under the name NNUE_ROUND_UP, two lines above its own comment
+// forbidding exactly that for the network dimensions.
+//
+// It must stay a macro, and that is a language limit rather than a preference: C
+// has no `constexpr` FUNCTION, and every caller uses the result in an enum
+// initialiser or a `static_assert`, which an inline function cannot supply. The
+// consequence is that `base` is evaluated three times -- safe here only because
+// every argument is an integer constant expression, which is the same property
+// the callers already need.
 #define NNUE_CEIL_TO_MULTIPLE(n, base) (((n) + (base) - 1) / (base) * (base))
 
 // Read a little-endian uint32_t from P. Assemble it from bytes rather than

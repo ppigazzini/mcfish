@@ -39,7 +39,7 @@ enum : size_t {
                     + NNUE_COLOR_COUNT * NNUE_PSQT_BUCKETS * sizeof(int32_t),
     PSQT_OFFSET = NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t),
 
-    ACC_STATE_BYTES = NNUE_ROUND_UP(ACC_BYTES, NNUE_ALIGN),
+    ACC_STATE_BYTES = NNUE_CEIL_TO_MULTIPLE(ACC_BYTES, NNUE_ALIGN),
     PSQ_DIFF_OFFSET = ACC_BYTES,
     // The threat slot carries ONLY the per-ply DirtyThreats diff -- the combined
     // accumulation and psqt live in the psq slot, never here (see PSQ_FEATURE below). So
@@ -48,7 +48,8 @@ enum : size_t {
     // apart, which the incremental replay walk pays for as data-cache misses at depth.
     THREAT_DIFF_OFFSET = 0,
     PSQ_STATE_STRIDE = ACC_STATE_BYTES,
-    THREAT_STATE_STRIDE = NNUE_ROUND_UP(THREAT_DIFF_OFFSET + sizeof(NnueDirtyThreats), NNUE_ALIGN),
+    THREAT_STATE_STRIDE =
+      NNUE_CEIL_TO_MULTIPLE(THREAT_DIFF_OFFSET + sizeof(NnueDirtyThreats), NNUE_ALIGN),
     PSQ_ARRAY_BYTES = PSQ_STATE_STRIDE * NNUE_MAX_STACK_SIZE,
     THREAT_ARRAY_OFFSET = PSQ_ARRAY_BYTES,
     THREAT_ARRAY_BYTES = THREAT_STATE_STRIDE * NNUE_MAX_STACK_SIZE,
@@ -107,13 +108,14 @@ enum : size_t {
     // changed-square walk. The 8 bytes sit inside the 64-byte round-up, so the
     // entry size does not move.
     CACHE_ENTRY_PIECE_BB_OFFSET = CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
-    CACHE_ENTRY_BYTES = NNUE_ROUND_UP(CACHE_ENTRY_PIECE_BB_OFFSET + sizeof(uint64_t), NNUE_ALIGN),
+    CACHE_ENTRY_BYTES =
+      NNUE_CEIL_TO_MULTIPLE(CACHE_ENTRY_PIECE_BB_OFFSET + sizeof(uint64_t), NNUE_ALIGN),
     CACHE_BYTES = SQUARE_NB * NNUE_COLOR_COUNT * CACHE_ENTRY_BYTES,
 };
 // Pin the size claim above: adding the bitboard must not grow the rounded entry.
 static_assert(CACHE_ENTRY_BYTES
-                == NNUE_ROUND_UP(CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
-                                 NNUE_ALIGN),
+                == NNUE_CEIL_TO_MULTIPLE(CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
+                                         NNUE_ALIGN),
               "the piece bitboard must fit the entry's existing round-up slack");
 
 size_t nnue_refresh_cache_bytes(void) { return CACHE_BYTES; }
