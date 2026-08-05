@@ -4,6 +4,7 @@
 
 #include "nnue_accumulator.h"
 
+#include <stdbit.h>
 #include <assert.h>
 #include <string.h>
 
@@ -991,7 +992,7 @@ hybrid_applicable(uint8_t perspective, const NnueAccumulatorStack *stack, const 
     const NnueDirtyPiece diff = psq_diff_at(state_bytes_const(PSQ_FEATURE, size - 1, stack));
     return diff.pc == (uint8_t) (6 + 8 * perspective)
         && state_computed(stack, PSQ_FEATURE, size - 2, perspective)
-        && __builtin_popcountll(pos->by_type[ALL_PIECES]) >= MIN_PC_COUNT_HYBRID
+        && stdc_count_ones(pos->by_type[ALL_PIECES]) >= MIN_PC_COUNT_HYBRID
         && ((diff.from & 0x4) == (diff.to & 0x4)) && diff.add_sq == NNUE_SQ_NONE;
 }
 

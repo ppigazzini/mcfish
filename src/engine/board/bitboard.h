@@ -15,6 +15,8 @@
 
 #include "types.h"
 
+#include <stdbit.h>
+
 // Build SquareBB. Call once, before attacks_init.
 void bitboards_init(void);
 
@@ -33,8 +35,25 @@ static inline Bitboard rank_bb(int r) { return RANK_1_BB << (8 * r); }
 static inline bool bb_test(Bitboard b, Square s) { return (b & square_bb(s)) != 0; }
 static inline bool bb_more_than_one(Bitboard b) { return (b & (b - 1)) != 0; }
 
-static inline int popcount_bb(Bitboard b) { return __builtin_popcountll(b); }
+static inline int popcount_bb(Bitboard b) { return (int) stdc_count_ones(b); }
 
+// `lsb` and `msb` keep the compiler builtins, and that is a measured decision
+// rather than an oversight. C23's `stdc_trailing_zeros` and `stdc_leading_zeros`
+// are DEFINED at zero -- they return the operand width -- where `__builtin_ctzll`
+// and `__builtin_clzll` are undefined there. Buying that guarantee costs one
+// instruction per call at the sse41 baseline, because without BMI1 the compiler
+// must seed the result register before `bsf`/`bsr`:
+//
+//   __builtin_ctzll      tzcnt %rdi,%rax
+//   stdc_trailing_zeros  mov $0x40,%eax ; tzcnt %rdi,%rax
+//
+// At avx2 and above the two are identical, because BMI1's real `tzcnt` already
+// returns 64 for a zero operand. But `pop_lsb` is the hottest line in the engine
+// and sse41 is the tier the bench anchor is derived at, so this would pay per
+// call, at the primary tier, for a case both functions' preconditions already
+// exclude: every caller tests the board non-empty first. `popcount_bb` above is
+// the opposite case -- `stdc_count_ones` emits the same lone `popcnt` at every
+// tier -- so it takes the standard spelling and these two do not.
 static inline Square lsb(Bitboard b) { return (Square) __builtin_ctzll(b); }
 
 static inline Square msb(Bitboard b) { return (Square) (63 ^ __builtin_clzll(b)); }
