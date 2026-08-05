@@ -31,4 +31,17 @@ void uci_bench_go(const char *line);
 // Write the current position's FEN into BUF (needs >= 128 bytes).
 void uci_current_fen(char *buf, size_t buf_len);
 
+// Bound the `compiler` block. Four fields, the widest of which is a compiler's own
+// __VERSION__ string.
+enum : size_t { COMPILER_INFO_MAX = 512 };
+
+// Render the `compiler` block into BUF: a LEADING newline and exactly one trailing
+// one, which is upstream's `compiler_info()` shape. The `compiler` command adds the
+// blank line after it; `speedtest` embeds the block mid-report and adds nothing.
+void uci_compiler_info(char *buf, size_t buf_len);
+
+// Write the engine's name and version -- the identity line's first field, and what
+// `speedtest` reports as `Version`.
+void uci_engine_version(char *buf, size_t buf_len);
+
 #endif  // MCFISH_UCI_H
