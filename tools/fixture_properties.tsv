@@ -59,6 +59,8 @@ board-display-transcript	src/engine/board/fen.c	tools/cases/transcript/board.uci
 fen-boundary	src/engine/board/fen.c	tools/cases/fenboundary.uci	position fen
 fen-malformed	src/engine/board/fen.c	tools/cases/errors.uci	not-a-fen
 fen-malformed-transcript	src/engine/board/fen.c	tools/cases/transcript/errors.uci	boguscommand
+uci-comment-line	src/shell/uci.c	tools/cases/transcript/errors.uci	^#
+uci-unknown-command	src/shell/uci.c	tools/cases/transcript/errors.uci	^   indented
 position-move-list	src/engine/board/position.c	tools/cases/positionparse.uci	moves e2e4
 go-grammar	src/shell/uci.c	tools/cases/gogrammar.uci	go depth
 go-argument-width	src/shell/uci.c	tools/cases/gowidth.uci	18446744073709551615

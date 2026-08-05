@@ -219,12 +219,12 @@ is why `strtok` is usable at all.
 | `eval` | Print the evaluation trace via `evaluate_trace`. |
 | `compiler` | Print the clang or gcc version and `__STDC_VERSION__` the binary was built with. |
 | `ponderhit` | Clear the ponder flag, so a `go ponder` search begins enforcing its time limits. |
-| anything else | Print `Unknown command: '<cmd>'. Type help for more information.` |
+| a blank line, or one whose first word starts with `#` | Nothing at all — not even the drain. Upstream hangs every arm off `!token.empty() && token[0] != '#'`, so a commented script can be piped at the engine; the shell returns before `engine_end_search`, so a comment between two `go` lines cannot end a search either. |
+| anything else | Print `Unknown command: '<line>'. Type help for more information.`, quoting the **whole line** as typed — indent included — not the first word. |
 
-Two honest notes on that last row: the message names a `help` command, and **there
+One honest note on that last row: the message names a `help` command, and **there
 is no `help` handler** — typing `help` prints the unknown-command message about
-itself. And an empty line is not treated as unknown, so a blank line from a GUI is
-silently ignored rather than producing noise.
+itself.
 
 `go` runs the search **off the UCI thread**. `go_line` hands the search to worker 0's
 OS thread through `search_go_start` and returns, so the loop keeps reading stdin
