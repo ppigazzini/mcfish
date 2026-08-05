@@ -107,7 +107,7 @@ static inline Sym rd_sym(const uint8_t *p) { return (Sym) rd_u16le(p); }
 // Split the piece sequence in D->pieces into encoding groups: fill group_len[]
 // (zero-terminated) and group_idx[] (each group's multiplicative start index).
 // ORDER and F come from the file header. Require the geometry tables to be built.
-void set_groups(PairsData *d, EntryInfo e, const int32_t order[2], size_t f);
+void set_groups(PairsData *d, EntryInfo e, const int32_t order[static 2], size_t f);
 
 // Expand btree symbol S down to its leaves, returning the number of values it
 // represents minus one, and filling d->symlen. VISITED guards re-entry; the tree

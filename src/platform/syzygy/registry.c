@@ -113,7 +113,7 @@ static void init_material_keys(void) {
     MaterialKeysReady = true;
 }
 
-uint64_t syzygy_material_key(const int counts[16]) {
+uint64_t syzygy_material_key(const int counts[static 16]) {
     if (!MaterialKeysReady) {
         init_material_keys();
     }
