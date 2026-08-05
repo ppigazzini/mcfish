@@ -50,10 +50,10 @@ static inline int search_correction_value(Histories *h, const Position *pos, con
     const Color us = pos->side_to_move;
     const StateInfo *const st = pos->st;
 
-    const int pcv = shared_stat_load(&corr_bundle(h, st->pawn_key, us)->pawn);
-    const int micv = shared_stat_load(&corr_bundle(h, st->minor_piece_key, us)->minor);
-    const int wnpcv = shared_stat_load(&corr_bundle(h, st->non_pawn_key[WHITE], us)->nonpawn_white);
-    const int bnpcv = shared_stat_load(&corr_bundle(h, st->non_pawn_key[BLACK], us)->nonpawn_black);
+    const int pcv = shared_stat_load(corr_pawn_entry(h, st, us));
+    const int micv = shared_stat_load(corr_minor_entry(h, st, us));
+    const int wnpcv = shared_stat_load(corr_nonpawn_white_entry(h, st, us));
+    const int bnpcv = shared_stat_load(corr_nonpawn_black_entry(h, st, us));
 
     const Move m = (ss - 1)->current_move;
     int cch2 = 0;

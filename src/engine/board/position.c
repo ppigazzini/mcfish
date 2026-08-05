@@ -901,10 +901,10 @@ void pos_do_move(Position *pos,
         __builtin_prefetch(
           &pawn_history_row(history, new_st->pawn_key)[(size_t) pc * SQUARE_NB + (size_t) to], 0,
           3);
-        __builtin_prefetch(corr_bundle(history, new_st->pawn_key, them), 0, 3);
-        __builtin_prefetch(corr_bundle(history, new_st->minor_piece_key, them), 0, 3);
-        __builtin_prefetch(corr_bundle(history, new_st->non_pawn_key[WHITE], them), 0, 3);
-        __builtin_prefetch(corr_bundle(history, new_st->non_pawn_key[BLACK], them), 0, 3);
+        __builtin_prefetch(corr_pawn_entry(history, new_st, them), 0, 3);
+        __builtin_prefetch(corr_minor_entry(history, new_st, them), 0, 3);
+        __builtin_prefetch(corr_nonpawn_white_entry(history, new_st, them), 0, 3);
+        __builtin_prefetch(corr_nonpawn_black_entry(history, new_st, them), 0, 3);
     }
 
     // Derive the child's checkers from GIVES_CHECK rather than re-scanning the

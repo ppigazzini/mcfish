@@ -160,18 +160,18 @@ void history_fill_low_ply(Histories *h) {
 void history_update_correction(Histories *h,
                                const Position *pos,
                                Color us,
-                               const CorrectionKeys *keys,
                                Move prev_move,
                                int16_t *cont_corr2,
                                int16_t *cont_corr4,
                                int bonus) {
-    shared_stats_update(&corr_bundle(h, keys->pawn, us)->pawn, bonus, CORRECTION_HISTORY_LIMIT);
-    shared_stats_update(&corr_bundle(h, keys->minor, us)->minor, bonus * 150 / 128,
+    const StateInfo *const st = pos->st;
+
+    shared_stats_update(corr_pawn_entry(h, st, us), bonus, CORRECTION_HISTORY_LIMIT);
+    shared_stats_update(corr_minor_entry(h, st, us), bonus * 150 / 128, CORRECTION_HISTORY_LIMIT);
+    shared_stats_update(corr_nonpawn_white_entry(h, st, us), bonus * 186 / 128,
                         CORRECTION_HISTORY_LIMIT);
-    shared_stats_update(&corr_bundle(h, keys->non_pawn[WHITE], us)->nonpawn_white,
-                        bonus * 186 / 128, CORRECTION_HISTORY_LIMIT);
-    shared_stats_update(&corr_bundle(h, keys->non_pawn[BLACK], us)->nonpawn_black,
-                        bonus * 186 / 128, CORRECTION_HISTORY_LIMIT);
+    shared_stats_update(corr_nonpawn_black_entry(h, st, us), bonus * 186 / 128,
+                        CORRECTION_HISTORY_LIMIT);
 
     if (is_ok(prev_move)) {
         const Square to = move_to(prev_move);

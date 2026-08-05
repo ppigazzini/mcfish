@@ -87,12 +87,53 @@ static inline void shared_stats_update(SharedStat *entry, int bonus, int d) {
 }
 
 // Bundle the four correction entries stored per (key, color) slot.
+//
+// Each field has its OWN type, and that is the guarantee rather than decoration.
+// The four counters are selected by four DIFFERENT Zobrist keys, so a reader that
+// takes the row from one key and the field for another gets a real counter of the
+// wrong kind — a plausible wrong correction, never a fault. Four one-member
+// structs make those four pointers mutually incompatible, so the mispairing is a
+// compile error at the consumer instead of a silent read.
+//
+// A one-member struct is C's only true newtype: unlike a `typedef enum : T`, which
+// clang diagnoses as a warning, a distinct struct type is a hard error with no
+// flag involved. It costs nothing — the asserts below pin the layout, and the bulk
+// clear in `history.c` reads the whole array through one `int16_t *` regardless.
 typedef struct {
-    SharedStat pawn;
-    SharedStat minor;
-    SharedStat nonpawn_white;
-    SharedStat nonpawn_black;
+    SharedStat v;
+} CorrPawnStat;
+typedef struct {
+    SharedStat v;
+} CorrMinorStat;
+typedef struct {
+    SharedStat v;
+} CorrNonPawnWhiteStat;
+typedef struct {
+    SharedStat v;
+} CorrNonPawnBlackStat;
+
+typedef struct {
+    CorrPawnStat pawn;
+    CorrMinorStat minor;
+    CorrNonPawnWhiteStat nonpawn_white;
+    CorrNonPawnBlackStat nonpawn_black;
 } CorrectionBundle;
+
+// Wrapping must not move a byte: `shared_histories_clear` zeroes the whole
+// correction array through a single `int16_t *`, which is only valid while the
+// bundle is exactly four counters end to end.
+static_assert(sizeof(CorrectionBundle) == 4 * sizeof(SharedStat),
+              "a correction bundle is four counters, unpadded");
+static_assert(alignof(CorrectionBundle) == alignof(SharedStat),
+              "wrapping a counter must not change its alignment");
+static_assert(offsetof(CorrectionBundle, pawn) == 0 * sizeof(SharedStat),
+              "the pawn counter leads the bundle");
+static_assert(offsetof(CorrectionBundle, minor) == 1 * sizeof(SharedStat),
+              "the minor counter is second");
+static_assert(offsetof(CorrectionBundle, nonpawn_white) == 2 * sizeof(SharedStat),
+              "the white non-pawn counter is third");
+static_assert(offsetof(CorrectionBundle, nonpawn_black) == 3 * sizeof(SharedStat),
+              "the black non-pawn counter is fourth");
 
 // Hold the tables the workers of ONE NUMA node share: the key-indexed correction and
 // pawn tables, whose sizes scale with that node's thread count, and the continuation
@@ -167,13 +208,6 @@ Histories *histories(void);
 void histories_shutdown(void);
 
 // Mirror one search-stack frame. `continuation_history` points at a
-// Carry the four Zobrist keys the correction tables are indexed by.
-typedef struct {
-    Key pawn;
-    Key minor;
-    Key non_pawn[COLOR_NB];
-} CorrectionKeys;
-
 // Update ENTRY by gravity toward [-D, D]. D must not exceed INT16_MAX.
 static inline void stats_update(int16_t *entry, int bonus, int d) {
     const int clamped = bonus < -d ? -d : (bonus > d ? d : bonus);
@@ -204,10 +238,41 @@ static inline SharedStat *pawn_history_row(Histories *h, Key pawn_key) {
     return &h->pawn_base[idx * HIST_PIECETO];
 }
 
-// Return correctionHistory[key & mask][us].
-static inline CorrectionBundle *corr_bundle(Histories *h, Key key, Color us) {
+// Return correctionHistory[key & mask][us]. NOT for call sites: the four counters
+// in the row are selected by four DIFFERENT keys, so a caller that picks the row
+// and the field separately can pair them wrongly. Use the four accessors below,
+// each of which reads its own key and its own field.
+static inline CorrectionBundle *corr_row(Histories *h, Key key, Color us) {
     const size_t idx = (size_t) key & h->corr_mask;
     return &h->corr_base[idx][us];
+}
+
+// Return the correction counter each key selects — one accessor per (key, field)
+// pair, reading BOTH halves itself.
+//
+// The pairing used to be a convention restated by hand at eight call sites, and
+// `corr_bundle(h, st->pawn_key, us)->minor` compiled: a real counter of the wrong
+// kind, so a plausible wrong correction rather than a fault. No value gate can
+// see it — every gate here compares output THIS binary produced, so they agree
+// unanimously and are wrong together — and the bench signature says only that
+// something moved, never where.
+//
+// Neither the key nor the field is a parameter now, so a call site holds nothing
+// to transpose, and the field types make the old shape a compile error even though
+// C leaves `corr_row` visible. What this does NOT close is stated in
+// docs/09-type-design.md: all four accessors share a signature, so they remain
+// swappable for each other, and only the bench signature catches that.
+static inline SharedStat *corr_pawn_entry(Histories *h, const StateInfo *st, Color us) {
+    return &corr_row(h, st->pawn_key, us)->pawn.v;
+}
+static inline SharedStat *corr_minor_entry(Histories *h, const StateInfo *st, Color us) {
+    return &corr_row(h, st->minor_piece_key, us)->minor.v;
+}
+static inline SharedStat *corr_nonpawn_white_entry(Histories *h, const StateInfo *st, Color us) {
+    return &corr_row(h, st->non_pawn_key[WHITE], us)->nonpawn_white.v;
+}
+static inline SharedStat *corr_nonpawn_black_entry(Histories *h, const StateInfo *st, Color us) {
+    return &corr_row(h, st->non_pawn_key[BLACK], us)->nonpawn_black.v;
 }
 
 // Return &captureHistory[pc][to][captured_pt].
@@ -239,10 +304,14 @@ void history_fill_low_ply(Histories *h);
 // corrections toward the search / static-eval delta. Take exactly the three stack
 // facts the update reads — the previous move and the two continuation-correction
 // pages — so the caller gathers nothing the update discards.
+//
+// The four Zobrist keys are NOT a parameter. They used to arrive as a bundle the
+// caller copied out of `pos->st` immediately before the call, which put four keys
+// and four fields in one function for the update to pair by hand. It reads each
+// key through that key's own accessor instead.
 void history_update_correction(Histories *h,
                                const Position *pos,
                                Color us,
-                               const CorrectionKeys *keys,
                                Move prev_move,
                                int16_t *cont_corr2,
                                int16_t *cont_corr4,

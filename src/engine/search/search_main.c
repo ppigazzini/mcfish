@@ -484,13 +484,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 tt_move_history_update(h, tt_move_history_depth_bonus(depth));
 
                 if (!ss->in_check && value > ss->static_eval) {
-                    const CorrectionKeys keys = {
-                        .pawn = pos->st->pawn_key,
-                        .minor = pos->st->minor_piece_key,
-                        .non_pawn = { pos->st->non_pawn_key[WHITE], pos->st->non_pawn_key[BLACK] },
-                    };
                     history_update_correction(
-                      h, pos, pos->side_to_move, &keys, ss1->current_move,
+                      h, pos, pos->side_to_move, ss1->current_move,
                       (ss - 2)->continuation_correction_history,
                       (ss - 4)->continuation_correction_history,
                       multicut_correction_bonus(value - ss->static_eval, singular_depth));
@@ -677,14 +672,9 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     // directly.
     if (!ss->in_check && !(best_move != MOVE_NONE && pos_capture(pos, best_move))
         && (best_value > ss->static_eval) == (best_move != MOVE_NONE)) {
-        const CorrectionKeys keys = {
-            .pawn = pos->st->pawn_key,
-            .minor = pos->st->minor_piece_key,
-            .non_pawn = { pos->st->non_pawn_key[WHITE], pos->st->non_pawn_key[BLACK] },
-        };
         history_update_correction(
-          h, pos, pos->side_to_move, &keys, ss1->current_move,
-          (ss - 2)->continuation_correction_history, (ss - 4)->continuation_correction_history,
+          h, pos, pos->side_to_move, ss1->current_move, (ss - 2)->continuation_correction_history,
+          (ss - 4)->continuation_correction_history,
           correction_history_bonus(best_value - ss->static_eval, depth, best_move != MOVE_NONE));
     }
 
