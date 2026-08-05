@@ -91,6 +91,10 @@ void engine_ponderhit(void);
 // upstream prints before every go/perft/eval.
 void engine_report_net(void);
 
+// Write the resident net back out for `export_net`. FILENAME is the argument the
+// command carried, or nullptr when it carried none.
+void engine_export_net(const char *filename);
+
 // Emit the two `info string` lines upstream prints on every `go` (uci.cpp:129-133):
 // the process affinity mask and the thread allocation. Upstream sends them AFTER the
 // `go` arrives rather than at startup, and says why -- old GUIs and python-chess do

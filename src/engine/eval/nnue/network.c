@@ -5,6 +5,7 @@
 #include "nnue_hash.h"
 #include "nnue_parse.h"
 #include "nnue_weight_storage.h"
+#include "nnue_write.h"
 #include "simd.h"
 
 #include <stdarg.h>
@@ -90,6 +91,18 @@ static bool read_header(const uint8_t *bytes, size_t len, size_t *offset, Header
 // ---- section parses ----------------------------------------------------------
 
 #if MCFISH_SIMD_VECTOR && (defined(__AVX512BW__) || (defined(__AVX2__) && !defined(__AVX512F__)))
+// State the pack order ONCE, for the load's permutation and the export's inverse.
+//
+// The two are a forward and a backward reading of the same table, in one file
+// deliberately: an export that undid a permutation the load no longer applies would
+// write a net nothing can read, and the only instrument that could see it is
+// `net-roundtrip`. Sharing the table means there is nothing to keep in step.
+    #if defined(__AVX512BW__)
+static constexpr size_t PackusOrder[8] = { 0, 2, 4, 6, 1, 3, 5, 7 };
+    #else
+static constexpr size_t PackusOrder[8] = { 0, 2, 1, 3, 4, 6, 5, 7 };
+    #endif
+
 // Reorder every 64-lane span of an accumulator-side array so the transform's
 // vpackuswb lands the u8 outputs in canonical order with no cross-lane permute
 // (upstream permute_weights / PackusEpi16Order). Apply it to every array the 16-bit
@@ -105,11 +118,7 @@ static bool read_header(const uint8_t *bytes, size_t len, size_t *offset, Header
 // is self-inverse and the 512-bit one is not. Keep this paired with the step body in
 // nnue_accumulator.c: nothing but `signature` and `simd-scalar` holds them together.
 static void permute_packus_order(void *data, size_t elem_bytes, size_t count) {
-    #if defined(__AVX512BW__)
-    static constexpr size_t order[8] = { 0, 2, 4, 6, 1, 3, 5, 7 };
-    #else
-    static constexpr size_t order[8] = { 0, 2, 1, 3, 4, 6, 5, 7 };
-    #endif
+    const size_t *const order = PackusOrder;
     const size_t block = 8 * elem_bytes;
     const size_t chunk = 8 * block;
     unsigned char *cursor = data;
@@ -117,6 +126,23 @@ static void permute_packus_order(void *data, size_t elem_bytes, size_t count) {
     for (size_t i = 0; i < count * elem_bytes; i += chunk) {
         for (size_t j = 0; j < 8; j++)
             memcpy(buffer + j * block, cursor + i + order[j] * block, block);
+        memcpy(cursor + i, buffer, chunk);
+    }
+}
+
+// Undo permute_packus_order, so `export_net` writes the order the FILE holds rather
+// than the order this build's transform wants. Reading the same table backwards --
+// `out[order[j]] = in[j]` against `out[j] = in[order[j]]` -- is what makes the two
+// inverse whatever the table says; only the 256-bit table happens to be self-inverse.
+static void unpermute_packus_order(void *data, size_t elem_bytes, size_t count) {
+    const size_t *const order = PackusOrder;
+    const size_t block = 8 * elem_bytes;
+    const size_t chunk = 8 * block;
+    unsigned char *cursor = data;
+    unsigned char buffer[8 * 8 * sizeof(int16_t)];
+    for (size_t i = 0; i < count * elem_bytes; i += chunk) {
+        for (size_t j = 0; j < 8; j++)
+            memcpy(buffer + order[j] * block, cursor + i + j * block, block);
         memcpy(cursor + i, buffer, chunk);
     }
 }
@@ -420,6 +446,201 @@ NetworkVerifyResult network_verify(const char *evalfile_path, size_t evalfile_pa
           alloc_message("NNUE evaluation using %.*s (%zuMiB, (%zu, %d, %d, %d, 1))", (int) name_len,
                         name, size_bytes / (1024 * 1024), input_dimensions,
                         NNUE_TRANSFORMED_FEATURE_DIMENSIONS, NNUE_FC_0_OUTPUTS, NNUE_FC_1_OUTPUTS),
+    };
+}
+
+// ---- save --------------------------------------------------------------------
+//
+// The mirror of the parse above, and the ONE consumer of nnue_write.c. It exists
+// because upstream's `export_net` does, and it is the only path in the tree that
+// produces a .nnue rather than reading one -- so nothing else can hold it to the
+// format. `./build.sh net-roundtrip` is what does: it exports the shipped net and
+// compares it byte for byte with the file the loader read.
+
+// Bound the scratch this walk needs. The regions run to 66 MB and upstream copies
+// the whole transformer to unpermute it (a `make_unique<FeatureTransformer>(*this)`);
+// span the walk instead, because the permutation is contained in 64-element chunks
+// and every region count here is a multiple of one. 256 KiB is a whole number of
+// chunks at every element width, and it is also >= the largest affine weight array,
+// so one buffer serves both walks.
+enum { SAVE_SPAN_BYTES = 1u << 18 };
+
+// Copy N elements starting at FIRST out of a resident feature-transformer region,
+// undoing the load-time permutation on the builds that applied one. FIRST and N must
+// be multiples of the 64-element permutation chunk, which every region boundary and
+// every span below is.
+static void save_span(uint8_t *scratch,
+                      const uint8_t *region,
+                      size_t elem_bytes,
+                      size_t first,
+                      size_t n,
+                      [[maybe_unused]] bool permuted) {
+    memcpy(scratch, region + first * elem_bytes, n * elem_bytes);
+#if MCFISH_SIMD_VECTOR && (defined(__AVX512BW__) || (defined(__AVX2__) && !defined(__AVX512F__)))
+    if (permuted)
+        unpermute_packus_order(scratch, elem_bytes, n);
+#endif
+}
+
+// Emit a raw int8 region: the threat and pp weight blocks, which the file stores as
+// plain bytes with no encoding and no byte order to apply.
+static void save_raw_i8(NnueWriter *w,
+                        const uint8_t *region,
+                        size_t first,
+                        size_t count,
+                        bool permuted,
+                        uint8_t *scratch) {
+    for (size_t done = 0; done < count && w->ok;) {
+        const size_t n = count - done < SAVE_SPAN_BYTES ? count - done : (size_t) SAVE_SPAN_BYTES;
+        save_span(scratch, region, 1, first + done, n, permuted);
+        nnue_write_bytes(w, scratch, n);
+        done += n;
+    }
+}
+
+// Emit one LEB128 section over a region, in two passes: a section states its byte
+// count before its bytes, and the largest of these is 23 million values.
+static void
+save_leb_i16(NnueWriter *w, const uint8_t *region, size_t count, bool permuted, uint8_t *scratch) {
+    const size_t span = SAVE_SPAN_BYTES / sizeof(int16_t);
+    size_t bytes = 0;
+    for (size_t done = 0; done < count; done += span) {
+        const size_t n = count - done < span ? count - done : span;
+        save_span(scratch, region, sizeof(int16_t), done, n, permuted);
+        bytes += nnue_leb_bytes_i16((const int16_t *) (const void *) scratch, n);
+    }
+
+    nnue_write_leb_header(w, (uint32_t) bytes);
+    for (size_t done = 0; done < count && w->ok; done += span) {
+        const size_t n = count - done < span ? count - done : span;
+        save_span(scratch, region, sizeof(int16_t), done, n, permuted);
+        nnue_write_leb_i16(w, (const int16_t *) (const void *) scratch, n);
+    }
+}
+
+static void
+save_leb_i32(NnueWriter *w, const uint8_t *region, size_t first, size_t count, uint8_t *scratch) {
+    const size_t span = SAVE_SPAN_BYTES / sizeof(int32_t);
+    size_t bytes = 0;
+    for (size_t done = 0; done < count; done += span) {
+        const size_t n = count - done < span ? count - done : span;
+        save_span(scratch, region, sizeof(int32_t), first + done, n, false);
+        bytes += nnue_leb_bytes_i32((const int32_t *) (const void *) scratch, n);
+    }
+
+    nnue_write_leb_header(w, (uint32_t) bytes);
+    for (size_t done = 0; done < count && w->ok; done += span) {
+        const size_t n = count - done < span ? count - done : span;
+        save_span(scratch, region, sizeof(int32_t), first + done, n, false);
+        nnue_write_leb_i32(w, (const int32_t *) (const void *) scratch, n);
+    }
+}
+
+// Write the feature transformer in the file's own order, which is
+// nnue_parse_feature_transformer's read order run backwards: the component hash, then
+// biases, the threat weight/psqt pair, the pp weight/psqt pair, and finally the psq
+// weights and their psqt block. The two concatenated regions are split at the same
+// boundary the parse joined them on.
+static void save_feature_transformer(NnueWriter *w, const uint8_t *ft, uint8_t *scratch) {
+    nnue_write_u32_le(w, nnue_feature_transformer_hash_value());
+
+    save_leb_i16(w, ft + NNUE_FT_BIASES_OFF, NNUE_FT_BIASES_COUNT, true, scratch);
+
+    save_raw_i8(w, ft + NNUE_FT_THREAT_WEIGHTS_OFF, 0, NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT, true,
+                scratch);
+    save_leb_i32(w, ft + NNUE_FT_THREAT_PSQT_WEIGHTS_OFF, 0, NNUE_FT_THREAT_ONLY_PSQT_COUNT,
+                 scratch);
+    save_raw_i8(w, ft + NNUE_FT_THREAT_WEIGHTS_OFF, NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT,
+                NNUE_FT_PAIR_ONLY_WEIGHTS_COUNT, true, scratch);
+    save_leb_i32(w, ft + NNUE_FT_THREAT_PSQT_WEIGHTS_OFF, NNUE_FT_THREAT_ONLY_PSQT_COUNT,
+                 NNUE_FT_PAIR_ONLY_PSQT_COUNT, scratch);
+
+    save_leb_i16(w, ft + NNUE_FT_WEIGHTS_OFF, NNUE_FT_PSQ_WEIGHTS_COUNT, true, scratch);
+    save_leb_i32(w, ft + NNUE_FT_PSQT_WEIGHTS_OFF, 0, NNUE_FT_PSQT_WEIGHTS_COUNT, scratch);
+}
+
+// Write one bucket's three affine layers: the stack's component hash, then each
+// layer's biases little-endian and its weights back in FILE order. The weights are
+// held under the SSSE3 scramble, so the walk indexes through it exactly as upstream's
+// `weights[get_weight_index(i)]` does -- the same expression the parse writes through,
+// read the other way.
+static void save_layer_stack(NnueWriter *w, size_t bucket, uint8_t *scratch) {
+    nnue_write_u32_le(w, nnue_architecture_hash_value());
+
+    for (size_t idx = 0; idx < NNUE_LAYERS_PER_STACK && w->ok; ++idx) {
+        const NnueLayerDims dims = nnue_layer_dims(idx);
+        const size_t bb = nnue_layer_biases_bytes(idx);
+        const size_t wb = nnue_layer_weights_bytes(idx);
+        const uint8_t *const biases = nnue_layer_ptr(bucket, idx, NNUE_LAYER_BIASES);
+        const uint8_t *const weights = nnue_layer_ptr(bucket, idx, NNUE_LAYER_WEIGHTS);
+        if (biases == nullptr || weights == nullptr) {
+            w->ok = false;
+            return;
+        }
+
+        nnue_write_i32_le(w, (const int32_t *) (const void *) biases, bb / sizeof(int32_t));
+
+        for (size_t i = 0; i < wb; ++i)
+            scratch[i] = weights[nnue_weight_index_scrambled(i, dims.padded_input_dimensions,
+                                                             dims.output_dimensions)];
+        nnue_write_bytes(w, scratch, wb);
+    }
+}
+
+NetworkSaveResult network_save(const char *filename) {
+    size_t current_len = 0;
+    (void) nnue_nn_current(&current_len);
+    if (current_len == 0 || nnue_ft_ptr() == nullptr) {
+        return (NetworkSaveResult) {
+            .saved = false,
+            .message = alloc_message("Failed to export a net. No network file is currently "
+                                     "loaded. Please load a network file first."),
+        };
+    }
+
+    // Upstream's rule, and the reason it has one: with no filename the net is written
+    // to the DEFAULT name, so a net loaded under another name would silently overwrite
+    // the default file with different weights (network.cpp:122).
+    const bool current_is_default = nnue_equal_current_name(
+      NETWORK_DEFAULT_EVAL_FILE_NAME, sizeof(NETWORK_DEFAULT_EVAL_FILE_NAME) - 1);
+    if (filename == nullptr && !current_is_default) {
+        return (NetworkSaveResult) {
+            .saved = false,
+            .message = alloc_message("Failed to export a net. A non-embedded net can only be "
+                                     "saved if the filename is specified"),
+        };
+    }
+
+    const char *const actual = filename != nullptr ? filename : NETWORK_DEFAULT_EVAL_FILE_NAME;
+
+    uint8_t *const scratch = malloc(SAVE_SPAN_BYTES);
+    FILE *const out = scratch != nullptr ? fopen(actual, "wb") : nullptr;
+    bool saved = false;
+    if (out != nullptr) {
+        NnueWriter w = { .out = out, .ok = true };
+
+        size_t description_len = 0;
+        const char *const description = nnue_nn_description(&description_len);
+
+        nnue_write_u32_le(&w, NNUE_VERSION);
+        nnue_write_u32_le(&w, nnue_network_hash_value());
+        nnue_write_u32_le(&w, (uint32_t) description_len);
+        nnue_write_bytes(&w, description, description_len);
+
+        save_feature_transformer(&w, nnue_ft_ptr(), scratch);
+        for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS && w.ok; ++bucket)
+            save_layer_stack(&w, bucket, scratch);
+
+        // Close before reporting: the last megabytes are still in the stdio buffer
+        // until it is flushed, so a full disk is a failure this would otherwise miss.
+        saved = w.ok && fclose(out) == 0;
+    }
+    free(scratch);
+
+    return (NetworkSaveResult) {
+        .saved = saved,
+        .message = saved ? alloc_message("Network saved successfully to %s", actual)
+                         : alloc_message("Failed to export a net"),
     };
 }
 

@@ -24,8 +24,14 @@
 static bool NnInitialized = false;
 static char NnCurrent[NNUE_NAME_MAX + 1];
 static size_t NnCurrentLen = 0;
-static char NnDescription[NNUE_NAME_MAX + 1];
+
+// Hold the description at its OWN length, not a fixed one. It is the header field
+// `export_net` writes back, so a cap here is a cap on what a net can round-trip
+// through: upstream keeps a std::string, the shipped net's is 84 bytes, and nothing
+// bounds the next one. The cap was invisible for as long as nothing read this back.
+static char *NnDescription = nullptr;
 static size_t NnDescriptionLen = 0;
+static char NnNoDescription[1] = { '\0' };
 
 // Hold the inference storage. The parse writes the weights straight here;
 // inference reads from the same memory.
@@ -94,10 +100,15 @@ void nnue_set_loaded_state(const char *current,
     NnCurrent[cl] = '\0';
     NnCurrentLen = cl;
 
-    const size_t dl = description_len < NNUE_NAME_MAX ? description_len : NNUE_NAME_MAX;
-    memcpy(NnDescription, description, dl);
-    NnDescription[dl] = '\0';
-    NnDescriptionLen = dl;
+    free(NnDescription);
+    NnDescription = malloc(description_len + 1);
+    if (NnDescription == nullptr) {
+        NnDescriptionLen = 0;
+        return;
+    }
+    memcpy(NnDescription, description, description_len);
+    NnDescription[description_len] = '\0';
+    NnDescriptionLen = description_len;
 }
 
 const char *nnue_nn_current(size_t *len) {
@@ -109,7 +120,10 @@ const char *nnue_nn_current(size_t *len) {
 const char *nnue_nn_description(size_t *len) {
     if (len != nullptr)
         *len = NnDescriptionLen;
-    return NnDescription;
+    // Answer with an empty string rather than null when no net has loaded: every
+    // caller prints or hashes the result, and NUL-termination is this function's
+    // contract.
+    return NnDescription != nullptr ? NnDescription : NnNoDescription;
 }
 
 bool nnue_equal_current_name(const char *target, size_t target_len) {
@@ -170,6 +184,7 @@ void nnue_weight_storage_free(void) {
     NnInitialized = false;
     NnCurrent[0] = '\0';
     NnCurrentLen = 0;
-    NnDescription[0] = '\0';
+    free(NnDescription);
+    NnDescription = nullptr;
     NnDescriptionLen = 0;
 }

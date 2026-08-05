@@ -556,6 +556,13 @@ static bool execute(char *line) {
         benchmark_run(args);
     } else if (strcmp(cmd, "compiler") == 0) {
         cmd_compiler();
+    } else if (strcmp(cmd, "export_net") == 0) {
+        // One token, as `is >> filename` reads (uci.cpp:165-172): a path with a space
+        // in it is cut at the space on both engines, and no argument at all means the
+        // default name -- which the net policy then refuses unless the resident net IS
+        // the default one.
+        const char *file = strtok(args, " \t\n");
+        engine_export_net(file);
     } else if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "help") == 0
                || strcmp(cmd, "--license") == 0 || strcmp(cmd, "license") == 0) {
         cmd_help();

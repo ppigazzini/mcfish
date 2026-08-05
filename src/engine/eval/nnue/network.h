@@ -63,6 +63,21 @@ void network_load(const char *root_directory,
 // the message upstream prints for either outcome.
 NetworkVerifyResult network_verify(const char *evalfile_path, size_t evalfile_path_len);
 
+// Carry the outcome of network_save. MESSAGE is the line upstream prints for the
+// outcome, heap-allocated (and nullptr when the allocation failed); release it with
+// network_free_message.
+typedef struct {
+    bool saved;
+    char *message;
+} NetworkSaveResult;
+
+// Write the resident net back out as a .nnue file, as upstream's `export_net` does
+// (network.cpp:111). FILENAME may be nullptr, which means "the default name" and is
+// refused unless the resident net IS the default one -- upstream's rule, kept because
+// a net loaded under another name would otherwise be written over the default file.
+// Refuse with no file touched when no net is resident.
+NetworkSaveResult network_save(const char *filename);
+
 // Release a NetworkVerifyResult message.
 void network_free_message(char *message);
 

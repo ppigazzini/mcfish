@@ -32,8 +32,10 @@ typedef enum : uint8_t {
 void nnue_mark_initialized(void);
 bool nnue_is_initialized(void);
 
-// Record the name and description of the net just loaded. Both are truncated to
-// the fixed 256-byte buffers, as upstream's fixed net-identity fields are.
+// Record the name and description of the net just loaded. The NAME is truncated to
+// the fixed 256-byte buffer, as the EvalFile option itself is; the DESCRIPTION is
+// kept whole, because `export_net` writes it back into the header and a truncation
+// there would be a net that cannot round-trip.
 void nnue_set_loaded_state(const char *current,
                            size_t current_len,
                            const char *description,

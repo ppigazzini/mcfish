@@ -333,6 +333,7 @@ SOURCES=(
   src/engine/eval/nnue/nnue_hash.c
   src/engine/eval/nnue/nnue_weight_storage.c
   src/engine/eval/nnue/nnue_parse.c
+  src/engine/eval/nnue/nnue_write.c
   src/engine/eval/nnue/nnue_ft.c
   src/engine/eval/nnue/nnue_feature.c
   src/engine/eval/nnue/nnue_feature_bb.c
@@ -408,6 +409,7 @@ ENGINE_SOURCES=(
   src/engine/eval/nnue/nnue_hash.c
   src/engine/eval/nnue/nnue_weight_storage.c
   src/engine/eval/nnue/nnue_parse.c
+  src/engine/eval/nnue/nnue_write.c
   src/engine/eval/nnue/nnue_ft.c
   src/engine/eval/nnue/nnue_feature.c
   src/engine/eval/nnue/nnue_feature_bb.c
@@ -947,6 +949,81 @@ do_signature_update() {
   green "signature golden set to $actual"
 }
 
+# --- net-roundtrip: the only instrument on the WRITING side --------------------
+#
+# Every other net gate reads what the ENGINE CONSUMES. `signature`, `simd-scalar` and
+# the goldens all run the forward pass, and the forward pass never touches
+# `export_net` -- so the whole NNUE write path is an output nothing in the battery
+# looks at. A writer that drifts away from its reader is invisible to all of them:
+# with two of the writer's eight operations swapped and the reader untouched, the
+# anchor still matches and every golden still passes.
+#
+# This is the weld. The net on disk was written by upstream's own exporter, so
+# exporting it back and comparing byte for byte checks every LEB128 group, every split
+# point, every hash and the SIMD permutation's inverse at once -- against upstream's
+# bytes rather than against a second derivation somebody thought to assert.
+# ../rfish a469772 reports the same hole from the Rust side and closes it the same
+# way.
+#
+# It writes OUTSIDE $RESOURCES_DIR, deliberately: that directory is one of the three
+# candidates a load searches, so a half-written file there is a net the next run picks
+# up. A missing net is a SKIP, as for `signature`.
+do_net_roundtrip() {
+  need_binary
+
+  local name src dir out reply size_src size_out
+  name=$(grep -oE 'nn-[0-9a-f]+\.nnue' src/engine/eval/nnue/network.h | head -1)
+  [[ -n $name ]] || { red "net-roundtrip: could not read the default net name from network.h"; return 1; }
+
+  src=$RESOURCES_DIR/$name
+  if [[ ! -s $src ]]; then
+    red "no NNUE net reachable — net-roundtrip did NOT run."
+    red "Run './build.sh net' for where to obtain it. This is a SKIPPED gate."
+    return 127
+  fi
+
+  dir=$(mktemp -d)
+  out=$dir/exported.nnue
+  info "net-roundtrip: export the resident net and compare it with $src"
+
+  reply=$(engine export_net "$out" 2>&1 | tail -1)
+  if [[ $reply != Network\ saved\ successfully* ]]; then
+    red "net-roundtrip: export_net refused -- $reply"
+    rm -rf "$dir"
+    return 1
+  fi
+
+  # Refuse an empty subject rather than report a clean run over nothing: an export
+  # that wrote no file compares equal to no file at all under a careless `cmp`.
+  if [[ ! -s $out ]]; then
+    red "net-roundtrip: export_net reported success and wrote nothing to $out"
+    rm -rf "$dir"
+    return 1
+  fi
+
+  # Two arms, because a short write and a wrong byte are different bugs: the first is
+  # a section length or a missing region, the second is an encoding or an order.
+  size_src=$(stat -c%s "$src")
+  size_out=$(stat -c%s "$out")
+  if [[ $size_src -ne $size_out ]]; then
+    red "net-roundtrip: exported $size_out bytes, the net on disk is $size_src"
+    rm -rf "$dir"
+    return 1
+  fi
+
+  if ! cmp -s "$out" "$src"; then
+    red "net-roundtrip: $(cmp "$out" "$src" 2>&1)"
+    red "  The writer and the reader disagree about the format. Nothing else in the"
+    red "  battery can see this: the anchor and the goldens read only what the engine"
+    red "  CONSUMES, and export_net is not on the eval path."
+    rm -rf "$dir"
+    return 1
+  fi
+
+  rm -rf "$dir"
+  green "net-roundtrip: $size_out bytes, byte-identical to $name"
+}
+
 # --- perf-budget: an ABSOLUTE instruction-count regression gate --------------------
 #
 # The bench signature proves the same NODE count; it is blind to how many x86
@@ -1137,6 +1214,7 @@ NEGATIVE_CONTROL_ROWS=(
   "d omits Checkers:%src/engine/board/fen.c%s#Checkers: #CheckersZ: #%golden%run"
   "no knight under-promotion%src/engine/board/movegen.c%/make_move_typed(PROMOTION, from, to, KNIGHT)/d%perft%run"
   "scalar shift off by one%src/engine/eval/nnue/simd.h%s#(Elem) (a.l\[i\] >> s)#(Elem) (a.l[i] >> (s + 1))#%simd-scalar%run"
+  "exported FT component hash zeroed%src/engine/eval/nnue/network.c%s#nnue_write_u32_le(w, nnue_feature_transformer_hash_value());#nnue_write_u32_le(w, 0);#%net-roundtrip%run"
 )
 
 # Bound each mutated gate run. 900s clears every row measured here with room to
@@ -2712,6 +2790,7 @@ do_parity() {
   # clang-format is absent: the gate could not run. Name it as skipped rather than
   # let a fallback-tree node count read as an anchor comparison.
   do_signature || { [[ $? -eq 127 ]] && skipped+=(signature) || return 1; }
+  do_net_roundtrip || { [[ $? -eq 127 ]] && skipped+=(net-roundtrip) || return 1; }
   do_simd_scalar || { [[ $? -eq 127 ]] && skipped+=(simd-scalar) || return 1; }
 
   do_perft
@@ -2774,6 +2853,8 @@ usage: ./build.sh <step> [args]
   net                report where the NNUE net must be and how to obtain it
   net-fetch          download + sha256-verify the net -> resources/ (what CI runs)
   signature          assert the bench node count vs tools/signature.golden
+  net-roundtrip      export the net and require it back byte-identical
+                     (the only gate on the WRITING side of the .nnue format)
   perf-budget        LOCAL: assert retired instructions vs tools/instr_budget.golden
                      (catches an nps regression the node signature is blind to)
   perft              assert perft counts vs tools/perft.table
@@ -2821,6 +2902,7 @@ case "${1:-build}" in
   net)              do_net ;;
   net-fetch)        do_net_fetch ;;
   signature)        do_signature ;;
+  net-roundtrip)    do_net_roundtrip ;;
   perf-budget)      do_perf_budget ;;
   perf-budget-update) do_perf_budget_update ;;
   simd-scalar)      do_simd_scalar ;;

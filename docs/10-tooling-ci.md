@@ -131,6 +131,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `tsan` | rebuilds `ENGINE_SOURCES` + the test binary under ThreadSanitizer and runs it | the thread pool: that spawning, dispatching a job, waiting on the condition variable and joining carry the happens-before edges they claim. **This is the only gate that can see a threading bug at all** — the single-threaded search never reaches that code, and a race does not have to fire to be there. Kept out of `parity`: it needs its own build of the engine and roughly triples the suite. Run it whenever `src/platform/thread*.c` changes |
 | `tsan-search [depth] [threads]` | builds the **whole engine** under ThreadSanitizer and drives one `go` through the UCI front end | races in the SEARCH, which `tsan` cannot see: that step links the test binary, so the only concurrent code it reaches is the thread-pool test. Now that the pool is driven it measures a genuinely multi-threaded search — see [04-multithreading.md](04-multithreading.md). It is the search-race gate the thread-pool `tsan` run cannot substitute for |
 | `signature` | runs the default `bench` (a bare `engine bench` — the full position list at depth 13, `Hash 16`, one `ucinewgame`), compares the node total to [`../tools/signature.golden`](../tools/signature.golden) | that no edit changed search behaviour unintentionally |
+| `net-roundtrip` | drives `export_net` and compares the exported file with the net in `resources/`, byte for byte | the .nnue **writer**, which every other gate is structurally blind to. The rest of the battery reads only what the engine CONSUMES, and `export_net` is not on the eval path — so a writer that drifts from its reader keeps the anchor, `simd-scalar` and every golden green. The shipped net was written by upstream's own exporter, which makes the comparison a differential against upstream's bytes rather than against a second derivation: it checks every LEB128 group, every split point, every component hash and the inverse of the tier's SIMD permutation at once. Writes outside `resources/` (a half-written file there is a net the next run loads), refuses a zero-byte subject, and **skips** with a red note when no net is present |
 | `perft` | drives every row of [`../tools/perft.table`](../tools/perft.table) through the UCI front end | move generation totality |
 | `golden` | diffs each `tools/cases/*.uci` transcript against its `.golden` | the observable UCI surface, byte for byte after normalization |
 | `tb-fetch` | downloads the 3-man Syzygy set (KPvK KNvK KBvK KRvK KQvK, WDL+DTZ) into `resources/syzygy/` | nothing — it *fetches*. It verifies each file's Syzygy magic (`.rtbw` `71 E8 23 5D`, `.rtbz` `D7 66 0C A5`) and deletes anything that fails, so a mirror's HTML error page cannot masquerade as a table |
@@ -182,7 +183,7 @@ do not remove the bound.**
 
 `parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `fixture-coverage`,
 `lane-coverage`, `golden-coverage`, `tools-smoke`, `test`,
-`signature`, `simd-scalar`, `perft`, `golden`, `tb`.
+`signature`, `net-roundtrip`, `simd-scalar`, `perft`, `golden`, `tb`.
 
 `tools/tb.golden` is **oracle-derived**: `./build.sh tb-update` regenerates it by
 running the pristine upstream binary over the same battery, never mcfish. It pins
@@ -194,8 +195,8 @@ would be fake parity. See [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROV
 
 ### A skipped gate is not a passing gate
 
-`fmt` exits 127 when `clang-format` is absent, and `signature`/`simd-scalar` do the
-same when no NNUE net is reachable. `parity` treats each as *skipped*, keeps
+`fmt` exits 127 when `clang-format` is absent, and `signature`, `net-roundtrip` and
+`simd-scalar` do the same when no NNUE net is reachable. `parity` treats each as *skipped*, keeps
 going, and then **names every skipped gate in its summary line** — because
 "parity passed" printed over a silently absent linter, or over an anchor nobody
 actually checked, is exactly how a gate rots into decoration. Those three are the

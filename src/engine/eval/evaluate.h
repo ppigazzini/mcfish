@@ -82,6 +82,15 @@ void eval_nnue_shutdown(void);
 // upstream's `exit(EXIT_FAILURE)` in Network::verify.
 bool eval_nnue_load(const char *root_directory, const char *evalfile_path);
 
+// Write the resident net back out, as upstream's `export_net` does. FILENAME may be
+// nullptr, which writes the build's default name and is refused unless the resident
+// net is that one. Return the line to print -- upstream prints one either way -- which
+// the caller releases with eval_nnue_free_message.
+[[nodiscard]] char *eval_nnue_save(const char *filename);
+
+// Release a message eval_nnue_save returned.
+void eval_nnue_free_message(char *message);
+
 // Report whether `evaluate` is currently running the NNUE forward pass.
 bool eval_nnue_available(void);
 
