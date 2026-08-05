@@ -5,7 +5,7 @@
 // Port upstream `set_groups` (syzygy/tbprobe.cpp:1006). The piece sequence in
 // d->pieces is split into groups of interchangeable men; group_len[] records the
 // sizes and group_idx[] the multiplier each group contributes to the index.
-void set_groups(PairsData *d, EntryInfo e, const int32_t order[2], size_t f) {
+void set_groups(PairsData *d, EntryInfo e, const int32_t order[static 2], size_t f) {
     size_t n = 0;
     int32_t first_len = e.has_pawns ? 0 : (e.has_unique_pieces ? 3 : 2);
     d->group_len[0] = 1;
