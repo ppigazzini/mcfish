@@ -70,17 +70,14 @@ for row in "${ROWS[@]}"; do
     || fail "$property: $fixture no longer presents it -- witness /$witness/ matches nothing"
 done
 
-# A .uci fixture IS engine input. Both drivers pipe the file at the engine raw, so a
-# `#` line is not a comment -- it is a command, the engine answers "Unknown command",
-# and the case diverges for a reason that has nothing to do with what it tests. Every
-# case in the tree already follows this; the convention was just never written down
-# anywhere a newcomer would meet it before losing an hour to it.
-for f in tools/cases/*.uci tools/cases/transcript/*.uci; do
-  [[ -e $f ]] || continue
-  if grep -qE '^\s*#' "$f"; then
-    fail "$f has a '#' line -- a .uci file is piped RAW, so that is engine input, not a comment"
-  fi
-done
+# A .uci fixture IS engine input, and a `#` line in one used to be a COMMAND: the
+# engine answered "Unknown command", so a case diverged for a reason that had nothing
+# to do with what it tested, and this file banned the character outright. Upstream
+# skips such a line (uci.cpp:181), the shell now does too, and the ban is gone with the
+# divergence -- a `#` line in a fixture is a comment on both sides. What replaces it is
+# a row in the property table rather than a rule here: `uci-comment-line` names the
+# fixture that must still present one, so the behaviour has a witness instead of the
+# character having a prohibition.
 
 # Direction 2: every case file must be spoken for.
 unclassified=0

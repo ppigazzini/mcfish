@@ -1,4 +1,9 @@
 boguscommand
+positon startpos moves e2e4
+   indented boguscommand with words
+
+# a comment line is not a command: upstream answers nothing at all
+#position startpos
 position startpos moves e2e4 zzzz
 setoption name Nonexistent value 3
 isready
