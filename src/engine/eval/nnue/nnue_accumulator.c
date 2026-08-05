@@ -386,12 +386,18 @@ void nnue_clear_refresh_cache(NnueRefreshCache *cache, const int16_t *biases) {
 // twice more, once per king square, and the second board it passes is a reconstruction
 // of the position BEFORE the move rather than pos->board — which is why the occupancy
 // is a parameter and not read from POS here.
+// `entry_piece_bb` and `occupancy` are read only by the vectorized body below,
+// which splits one changed-square mask into upstream's removedBB/addedBB. The
+// scalar body walks the squares and re-derives both, so under MCFISH_SIMD_SCALAR
+// they are genuinely unused -- one configuration's live parameter is another's
+// dead one, which is what `[[maybe_unused]]` states. Dropping them from the
+// signature instead would fork it per configuration.
 static void entry_diff_indices(uint8_t perspective,
                                uint8_t king_square,
                                const uint8_t *entry_pieces,
-                               uint64_t entry_piece_bb,
+                               [[maybe_unused]] uint64_t entry_piece_bb,
                                const uint8_t *board,
-                               uint64_t occupancy,
+                               [[maybe_unused]] uint64_t occupancy,
                                uint32_t *removed,
                                size_t *removed_len_out,
                                uint32_t *added,
