@@ -7,24 +7,21 @@ that must not be confused:
   which symbol carries it here. It does not teach the concept — a page in this
   set describes what this codebase does, and the domain reference is a link in
   [11-references.md](11-references.md).
-- **Section 2 is this repository's vocabulary.** This project invented it. None of
-  it appears in the Stockfish source, and upstream is not obliged to agree with
-  any of it.
+- **Section 2 is this repository's vocabulary.** None of it appears in the
+  Stockfish source, and upstream is not obliged to agree with any of it.
 - **Section 3 is the words that mean two things here.** Each entry is a
-  disambiguation rather than a definition, and each one has cost someone time.
+  disambiguation rather than a definition.
 - **Section 4 is the testing field's vocabulary.** Neither tree owns it; the
-  literature does, which is exactly what makes it worth using. A term there is
-  searchable outside this repository, and a step name is not.
+  literature does, which is what makes it worth using. A term there is searchable
+  outside this repository, and a step name is not.
 
 A reader who cannot tell which tier a word is in will grep the Stockfish source
-for `zone` and not find it. That is the failure this split exists to prevent.
+for `zone` and not find it.
 
 Audience: all contributors.
 
-Every entry names the file, symbol or step that owns it. **No entry carries a
-count and none quotes the anchor**: a gate computes those, and prose that repeats
-a computed number is wrong the next time it moves —
-[12-writing.md](12-writing.md) owns that rule.
+Every entry names the file, symbol or step that owns it, and none quotes a number
+a gate computes.
 
 **What this page does not cover.** It defines terms; it does not explain
 subsystems. For how one search flows, see
@@ -71,7 +68,7 @@ definition, the script wins.
 | **zone** | one of the three directories the dependency rule is stated over: `src/engine/` (the chess library), `src/platform/` (the OS runtime), `src/shell/` (the process). `./build.sh zone-check` enforces the direction at **link** time by building engine + platform against a stub `main` |
 | **wired, unwired** | in [`../build.sh`](../build.sh)'s `SOURCES` array, or not in it. A `.c` outside both `SOURCES` and `ENGINE_SOURCES` compiles nowhere and is covered by no gate — that is the one structural fact [README.md](README.md) opens with. "Unwired" is a gap being named as a gap, never a design |
 | **gate** | a `./build.sh` step that **asserts**, and fails non-zero when the assertion breaks. A step that only builds, measures or re-derives is not one, and is listed with its reason in `LANE_EXCUSED` so `lane-coverage` can tell the two apart. A gate whose tool is missing exits 127 and is skipped, which is not a pass |
-| **lane** | one CI job under [`../.github/workflows`](../.github/workflows). `lane-coverage` holds every dispatched step to being in a workflow, in `parity`, or excused |
+| **lane** | one independently driven run. Usually a CI job under [`../.github/workflows`](../.github/workflows) — `lane-coverage` holds every dispatched step to being in a workflow, in `parity`, or excused — and also one target inside a step that drives several, as `fuzz-tb` drives a parse lane and a whole-file lane. A SIMD lane is a different word; see Section 3 |
 | **the golden** | `../Stockfish`, the tree that defines correct behaviour. Also a `tools/*.golden` file, which is a different thing entirely — Section 3 |
 | **the anchor** | the bench node total, pinned in `tools/signature.golden`. It is a **bit-exactness** claim against upstream at `UPSTREAM_BASE`, not a local snapshot, and a change that moves it must say what moved it |
 | **the oracle** | a pristine upstream build, produced by [`../tools/upstream/upstream_oracle.sh`](../tools/upstream/upstream_oracle.sh), that the local differentials drive beside mcfish. **LOCAL**: a CI checkout does not carry one, so every step that needs it says so |
@@ -79,8 +76,9 @@ definition, the script wins.
 | **the port map** | [`../tools/upstream_map.tsv`](../tools/upstream_map.tsv), upstream file to mcfish file, plus the SHA pins in `tools/upstream/`. `./build.sh sync-status` reports the distance to the golden's head |
 | **sibling** | `../zfish`, `../rfish` and `../fcfish`: peer ports of the same golden. **None of them is a source and none is behind another**; a finding in one is a hypothesis about this tree, to be probed here before it is fixed here. [AGENTS.md](../AGENTS.md) owns the rules |
 | **sweep** | driving one question across a whole class rather than fixing the instance in front of you — every include list, every named file, every sibling commit in a window. A **sibling sweep** is the special case: one sibling's log across a window, each finding probed against this tree before anything is written |
-| **seam** | a header that lets the engine zone read a value the shell owns without depending on it: `option_source.h`, `pool_source.h`, `time_source.h`, `tb_source.h`, `output_sink.h`. Each answers with a headless default when nothing installs a source, which is what keeps the engine zone linkable alone |
-| **tier** | an ISA target the build selects into the binary, chosen by `MCFISH_ARCH`. A measurement is a fact about one tier: the same change has measured a win at one and flat at another, and `native` names a different tier on every host |
+| **seam** | the indirection through which one zone reads a value another zone owns, so the dependency does not run backwards. The search's are `option_source.h`, `pool_source.h`, `time_source.h`, `tb_source.h` and `output_sink.h`; the shell installs them before every `go` (`install_seams`), and each answers with a headless default when nothing does, which is what keeps the engine zone linkable alone. The perf pages use the word for a second thing; see Section 3 |
+| **the spine** | the engine with the network removed — the board, state and search machinery an `MCFISH_EVAL_MATERIAL` build leaves running. A **spine comparison** is that pair of builds measured against the oracle patched with the same formula: it localises an effect to a zone by removing a component rather than attributing one |
+| **tier** | an ISA target the build selects into the binary, chosen by `MCFISH_ARCH`. A measurement is a fact about **one** tier, and `native` names a different tier on every host, so a result carries the tier it was taken at |
 | **knob** | an environment variable that builds a **deliberately different** binary for measurement — `MCFISH_EVAL_MATERIAL`, `MCFISH_SIMD_SCALAR`, `MCFISH_ACC_STATS`. Not UCI options, and not shipped behaviour: a knob build plays badly or reports extra on purpose |
 | **the budget** | `./build.sh perf-budget`, which holds the retired-instruction count to a per-tier recorded row. It **subtracts startup**, so it is structurally blind to the net load and the magic tables — Section 3 for the other budget |
 | **fixture, property, witness** | the three columns of [`../tools/fixture_properties.tsv`](../tools/fixture_properties.tsv): the behaviour the engine branches on, the file that presents it, and a regex that must still match inside that file. `fixture-coverage` holds the table in both directions, so a case file under no property is a failure |
@@ -88,6 +86,8 @@ definition, the script wins.
 | **rig fault** | a verdict that the comparison **did not happen**: both sides blank, a case that never answered, an empty corpus. It is neither a pass nor a failure, and it is reported before any standing, because a run that compared nothing must not publish the standing of what it did compare |
 | **known divergence** | an argued regex in [`../tools/transcript_known.txt`](../tools/transcript_known.txt), tagged `EXPIRING` or `PERMANENT`. An `EXPIRING` entry that matches nothing in a run fails the gate: a filter that outlives its cause is how a differential quietly stops comparing |
 | **fact table** | a file of facts about chess rather than about mcfish — [`../tools/perft.table`](../tools/perft.table) is the one. It is **not** a golden and is never re-derived from this engine; a mismatch is always a movegen bug |
+| **oracle-derived, self-golden** | which engine a golden was driven from. `golden-audit --write` and `tb-update` drive the **oracle**, so what they write is upstream's bytes; `golden-update` drives **mcfish**, so what it writes is a photograph that pins a defect exactly as faithfully as correct behaviour. [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md) owns the distinction |
+| **ratchet** | a recorded set a gate allows to move in one direction only, failing in both: `engine-standalone` holds the engine→platform undefined symbols to `tools/engine_platform.baseline`, and `upstream-map` holds the uncovered upstream surface to `tools/upstream_map.baseline`. A NEW entry is a fresh dependency; a vanished one asks to be deleted, because a baseline that only grows stale stops describing anything |
 | **the ledger** | the commit log, read as the record of what has already been measured. Every perf commit carries its evidence in its body, including the refutations, so `git log --grep` finds an idea that has already been tried and measured negative here |
 | **fleet** | several agents measuring in parallel, chartered onto **disjoint files** rather than disjoint metrics, delivering patches rather than commits |
 | **quiet box, the A/A floor** | an idle machine, and the noise floor obtained by A/B-ing a binary against a byte-identical copy of itself. Each axis has its own floor, and a change smaller than the floor of the axis you measured is not a result |
@@ -96,7 +96,7 @@ definition, the script wins.
 
 | word | meaning A | meaning B |
 |---|---|---|
-| **golden** | `../Stockfish`: the tree that defines correct behaviour | a `tools/*.golden` file: a pinned transcript of what **mcfish** printed. They drift apart silently, which is the whole reason `golden-audit` re-derives from the oracle instead |
+| **golden** | `../Stockfish`: the tree that defines correct behaviour. Also *a* golden — the upstream file or symbol one module was ported from, which is what the `Golden:` line in a header names | a `tools/*.golden` file: a pinned transcript of what **mcfish** printed. Nothing makes the two agree — `golden-audit` re-derives from the oracle, `golden-update` from this engine |
 | **oracle** | the pristine upstream build the differentials drive | the testing-field term in Section 4: whatever decides that a result is correct |
 | **node** | one search node body | one NUMA node: a set of CPUs in a `NumaConfig`, which `numa_config_add_cpu_to_node` fills |
 | **lane** | one CI job | one SIMD lane, in `simd.h`'s vectors and the per-lane C expression the scalar body spells out |
@@ -107,7 +107,7 @@ definition, the script wins.
 | **stack** | the search's per-ply `Stack` array, the `ss` every node body indexes | the NNUE accumulator stack, one slot per ply, pushed and popped by the make/unmake bracket |
 | **worker** | one `SearchWorker` block: the per-thread search state | the OS thread the pool spawns and NUMA binds. One block per thread, and neither word implies the other |
 | **corpus** | a fuzz seed corpus under `build/`, which `assert_fuzz_executed` holds to having actually been driven | `docs_lint.sh`'s symbol corpus: every tracked source plus the tracked path list |
-| **spine** | the whole-engine call path a `bench` drives, as in "the spine instruction ratio", where the contrast is with process startup | everything the search runs **on** with the network removed, as in "`MCFISH_EVAL_MATERIAL=1` leaves the spine and search running with the network gone". This set does not fix which; name the workload instead |
+| **seam** | a source seam: the indirection a zone reads another zone's value through | an inlining seam: a translation-unit boundary the optimiser does not cross, which is the sense the perf pages use for a hot symbol upstream inlines and this build does not |
 | **bench** | the UCI command | the position table it runs, and the node total that run produces. "The bench moved" is ambiguous between all three; say which |
 
 ## 4. The testing field's vocabulary
@@ -123,7 +123,7 @@ describe checks that are worse than absent.
 | **characterization test** | pins *current* behaviour, and is explicitly not a correctness claim | every `tools/*.golden`, which is why one re-derived from mcfish rather than from the oracle proves only that mcfish still agrees with itself |
 | **metamorphic relation** | a property relating two runs, rather than a pinned value | `net-roundtrip`: write the resident net out, and require the bytes back. `simd-scalar`: two implementations of the same kernel, one anchor |
 | **implicit oracle** | needs no reference, because some outcomes are wrong on their face | ASan and UBSan on the `test` step, and the fuzz steps, where the finding is the crash |
-| **mutation testing** | inject the defect, and require the check to go red | the "seen to fail" table a gate commit carries; [09-type-design.md](09-type-design.md) states it as a step, and [10-tooling-ci.md](10-tooling-ci.md) records the counters that died to it |
+| **mutation testing** | inject the defect, and require the check to go red | `negative-control` is the automated form, one mutant per gate; the "seen to fail" table in a gate's commit body is the by-hand one, and [09-type-design.md](09-type-design.md) states it as a step of adding a type |
 | **lost test** | a test that exists and is in no suite the build runs | a `.c` in neither `SOURCES` array, and a `.uci` case in no property row. Both have their own gate here for exactly this reason |
 | **false pass** | a run that passed because it compared **less**, not because more was right | the empty-corpus, blank-side and rig guards. A gate that reports OK over nothing reads exactly like one that checked everything |
-| **negative control** | a run against the **unfixed** tree that must show the defect, proving the check can fail at all | no script enforces it; it is the discipline behind every seen-to-fail table, and a gate that has never fired is not a gate |
+| **negative control** | a run against the **defective** tree that must show the defect, proving the check can fail at all | `./build.sh negative-control`, which mutates the engine once per gate, requires that gate to exit non-zero, then restores and requires it to pass. A gate that has never fired is not a gate |
