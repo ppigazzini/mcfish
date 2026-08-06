@@ -1,0 +1,4 @@
+# hold 90
+setoption name Threads value 1
+position startpos
+go nodes 11000000

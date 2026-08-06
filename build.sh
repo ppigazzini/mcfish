@@ -694,13 +694,27 @@ do_upstream_transcript() {
   local ok=0 accepted=0 failed=0 rig=0 script name
   for script in "${cases[@]}"; do
     name=$(basename "$script" .uci)
-    # `|| true` on both: a case may drive the engine to a deliberate non-zero exit
-    # (the malformed-input one does, on both engines), and under `set -euo pipefail`
-    # that would abort the sweep instead of being compared.
-    { { cat "$script"; sleep 5; } | ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/$BIN" ) 2>&1 \
-      | transcript_normalize > "$dir/mc"; } || true
-    { { cat "$script"; sleep 5; } | ( cd "$(dirname "$oracle")" && "$oracle" ) 2>&1 \
-      | transcript_normalize > "$dir/up"; } || true
+
+    # HOLD STDIN FOR AS LONG AS THE CASE ACTUALLY SEARCHES. Five seconds covers every
+    # case that ends in a shallow `go`, and a case that has to pass upstream's ten
+    # million node reporting threshold needs a minute of it. Close the pipe first and
+    # each engine stops wherever its own clock left it, which compares two truncations.
+    # A case declares its own budget in a `# hold <seconds>` line, which both engines
+    # ignore as a comment, so the number lives beside the search that needs it.
+    local hold declared
+    declared=$(grep -E '^# hold' "$script" || true)
+    hold=$(printf '%s\n' "$declared" | sed -nE 's/^# hold ([0-9]+)$/\1/p' | head -1)
+    if [[ -n $declared && -z $hold ]]; then
+      red "  FAIL  $name -- unparsable hold header: $declared"
+      red "        spell it exactly '# hold <seconds>'. Unparsed it falls to the 5s"
+      red "        default, and the case it was written for is cut off mid-search."
+      failed=$((failed + 1))
+      continue
+    fi
+    hold=${hold:-5}
+
+    transcript_drive "$script" "$hold" "$declared" "$ROOT/$RESOURCES_DIR" "$ROOT/$BIN" "$dir/mc"
+    transcript_drive "$script" "$hold" "$declared" "$(dirname "$oracle")" "$oracle" "$dir/up"
 
     # TWO BLANK SIDES COMPARE EQUAL, and that is a rig fault rather than an
     # agreement. Every way a side can fail blanks it to nothing -- an engine that
@@ -715,6 +729,23 @@ do_upstream_transcript() {
     # ../zfish a4f0b6e9 is the sibling's version.
     if [[ ! -s $dir/mc && ! -s $dir/up ]]; then
       red "  RIG   $name -- BOTH engines produced no output; nothing was compared"
+      rig=$((rig + 1))
+      continue
+    fi
+
+    # A DECLARED HOLD IS A CLAIM THAT THE SEARCH FITS INSIDE IT, and on a loaded
+    # machine it may not. Each side then stops wherever its own clock left it, so the
+    # diff reports a divergence that is about the host rather than the engines -- and
+    # if both happen to stop in the same place, it reports agreement over two halves
+    # of a search. Neither reading is about mcfish, so report the rig rather than a
+    # verdict. `bestmove` alone does not answer this: an engine that is CUT OFF prints
+    # one too, because closing stdin is a `quit` and a stopped search still announces.
+    # What separates the two is WHEN it appeared, which is what transcript_drive
+    # records in the `.late` marker.
+    if [[ -f $dir/mc.late || -f $dir/up.late ]]; then
+      red "  RIG   $name -- a side did not answer inside its ${hold}s hold"
+      red "        Raise the '# hold' line in $script; the transcripts are truncated"
+      red "        at whatever each engine's own clock reached, and are not comparable."
       rig=$((rig + 1))
       continue
     fi
@@ -795,6 +826,46 @@ do_upstream_transcript() {
 }
 
 # Elide only what the machine decides. Anything else is a claim about behaviour.
+# Drive ONE case through ONE engine, and write the normalised transcript to $6.
+#
+# The hold is a DEADLINE, not a delay. A case that declares one is waiting on a search
+# long enough that sleeping through it would dominate the gate, so the writer closes
+# the pipe as soon as the engine has answered -- and, because it can tell "answered"
+# from "gave up", it can also say which happened. Not seeing the answer in time leaves
+# a `.late` marker beside the transcript, which is the caller's rig signal: a cut-off
+# engine prints `bestmove` too, so the presence of that line proves nothing.
+#
+# Cases WITHOUT a declared hold keep the flat sleep they have always had. Closing early
+# on the first `bestmove` would change what they measure -- ponderhit and stop each run
+# a SECOND search after the first announcement, and cutting stdin there would quit the
+# engine in the middle of it.
+transcript_drive() {
+  local script=$1 hold=$2 declared=$3 workdir=$4 bin=$5 out=$6
+  local raw="$out.raw"
+  rm -f "$out.late"
+  : > "$raw"
+  # `|| true`: a case may drive the engine to a deliberate non-zero exit (the
+  # malformed-input one does, on both engines), and under `set -euo pipefail` that
+  # would abort the sweep instead of being compared.
+  {
+    {
+      cat "$script"
+      if [[ -n $declared ]]; then
+        local waited=0 limit=$((hold * 10))
+        while ((waited < limit)); do
+          grep -q '^bestmove' "$raw" 2>/dev/null && break
+          sleep 0.1
+          waited=$((waited + 1))
+        done
+        ((waited < limit)) || : > "$out.late"
+      else
+        sleep "$hold"
+      fi
+    } | (cd "$workdir" && "$bin") > "$raw" 2>&1
+  } || true
+  transcript_normalize < "$raw" > "$out"
+}
+
 transcript_normalize() {
   sed -E 's/ nps [0-9]+//; s/ time [0-9]+//; s/ hashfull [0-9]+//' \
     | sed -E 's/^(mcfish|Stockfish) [^ ]+ by .*/<engine banner>/' \
