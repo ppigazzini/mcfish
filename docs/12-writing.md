@@ -149,6 +149,7 @@ who broke it.
 | [06-platform.md](06-platform.md) | `src/platform/` | hot — the engine→platform edge moves as seams land |
 | [07-shell.md](07-shell.md) | `src/shell/` | hot — `engine.c` owns the session, `uci.c` the transport over it |
 | [08-idiomatic-c.md](08-idiomatic-c.md) | the C23 patterns, the porting patterns, the measurement discipline | cold |
+| [09-type-design.md](09-type-design.md) | what each quantity denotes, and which of them are types | cold — the refutations outlive the code they were measured on |
 | [10-tooling-ci.md](10-tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
 | [11-references.md](11-references.md) | external links | cold |
 | this page | the rules | cold |
