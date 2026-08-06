@@ -6,7 +6,6 @@
 #include "search_common.h"
 #include "search_control.h"
 #include "search_emit.h"
-#include "search_control.h"
 #include "search_qsearch.h"
 #include "tb_source.h"
 #include "tt.h"
