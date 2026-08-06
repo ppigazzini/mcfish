@@ -67,9 +67,11 @@ Four consequences an agent gets wrong before reading
   dispatch had never been diffed against upstream's arm for arm. Four commands
   were missing or wrong (`export_net`, `help`/`license`, `#` comment lines, and
   the unknown-command reply quoting the token instead of the line), each visible
-  in one `printf` and none of them caught by any gate. When a sibling builds an
-  instrument, check what this tree points at that surface — not only whether the
-  same defect is here.
+  in one `printf` and none of them caught by any gate. `speedtest` — which no
+  sweep found, because rfish does not have it either — was the fifth, and the
+  dispatch now answers all twenty of upstream's commands. When a sibling builds
+  an instrument, check what this tree points at that surface — not only whether
+  the same defect is here.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
