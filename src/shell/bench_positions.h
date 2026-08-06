@@ -8,7 +8,7 @@
 //
 // A `setoption ...` entry is dispatched as-is; every other entry is a position
 // record, some with a `moves ...` suffix, to be prefixed with `position fen `.
-// uci_bench.c composes the script from them.
+// benchmark.c composes the script from them.
 //
 // This table IS what pins tools/signature.golden: `benchmark_run` composes its
 // script from `BenchDefaults` and nothing else. Adding, removing or reordering a
