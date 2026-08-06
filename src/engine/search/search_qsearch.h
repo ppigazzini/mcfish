@@ -3,7 +3,7 @@
 //
 // qsearch_node is a call-graph leaf: it only ever recurses into itself, never
 // into the main alpha-beta node. That is what lets the whole search zone's import
-// cycle stay confined to search_main <-> search_back. The shared primitives live
+// cycle stay confined to search_main <-> search_qsearch. The shared primitives live
 // here for the same reason — both node bodies need them, and this is the half of
 // the pair with no dependency on the other.
 //
