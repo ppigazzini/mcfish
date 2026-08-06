@@ -72,6 +72,7 @@ written relative to Stockfish's `src/`, as *upstream `nnue/network.cpp`*.
 | [10-tooling-ci.md](10-tooling-ci.md) | All developers | Every `./build.sh` step and what it gates, the source arrays that decide what is gated at all, the golden-diff harness and its normalization, fact tables versus goldens, the anchor versus the finish line, the CI lanes |
 | [11-references.md](11-references.md) | All developers | Stockfish, chess-domain, C23, Syzygy and NNUE references |
 | [12-writing.md](12-writing.md) | Anyone editing these docs | How the set is organised, the writing rules, the hot/cold map, code-comment style, and what `docs-lint` cannot check |
+| [13-glossary.md](13-glossary.md) | All contributors | Every word this set uses without defining it, in four tiers that must not be confused: upstream's vocabulary and the symbol that carries it here, this repository's own, the words that mean two things, and the testing field's |
 
 ## Quick start
 
