@@ -63,10 +63,10 @@ kept a P0 alive for months.
 **Name the owner and the invariant, not just the mechanism.** Say which file and
 symbol owns the behaviour and what must stay true about it. `depth8` in the TT is
 the local example: "stores a depth" is accurate and useless. What a reader needs
-is that `depth8 != 0` is the **occupancy test**, so `tt_save`'s `+1` bias is
-load-bearing and a wrapping decrement would turn a penalised shallow entry into
-the deepest entry in the table. Write the sentence a reader needs before they
-delete your line.
+is that `depth8 != 0` is the **occupancy test**, so the `DEPTH_ENTRY_OFFSET` bias
+`tt_save` applies is load-bearing and a wrapping decrement would turn a penalised
+shallow entry into the deepest entry in the table. Write the sentence a reader
+needs before they delete your line.
 
 **Verify the claim against the tree; drive the binary when it is behavioural.**
 Not "read it carefully" — run it. `grep -n` for a symbol, `printf 'uci\n' |
