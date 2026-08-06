@@ -15,7 +15,6 @@
 #include "../platform/memory.h"
 #include "../platform/worker_pool.h"
 #include "engine_nnue.h"
-#include "syzygy_option.h"
 #include "engine_options.h"
 #include "syzygy_option.h"
 
