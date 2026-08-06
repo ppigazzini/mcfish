@@ -72,6 +72,16 @@ Four consequences an agent gets wrong before reading
   dispatch now answers all twenty of upstream's commands. When a sibling builds
   an instrument, check what this tree points at that surface — not only whether
   the same defect is here.
+- **A sibling's BUG can be this tree's ungated correctness.** The eighth sweep
+  (2026-08-06, rfish `a469772..2f1ce01`) took no code: `2f1ce01` is `speedtest`,
+  which mcfish shipped first in `cf1178f4`, and `2596bc6` fixes a root `currmove`
+  announcement rfish had never wired up — where this tree has all three of
+  upstream's call sites and one owner for the threshold. But rfish's line about
+  it holds here word for word: nothing prints past ten million nodes under any
+  gate, so deleting the call left every one of them green. Ask "would a gate here
+  have caught the sibling's bug?" even when the answer to "is the bug here?" is
+  no. It is now adjudicated (22 lines, identical to the oracle) and gated, in
+  `b83ad32b`.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
