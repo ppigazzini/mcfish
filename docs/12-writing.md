@@ -122,7 +122,10 @@ alternative**. "Don't open-code `(Square)(s + d)`" leaves a reader stuck; "use
 `sq_add`, or `safe_step` when the step may leave the board" does not.
 
 **Cut anything that does not help implement or verify.** Length is not
-thoroughness; it is where rot hides.
+thoroughness; it is where rot hides. This binds a generated page exactly as it binds
+a hand-written one — match the length to what the change needs, and add no section
+that exists to look complete: a summary restating the section above it, a recap of
+what a gate prints, a next-steps list nobody asked for.
 
 ## Hot and cold
 
