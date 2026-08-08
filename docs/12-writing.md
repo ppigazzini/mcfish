@@ -213,6 +213,59 @@ it before.
 makes a strange thing sound intended, stop and check whether it is a bug — that
 sentence is load-bearing for the next reader who might have fixed it.
 
+## Commit messages
+
+**The one surface where history is the subject rather than the contamination.**
+"No history" above sends the before/after here, and here it is not a courtesy —
+it is the only searchable record this port has of what was tried. AGENTS.md tells
+an agent to run `git log --grep=rfish` and `--grep=zfish` before acting on a
+sibling finding, and to search the log before re-measuring anything. That only
+answers because the bodies wrote it down.
+
+**Subject: a conventional type, an optional scope, and the claim. 72 characters.**
+The scope is the zone or module (`docs(tb)`, `fix(search)`, `perf(nnue)`). State
+what is now true, not which area was touched.
+
+**Body wrapped at 80, in three parts:** what the change is and why it is right,
+the witness, then the gates.
+
+**Record the refusal, not only the change.** A sibling behaviour probed and found
+already correct here, a measurement that transferred as flat or negative, a patch
+declined with its reason — those belong in the body of the commit that refused
+them, and several of this tree's commits carry nothing else. A refutation deleted
+is a session the next contributor spends again, and the sweep discipline in
+AGENTS.md is built on being able to find them.
+
+**The witness has to be specific.** A behaviour claim is adjudicated against the
+oracle, quoted both sides. A gate claim names the mutation that reddened it. A
+cost claim carries the tool, the rounds, the ratio and the node count, and it says
+which arch tier produced them — a number without its tier is reproducible nowhere.
+
+**The gates block names each gate and the exit code, read from the gate itself.**
+Not a pipe. And the exit codes here are not two-valued: **0 passes, 1 is drift, 2
+is a rig fault, and 127 is a gate that never ran** because a tool was missing.
+`parity` names the ones it skipped; a body that folds a 127 into "all green" is
+reporting a pass over a check that did not happen. Say "no gate skipped" only when
+that is what the gate said.
+
+**A commit body MAY quote the bench anchor, and is the one place that may.**
+`docs_lint.sh` refuses a page that quotes it, because prose is read as current and
+the anchor moves on every intended behaviour change. A commit is timestamped by
+construction, so `signature <count> UNCHANGED` in a gates block — with the real
+count — is a fact about that commit and cannot rot. Do not carry it back into a
+page: this paragraph cannot spell the number either, and the gate is what stopped
+the draft that did.
+
+**One logical change per commit.** A commit touching three modules cannot be
+bisected when the node count moves. **No `Co-authored-by`, no generated-by
+trailers, and do not `git push`** — commit locally and stop unless asked.
+
+Upstream's own convention does not apply here and should not be copied across: its
+`Bench:` / "No functional change" trailer and its SPRT blocks exist because that
+project decides functional changes on fishtest, which this port does not use. The
+evidence here is a gate on one machine, and it belongs in the gates block where
+the next reader can re-run it.
+
 ## The gate
 
 ```bash
