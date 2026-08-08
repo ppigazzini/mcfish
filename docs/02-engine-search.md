@@ -623,34 +623,42 @@ an aborted search is rolled back to the previous iteration's, an aborted MultiPV
 cannot overtake a completed one, and a mate found in an earlier iteration is never
 replaced by a later iteration that failed to re-find it.
 
-## What is still not upstream's
+## Where the zone's risk actually is
 
-What the live zone does not yet do:
+No feature of the node bodies is outstanding, so the risk here is not a list of
+missing things — it is the seams the zone is reached through, where a wrong answer
+is a wrong *search* rather than an absent one.
 
-- **The option model is installed, and its fallback is still a trap.** `uci_loop`
-  registers the shell's table behind the `option_source` seam with
-  `search_set_option_source`, so MultiPV, Skill Level, UCI_Elo, Move Overhead,
-  nodestime, Ponder and UCI_ShowWDL reach the search from the table the handshake
-  renders. A caller that installs nothing — the bench harness, the unit tests —
-  falls back to `facade_option_int`, which answers upstream's defaults. That
-  fallback is **not** neutral: the zone's own default answers 0 to everything,
-  which reads as MultiPV 0 and Skill Level 0, wrong searches rather than absent
-  ones. The four Syzygy reads are deliberately left unregistered while no prober
-  exists. See [07-shell.md](07-shell.md).
-- **Per-game manager state.** `best_previous_score`, `best_previous_average_score`
-  and `previous_time_reduction` are reset per `go` rather than carried between moves,
-  alongside the history block. Upstream resets them on `ucinewgame`; the live UCI
-  layer has no hook for that, which is a shell gap.
-- **`pos_non_pawn_material` is a function, not cached state.** Upstream reads
-  `st->non_pawn_material[c]`. Step 14 calls it twice per move; caching it on
-  `StateInfo` is a pure win with no behaviour change.
-- **Tablebases.** Every tablebase path is behind `tb_config.cardinality`, which is
-  zero with no prober attached — the correct answer, not a degraded one. See
-  [06-platform.md](06-platform.md).
+**The option seam resolves per search, and the order is load-bearing.**
+`OptionIntByName` starts at `option_zero_by_name` (`search_common.c`), which answers
+0 to everything — and zero is not neutral: it reads as MultiPV 0 and Skill Level 0,
+wrong searches rather than defaults. Nothing searches on it, because `install_seams`
+runs before every search and resolves the chain:
 
-The zone is close enough to upstream that a per-position differential at fixed depth
-is now the useful gate, not a proxy: run it before and after any change here, and
-treat a position that moves as a finding rather than as noise.
+```c
+OptionIntByName = ShellOptionInt ? ShellOptionInt : facade_option_int;
+```
+
+`ShellOptionInt` is the live table, registered once by `engine.c` through
+`search_set_option_source`; `facade_option_int` answers upstream's defaults for a
+caller that installs nothing, which is what the bench harness and the unit tests do.
+The indirection through `ShellOptionInt` is why the shell's registration survives:
+`install_seams` runs before every `go`, so writing the shell's table straight into
+`OptionIntByName` would have it overwritten on the first search and every option
+would silently revert to the facade. The three Syzygy reads
+(`OptionSyzygyProbeDepth`, `OptionSyzygyProbeLimit`, `OptionSyzygy50MoveRule`) are
+registered the same way, by `syzygy_option.c`. See [07-shell.md](07-shell.md).
+
+**The anchor cannot see a divergence off its own position list.** The bench is 51
+fixed positions, so a fault that never fires on them leaves every gate green. The
+per-position differential at fixed depth is the gate that is not fooled: run it
+before and after any change here, and treat a position that moves as a finding
+rather than as noise. [10-tooling-ci.md](10-tooling-ci.md) owns both instruments.
+
+The zone's remaining open items are owned elsewhere, because they are not properties
+of the node bodies: no unit test constructs a `SearchWorker`
+([04-multithreading.md](04-multithreading.md)), and the cursed-win branches are gated
+outside `parity` ([05-tablebases.md](05-tablebases.md)).
 
 ## perft
 
