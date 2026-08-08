@@ -333,8 +333,13 @@ lane drove the code that indexed with it.
   matters today, because the key never leaves the module — but the fix is to add
   `Key material_key` to `StateInfo`, maintained incrementally by `pos_do_move`
   exactly as upstream does.
-- **`gives_check` is passed `false` at both probe call sites.** `pos_do_move`
-  ignores the parameter today and recomputes the checkers from the board. The day
-  it starts trusting the argument, both call sites must pass a real
-  `search_gives_check` or the prober will read a wrong checkers set and mis-probe.
-  Both sites carry that warning inline.
+**Not a gap, and listed here because it reads like one: `gives_check` is a
+contract the prober must honour, not a parameter it may ignore.** `pos_do_move`
+**trusts** the argument — `new_st->checkers` is derived from it rather than
+recomputed from the board (`position.c`) — so every probe site passes the real
+`pos_gives_check(pos, m)`: `probe.c` and `wdl.c` on the walk, and both
+`pos_do_move` calls in `root_move_build.c` on the root ranking. Passing `false`
+there is not a cheap approximation; it hands the child an empty checkers set and
+the prober mis-probes with no diagnostic. Each site carries that note inline, and
+upstream reaches the same place differently: its `search<CheckZeroingMoves>` uses
+the two-argument `do_move`, which computes the predicate itself.
