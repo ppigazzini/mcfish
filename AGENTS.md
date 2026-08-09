@@ -101,6 +101,21 @@ Four consequences an agent gets wrong before reading
   suite's searches all ran before the net loaded, so **nothing in it had ever
   entered the accumulator from inside a search** (`shared 0 split 0 refresh 0`
   before the new test). Closed in `f12320b3`.
+- **A curated fixture cannot hold the case nobody thought of.** The tenth sweep
+  (2026-08-09, rfish) probed the same headless class and again took no code — the
+  crate graph makes rfish's zone check a compile error rather than a gate, its
+  engine-side search harness is `search_go` here, and its unenforced intra-crate
+  module direction has no counterpart because this tree declares no layering
+  rule inside `engine/` and says why. What transferred was three randomised
+  shapes its harness runs and this tree's always-run suite had only in curated
+  form: unwinding a 60-ply line (`5f50ac3e` — a castling-key toggle skipped once
+  the halfmove clock reaches 4 is invisible to every other gate, including the
+  depth-3 exhaustive round-trip), random and mutated FEN strings (`c54301a5` —
+  dropping the placement parser's file bound is a UBSan out-of-bounds this walk
+  raises and the reject table cannot, because the curated overflow lands INSIDE
+  the board array), and the zero-wait `stop`/`quit` (`37070852` — every existing
+  async invariant sleeps first, so none of them drove the shape every harness
+  sends). Ask what a sibling's harness EXPLORES that this tree only enumerates.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
