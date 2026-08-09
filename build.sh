@@ -1822,8 +1822,48 @@ do_async_check() {
     printf '  \033[32mok\033[0m    quit during a running search exits\n'
   fi
 
+  # 4+5. THE ZERO-WAIT SHAPE, which the three above cannot reach: `stop` / `quit` in
+  #      the SAME input buffer as the `go` they interrupt, with no sleep between them.
+  #      Every invariant above pauses two seconds first, so all three probe a search
+  #      that is definitely running; the shape every harness and every one of these
+  #      gates actually uses is a single `printf` piped in at once, where the
+  #      interrupting command is readable before the search has begun.
+  #
+  #      mcfish answers both today, by construction rather than by luck: `execute`
+  #      dispatches one line at a time on the UCI thread, and `search_go_start` clears
+  #      the stop flag there -- before it returns, so before `stop` can be read. That
+  #      is exactly why it needs a gate. Move the clear onto the worker (a plausible
+  #      refactor of the dispatch) and the interrupting command is swallowed by the
+  #      search it was meant to end, while invariants 1-3 stay green because their
+  #      sleep puts them after the clear either way.
+  #
+  #      Taken from ../rfish, which HANGS on the quit form: its reader thread tested
+  #      whether the search was unbounded at the moment it read the line, and piped
+  #      input puts `quit` in the buffer ahead of the `go` being dispatched. Not a bug
+  #      here -- but nothing here could have seen it either.
+  out=$(printf 'uci\nisready\nposition startpos\ngo infinite\nstop\nisready\nquit\n' \
+        | ( cd "$ROOT/$RESOURCES_DIR" && timeout 30 "$ROOT/$BIN" ) 2>&1 || true)
+  n=$(grep -cE '^bestmove ' <<< "$out" || true)
+  bm=$(grep -E '^bestmove ' <<< "$out" | head -1 | awk '{print $2}' || true)
+  if [[ $n -ne 1 ]]; then
+    red "  zero-wait stop: expected exactly one bestmove, got $n"; fails=$((fails + 1))
+  elif ! grep -qx -- "$bm" <<< "$legal"; then
+    red "  zero-wait stop: bestmove '$bm' is not legal in the position"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    a stop read before the search starts still ends it (%s)\n' "$bm"
+  fi
+
+  rc=0
+  printf 'uci\nisready\nposition startpos\ngo infinite\nquit\n' \
+    | ( cd "$ROOT/$RESOURCES_DIR" && timeout 30 "$ROOT/$BIN" ) > /dev/null 2>&1 || rc=$?
+  if [[ $rc -eq 124 ]]; then
+    red "  zero-wait quit: the engine did not exit within 30s of a piped quit"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    a quit in the same buffer as the go it interrupts exits\n'
+  fi
+
   [[ $fails -eq 0 ]] || { red "async-check: $fails invariant(s) broken"; return 1; }
-  green "async-check: 3 of 3 invariants hold on the interrupted-search path"
+  green "async-check: 5 of 5 invariants hold on the interrupted-search path"
 }
 
 do_fixture_coverage() {
