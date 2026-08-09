@@ -210,9 +210,10 @@ therefore surface sloppiness clang happens not to diagnose.
 invocation per step. No Makefile, no CMake, no dependency tracking.
 
 The trade is stated plainly: **a new `.c` file must be added to `SOURCES`, and, if
-it lives in `engine/` or `platform/`, to `ENGINE_SOURCES` too.** Forget the second
-and `zone-check` and the test binary do not see the file — the release binary
-builds, the gates pass, and the module is untested. That is the failure mode this
+it lives in `engine/` or `platform/`, to `ENGINE_SOURCES` too.** Forgetting the
+second used to be silent — the release binary built, the gates passed, and the
+module was untested; `zone-check` now compares both arrays against the tree and
+names the file. That is the failure mode this
 choice buys, in exchange for a build that has no configure step, no generated
 files, no stale-object class of bug, and one place to read the full compile
 command.

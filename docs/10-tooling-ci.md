@@ -27,13 +27,16 @@ compiled by nothing, so `build`, `test`, `zone-check`, `signature`, `perft` and
 `golden` all pass over it without reading a line. **A green `parity` is a statement
 about the arrays, not about `src/`.**
 
-No file is in that state today — see [00-architecture.md](00-architecture.md) for
-the check that establishes it. The arrays covering the tree is the condition that
-makes a green `parity` mean what a reader expects, so it is worth re-checking
-whenever a file is added. Two consequences for anyone using these gates:
+No file is in that state today, and that is now gated rather than re-checked by
+hand: `zone-check` compares `find src -name '*.c'` against both arrays before it
+links anything, so a file in no array, or an `engine/`/`platform/` file outside
+`ENGINE_SOURCES`, is red. It also refuses an `ENGINE_SOURCES` entry from `shell/` —
+including one would supply the very symbol whose absence is the proof — and floors
+the file count, so a `find` that answers nothing fails instead of passing over the
+empty set. Two consequences for anyone using these gates:
 
 - **Adding a file means editing `SOURCES`**, and `ENGINE_SOURCES` too if it belongs
-  to `engine/` or `platform/`, or `zone-check` and the test binary will not see it.
+  to `engine/` or `platform/`; `zone-check` names the file if you forget.
 - **An unwired file that stopped compiling three commits ago still shows green.**
   The first thing a wiring commit discovers is how far the tree moved underneath
   it. That is the cost of leaving a finished module out of the array, and it is why
@@ -123,7 +126,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | --- | --- | --- |
 | `build` | clang `-O3 -DNDEBUG`, one invocation over `SOURCES` | that the files **in `SOURCES`** compile under the full warning set. Not the tree — see above |
 | `debug` | the same sources with ASan + UBSan and `-fno-sanitize-recover=undefined` | nothing on its own; it is the binary the sanitizer lane drives |
-| `zone-check` | links `ENGINE_SOURCES` plus a stub `main`, with no shell object | that no **listed** `engine/` file calls into `shell/`. It **links**, so a forbidden call is an undefined symbol rather than a clean compile. It cannot see the engine→platform edge — all of `platform/` is inside the array — which is what `engine-standalone` is for |
+| `zone-check` | checks both arrays against `find src -name '*.c'`, then links `ENGINE_SOURCES` plus a stub `main`, with no shell object | that no `engine/` file calls into `shell/`, **over the whole zone** rather than over whatever the array happens to name: the list check is what keeps the proof from silently shrinking when a file is added to `SOURCES` alone. It **links**, so a forbidden call is an undefined symbol rather than a clean compile. It cannot see the engine→platform edge — all of `platform/` is inside the array — which is what `engine-standalone` is for |
 | `engine-standalone` | compiles every `src/engine/*.c` alone and links them with **no** platform object | the engine→platform edge, as a count rather than a claim. Ratchets the undefined symbols against [`../tools/engine_platform.baseline`](../tools/engine_platform.baseline): a new one fails (fix it with a seam, not a baseline edit), and a stale one fails too, so the list cannot outlive what it measures. See [00-architecture.md](00-architecture.md) |
 | `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it, with `-DMCFISH_ACC_STATS` | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism, and the accumulator's four update paths — see *A path that agrees is not a path that ran* below |
 | `fuzz-search [seconds]` | builds `ENGINE_SOURCES` + [`../tools/fuzz_search.c`](../tools/fuzz_search.c) under libFuzzer+ASan+UBSan and runs it for the given budget (default 30s) | the real search **in-process**: a fuzzer-selected random-legal-move walk from the start position, then `search_go` at a shallow depth, with no shell and no UCI text in the way. clang-only (libFuzzer has no gcc lane). The step **asserts the lane executed**, not merely that it exited 0 — see below. Kept out of `parity`, same reason as `tsan`: its own build and a real time budget, and a clean run means "no crash in that budget," not "there is none." See [00-architecture.md](00-architecture.md#what-the-library-boundary-buys) |
