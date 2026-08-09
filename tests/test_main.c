@@ -288,6 +288,118 @@ static void test_roundtrip(void) {
     }
 }
 
+// Hold the parser against strings nobody wrote down.
+//
+// test_fen's accept and reject tables are curated: every entry is a string someone
+// thought of, and the reject list can only hold invariants someone already knew to
+// break. The class it cannot reach is the string that is ACCEPTED and should not have
+// been -- there is no fixture for a bug nobody anticipated. `tools/uci_fuzz.py` drives
+// arbitrary text at the shipped binary, but it is a nightly subprocess lane and its
+// only verdict is that the process did not die: a malformed board the parser accepted
+// passes it, because nothing downstream examines what came back.
+//
+// Taken from ../rfish, whose engine-side harness asserts the parser must reject or
+// accept and never panic, and that a position it did accept is coherent enough to
+// generate moves from. In C "never panic" is what ASan+UBSan answer, which this gate
+// already runs under; the coherence half is the assertion.
+//
+// Mutating valid FENs, not only drawing random strings: a mutant of a legal position
+// lands in the almost-valid neighbourhood where a parser actually dies, and it is the
+// only way to get an accept rate high enough for the checks below to run at all --
+// which is why the accepted count is floored rather than assumed.
+static void test_fen_parse_robustness(void) {
+    banner("FEN parse robustness");
+
+    static const char *const bases[] = {
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 10",
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 11",
+        "4k3/8/8/8/8/8/8/4K3 b - - 12 34",
+    };
+    // Chess-shaped, so a substitution lands near a FEN rather than in random bytes.
+    static const char alphabet[] = "rnbqkpRNBQKP12345678/ -abcdefghwKQkq0123456789";
+
+    enum { CASES = 4000, BUF = 160 };
+    uint64_t rng = 0x9E3779B97F4A7C15ULL;
+    int accepted = 0;
+
+    for (int i = 0; i < CASES; ++i) {
+        char text[BUF];
+        size_t len;
+
+        if (i % 8 == 0) {
+            // A share drawn from nothing at all: a parser that indexes before it
+            // validates does not need a plausible prefix to walk off the end.
+            len = 1 + xorshift64(&rng) % 90;
+            for (size_t j = 0; j < len; ++j)
+                text[j] = alphabet[xorshift64(&rng) % (sizeof alphabet - 1)];
+        } else {
+            const char *const base = bases[xorshift64(&rng) % (sizeof bases / sizeof bases[0])];
+            len = strlen(base);
+            memcpy(text, base, len);
+            const int edits = 1 + (int) (xorshift64(&rng) % 3);
+            for (int e = 0; e < edits && len > 0; ++e) {
+                const uint64_t what = xorshift64(&rng) % 3;
+                const size_t at = xorshift64(&rng) % len;
+                if (what == 0) {  // substitute
+                    text[at] = alphabet[xorshift64(&rng) % (sizeof alphabet - 1)];
+                } else if (what == 1) {  // delete
+                    memmove(text + at, text + at + 1, len - at - 1);
+                    --len;
+                } else if (len + 1 < BUF) {  // insert
+                    memmove(text + at + 1, text + at, len - at);
+                    text[at] = alphabet[xorshift64(&rng) % (sizeof alphabet - 1)];
+                    ++len;
+                }
+            }
+            // Truncation is its own class: a parser that trusts a field to be there
+            // reads past the end rather than seeing a wrong character.
+            if (xorshift64(&rng) % 4 == 0)
+                len = xorshift64(&rng) % (len + 1);
+        }
+        text[len] = '\0';
+
+        for (int chess960 = 0; chess960 <= 1; ++chess960) {
+            Position pos;
+            StateInfo st;
+            if (!pos_set(&pos, text, chess960 != 0, &st))
+                continue;  // rejecting is a valid answer; nothing here says which
+
+            // Accepted. Then it must BE a position: move generation must run over it,
+            // and what it renders of itself must parse back to the same board.
+            ++accepted;
+            ExtMove list[MAX_MOVES];
+            const ExtMove *const end = generate_legal(&pos, list);
+            CHECK(end >= list && end - list <= MAX_MOVES, "move list stays in bounds [%s]", text);
+
+            char fen[BUF];
+            pos_fen(&pos, fen);
+            Position back;
+            StateInfo back_st;
+            if (!pos_set(&back, fen, chess960 != 0, &back_st)) {
+                CHECK(false, "an accepted position renders a FEN it rejects: '%s' -> '%s'", text,
+                      fen);
+                continue;
+            }
+            CHECK(pos_key(&back) == pos_key(&pos), "round-trip changes the key: '%s' -> '%s'", text,
+                  fen);
+            CHECK(memcmp(back.board, pos.board, sizeof back.board) == 0,
+                  "round-trip changes the board: '%s' -> '%s'", text, fen);
+
+            if (Failures > 20)
+                return;  // stop the flood; the first few are the diagnostic
+        }
+    }
+
+    // A run that accepted nothing would report every check above as passed while
+    // having made none of them. The floor says the mutation rate still lands inside
+    // the language; set it well under what the walk actually accepts, so a new base
+    // FEN never trips it and a collapse always does. The count travels in the failure
+    // message rather than in a comment that cannot be recomputed.
+    CHECK(accepted >= 100, "the mutations still produce positions the parser accepts, got %d",
+          accepted);
+}
+
 // Unwind a LONG line, where a shallow exhaustive tree cannot go.
 //
 // test_roundtrip above is total and therefore shallow: every legal move to ply 3 from
@@ -1712,6 +1824,7 @@ int main(void) {
     test_bitboards();
     test_fen();
     test_perft();
+    test_fen_parse_robustness();
     test_roundtrip();
     test_deep_line_roundtrip();
     test_null_move();
