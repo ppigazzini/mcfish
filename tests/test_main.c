@@ -57,6 +57,19 @@ static int Checks = 0;
 
 static void banner(const char *name) { printf("== %s\n", name); }
 
+// Advance a xorshift64 state. Every randomised test below seeds its own and holds it
+// fixed, so a failure names a position or a string that can be reached again.
+static uint64_t xorshift64(uint64_t *state) {
+    uint64_t x = *state;
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    *state = x;
+    return x;
+}
+
+static const char StartFen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
 // ---------------------------------------------------------------- bitboards
 
 static void test_bitboards(void) {
@@ -275,6 +288,99 @@ static void test_roundtrip(void) {
     }
 }
 
+// Unwind a LONG line, where a shallow exhaustive tree cannot go.
+//
+// test_roundtrip above is total and therefore shallow: every legal move to ply 3 from
+// four fixtures, with restoration asserted after each undo. Three plies is before the
+// states that only exist deep in a line -- the fifty-move counter part way to 100, a
+// castling right that expired twenty plies back, an en passant square offered and
+// declined, a repetition in the chain. And a per-ply check cannot see a key that
+// DESYNCS and RESYNCS: only bringing the whole line back can.
+//
+// Taken from ../rfish, whose engine-side walk keeps the played line and compares the
+// board after undoing all of it -- the shape it records a fifty-move mixing bug
+// having had. mcfish's own gates are blind the same way: perft restores by popping
+// rather than comparing, and the fuzz walk never undoes at all.
+static void test_deep_line_roundtrip(void) {
+    banner("deep-line make/unmake round-trip");
+
+    enum { LINES = 200, MAX_PLIES = 60 };
+    uint64_t rng = 0x2545F4914F6CDD1DULL;
+
+    for (int line = 0; line < LINES; ++line) {
+        Position pos;
+        StateInfo root_st;
+        StateInfo chain[MAX_PLIES];
+        Move played[MAX_PLIES];
+
+        CHECK(pos_set(&pos, StartFen, false, &root_st), "start position");
+
+        // Snapshot everything the unwind has to give back.
+        const Key key0 = pos_key(&pos);
+        const Color stm0 = pos.side_to_move;
+        Bitboard by_type0[PIECE_TYPE_NB], by_color0[COLOR_NB];
+        Piece board0[SQUARE_NB];
+        memcpy(by_type0, pos.by_type, sizeof by_type0);
+        memcpy(by_color0, pos.by_color, sizeof by_color0);
+        memcpy(board0, pos.board, sizeof board0);
+        const uint8_t rights0 = pos.st->castling_rights;
+        const Square ep0 = pos.st->ep_square;
+        const int rule50_0 = pos.st->rule50;
+
+        int plies = 0;
+        for (; plies < MAX_PLIES; ++plies) {
+            ExtMove list[MAX_MOVES];
+            const ExtMove *const end = generate_legal(&pos, list);
+            const ptrdiff_t count = end - list;
+            if (count == 0)
+                break;  // checkmate or stalemate ends the line early
+
+            const Move m = list[xorshift64(&rng) % (uint64_t) count].move;
+            played[plies] = m;
+            pos_do_move(&pos, m, &chain[plies], pos_gives_check(&pos, m), &pos.scratch_dp,
+                        &pos.scratch_dts, nullptr);
+
+            // The incremental keys must equal the from-scratch keys of the same board
+            // AT EVERY DEPTH. test_roundtrip proves this to ply 3, where no right has
+            // expired and the halfmove clock is still near zero.
+            Position fresh;
+            StateInfo fresh_st;
+            char fen[128];
+            pos_fen(&pos, fen);
+            if (!pos_set(&fresh, fen, false, &fresh_st)) {
+                CHECK(false, "a position the engine reached does not parse back: %s", fen);
+                continue;
+            }
+            CHECK(pos_key(&fresh) == pos_key(&pos), "key drift at ply %d, fen %s", plies, fen);
+            CHECK(fresh.st->pawn_key == pos.st->pawn_key, "pawn_key drift, fen %s", fen);
+            CHECK(fresh.st->minor_piece_key == pos.st->minor_piece_key,
+                  "minor_piece_key drift, fen %s", fen);
+            CHECK(fresh.st->material_key == pos.st->material_key, "material_key drift, fen %s",
+                  fen);
+            CHECK(fresh.st->non_pawn_key[WHITE] == pos.st->non_pawn_key[WHITE],
+                  "non_pawn_key[WHITE] drift, fen %s", fen);
+            CHECK(fresh.st->non_pawn_key[BLACK] == pos.st->non_pawn_key[BLACK],
+                  "non_pawn_key[BLACK] drift, fen %s", fen);
+        }
+
+        while (plies > 0)
+            pos_undo_move(&pos, played[--plies]);
+
+        CHECK(pos.st == &root_st, "the state chain unwinds to the root it started from");
+        CHECK(pos_key(&pos) == key0, "the key survives unwinding the whole line");
+        CHECK(pos.side_to_move == stm0, "side to move restored");
+        CHECK(memcmp(by_type0, pos.by_type, sizeof by_type0) == 0, "by_type restored");
+        CHECK(memcmp(by_color0, pos.by_color, sizeof by_color0) == 0, "by_color restored");
+        CHECK(memcmp(board0, pos.board, sizeof board0) == 0, "board restored");
+        CHECK(pos.st->castling_rights == rights0, "castling rights restored");
+        CHECK(pos.st->ep_square == ep0, "ep square restored");
+        CHECK(pos.st->rule50 == rule50_0, "halfmove clock restored");
+
+        if (Failures > 20)
+            break;  // stop the flood; the first few are the diagnostic
+    }
+}
+
 static void test_null_move(void) {
     banner("null move round-trip");
 
@@ -488,17 +594,6 @@ static void test_search(void) {
     tt_free();
 }
 
-// Advance a xorshift64 state. Deterministic on purpose: the walk below must be the
-// same walk on every run, or a failure report names a position nobody can reach again.
-static uint64_t xorshift64(uint64_t *state) {
-    uint64_t x = *state;
-    x ^= x << 13;
-    x ^= x >> 7;
-    x ^= x << 17;
-    *state = x;
-    return x;
-}
-
 // Drive the real search from positions no fixture names, with the network loaded.
 //
 // Two gaps meet here, and both are in the ALWAYS-RUN suite rather than in the search
@@ -544,9 +639,7 @@ static void test_search_reached_positions(void) {
         StateInfo root_st;
         StateInfo walk_st[WALK_PLIES];
 
-        CHECK(pos_set(&pos, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false,
-                      &root_st),
-              "start position");
+        CHECK(pos_set(&pos, StartFen, false, &root_st), "start position");
 
         const int line = (int) (xorshift64(&rng) % (WALK_PLIES + 1));
         for (int ply = 0; ply < line; ++ply) {
@@ -1620,6 +1713,7 @@ int main(void) {
     test_fen();
     test_perft();
     test_roundtrip();
+    test_deep_line_roundtrip();
     test_null_move();
     test_legality();
     test_uci_move_strings();
