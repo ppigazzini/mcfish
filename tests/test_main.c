@@ -488,6 +488,128 @@ static void test_search(void) {
     tt_free();
 }
 
+// Advance a xorshift64 state. Deterministic on purpose: the walk below must be the
+// same walk on every run, or a failure report names a position nobody can reach again.
+static uint64_t xorshift64(uint64_t *state) {
+    uint64_t x = *state;
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    *state = x;
+    return x;
+}
+
+// Drive the real search from positions no fixture names, with the network loaded.
+//
+// Two gaps meet here, and both are in the ALWAYS-RUN suite rather than in the search
+// itself. Every search in test_search runs from a hand-picked FEN; and every one of
+// them runs before the first eval_nnue_load, so the suite's searches all evaluate
+// through the classical fallback and the accumulator's push/pop is never entered
+// from inside a search. tools/fuzz_search.c is exactly this walk under libFuzzer,
+// but `fuzz-search` is a nightly lane deliberately out of `parity`, so between
+// nightlies nothing under ASan+UBSan enters the node body from an arbitrary board.
+//
+// Taken from ../zfish, which moved the same class out of its fuzz target into its
+// always-run gate after a root-setup bug that only bit non-startpos roots. That
+// specific defect has no analogue here -- zfish's headless entry copies a live board
+// and must cut the root's `previous` chain itself, where `search_go` takes the
+// caller's chain as it stands -- but the class it belongs to does.
+//
+// Run it without a net rather than skipping: movegen, the picker, the TT, pruning
+// and qsearch are all still reached, and only the accumulator half goes uncovered.
+static void test_search_reached_positions(void) {
+    banner("search from reached positions");
+
+    const bool net = eval_nnue_init() && eval_nnue_load("resources/", nullptr);
+    if (!net)
+        printf("  NOTE: resources/%s not present; the walk runs on the classical eval\n",
+               eval_nnue_default_file_name());
+
+    CHECK(tt_resize(8), "TT allocates");
+    tt_clear();
+    search_clear();
+#ifdef MCFISH_ACC_STATS
+    nnue_acc_stats_reset();
+#endif
+
+    // 24 plies is deep enough to leave book shapes and reach unbalanced middlegames;
+    // depth 1..4 keeps 200 searches inside a few seconds under ASan+UBSan. Neither is
+    // a coverage claim -- a bug in the node body is as reachable at depth 3 as at 8,
+    // which is the same reasoning tools/fuzz_search.c's caps carry.
+    enum { WALK_PLIES = 24, ITERATIONS = 200 };
+    uint64_t rng = 0x1D8E4C55A5F13B7BULL;
+
+    for (int iteration = 0; iteration < ITERATIONS; ++iteration) {
+        Position pos;
+        StateInfo root_st;
+        StateInfo walk_st[WALK_PLIES];
+
+        CHECK(pos_set(&pos, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false,
+                      &root_st),
+              "start position");
+
+        const int line = (int) (xorshift64(&rng) % (WALK_PLIES + 1));
+        for (int ply = 0; ply < line; ++ply) {
+            ExtMove walk[MAX_MOVES];
+            const ExtMove *const walk_end = generate_legal(&pos, walk);
+            const ptrdiff_t walk_count = walk_end - walk;
+            if (walk_count == 0)
+                break;  // checkmate or stalemate: nowhere left to walk
+
+            const Move m = walk[xorshift64(&rng) % (uint64_t) walk_count].move;
+            pos_do_move(&pos, m, &walk_st[ply], pos_gives_check(&pos, m), &pos.scratch_dp,
+                        &pos.scratch_dts, nullptr);
+        }
+
+        ExtMove list[MAX_MOVES];
+        const ExtMove *const end = generate_legal(&pos, list);
+        const ptrdiff_t count = end - list;
+
+        // Snapshot before the search: the FEN names the board in any failure report,
+        // and the key is what says the search left the caller's root as it found it.
+        char fen[128];
+        pos_fen(&pos, fen);
+        const Key key = pos_key(&pos);
+
+        const SearchLimits limits = { .depth = 1 + (int) (xorshift64(&rng) % 4) };
+        const SearchResult r = search_go(&pos, &limits);
+
+        CHECK(pos_key(&pos) == key, "the search leaves the caller's root untouched [%s]", fen);
+
+        if (count == 0) {
+            CHECK(r.best_move == MOVE_NONE, "no move at a terminal root [%s]", fen);
+        } else {
+            bool generated = false;
+            for (const ExtMove *it = list; it != end; ++it)
+                generated = generated || it->move == r.best_move;
+            CHECK(generated, "the best move is one the root generates [%s]", fen);
+            CHECK(r.score > -VALUE_INFINITE && r.score < VALUE_INFINITE,
+                  "score in range, got %d [%s]", r.score, fen);
+            CHECK(r.nodes > 0, "the search visited nodes [%s]", fen);
+            CHECK(r.depth_reached >= limits.depth, "reached the requested depth, got %d [%s]",
+                  r.depth_reached, fen);
+        }
+
+        if (Failures > 20)
+            break;  // stop the flood; the first few are the diagnostic
+    }
+
+#ifdef MCFISH_ACC_STATS
+    // Assert the half this test exists for actually ran. Loading the net is not the
+    // same as reaching it: an evaluate() that fell back would leave every check above
+    // green and the accumulator untouched, which is precisely the shape
+    // test_nnue_accumulator_paths documents as invisible to a value gate.
+    if (net) {
+        const NnueAccStats *const s = nnue_acc_stats();
+        CHECK(s->shared_walk > 0 || s->split_walk > 0,
+              "the search entered the accumulator (%llu shared, %llu split walks)",
+              (unsigned long long) s->shared_walk, (unsigned long long) s->split_walk);
+    }
+#endif
+
+    tt_free();
+}
+
 static void test_tt(void) {
     banner("transposition table");
 
@@ -1504,6 +1626,7 @@ int main(void) {
     test_evaluate();
     test_tt();
     test_search();
+    test_search_reached_positions();
     test_draw_detection();
     test_nnue_dot4();
     test_nnue_accumulator_paths();
