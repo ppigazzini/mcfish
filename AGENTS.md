@@ -82,6 +82,25 @@ Four consequences an agent gets wrong before reading
   have caught the sibling's bug?" even when the answer to "is the bug here?" is
   no. It is now adjudicated (22 lines, identical to the oracle) and gated, in
   `b83ad32b`.
+- **A capability the sibling built a MODULE for can already be a function here.**
+  The ninth sweep (2026-08-09) probed zfish's headless engine — its `headless.zig`
+  build root, its headless lint and its single-position search module — and took
+  no code. Its
+  structural half is `zone-check` plus `engine-standalone` here, and this tree's
+  is stronger: a linker ratchet at an empty baseline, not a text-parsed import
+  graph. Its headless-search module exists because zfish had no way to search
+  one position without the platform thread orchestrator; here that entry is
+  `search_go`, which is what the unit tests and both fuzzers already call. What
+  transferred was the sibling's REASON: its lint asserts `headless.zig` imports
+  every engine module because a hand-maintained proof root cannot report that it
+  got smaller — and `zone-check` proved exactly what `ENGINE_SOURCES` listed, with
+  a shell file smuggled into that array making it pass (verified against HEAD:
+  `zone check passed`, exit 0). Both are gated in `a434c588`. Its always-run
+  search-from-a-reached-position test transferred the same way: the class, not the
+  bug — the root-setup defect zfish's version caught cannot occur here, but the
+  suite's searches all ran before the net loaded, so **nothing in it had ever
+  entered the accumulator from inside a search** (`shared 0 split 0 refresh 0`
+  before the new test). Closed in `f12320b3`.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
