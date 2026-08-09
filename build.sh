@@ -575,8 +575,81 @@ do_debug() {
   green "built build/mcfish-debug"
 }
 
+# Hold the LISTS the zone check is only as large as.
+#
+# `do_zone_check` links ENGINE_SOURCES, so the invariant it proves covers exactly the
+# files that array names. A new `src/engine/` file added to SOURCES and forgotten in
+# ENGINE_SOURCES still ships, and is invisible to the zone check, to the unit test
+# binary, to `tsan` and to both fuzzers -- every one of which links ENGINE_SOURCES.
+# The proof silently SHRINKS and no gate goes red. docs/10-tooling-ci.md admits that
+# in the word "listed" and docs/08-idiomatic-c.md names the consequence, but prose
+# cannot hold a list; nothing contradicts a sentence that has drifted.
+#
+# Taken from ../zfish tools/headless_lint.sh, whose second half asserts that
+# src/engine/headless.zig imports every engine-zone module, for the same reason: a
+# hand-maintained proof root cannot report that it got smaller. Here it needs no text
+# parsing -- both arrays are in scope, so the comparison is against the real lists.
+#
+# One direction only. A listed file that no longer EXISTS is a compile error in the
+# very next command, loud by construction; a file that exists and is listed nowhere
+# is the silent one.
+list_has() {
+  local want=$1 have
+  shift
+  for have in "$@"; do
+    [[ $have == "$want" ]] && return 0
+  done
+  return 1
+}
+
+check_source_lists() {
+  local -a disk
+  mapfile -t disk < <(find src -name '*.c' | sort)
+  # An empty `find` would leave every loop below iterating nothing and the check
+  # green over the empty set -- the vacuous-gate failure da21799e guards the two text
+  # extractions against. The floor is well under the current 72 and never rises with
+  # a new file, so adding one cannot trip it; losing the tree always does.
+  local floor=50
+  if [[ ${#disk[@]} -lt $floor ]]; then
+    red "zone check: only ${#disk[@]} .c files under src/ (floor $floor) -- refusing to report on an empty set"
+    return 1
+  fi
+
+  local f rc=0
+  for f in "${disk[@]}"; do
+    if ! list_has "$f" "${SOURCES[@]}"; then
+      red "zone check: $f is in no SOURCES entry -- nothing compiles it"
+      rc=1
+    fi
+    case $f in
+      src/engine/* | src/platform/*)
+        if ! list_has "$f" "${ENGINE_SOURCES[@]}"; then
+          red "zone check: $f is outside ENGINE_SOURCES -- the zone proof, the test binary, tsan and both fuzzers do not see it"
+          rc=1
+        fi
+        ;;
+    esac
+  done
+
+  # The link cannot fail on a shell file that is IN the array: including it supplies
+  # the very symbol whose absence was the proof. Assert the gate's INPUT instead.
+  for f in "${ENGINE_SOURCES[@]}"; do
+    case $f in
+      src/engine/* | src/platform/*) ;;
+      *)
+        red "zone check: ENGINE_SOURCES names $f, outside engine/ and platform/ -- the link would prove nothing"
+        rc=1
+        ;;
+    esac
+  done
+
+  return $rc
+}
+
 do_zone_check() {
   info "zone check: engine/ + platform/ must link without shell/"
+  check_source_lists
+  info "zone check: ${#SOURCES[@]} sources, ${#ENGINE_SOURCES[@]} of them in the engine zone, all accounted for"
   mkdir -p build
   # Link with a stub main so the archive is exercised, not just compiled: a
   # forbidden call into shell/ is a link error, which compiling alone would miss.
