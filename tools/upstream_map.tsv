@@ -6,7 +6,7 @@
 # the audit pass. By-design exclusions live in upstream_map.exceptions.
 src/attacks.cpp	src/engine/board/attacks.h,src/engine/board/attacks.c
 src/attacks.h	src/engine/board/threats.c,src/engine/board/attacks.h,src/engine/board/attacks.c
-src/benchmark.cpp	src/shell/benchmark.c,src/shell/benchmark.h,src/shell/bench_positions.h
+src/benchmark.cpp	src/shell/benchmark.c,src/shell/benchmark.h,src/shell/bench_positions.h,src/shell/speedtest.c,src/shell/speedtest.h,src/shell/speedtest_positions.h
 src/benchmark.h	src/shell/benchmark.h
 src/bitboard.cpp	src/engine/board/fen.c
 src/bitboard.h	src/engine/board/bitboard.h
@@ -34,12 +34,12 @@ src/nnue/layers/affine_transform.h	src/engine/eval/nnue/nnue_affine.c,src/engine
 src/nnue/layers/affine_transform_sparse_input.h	src/engine/eval/nnue/nnue_affine.c
 src/nnue/layers/clipped_relu.h	src/engine/eval/nnue/nnue_affine.c
 src/nnue/layers/sqr_clipped_relu.h	src/engine/eval/nnue/nnue_affine.c
-src/nnue/network.cpp	src/engine/eval/evaluate.c,src/engine/eval/nnue/network.h,src/engine/eval/nnue/nnue_hash.h,src/engine/eval/nnue/nnue_inference.c,src/engine/eval/nnue/nnue_inference.h,src/engine/eval/nnue/nnue_weight_storage.h,src/shell/engine_nnue.c,src/shell/engine_nnue.h,src/engine/eval/nnue/network.c
+src/nnue/network.cpp	src/engine/eval/evaluate.c,src/engine/eval/nnue/network.h,src/engine/eval/nnue/nnue_hash.h,src/engine/eval/nnue/nnue_inference.c,src/engine/eval/nnue/nnue_inference.h,src/engine/eval/nnue/nnue_weight_storage.h,src/shell/engine_nnue.c,src/shell/engine_nnue.h,src/engine/eval/nnue/network.c,src/engine/eval/nnue/nnue_write.h
 src/nnue/network.h	src/engine/eval/nnue/network.h
 src/nnue/nnue_accumulator.cpp	src/engine/eval/nnue/nnue_accumulator.c,src/engine/eval/nnue/nnue_acc_rowops.c,src/engine/eval/nnue/nnue_accumulator.h,src/engine/eval/nnue/nnue_acc_rowops.h
 src/nnue/nnue_accumulator.h	src/engine/eval/nnue/nnue_accumulator.h
 src/nnue/nnue_architecture.h	src/engine/eval/nnue/nnue_architecture.h
-src/nnue/nnue_common.h	src/engine/eval/nnue/nnue_common.h
+src/nnue/nnue_common.h	src/engine/eval/nnue/nnue_common.h,src/engine/eval/nnue/nnue_write.c
 src/nnue/nnue_feature_transformer.h	src/engine/eval/nnue/nnue_acc_rowops.h,src/engine/eval/nnue/nnue_ft.h,src/engine/eval/nnue/nnue_parse.h,src/engine/eval/nnue/nnue_feature.h
 src/nnue/nnue_misc.cpp	src/engine/eval/evaluate.c
 src/nnue/nnue_misc.h	src/engine/eval/evaluate.h
@@ -63,7 +63,7 @@ src/timeman.h	src/engine/search/timeman.h
 src/tt.cpp	src/engine/search/tt.h,src/engine/search/tt.c,src/engine/state/tt_types.h,src/shell/engine.c,src/platform/worker_pool.c,src/shell/engine_options.c
 src/tt.h	src/engine/search/tt.h,src/engine/state/tt_types.h
 src/types.h	src/engine/board/types.h,src/engine/board/score.h,src/engine/board/threats.h,src/engine/search/tt.h
-src/uci.cpp	src/shell/uci.c,src/shell/benchmark.c,src/engine/board/board_props.h,src/engine/search/search.h,src/engine/board/position.c,src/engine/board/state_list.h,src/engine/board/uci_move.c,src/engine/search/uci_wdl.h,src/shell/benchmark.h,src/shell/engine.h,src/shell/uci_output.c,src/shell/uci_output.h,src/shell/ucioption.h,src/shell/engine.c,src/shell/engine_nnue.c,src/engine/search/search.c
+src/uci.cpp	src/shell/uci.c,src/shell/benchmark.c,src/engine/board/board_props.h,src/engine/search/search.h,src/engine/board/position.c,src/engine/board/state_list.h,src/engine/board/uci_move.c,src/engine/search/uci_wdl.h,src/shell/benchmark.h,src/shell/engine.h,src/shell/uci_output.c,src/shell/uci_output.h,src/shell/ucioption.h,src/shell/engine.c,src/shell/engine_nnue.c,src/engine/search/search.c,src/shell/speedtest.c,src/shell/speedtest.h
 src/uci.h	src/shell/uci.h
 src/ucioption.cpp	src/shell/ucioption.c,src/shell/ucioption.h,src/shell/syzygy_option.c,src/shell/syzygy_option.h
 src/ucioption.h	src/shell/ucioption.h
