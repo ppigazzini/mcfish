@@ -245,6 +245,14 @@ search_do_move(SearchCtx *ctx, Position *pos, Move m, StateInfo *st, bool gives_
     // the piece standing on `to` afterwards.
     const Piece moved_pc = piece_on(pos, move_from(m));
     const Square to = move_to(m);
+    // Preload the two continuation-correction pages the child reads while the make below
+    // runs (search.cpp:658). The child indexes them by the piece standing on `to` AFTER
+    // the move, so for a castling or a promotion this hint lands on a line nobody reads;
+    // like the TT hint above it changes no value. Upstream guards the pair on a null
+    // stack because its do_move takes one; all three callers here pass a live frame.
+    const size_t corr_idx = (size_t) moved_pc * SQUARE_NB + (size_t) to;
+    __builtin_prefetch(&(ss - 1)->continuation_correction_history[corr_idx], 0, 3);
+    __builtin_prefetch(&(ss - 3)->continuation_correction_history[corr_idx], 0, 3);
     ctx_add_nodes(ctx, 1);
     DirtyPiece *dp;
     DirtyThreats *dts;
