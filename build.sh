@@ -2075,13 +2075,18 @@ do_perft() {
   need_binary
   info "perft gate vs tools/perft.table"
   local fails=0
-  while IFS='|' read -r fen depth expected; do
+  # The optional fourth field is the VARIANT, and it cannot be inferred from the FEN.
+  # `Position::set` takes the flag, and it decides whether the castling rook is tested
+  # for screening its own king (position.cpp:686) -- so a Shredder-FEN row driven
+  # without it walks a different legality path than the one it was written for.
+  while IFS='|' read -r fen depth expected variant; do
     [[ $fen =~ ^#.*$ || -z $fen ]] && continue
-    local got
-    got=$(printf 'position fen %s\ngo perft %s\nquit\n' "$fen" "$depth" \
+    local got setup=""
+    [[ ${variant-} == 960 ]] && setup=$'setoption name UCI_Chess960 value true\n'
+    got=$(printf '%sposition fen %s\ngo perft %s\nquit\n' "$setup" "$fen" "$depth" \
           | engine | grep 'Nodes searched' | awk '{print $NF}')
     if [[ $got == "$expected" ]]; then
-      printf '  ok   depth %s  %s\n' "$depth" "${fen:0:40}"
+      printf '  ok   depth %s  %s%s\n' "$depth" "${fen:0:40}" "${variant:+  [$variant]}"
     else
       red "  FAIL depth $depth  $fen"
       red "       expected $expected, got ${got:-<none>}"

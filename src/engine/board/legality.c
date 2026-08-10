@@ -31,11 +31,16 @@ bool pos_legal(const Position *pos, Move m) {
         const Color them = flip_color(us);
         const bool king_side = to > from;
         const Square kto = make_square(king_side ? 6 : 2, rank_of(from));
-        const int step = king_side ? 1 : -1;
 
-        for (Square s = from; s != kto; s = (Square) ((int) s + step))
-            if (pos_attackers_to_occ(pos, (Square) ((int) s + step), pieces(pos))
-                & pieces_c(pos, them))
+        // Walk from the king's DESTINATION back to the king, as upstream does
+        // (position.cpp:678) -- the step is the sense of kto vs from, NOT the side the
+        // rook is on. In Chess960 they part: a king on b1 castling QUEEN-side moves
+        // RIGHT, to c1. Taking the step from the rook's side walked left off the board
+        // there and indexed `Magics[255]`.
+        const int step = kto > from ? -1 : 1;
+
+        for (Square s = kto; s != from; s = (Square) ((int) s + step))
+            if (pos_attackers_to_occ(pos, s, pieces(pos)) & pieces_c(pos, them))
                 return false;
 
         // In Chess960 the castling rook can itself be the piece screening the king

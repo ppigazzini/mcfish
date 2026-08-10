@@ -295,6 +295,16 @@ there is no circumstance in which the correct response is to edit the number. Th
 same is true of the deep counts hardcoded in
 [`../.github/workflows/mcfish_perft.yml`](../.github/workflows/mcfish_perft.yml).
 
+A row's optional fourth field is the **variant**, and `960` there is not decoration:
+the flag reaches `Position::set` and decides whether the castling rook is tested for
+screening its own king, so a Shredder-FEN row driven without it walks a different
+legality path than the one it was written for. The three chess960 rows exist because
+no standard-chess position can put the king's castling destination on the opposite
+side from its rook — a king on b1 castling queen-side moves *right*, to c1 — so the
+six standard rows are blind to that shape by construction. The engine walked off the
+board there until 2026-08-10, and the only instrument that could see it was the
+weekly random differential.
+
 **`tools/*.golden` are goldens.** They record what *this* binary printed, and they
 move legitimately whenever behaviour changes on purpose. `tools/signature.golden`
 is a golden too — see the next section for what it is and is not.
