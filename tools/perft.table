@@ -1,4 +1,4 @@
-# mcfish perft gate: FEN|depth|expected-nodes, pipe-separated, '#' comments.
+# mcfish perft gate: FEN|depth|expected-nodes[|variant], pipe-separated, '#' comments.
 #
 # Deliberately NOT named *.golden: these counts are FACTS about chess, identical
 # for every correct engine, so `golden-update` must never touch them. A mismatch
@@ -6,9 +6,25 @@
 #
 # Between them these positions cover castling on both sides, en-passant including
 # the pinned-ep case, under-promotion, double check, and king-safety edge cases.
+#
+# The fourth field is the variant: `960` drives the row with UCI_Chess960 set, which
+# is not optional decoration — the flag reaches Position::set and changes which
+# castling legality test runs. Every count below was derived from the PRISTINE oracle
+# at tools/upstream/UPSTREAM_BASE, never from mcfish.
 rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1|5|4865609
 r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -|4|4085603
 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -|6|11030083
 r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq -|5|15833292
 rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ -|4|2103487
 r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - -|4|3894594
+#
+# Chess960 castling where the king's destination is on the OPPOSITE side from the
+# rook: a king on b1 castling queen-side moves RIGHT, to c1. No standard-chess
+# position can reach that shape, so the six rows above are all blind to it. The
+# first is the position the weekly differential caught mcfish crashing on; the two
+# minimal ones isolate the walk itself — with a1 unattacked (where the bad walk ran
+# off the board) and with a1 attacked but c1 free (where it answered the wrong
+# question and rejected a legal castling).
+1knqbrnb/rp2p1p1/8/N1pp1p1p/6P1/3P3N/PPPBPP1P/RK1Q1R1B w FAf - 0 7|4|1590804|960
+1k6/8/8/8/8/8/8/RK6 w A - 0 1|6|341689|960
+rk6/8/8/8/8/8/8/RK6 w Aa - 0 1|6|4658743|960
