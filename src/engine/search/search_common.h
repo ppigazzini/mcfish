@@ -87,6 +87,7 @@ int futility_margin(
 int futility_return(int beta, int eval);
 
 int razor_margin(int depth);
+int futility_depth(int eval, int beta);
 
 int null_move_threshold(int beta, int depth, bool improving);
 int null_move_reduction(int depth, int static_eval, int beta);

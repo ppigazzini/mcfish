@@ -281,8 +281,9 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             return qsearch_node_nonpv(ctx, pos, ss, alpha, beta);
 
         // Step 8. Prune by futility.
-        if (!ss->tt_pv && depth < 19 && eval >= beta && (tt_move == MOVE_NONE || tt_capture)
-            && !value_is_loss(beta) && !value_is_win(eval)) {
+        // The depth condition is important for mate finding. It shouldn't be tuned.
+        if (!ss->tt_pv && eval >= beta && (tt_move == MOVE_NONE || tt_capture)
+            && !value_is_loss(beta) && !value_is_win(eval) && depth < futility_depth(eval, beta)) {
             const int fm =
               futility_margin(depth, ss->tt_hit, improving, opponent_worsening, correction_value);
             if (eval - fm >= beta)
