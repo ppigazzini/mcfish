@@ -100,7 +100,7 @@ int probcut_beta_deep(int beta);
 int move_count_limit(int depth, bool improving);
 
 int history_prune_threshold(int depth);
-int quiet_futility_value(int static_eval, bool no_best_move, int lmr_depth, bool eval_gt_alpha);
+int quiet_futility_value(int static_eval, int lmr_depth, bool eval_gt_alpha);
 int quiet_see_margin(int lmr_depth);
 
 int capture_futility_value(int static_eval, int lmr_depth, int piece_val, int capt_hist);
