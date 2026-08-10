@@ -354,6 +354,15 @@ def main():
     if not ORACLE.exists():
         sys.exit(f"no oracle at {ORACLE} -- run tools/upstream/upstream_oracle.sh")
 
+    # Echo the seed this run actually used. The weekly lane passes a wall-clock seed on
+    # purpose -- a fixed one explores the same positions forever -- but that left a red
+    # run unreproducible from its own log, and the chess960 castling crash of 2026-08-10
+    # had to be chased from the single FEN that printed before the engine died. Any run
+    # here replays with --seed <the number below>.
+    print(
+        f"  seed {args.seed}  positions {args.positions}  depth {args.depth}"
+        f"  plies {args.plies}  classes {','.join(wanted)}"
+    )
     rng = random.Random(args.seed)
     cc = Engine(MCFISH, MCFISH_CWD)
     up = Engine(ORACLE, ORACLE.parent)
