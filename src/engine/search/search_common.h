@@ -85,9 +85,13 @@ Value to_corrected_static_eval(Value v, int cv);
 int futility_margin(
   int depth, bool tt_hit, bool improving, bool opponent_worsening, int correction_value);
 int futility_return(int beta, int eval);
+// Answer with the depth step 8 stops pruning at. Falls from 19 to 13 as the node
+// nears a mate score, so the caller must hold the step-8 guards -- `eval >= beta`
+// with neither side decisive -- before asking: those are what bound the argument
+// below the table's last entry.
+int futility_depth(int eval, int beta);
 
 int razor_margin(int depth);
-int futility_depth(int eval, int beta);
 
 int null_move_threshold(int beta, int depth, bool improving);
 int null_move_reduction(int depth, int static_eval, int beta);
@@ -230,24 +234,24 @@ search_set_cont_hist(SearchCtx *ctx, Stack *ss, bool in_check, bool capture, Pie
 // either (evaluate.h states the invariant from the accumulator's side).
 //
 // Defined inline so the move loop absorbs it, as upstream's search<NodeType>
-// absorbs Worker::do_move (search.cpp:562): the make runs once per node, and the
+// absorbs Worker::do_move (search.cpp:652): the make runs once per node, and the
 // call boundary was spilling the loop's live state around every make.
 static inline void
 search_do_move(SearchCtx *ctx, Position *pos, Move m, StateInfo *st, bool gives_check, Stack *ss) {
     // Preload the child position's TT cluster while the make below runs, so the line
-    // is resident by the probe at the next node (search.cpp:642). The key is
+    // is resident by the probe at the next node (search.cpp:657). The key is
     // approximate; the hint changes no value.
     tt_prefetch(pos_prefetch_key(pos, m));
 
     const bool capture = search_capture_stage(pos, m);
     // Read the moved piece BEFORE the move: upstream indexes the continuation
-    // pages by DirtyPiece::pc, which position.cpp:848 fills from `piece_on(from)`
+    // pages by DirtyPiece::pc, which position.cpp:856 fills from `piece_on(from)`
     // ahead of the make. For a promotion that is the PAWN that left `from`, not
     // the piece standing on `to` afterwards.
     const Piece moved_pc = piece_on(pos, move_from(m));
     const Square to = move_to(m);
     // Preload the two continuation-correction pages the child reads while the make below
-    // runs (search.cpp:658). The child indexes them by the piece standing on `to` AFTER
+    // runs (search.cpp:666). The child indexes them by the piece standing on `to` AFTER
     // the move, so for a castling or a promotion this hint lands on a line nobody reads;
     // like the TT hint above it changes no value. Upstream guards the pair on a null
     // stack because its do_move takes one; all three callers here pass a live frame.
