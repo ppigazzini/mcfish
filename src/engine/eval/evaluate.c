@@ -299,7 +299,7 @@ nnue_scaled_value(const Position *pos, int32_t psqt, int32_t positional, int opt
     const int64_t material = 534 * (count_p(pos, WHITE, PAWN) + count_p(pos, BLACK, PAWN))
                            + pos_non_pawn_material(pos, WHITE) + pos_non_pawn_material(pos, BLACK);
 
-    int64_t v = (nnue * (77871 + material) + opt * (7191 + material)) / 77871;
+    int64_t v = (nnue * (91000 + material) + opt * 7675) / 91000;
 
     v -= v * pos->st->rule50 / 199;
 
