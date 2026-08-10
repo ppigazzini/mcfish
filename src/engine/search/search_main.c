@@ -445,8 +445,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 history +=
                   69 * (int) h->main_history[(size_t) us * HIST_UINT16 + (size_t) move] / 32;
                 lmr_depth += history / LmrDivisor[d_index];
-                const int fv = quiet_futility_value(ss->static_eval, best_move == MOVE_NONE,
-                                                    lmr_depth, ss->static_eval > alpha);
+                const int fv =
+                  quiet_futility_value(ss->static_eval, lmr_depth, ss->static_eval > alpha);
                 if (!ss->in_check && lmr_depth < 12 && fv <= alpha) {
                     if (best_value <= fv && !value_is_decisive(best_value) && !value_is_win(fv))
                         best_value = (Value) fv;

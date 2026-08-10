@@ -186,8 +186,8 @@ int move_count_limit(int depth, bool improving) {
 
 int history_prune_threshold(int depth) { return -4136 * depth; }
 
-int quiet_futility_value(int static_eval, bool no_best_move, int lmr_depth, bool eval_gt_alpha) {
-    return static_eval + 39 + 127 * (int) no_best_move + 119 * lmr_depth + 90 * (int) eval_gt_alpha;
+int quiet_futility_value(int static_eval, int lmr_depth, bool eval_gt_alpha) {
+    return static_eval + 119 * lmr_depth + 90 * (int) eval_gt_alpha + 164;
 }
 
 int quiet_see_margin(int lmr_depth) { return 23 * lmr_depth * lmr_depth; }
