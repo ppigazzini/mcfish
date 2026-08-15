@@ -1,0 +1,40 @@
+# The PROBING workload: positions whose search spends its time inside the Syzygy
+# reader. One FEN per line; `#` and blank lines are stripped before the file reaches
+# the engine.
+#
+# Why this file exists. Every position in the bench list has more men on it than any
+# table `./build.sh tb-fetch` installs, so `registry.c`'s parse, `do_probe_table` and
+# `decode_pairs` are ABSENT from every instruction figure this tree records. A bound
+# placed inside the decode loop is free according to all of them, which is not the
+# same as being free -- and the hardening in decode.c is exactly that kind of bound.
+# `./build.sh perf-budget-tb` measures this instead, and the reader is ~31% of it.
+#
+# THE MATERIAL IS THE COVERED SET, NOT AN ARBITRARY ONE. `tb-fetch 5` installs
+# KPvK/KNvK/KBvK/KRvK/KQvK and KNNvKP/KNNvK/KNvKP; every position below is one of
+# those, so the root itself probes and the search stays inside the corpus as captures
+# reduce it. A position outside the set only reaches the reader once it happens to
+# reduce into it, which measures the search rather than the reader.
+#
+# THE CORPUS IS 5-MAN, so every figure taken over it is a LOWER BOUND. Block count
+# scales with table size: the two walk loops in `decode_pairs` iterate less here than
+# they would on a 6-man table, and the gate says so on every run.
+#
+# Golden: none. This is a workload, not an expected output -- `perf-budget-tb`
+# compares an instruction count against a per-machine budget, and the node count it
+# prints beside it is what tells a reader the workload itself did not move.
+
+# KNNvKP, both colours, and with the pawn advanced: the largest tables in the set.
+k7/p7/8/8/8/2N2N2/8/6K1 w - - 0 1
+k7/p7/8/8/8/2N2N2/8/6K1 b - - 0 1
+7k/7p/8/8/8/2N2N2/8/6K1 w - - 0 1
+
+# KNvKP: one knight, so the search converges deeper into the reader per node.
+k7/p7/8/8/8/5N2/8/6K1 w - - 0 1
+7k/7p/8/8/8/5N2/8/6K1 b - - 0 1
+
+# KNNvK: the child table the pawn capture reaches, probed on its own.
+k7/8/8/8/8/2N2N2/8/6K1 w - - 0 1
+
+# Two 3-man positions, which are the tables every other position reduces INTO.
+8/8/8/3k4/8/8/5N2/4K3 w - - 0 1
+8/8/8/3k4/8/8/5P2/4K3 w - - 0 1

@@ -1203,7 +1203,11 @@ PERF_BUDGET_TOL=${PERF_BUDGET_TOL:-0.0005}
 # resolves elsewhere finds no row and SKIPS -- loudly, at 127 -- instead of measuring
 # against a stranger. That is a property of the arch ladder above, so nothing is
 # needed here beyond using the string.
-perf_budget_key() { printf '%s' "$MCFISH_ARCH_STRING"; }
+# A WORKLOAD suffix keys its own row. The probing lane measures a different program
+# path over a different position list, so its count is not comparable with the bench
+# list's and must never land in the same row -- a budget is only a budget while every
+# number under one key was taken over the same work.
+perf_budget_key() { printf '%s%s' "$MCFISH_ARCH_STRING" "${1:+"+$1"}"; }
 
 # Compile the counter (same cache perf_counters.sh uses) and read $BIN's median retired
 # instruction count on the fixed bench. Echoes "INSTRUCTIONS <n>\nNODES <n>", or returns 3
@@ -1220,7 +1224,89 @@ measure_instructions() {
     # these today, so -Werror costs nothing and keeps it that way.
     "$CC" -O2 "${CFLAGS_COMMON[@]}" -Werror -o "$counter" tools/perf_counters.c || return 2
   fi
-  ( cd "$ROOT/$RESOURCES_DIR" && "$counter" --single "$ROOT/$BIN" 5 bench $PERF_BUDGET_BENCH )
+  # No arguments means the bench list, which is what every caller but the probing lane
+  # wants. The lane passes its own `bench ...` line because its workload is a FILE.
+  local args=("$@")
+  [[ ${#args[@]} -eq 0 ]] && args=(bench $PERF_BUDGET_BENCH)
+  ( cd "$ROOT/$RESOURCES_DIR" && "$counter" --single "$ROOT/$BIN" 5 "${args[@]}" )
+}
+
+# Compare ACTUAL against the budget recorded for KEY and print the verdict. Shared by
+# both lanes: the ceiling arithmetic, the tolerance and the wording are properties of
+# a BUDGET, not of a workload, and a second copy of them is a second thing to keep in
+# step. WHAT names the step to re-run, so the advice a red gate prints leads to the
+# lane that owns the row rather than to the other one.
+perf_budget_verdict() {
+  local key=$1 actual=$2 what=$3 budget
+  if [[ ! -f $PERF_BUDGET_GOLDEN ]]; then
+    info "$what: no budget file yet (tools/instr_budget.golden)."
+    info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh $what-update"
+    return 127
+  fi
+  budget=$(grep -v '^#' "$PERF_BUDGET_GOLDEN" | awk -v a="$key" '$1==a{print $2}' || true)
+  if [[ -z $budget ]]; then
+    info "$what: no budget recorded for key '$key'."
+    # Older files hold rows this key no longer produces: a bare `sse41`/`native` from
+    # before the key was the tier string, and a `<class>`/`<class>+<target-cpu>` from
+    # when `native` still meant -march=native. Say so rather than leaving a bare "no
+    # budget": those numbers describe a build this tree cannot make any more.
+    if grep -qv '^#' "$PERF_BUDGET_GOLDEN" \
+       && grep -v '^#' "$PERF_BUDGET_GOLDEN" \
+          | awk '$1 ~ /^(native|sse41|avx2|avx512|vnni512|avx512icl)$/ || $1 ~ /-class/ {
+                   found=1 } END { exit !found }'; then
+      info "  a LEGACY row is present, keyed by a name this build no longer emits --"
+      info "  re-record it: the key is the tier, and the tier now describes the code"
+    fi
+    info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh $what-update"
+    return 127
+  fi
+
+  # Ceiling = budget * (1 + TOL). A regression INFLATES instructions; a drop is a win.
+  awk -v a="$actual" -v b="$budget" -v tol="$PERF_BUDGET_TOL" -v arch="$key" -v what="$what" 'BEGIN{
+    ceil = b * (1 + tol); floor = b * (1 - tol);
+    # %g, not %.1f: a 0.05% tolerance printed as "0.1%" is a gate lying about its
+    # own threshold, and the reader has no other place to learn it.
+    if (a > ceil) {
+      printf "\033[31m%s REGRESSION (%s): %d instr > budget %d + %g%% (%.0f)\033[0m\n", what, arch, a, b, tol*100, ceil;
+      print  "\033[31mA refactor inflated the instruction count without moving the node signature.\033[0m";
+      printf "\033[31mIf the change is intended, re-derive: ./build.sh %s-update\033[0m\n", what;
+      exit 1;
+    } else if (a < floor) {
+      printf "\033[32m%s OK (%s): %d instr — IMPROVED vs budget %d (%.2f%%). Consider %s-update.\033[0m\n", what, arch, a, b, (a/b-1)*100, what;
+    } else {
+      printf "\033[32m%s OK (%s): %d instr (budget %d, within %g%%)\033[0m\n", what, arch, a, b, tol*100;
+    }
+  }'
+}
+
+# Compose the probing bench file and echo its path, or return 127 with the reason.
+#
+# The SyzygyPath goes INTO the file: upstream's bench reader dispatches a `setoption`
+# line wherever the entry list came from (benchmark.c is-setoption), so a workload can
+# carry the option it needs and every tool that takes bench arguments -- perf-budget-tb
+# here, tools/perf_counters.sh for an A/B -- reaches the reader without learning what
+# a tablebase is. The path is RELATIVE because the engine is run from $RESOURCES_DIR,
+# which also keeps the composed line far inside the reader's 128-byte line bound.
+#
+# AN INCOMPLETE CORPUS SKIPS, LOUDLY, and it must: a probing measurement taken with
+# tables the positions do not reach is the bench list wearing a different name, and it
+# would certify a bound that was never executed.
+tb_probe_workload() {
+  local f n3=0 n5=0
+  for f in "$TB_DIR"/*.rtbw "$TB_DIR"/*.rtbz; do [[ -s $f ]] && n3=$((n3 + 1)) || true; done
+  for f in "$TB5_DIR"/*.rtbw "$TB5_DIR"/*.rtbz; do [[ -s $f ]] && n5=$((n5 + 1)) || true; done
+  if [[ $n3 -ne 10 || $n5 -ne 6 ]]; then
+    red "  the probing corpus is incomplete: $TB_DIR $n3/10, $TB5_DIR $n5/6." >&2
+    red "  Run './build.sh tb-fetch 5' first -- the 5-man tables are what this measures." >&2
+    return 127
+  fi
+  [[ -f $TB_PROBE_FENS ]] || { red "  missing $TB_PROBE_FENS" >&2; return 127; }
+
+  local out; out=$(mktemp "${TMPDIR:-/tmp}/mcfish_tbprobe.XXXXXX")
+  { echo "setoption name SyzygyPath value ${TB_DIR#"$RESOURCES_DIR"/}:${TB5_DIR#"$RESOURCES_DIR"/}"
+    grep -vE '^\s*(#|$)' "$TB_PROBE_FENS"
+  } > "$out"
+  printf '%s' "$out"
 }
 
 do_perf_budget() {
@@ -1234,6 +1320,8 @@ do_perf_budget() {
     return 127
   fi
 
+  info "perf-budget: tier $(arch_report_label), bench $PERF_BUDGET_BENCH"
+
   local out rc
   out=$(measure_instructions); rc=$?
   if [[ $rc -eq 3 ]]; then
@@ -1242,50 +1330,50 @@ do_perf_budget() {
   fi
   [[ $rc -eq 0 ]] || { red "perf-budget: measurement failed (exit $rc)."; return 1; }
 
-  local actual budget
-  actual=$(awk '/^INSTRUCTIONS/{print $2}' <<< "$out")
   # A missing golden (grep exits 2) or a header-only golden (grep -v '^#' finds nothing,
   # exits 1) must READ as "no budget yet", not abort the gate under `set -euo pipefail`.
-  # Guard the file, and neutralise grep's no-match exit with `|| true` inside the sub-shell.
-  if [[ ! -f $PERF_BUDGET_GOLDEN ]]; then
-    info "perf-budget: no budget file yet (tools/instr_budget.golden)."
-    info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
-    return 127
-  fi
-  budget=$(grep -v '^#' "$PERF_BUDGET_GOLDEN" | awk -v a="$(perf_budget_key)" '$1==a{print $2}' || true)
-  if [[ -z $budget ]]; then
-    info "perf-budget: no budget recorded for tier '$(perf_budget_key)'."
-    # Older files hold rows this key no longer produces: a bare `sse41`/`native` from
-    # before the key was the tier string, and a `<class>`/`<class>+<target-cpu>` from
-    # when `native` still meant -march=native. Say so rather than leaving a bare "no
-    # budget": those numbers describe a build this tree cannot make any more.
-    if grep -qv '^#' "$PERF_BUDGET_GOLDEN" \
-       && grep -v '^#' "$PERF_BUDGET_GOLDEN" \
-          | awk '$1 ~ /^(native|sse41|avx2|avx512|vnni512|avx512icl)$/ || $1 ~ /-class/ {
-                   found=1 } END { exit !found }'; then
-      info "  a LEGACY row is present, keyed by a name this build no longer emits --"
-      info "  re-record it: the key is the tier, and the tier now describes the code"
-    fi
-    info "Record one from a known-good build: MCFISH_ARCH=$MCFISH_ARCH ./build.sh perf-budget-update"
+  # perf_budget_verdict guards the file and neutralises grep's no-match exit.
+  perf_budget_verdict "$(perf_budget_key)" "$(awk '/^INSTRUCTIONS/{print $2}' <<< "$out")" perf-budget
+}
+
+# --- perf-budget-tb: the same gate, on the workload the bench list cannot reach -----
+#
+# The bench list opens no tablebase, so `registry.c`, `do_probe_table` and the decode
+# loop are absent from `perf-budget`'s figure entirely. That is the hole refish's
+# `5ace08e4` names and this closes: a bound inside `decode_pairs` is free according to
+# every instruction number this tree records, which is not the same as being free.
+#
+# Depth 14, not the bench's 13, and the difference is not cosmetic. These positions are
+# five men and converge early, so a shallow run barely reaches the reader it exists to
+# measure.
+do_perf_budget_tb() {
+  need_binary
+  info "perf-budget-tb: retired instructions on the PROBING workload, tier $(arch_report_label)"
+
+  local net_probe
+  net_probe=$(engine bench 1 1 1 2>&1 || true)
+  if grep -q 'was not loaded' <<< "$net_probe"; then
+    red "no NNUE net reachable — perf-budget-tb did NOT run (SKIPPED)."
     return 127
   fi
 
-  # Ceiling = budget * (1 + TOL). A regression INFLATES instructions; a drop is a win.
-  awk -v a="$actual" -v b="$budget" -v tol="$PERF_BUDGET_TOL" -v arch="$(arch_report_label)" 'BEGIN{
-    ceil = b * (1 + tol); floor = b * (1 - tol);
-    # %g, not %.1f: a 0.05% tolerance printed as "0.1%" is a gate lying about its
-    # own threshold, and the reader has no other place to learn it.
-    if (a > ceil) {
-      printf "\033[31mperf-budget REGRESSION (%s): %d instr > budget %d + %g%% (%.0f)\033[0m\n", arch, a, b, tol*100, ceil;
-      print  "\033[31mA refactor inflated the instruction count without moving the node signature.\033[0m";
-      print  "\033[31mIf the change is intended, re-derive: ./build.sh perf-budget-update\033[0m";
-      exit 1;
-    } else if (a < floor) {
-      printf "\033[32mperf-budget OK (%s): %d instr — IMPROVED vs budget %d (%.2f%%). Consider perf-budget-update.\033[0m\n", arch, a, b, (a/b-1)*100;
-    } else {
-      printf "\033[32mperf-budget OK (%s): %d instr (budget %d, within %g%%)\033[0m\n", arch, a, b, tol*100;
-    }
-  }'
+  local fens; fens=$(tb_probe_workload) || return 127
+  local positions; positions=$(grep -cve '^setoption' "$fens")
+  info "  workload: $positions positions over the 3-man + 5-man set, at depth 14"
+  info "  the corpus is 5-MAN, so every figure taken over it is a LOWER BOUND"
+
+  local out rc
+  out=$(measure_instructions bench 16 1 14 "$fens" depth); rc=$?
+  rm -f "$fens"
+  if [[ $rc -eq 3 ]]; then
+    info "perf-budget-tb: perf_event_open unavailable on this host — SKIPPED (local-only)."
+    return 127
+  fi
+  [[ $rc -eq 0 ]] || { red "perf-budget-tb: measurement failed (exit $rc)."; return 1; }
+
+  info "  nodes: $(awk '/^NODES/{print $2}' <<< "$out") (a moved node count is a moved WORKLOAD, not a perf result)"
+  perf_budget_verdict "$(perf_budget_key syzygy)" \
+                      "$(awk '/^INSTRUCTIONS/{print $2}' <<< "$out")" perf-budget-tb
 }
 
 do_perf_budget_update() {
@@ -1295,6 +1383,26 @@ do_perf_budget_update() {
   [[ $rc -eq 0 ]] || { red "perf-budget-update: measurement failed (exit $rc). Needs perf_event_open + the net."; return 1; }
   actual=$(awk '/^INSTRUCTIONS/{print $2}' <<< "$out")
   nodes=$(awk '/^NODES/{print $2}' <<< "$out")
+  perf_budget_record "$(perf_budget_key)" "$actual" "$nodes" "bench $PERF_BUDGET_BENCH"
+}
+
+# Re-derive the PROBING row. Same measurement the lane asserts, written under its own
+# key -- never the bench list's, because the two count different programs.
+do_perf_budget_tb_update() {
+  need_binary
+  local fens; fens=$(tb_probe_workload) || return 1
+  local out rc actual nodes
+  out=$(measure_instructions bench 16 1 14 "$fens" depth); rc=$?
+  rm -f "$fens"
+  [[ $rc -eq 0 ]] || { red "perf-budget-tb-update: measurement failed (exit $rc). Needs perf_event_open + the net."; return 1; }
+  actual=$(awk '/^INSTRUCTIONS/{print $2}' <<< "$out")
+  nodes=$(awk '/^NODES/{print $2}' <<< "$out")
+  perf_budget_record "$(perf_budget_key syzygy)" "$actual" "$nodes" "the probing workload at depth 14"
+}
+
+# Replace KEY's row (or append it), keeping the header and every other row.
+perf_budget_record() {
+  local key=$1 actual=$2 nodes=$3 workload=$4
   [[ -f $PERF_BUDGET_GOLDEN ]] || {
     { echo "# mcfish retired-instruction budget: median count on 'bench $PERF_BUDGET_BENCH',"
       echo "# per ISA TIER. Deterministic (~0.00002% spread), toolchain-specific: re-derive"
@@ -1303,17 +1411,19 @@ do_perf_budget_update() {
       echo "# every host and a foreign tier finds none rather than matching. Every tier is"
       echo "# a fixed -m flag list, including the one \`native\` selects, so the name is a"
       echo "# complete description of the code the count was taken over."
-      echo "# A regression that leaves the node signature ($nodes) untouched shows up ONLY here."
+      echo "# A regression that leaves the node signature untouched shows up ONLY here."
+      echo "# A key carrying a +WORKLOAD suffix was taken over that workload instead of the"
+      echo "# bench list, and the two are never comparable with each other."
     } > "$PERF_BUDGET_GOLDEN"
   }
-  # Replace the line for this tier (or append it), keeping the header and other tiers.
+  # Replace the line for this key (or append it), keeping the header and other rows.
   local tmp; tmp=$(mktemp)
-  awk -v a="$(perf_budget_key)" -v n="$actual" '
+  awk -v a="$key" -v n="$actual" '
     /^#/ { print; next }
     $1==a { next }
     { print }
     END { print a, n }' "$PERF_BUDGET_GOLDEN" > "$tmp" && mv "$tmp" "$PERF_BUDGET_GOLDEN"
-  green "perf-budget golden for '$(perf_budget_key)' set to $actual instructions (bench $PERF_BUDGET_BENCH, $nodes nodes)"
+  green "perf-budget golden for '$key' set to $actual instructions ($workload, $nodes nodes)"
 }
 
 # --- negative-control: prove each correctness gate can actually FAIL --------------
@@ -1414,6 +1524,8 @@ LANE_EXCUSED=(
   "pgo:a build mode; the anchor is asserted by signature on the shipped one"
   "perf-budget:LOCAL -- needs perf_event_open, which CI containers refuse, and the golden is per-machine"
   "perf-budget-update:writes that per-machine golden"
+  "perf-budget-tb:LOCAL -- perf_event_open plus the 5-man tables (tb-fetch 5), too large for a lane"
+  "perf-budget-tb-update:writes that per-machine golden"
   "counter-validate:LOCAL -- needs perf_event_open"
   "signature-update:re-derives the anchor; signature is what asserts it"
   "tb-update:re-derives the tb golden; tb is what asserts it"
@@ -2771,6 +2883,8 @@ do_fmt_fix() {
 # and DTZ. Never committed -- 10 binary files are a runtime input, like the net.
 TB_DIR=$RESOURCES_DIR/syzygy
 TB5_DIR=$RESOURCES_DIR/syzygy5
+# The probing workload perf-budget-tb measures. See the file for why it exists.
+TB_PROBE_FENS=tools/cases/tb_probe.fens
 
 # `tb-fetch` gets the 3-man set (10 files, ~60 KiB). `tb-fetch 5` adds KNNvKP
 # (~24 MiB), the smallest table carrying CURSED WINS -- a win whose DTZ exceeds
@@ -3155,6 +3269,7 @@ usage: ./build.sh <step> [args]
   net-roundtrip      export the net and require it back byte-identical
                      (the only gate on the WRITING side of the .nnue format)
   speedtest-check    drive `speedtest` and assert its report's shape
+  perf-budget-tb     LOCAL: the same budget on a PROBING workload (needs tb-fetch 5)
   perf-budget        LOCAL: assert retired instructions vs tools/instr_budget.golden
                      (catches an nps regression the node signature is blind to)
   perft              assert perft counts vs tools/perft.table
@@ -3179,6 +3294,7 @@ usage: ./build.sh <step> [args]
 
   signature-update   re-derive the signature golden  (intended changes only)
   perf-budget-update re-derive the instruction budget for this arch (known-good build)
+  perf-budget-tb-update re-derive the PROBING budget row (known-good build)
   golden-update      re-derive the UCI goldens FROM MCFISH -- prefer golden-audit --write,
                      which derives them from the oracle instead (intended changes only)
   tb-update          re-derive tools/tb.golden FROM THE ORACLE
@@ -3205,6 +3321,8 @@ case "${1:-build}" in
   net-roundtrip)    do_net_roundtrip ;;
   perf-budget)      do_perf_budget ;;
   perf-budget-update) do_perf_budget_update ;;
+  perf-budget-tb)   do_perf_budget_tb ;;
+  perf-budget-tb-update) do_perf_budget_tb_update ;;
   simd-scalar)      do_simd_scalar ;;
   async-check)      do_async_check ;;
   speedtest-check)  do_speedtest_check ;;
