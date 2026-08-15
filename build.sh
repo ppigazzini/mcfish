@@ -484,6 +484,28 @@ build_stamp() {
   } 2> /dev/null | sha256sum | cut -d' ' -f1
 }
 
+# The same stamp over the DEBUG flags. `malformed` runs on the sanitized binary and
+# is in `parity`, so it must not pay for a rebuild it does not need -- and must not
+# skip one it does: a stale sanitized binary is a gate judging code that is gone.
+debug_stamp() {
+  {
+    printf '%s\0' "$CC" "$("$CC" -dumpversion 2> /dev/null)" \
+      "${CFLAGS_COMMON[@]}" "${CFLAGS_DEBUG[@]}" "${SOURCES[@]}"
+    cat "${SOURCES[@]}" $(find src -name '*.h' | sort)
+  } 2> /dev/null | sha256sum | cut -d' ' -f1
+}
+
+need_debug_binary() {
+  local want
+  want=$(debug_stamp)
+  if [[ -x build/mcfish-debug && -f build/mcfish-debug.stamp \
+        && $(cat build/mcfish-debug.stamp) == "$want" ]]; then
+    return
+  fi
+  info "build/mcfish-debug does not match its sources or flags -- rebuilding"
+  do_debug
+}
+
 need_binary() {
   local want
   want=$(build_stamp)
@@ -572,6 +594,7 @@ do_debug() {
   info "building build/mcfish-debug (asan+ubsan)"
   mkdir -p build
   "$CC" "${CFLAGS_COMMON[@]}" "${CFLAGS_DEBUG[@]}" -o build/mcfish-debug "${SOURCES[@]}" -lm -lpthread
+  debug_stamp > build/mcfish-debug.stamp
   green "built build/mcfish-debug"
 }
 
@@ -1424,6 +1447,20 @@ perf_budget_record() {
     { print }
     END { print a, n }' "$PERF_BUDGET_GOLDEN" > "$tmp" && mv "$tmp" "$PERF_BUDGET_GOLDEN"
   green "perf-budget golden for '$key' set to $actual instructions ($workload, $nodes nodes)"
+}
+
+# --- malformed: a file that was refused yesterday is refused today -----------------
+#
+# The one gate that watches the engine REFUSE rather than compute. `signature` is
+# green with every parser defect this covers live, because the bench reads no file
+# the engine did not ship with; `fuzz-tb` hunts for input nobody has described yet,
+# probabilistically and on a nightly budget. Neither is a regression test for the
+# bounds in decode.c and registry.c, and those bounds are all that stands between a
+# crafted `.rtbw` -- the only attacker-supplyable binary input besides the net -- and
+# the search. See tools/malformed.sh for what the four parts of a refusal are.
+do_malformed() {
+  need_debug_binary
+  tools/malformed.sh
 }
 
 # --- negative-control: prove each correctness gate can actually FAIL --------------
@@ -3209,6 +3246,7 @@ do_parity() {
   do_perft
   do_golden
   do_tb
+  do_malformed
 
   if [[ ${#skipped[@]} -eq 0 ]]; then
     green "=== parity: all gates passed ==="
@@ -3277,6 +3315,7 @@ usage: ./build.sh <step> [args]
   tb-fetch [5]       download + magic-verify the Syzygy sets -> resources/syzygy[5]
   tb-cursed          LOCAL: cursed-win/blessed-loss DTZ>100 branches (needs tb-fetch 5)
   tb                 assert Syzygy discovery and the root probe vs tools/tb.golden
+  malformed          assert a crafted tablebase file is still refused (asan+ubsan)
   zone-check         assert engine/+platform/ link without shell/
   engine-standalone  ratchet the engine->platform edge (link engine/ alone)
   fmt / fmt-fix      check / apply clang-format
@@ -3339,6 +3378,7 @@ case "${1:-build}" in
   tb)               do_tb ;;
   upstream-map)     do_upstream_map ;;
   tb-fetch)         shift; do_tb_fetch "$@" ;;
+  malformed)        do_malformed ;;
   tb-cursed)        do_tb_cursed ;;
   tb-update)        do_tb_update ;;
   tb-cursed-update) do_tb_cursed_update ;;
