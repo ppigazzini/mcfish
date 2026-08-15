@@ -106,6 +106,32 @@ bool decode_set_sizes(
         d->base64[k] <<= (unsigned) (64 - k - d->min_sym_len);
     }
 
+    // Fill the per-length tables the decode loop reads instead of recomputing.
+    //
+    // Three of the values that loop formed per SYMBOL depend only on the symbol's
+    // LENGTH, and a table has at most 63 of those. The subtraction folds into them,
+    // and that is an identity rather than an approximation: base64[len] is right-
+    // padded to 64 bits, so its low `shift` bits are zero and the scan only stops
+    // where buf64 >= base64[len] -- therefore
+    //
+    //   (buf64 - base64[len]) >> shift == (buf64 >> shift) - (base64[len] >> shift)
+    //
+    // with no borrow to lose. Taking that subtrahend mod 2^16 together with the
+    // lowest symbol it is added to leaves the symbol itself, and the result is
+    // truncated to a 16-bit Sym on both sides, so the fold is exact rather than lossy.
+    //
+    // The shift needs no per-symbol range test. The scan cannot return a length at or
+    // past base64_size, so shift == 64 - len - min_sym_len lies in
+    // [64 - max_sym_len, 64 - min_sym_len], and the refusal above has already bounded
+    // that to [1, 63]. The test that used to stand in the loop could not fire.
+    for (size_t k = 0; k < base64_size; ++k) {
+        const unsigned shift = (unsigned) (64 - k - d->min_sym_len);
+        d->len_shift[k] = (uint8_t) shift;
+        d->len_offset[k] = (uint16_t) ((uint16_t) rd_sym(d->lowest_sym + k * 2)
+                                       - (uint16_t) (d->base64[k] >> shift));
+        d->len_real[k] = (uint8_t) (k + d->min_sym_len);
+    }
+
     p += base64_size * 2;  // sizeof(Sym)
     if (!fits(p, 2, buf_len)) {
         return false;
@@ -228,7 +254,10 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
     Sym sym = 0;
 
     while (true) {
-        int32_t len = 0;  // symbol length - min_sym_len
+        // `len` is UNSIGNED on purpose: as an int, every one of the three table loads
+        // below wants a sign-extension the byte-wide index has already made
+        // unnecessary.
+        unsigned len = 0;  // symbol length - min_sym_len
         while (buf64 < d->base64[len]) {
             ++len;
             if ((size_t) len >= d->base64_size) {
@@ -236,13 +265,10 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
                 return 0;
             }
         }
-        const int32_t shift = 64 - len - (int32_t) d->min_sym_len;
-        if (shift <= 0 || shift >= 64) {
-            *ok = false;
-            return 0;
-        }
-        sym = (Sym) ((buf64 - d->base64[len]) >> (unsigned) shift);
-        sym = (Sym) (sym + rd_sym(d->lowest_sym + (size_t) len * 2));
+        // Three loads, where this used to be five arithmetic operations and a read out
+        // of the mapping. The shift's range test went with them: it is a property of
+        // the LENGTH, decided once per table in decode_set_sizes.
+        sym = (Sym) ((Sym) (buf64 >> d->len_shift[len]) + d->len_offset[len]);
 
         if ((size_t) sym >= d->symlen_size) {
             *ok = false;
@@ -253,9 +279,9 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
         }
 
         offset -= (int32_t) d->symlen[sym] + 1;
-        len += (int32_t) d->min_sym_len;  // the real length
-        buf64 <<= (unsigned) len;
-        buf64_size -= len;
+        const int32_t real = d->len_real[len];  // the real length
+        buf64 <<= (unsigned) real;
+        buf64_size -= real;
         if (buf64_size <= 32) {
             buf64_size += 32;
             // Refuse a window the symbol lengths have driven out of range. A valid
