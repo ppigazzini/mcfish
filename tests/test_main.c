@@ -22,6 +22,7 @@
 #include "../src/engine/eval/nnue/nnue_accumulator.h"
 #include "../src/engine/eval/nnue/nnue_architecture.h"
 #include "../src/engine/eval/nnue/nnue_feature.h"
+#include "../src/engine/eval/nnue/nnue_hash.h"
 #include "../src/engine/eval/nnue/nnue_parse.h"
 #include "../src/engine/eval/nnue/nnue_write.h"
 #include "../src/engine/eval/nnue/nnue_weight_storage.h"
@@ -71,6 +72,11 @@ static uint64_t xorshift64(uint64_t *state) {
 static const char StartFen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 // ---------------------------------------------------------------- bitboards
+
+static int cmp_u64(const void *a, const void *b) {
+    const uint64_t x = *(const uint64_t *) a, y = *(const uint64_t *) b;
+    return x < y ? -1 : (x > y ? 1 : 0);
+}
 
 static void test_bitboards(void) {
     banner("bitboards");
@@ -1568,6 +1574,51 @@ static void test_syzygy_wdl_score_domain(void) {
     }
 }
 
+// Hold the tail of hash_bytes to a digest that uses every byte it was given.
+//
+// Upstream reads the tail through a SIGNED char, so a byte >= 0x80 becomes
+// 0xFFFFFFFFFFFFFF00 | byte and the `or` sets every bit above bit 7 -- erasing
+// what the higher tail indices already contributed. The symptom is a collapsed
+// range rather than a crash, which is why no other gate here can see it: nothing
+// in this tree reads the digest today, and a defect nothing reads is one a future
+// caller inherits silently.
+//
+// The census is the assertion, not a spot value: over all 65536 two-byte inputs a
+// 64-bit hash must produce 65536 distinct digests, and the signed read produces
+// 32896.
+static void test_nnue_hash_tail_bytes(void) {
+    // Every two-byte input, deduplicated by sorting the digests.
+    static uint64_t seen[65536];
+    for (uint32_t v = 0; v < 65536; ++v) {
+        const uint8_t in[2] = { (uint8_t) (v & 0xFF), (uint8_t) (v >> 8) };
+        seen[v] = nnue_hash_bytes(in, sizeof in);
+    }
+    qsort(seen, 65536, sizeof seen[0], cmp_u64);
+    size_t distinct = 1;
+    for (size_t i = 1; i < 65536; ++i)
+        if (seen[i] != seen[i - 1])
+            ++distinct;
+    CHECK(distinct == 65536, "hash_bytes: %zu distinct digests over 65536 two-byte inputs",
+          distinct);
+
+    // The named collision from the register, which is the shape a reader can check
+    // by hand: the two differ only in a byte AFTER a 0x80, which sign extension
+    // erases.
+    const uint8_t a[3] = { 0x80, 0x02, 0x03 };
+    const uint8_t b[3] = { 0x80, 0x02, 0x04 };
+    CHECK(nnue_hash_bytes(a, sizeof a) != nnue_hash_bytes(b, sizeof b),
+          "hash_bytes: {80,02,03} and {80,02,04} collide");
+
+    // A tail with no high bit set must be untouched by the change, which is what
+    // says this is a fix to the sign extension and not to the algorithm. The
+    // constant is REFERENCE MurmurHash64A over the same three bytes, computed
+    // independently of this implementation -- pinning what mcfish happens to
+    // print would only photograph the current behaviour.
+    const uint8_t c[3] = { 0x01, 0x02, 0x03 };
+    CHECK(nnue_hash_bytes(c, sizeof c) == 0xf187641bcbc5b011ULL,
+          "hash_bytes: diverged from reference MurmurHash64A on a plain tail");
+}
+
 static void test_numa_from_string(void) {
     banner("numa policy strings");
 
@@ -1843,6 +1894,7 @@ int main(void) {
     test_nnue_parse_poison();
     test_nnue_leb_roundtrip();
     test_syzygy_wdl_score_domain();
+    test_nnue_hash_tail_bytes();
     test_numa_from_string();
     test_numa_config_shape();
     test_thread_pool();
