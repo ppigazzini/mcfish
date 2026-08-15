@@ -1510,6 +1510,8 @@ NEGATIVE_CONTROL_ROWS=(
   "exported FT component hash zeroed%src/engine/eval/nnue/network.c%s#nnue_write_u32_le(w, nnue_feature_transformer_hash_value());#nnue_write_u32_le(w, 0);#%net-roundtrip%run"
   "a refused table says nothing%src/platform/syzygy/registry.c%s#report_unusable(path);#(void) path;#%malformed%run"
   "a decoded symbol is unbounded%src/platform/syzygy/decode.c%s#if ((size_t) sym >= d->symlen_size) {#if ((size_t) sym >= (size_t) -1) {#%malformed%run"
+  "an unbounded search is never stopped%src/shell/engine.c%s#if (search_running_unbounded())#if (false \&\& search_running_unbounded())#%async-check%run"
+  "every search is stopped, bounded or not%src/shell/engine.c%s#if (search_running_unbounded())#if (true \|\| search_running_unbounded())#%async-check%run"
 )
 
 # Bound each mutated gate run. 900s clears every row measured here with room to
@@ -2013,8 +2015,69 @@ do_async_check() {
     printf '  \033[32mok\033[0m    a quit in the same buffer as the go it interrupts exits\n'
   fi
 
+  # 6. THE WEDGE. `setoption` arriving during `go infinite` is upstream's own defect:
+  #    its setoption waits for the search to finish, the main worker spins on
+  #    `!stop && (ponder || infinite)`, and only the UCI thread can set `stop` -- which
+  #    is now blocked inside setoption. Neither `stop` nor `quit` is ever read again,
+  #    and the process has to be killed. Any GUI that pushes an option mid-ponder
+  #    hits it.
+  #
+  #    This tree does not wedge, and it is worth being precise about WHY, because the
+  #    reason is not the one a reader expects: the dispatch ends a running search
+  #    BEFORE applying any mutating command, and `end_search` STOPS an unbounded
+  #    search rather than waiting for it. A port that keeps the wait and drops the
+  #    stop -- which is upstream's shape, and the obvious way to write it -- wedges
+  #    exactly here while every invariant above stays green, because all five of them
+  #    interrupt with `stop` or `quit`, the two commands that are dispatched BEFORE
+  #    the end-search call and so never reach it.
+  #
+  #    The timeout is the assertion. A wedge is indistinguishable from a slow engine
+  #    without one, which is the property that let this defect stand upstream.
+  rc=0
+  out=$({ printf 'position startpos\ngo infinite\n'; sleep 2
+          printf 'setoption name Hash value 32\nisready\n'; sleep 1
+          printf 'quit\n'; sleep 1; } \
+        | ( cd "$ROOT/$RESOURCES_DIR" && timeout 30 "$ROOT/$BIN" ) 2>&1) || rc=$?
+  n=$(grep -cE '^bestmove ' <<< "$out" || true)
+  bm=$(grep -E '^bestmove ' <<< "$out" | head -1 | awk '{print $2}' || true)
+  if [[ $rc -eq 124 ]]; then
+    red "  setoption wedge: the engine never answered -- a permanent wedge"; fails=$((fails + 1))
+  elif [[ $n -ne 1 ]]; then
+    red "  setoption wedge: expected exactly one bestmove, got $n"; fails=$((fails + 1))
+  elif ! grep -qx -- "$bm" <<< "$legal"; then
+    red "  setoption wedge: bestmove '$bm' is not legal in the position"; fails=$((fails + 1))
+  elif ! grep -q '^readyok' <<< "$out"; then
+    red "  setoption wedge: the engine did not answer isready afterwards"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    a setoption during go infinite does not wedge (%s)\n' "$bm"
+  fi
+
+  # 7. The other half, and the one a fix for 6 can break: a BOUNDED search followed by
+  #    a mutating command must still run to completion. Stopping every search on the
+  #    way to applying an option is the obvious fix for the wedge and it truncates
+  #    this -- a sibling port took exactly that route and collapsed a golden to
+  #    `nodes 0`. Here the search is waited out and only an unbounded one is stopped,
+  #    so the node count is the SAME with and without the trailing command, which is
+  #    the sharp form of the claim.
+  local with without
+  with=$(printf 'position startpos\ngo depth 10\nsetoption name Hash value 32\nquit\n' \
+         | ( cd "$ROOT/$RESOURCES_DIR" && timeout 60 "$ROOT/$BIN" ) 2>&1 \
+         | grep -E '^info depth 10 ' | tail -1 | grep -oE 'nodes [0-9]+' || true)
+  without=$(printf 'position startpos\ngo depth 10\nquit\n' \
+            | ( cd "$ROOT/$RESOURCES_DIR" && timeout 60 "$ROOT/$BIN" ) 2>&1 \
+            | grep -E '^info depth 10 ' | tail -1 | grep -oE 'nodes [0-9]+' || true)
+  if [[ -z $without ]]; then
+    red "  bounded truncation: the control search did not reach depth 10"; fails=$((fails + 1))
+  elif [[ $with != "$without" ]]; then
+    red "  bounded truncation: a trailing setoption cut the search ($with vs $without)"
+    fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    a bounded search is not truncated by a following setoption (%s)\n' \
+           "$without"
+  fi
+
   [[ $fails -eq 0 ]] || { red "async-check: $fails invariant(s) broken"; return 1; }
-  green "async-check: 5 of 5 invariants hold on the interrupted-search path"
+  green "async-check: 7 of 7 invariants hold on the interrupted-search path"
 }
 
 do_fixture_coverage() {
