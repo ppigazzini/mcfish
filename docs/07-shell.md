@@ -216,7 +216,7 @@ is why `strtok` is usable at all.
 | `flip` | Mirror the position color-flipped, via `engine_flip`. |
 | `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`, then the `Tablebases WDL:`/`DTZ:` lines when the position is small enough and has no castling rights. The key printed is the **rule50-adjusted** one (`pos_adjust_key50_of`), which is what upstream's `Position::key()` returns; below a halfmove clock of 14 the adjustment is the identity, which is why every bench position and every golden case saw the raw key agree. See [05-tablebases.md](05-tablebases.md). |
 | `bench` | `bench <tt> <threads> <limit> <fen file> <limit type>`, each field defaulting when the line runs dry. The limit type is upstream's own set — `depth`, `nodes`, `movetime`, `perft`, `eval` — and becomes the command run per position, so `perft` and `eval` are not searches at all. |
-| `speedtest [threads] [ttSize] [seconds]` | Replay five real games — 258 positions, [`../src/shell/speedtest_positions.c`](../src/shell/speedtest_positions.c) — at a per-ply movetime scaled so the whole run lasts the requested time (default: the host's core count, 128 MiB per thread, 150 s), then report throughput. Not `bench`: that one fixes a **depth** and its node total is the anchor; this one fixes a **time** and reports nodes per second, which no golden can pin. Every line goes to **stderr**, and the search is silenced for the duration (option messages are not, as upstream leaves them). Gated for shape by `./build.sh speedtest-check`. |
+| `speedtest [threads] [ttSize] [seconds]` | Replay five real games — 258 positions, [`../src/shell/speedtest_positions.c`](../src/shell/speedtest_positions.c) — at a per-ply movetime scaled so the whole run lasts the requested time (default: the host's core count, 128 MiB per thread, 150 s), then report throughput. Not `bench`: that one fixes a **depth** and its node total is the anchor; this one fixes a **time** and reports nodes per second, which no golden can pin. Every line goes to **stderr**, and the search is silenced for the duration (option messages are not, as upstream leaves them). Gated for shape by `./build.sh speedtest-check`. **Each of the three arguments is clamped to the range the thing it feeds accepts, and the clamp is reported**: `desiredTimeS * 1000` and `TT_SIZE_PER_THREAD * threads` are both `int` multiplications on a number a user typed, and both overflowed — the first making the scale factor negative so every `go movetime` got a negative argument, the second emitting `setoption name Hash value -84901888`, which the option table refused while the run measured whatever `Hash` was already set. The `User invocation` echo still shows what was typed; `Filled invocation` shows what ran. |
 | `eval` | Print the evaluation trace via `evaluate_trace`. |
 | `compiler` | Print the clang or gcc version and `__STDC_VERSION__` the binary was built with. |
 | `ponderhit` | Clear the ponder flag, so a `go ponder` search begins enforcing its time limits. |
@@ -353,6 +353,16 @@ so the width is observable from a GUI: `int` for `depth`/`mate`/`movestogo`/`per
 stream reads one, where a leading minus is accepted and the magnitude wraps, so `go
 nodes -1` is a budget of `UINT64_MAX`. `go depth 3000000000` is `Invalid argument for
 'depth'` and terminates; `go nodes 18446744073709551615` searches.
+
+**A clock is bounded where it enters**, after that width check and without moving
+it. The width is the accept/reject boundary a GUI can observe, so it stays what
+upstream's failbit defines; the VALUE is then clamped to `[0, 1e12]` ms — about 31
+years — and a clamp is reported, never silently taken. Without it `go wtime
+4000000000000000000 winc 4000000000000000000 btime 1000` is signed overflow inside
+`timeman`, which is not a defect in that arithmetic: it is asked to hold a number
+the protocol never had a right to send, and the parser is the only place that knows
+the number came from outside. The divergence is a clock between 1e12 ms and the
+overflow threshold, where upstream is still defined — a time control no game has.
 
 The valueless keywords (`infinite`, `ponder`) are matched **first** and `continue`
 without reading a lookahead token, so they do not swallow the keyword that follows

@@ -82,6 +82,15 @@ that will not load. **Keep the diagnostic:** without it a corrupt table is
 indistinguishable from an absent one, and the engine silently stops probing with
 nothing to explain it.
 
+**Every refusal says so, not just the cheap one.** That rule was stated here and
+honoured at ONE of the reader's refusal sites — the length-shape check — while a
+bad magic and every refusal `set()` makes returned in silence, which is the case a
+crafted file actually reaches. All three report now, and the message names the
+file that was OPENED, so a table that is simply absent stays silent. The buffer
+carrying that name lives in a `noinline` helper: its callers open with the `ready`
+early return taken on every probe, and a frame sized for the refusal cost 0.13% of
+a probing search when it sat there.
+
 ### Concurrency
 
 `registry_init` is **not** thread-safe and is not called concurrently: upstream
@@ -117,6 +126,7 @@ fills is exactly the layers [`decode.c`](../src/platform/syzygy/decode.c) and
 | Symbols / btree | `LR` (`tables.h`) is a 3-byte entry packing two 12-bit symbols — `lr_left`/`lr_right` unpack them. `lr_right(e) == 0xFFF` marks a leaf, whose `lr_left(e)` is the stored value. Golden: upstream `SparseEntry` `tbprobe.cpp:192`, `LR` `:201`. |
 | Symbol lengths | `set_sym_len`, called from `decode_set_sizes` for every unvisited symbol, fills `d->symlen` by recursive descent over the btree: a leaf is 0, an internal symbol is `symlen[left] + symlen[right] + 1` — the count of values that symbol represents, minus one. Golden: `set_symlen` `tbprobe.cpp:1061`. |
 | Canonical Huffman | `decode_set_sizes` builds `d->base64` from `d->lowest_sym`, right-padded so `base64[i] >= base64[i+1]`, and records `min_sym_len`/`max_sym_len`. Golden: `set_sizes` `tbprobe.cpp:1080-1137`, the `base64` comment at `:366`. |
+| Per-length tables | Three of the values `decode_pairs` formed per SYMBOL depend only on the symbol's LENGTH, of which a table has at most 63: the right-padding shift, the lowest symbol of that length, and the real bit length consumed. `decode_set_sizes` fills `len_shift`/`len_offset`/`len_real` once per table, turning five arithmetic operations and a read out of the mapping into three loads, and the subtraction folds in exactly — `base64[len]`'s low `shift` bits are zero and the scan only stops where `buf64 >= base64[len]`, so there is no borrow to lose. The per-symbol shift RANGE test went with them: the refusal above bounds it to `[1, 63]` for every length the scan can return, so it could not fire. |
 | Indices | `SparseEntry` (`tables.h`) is 6 bytes (`block[4]`, `offset[2]`). `sparse_index_size` and `block_length_size` are computed in the registry parse from the table's `span`/`blocks_num` (`registry.c`). |
 | Pairs data | `decode_pairs` locates the block through the sparse index, walks `block_length[]` to the exact block, reads that block's bitstream in **big-endian** 64-bit windows, decodes the symbol against `base64`, then descends the `LR` btree to the leaf value. Golden: `decompress_pairs` `tbprobe.cpp:602`. |
 | Single value | When `TB_FLAG_SINGLE_VALUE` is set, the table stores one value and `decode_pairs` returns it for every index without touching the bitstream at all. |
@@ -313,6 +323,31 @@ three bugs that gate found on its first run had survived a hand-written bounds
 pass that reads as complete, and the fourth — the WDL score itself, which
 `wdl.h` had promised was in -2..2 and nothing enforced — survived because no
 lane drove the code that indexed with it.
+
+**Fuzzing asks whether a bound can be broken; it does not ask whether one that
+held yesterday still holds.** `./build.sh malformed` is the regression half, and
+it runs in `parity` because it costs 2.4 s. Two families, and the second is the
+stronger:
+
+- **REFUSED** — five crafted 80-byte headers, each wrong in one field. They prove
+  a crafted header is refused SAFELY and says so: exit 0, no sanitizer report, a
+  diagnostic naming the file, and the engine still answers. What they cannot
+  prove is WHICH check fired, because the reader emits one message for every
+  refusal — so their names were re-derived against an instrumented build rather
+  than trusted, and two inherited from a sibling were dropped for gating nothing
+  here.
+- **ABSORBED** — four real 3-man tables with a handful of bytes changed, replayed
+  as byte lists rather than fuzz seeds. These LOAD, so the search reaches the
+  decode loop, which is where the per-symbol bounds live and where no crafted
+  header can reach: an 80-byte file is refused long before, its sparse index alone
+  outrunning the file. Their judge asks for SURVIVAL, not a diagnostic — these land
+  on fields whose only constraint is internal consistency, and the format records
+  nothing saying which value was meant, so a reader cannot detect them and must
+  not pretend to.
+
+Both families are held by `negative-control` rows, and the second row is what says
+the absorbed family reaches the decoder: remove `sym >= symlen_size` and
+`symbol-past-end` becomes an ASan heap-buffer-overflow.
 
 ## Gaps
 
