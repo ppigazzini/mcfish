@@ -349,6 +349,14 @@ Both families are held by `negative-control` rows, and the second row is what sa
 the absorbed family reaches the decoder: remove `sym >= symlen_size` and
 `symbol-past-end` becomes an ASan heap-buffer-overflow.
 
+**Without the corpus the gate NARROWS rather than fails**, the way `tb` does: the
+crafted-header family and an empty-path control still run — that control is what
+catches an engine printing `Corrupt` unconditionally, and it needs no tables — and
+the run says in as many words that the corpus half is unexercised. The blocking CI
+lane fetches the 26 KB 3-man set on a best-effort step so both halves run there;
+if the mirror is down the lane narrows instead of going red, because a tablebase
+mirror is not this project's dependency to be held hostage by.
+
 ## Gaps
 
 - **The `tb` gate is 3-man only** — but the cursed-win / blessed-loss branches of

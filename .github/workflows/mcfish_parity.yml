@@ -127,6 +127,19 @@ jobs:
         run: ./build.sh net-fetch
 
       # build.sh honours CC; everything else is its defaults.
+      # The 3-man Syzygy set is 26 KB and two gates inside `parity` narrow without it:
+      # `tb` checks discovery only and says so in red, and `malformed` runs its
+      # crafted-header family but not the mutated-real-table one. Fetching it here is
+      # what makes those two assert what they claim rather than what is reachable.
+      #
+      # BEST EFFORT ON PURPOSE. This is the blocking lane, and a tablebase mirror is
+      # not this project's dependency to be held hostage by: if the fetch fails the
+      # gates narrow exactly as they do on a developer's machine, print why, and the
+      # lane stays green on the half it can still prove.
+      - name: Fetch the 3-man tables (best effort; the gates narrow without them)
+        continue-on-error: true
+        run: ./build.sh tb-fetch
+
       - name: parity (all gates)
         env:
           CC: clang-${{ env.CLANG_VERSION }}
