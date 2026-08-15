@@ -1509,7 +1509,12 @@ NEGATIVE_CONTROL_ROWS=(
   "scalar shift off by one%src/engine/eval/nnue/simd.h%s#(Elem) (a.l\[i\] >> s)#(Elem) (a.l[i] >> (s + 1))#%simd-scalar%run"
   "exported FT component hash zeroed%src/engine/eval/nnue/network.c%s#nnue_write_u32_le(w, nnue_feature_transformer_hash_value());#nnue_write_u32_le(w, 0);#%net-roundtrip%run"
   "a refused table says nothing%src/platform/syzygy/registry.c%s#report_unusable(path);#(void) path;#%malformed%run"
-  "a decoded symbol is unbounded%src/platform/syzygy/decode.c%s#if ((size_t) sym >= d->symlen_size) {#if ((size_t) sym >= (size_t) -1) {#%malformed%run"
+  # HELD: only the ABSORBED family detects this, and that family needs the 3-man
+  # corpus. On a machine that has not fetched it the gate narrows and stays green,
+  # which this rig would credit as "the gate passed a mutated engine" -- a verdict
+  # about the machine rather than about the code. Run it by hand:
+  #   ./build.sh tb-fetch && ./build.sh negative-control malformed
+  "a decoded symbol is unbounded%src/platform/syzygy/decode.c%s#if ((size_t) sym >= d->symlen_size) {#if ((size_t) sym >= (size_t) -1) {#%malformed%hold"
   "an unbounded search is never stopped%src/shell/engine.c%s#if (search_running_unbounded())#if (false \&\& search_running_unbounded())#%async-check%run"
   "every search is stopped, bounded or not%src/shell/engine.c%s#if (search_running_unbounded())#if (true \|\| search_running_unbounded())#%async-check%run"
   "hash_bytes sign-extends its tail%src/engine/eval/nnue/nnue_hash.c%s#k = (k << 8) | (uint64_t) data\[tail + i\];#k = (k << 8) | (uint64_t) (int64_t) (int8_t) data[tail + i];#%test%run"

@@ -175,7 +175,7 @@ mutant can only reach one half of what they claim:
 
 | gate | rows |
 |---|---|
-| `malformed` | delete the refusal diagnostic; unbound the decoded symbol. The first reaches the crafted-header family, the second the mutated-table family — and only the second proves those fixtures reach the DECODE loop rather than the load |
+| `malformed` | delete the refusal diagnostic; unbound the decoded symbol. The first reaches the crafted-header family, the second the mutated-table family — and only the second proves those fixtures reach the DECODE loop rather than the load. **The second is HELD**: the family that detects it needs the 3-man corpus, and on a machine without it the gate narrows and stays green, which this rig would credit as "passed a mutated engine" — a verdict about the machine, not the code. Run it with `./build.sh tb-fetch && ./build.sh negative-control malformed` |
 | `async-check` | the two OPPOSITE edits of one line: never stop an unbounded search (the wedge), and stop every search including bounded ones (the truncation that the obvious fix for the wedge causes). A gate that pins only one of those licenses the other |
 | `test` | sign-extend `hash_bytes`' tail again |
 
