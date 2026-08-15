@@ -20,6 +20,39 @@
 # taken raw from the file, and a decoded symbol leaving the alphabet it indexes.
 # This tree bounds all four; nothing until now re-checked that it still does.
 #
+# TWO FAMILIES, AND THE SECOND IS THE STRONGER ONE.
+#
+# REFUSED -- crafted 80-byte headers. The parser must reject them before the table
+# is usable. WHAT THIS FAMILY CANNOT ASSERT, written down because it is not
+# obvious: the engine emits ONE diagnostic for every refusal, so the gate cannot
+# see WHICH check fired. It proves "a crafted header is refused safely and says
+# so", never "refused by the check its name implies". The names were re-derived
+# against an instrumented build rather than inherited from the sibling -- each one
+# trips the site named beside it, on the FIRST of the two per-side parses:
+#
+#   negative-resize   decode.c, the min > max refusal
+#   base64-shift      the same refusal, its min == 0 clause
+#   block-shift       decode.c, the block/span log >= 64 refusal
+#   btree-past-end    decode.c, the symlen array reaching past the file
+#   bad-magic         registry.c, the magic compare
+#
+# Two fixtures the sibling carries are DELIBERATELY ABSENT, and re-adding them
+# would gate nothing here: `symbol-oob` (a btree child outside the alphabet) and
+# `symlen-past-domain` (more symbols than a 12-bit Sym can name) both PASS this
+# tree's parser by design -- `set_sym_len` clamps an out-of-domain child instead of
+# writing through it, and the containers are sized to the DECLARED count rather
+# than to a 12-bit cap. Both were refused only because a 2-sided table's second
+# header lands in this file's zero padding, which is not what their names claim.
+#
+# ABSORBED -- real 3-man tables with a handful of bytes changed. These LOAD, so the
+# search reaches the decode loop, which is where this tree's per-symbol bounds live
+# and where no crafted header can reach: an 80-byte file is refused long before,
+# its sparse index alone outrunning the file. The format records nothing that says
+# which value was meant, so a reader cannot detect these and must not pretend to;
+# what it must do is stay inside its arrays and keep answering. A different bar,
+# not a weaker one -- and it discriminates: with the `sym >= symlen_size` bound
+# removed, `symbol-past-end` is an ASan heap-buffer-overflow.
+#
 # What a refusal means here, and all four parts are checked:
 #
 #   * the process exits 0 -- not a signal, not an abort;
@@ -91,13 +124,6 @@ def base():
     return b
 
 
-def symbol_oob():
-    """A child symbol the declared alphabet does not contain."""
-    b = base()
-    b[24] = 0x00; b[25] = 0x00; b[26] = 0x80   # btree[0].Right = 2048
-    return b
-
-
 def negative_resize():
     """minSymLen above maxSymLen: base64 is sized from their difference."""
     b = base()
@@ -126,21 +152,6 @@ def btree_past_end():
     return b
 
 
-def symlen_past_domain():
-    """More symbols than a 12-bit Sym can name, in a file with ROOM for them.
-
-    btree_past_end declares 65535 in 80 bytes and the space check refuses it
-    before the copy: 65535 * 3 does not fit. That is why a declared count was
-    never compared against the domain it indexes, and why no table in the corpus
-    can show it -- they are all too small. This one is 19,216 bytes (st_size % 64
-    is still 16) so 5000 * 3 fits, and a Sym stored in btree[] is twelve bits.
-    """
-    b = base()
-    b.extend(bytearray(64 * 300 - 64))
-    b[22] = 0x88; b[23] = 0x13                 # 5000 symbols
-    return b
-
-
 def bad_magic():
     """A file named KQvK.rtbw that is not a WDL table at all."""
     b = base()
@@ -159,12 +170,10 @@ KQVK_FEN="4k3/8/8/8/8/8/8/3QK3 w - - 0 1"
 
 # name              | generator
 FIXTURES=(
-  "symbol-oob        |symbol_oob"
   "negative-resize   |negative_resize"
   "block-shift       |block_shift"
   "base64-shift      |base64_shift"
   "btree-past-end    |btree_past_end"
-  "symlen-past-domain|symlen_past_domain"
   "bad-magic         |bad_magic"
 )
 
@@ -206,7 +215,7 @@ check_refused() {
     fi
 }
 
-echo "malformed: 7 crafted headers against $(basename "$EXE")"
+echo "malformed: 5 crafted headers, 4 mutated tables, against $(basename "$EXE")"
 for row in "${FIXTURES[@]}"; do
     IFS='|' read -r name gen <<< "$row"
     name=${name%% *}
@@ -217,6 +226,84 @@ for row in "${FIXTURES[@]}"; do
     fi
     check_refused "$name" "$WORK/fx/$gen"
 done
+
+# ------------------------------------------------- the absorbed family
+#
+# Real tables with a handful of bytes changed. Each edit list is REPLAYED FROM THE
+# FUZZ RUN THAT FOUND IT rather than quoted as a seed: a seed reproduces the
+# harness, a byte list reproduces the defect, and it survives the harness changing.
+#
+# The judge asks for SURVIVAL, not for a diagnostic. These land on fields whose
+# only constraint is internal consistency, and the format records nothing that says
+# which value was meant -- so a reader cannot detect them and must not pretend to.
+# It must stay inside its arrays and keep answering. `Found 5 WDL` is checked for
+# the same reason the clean control is: a fixture that loaded nothing probed
+# nothing, and would pass while gating the decode loop it exists to reach.
+mutate() {
+    local dest=$1 stem=$2; shift 2
+    mkdir -p "$dest"
+    cp "$CORPUS"/*.rtbw "$CORPUS"/*.rtbz "$dest/" 2> /dev/null || return 1
+    python3 - "$dest/$stem" "$@" <<'PYMUT'
+import sys
+path, edits = sys.argv[1], [int(x) for x in sys.argv[2:]]
+b = bytearray(open(path, "rb").read())
+for i in range(0, len(edits), 2):
+    b[edits[i]] = edits[i + 1]
+open(path, "wb").write(bytes(b))
+PYMUT
+}
+
+check_absorbed() {
+    local name=$1 dir=$2 fen=$3 out rc
+    out=$( ( printf 'setoption name SyzygyPath value %s\nposition fen %s\ngo depth 12\nquit\n' \
+                    "$dir" "$fen" ) \
+           | ( cd "$RESOURCES" && timeout -s KILL 120 "$EXE" ) 2>&1 ); rc=$?
+
+    local bad=0
+    [ "$rc" = "0" ] || { note "exit $rc -- survival means exiting 0"; bad=1; }
+    if grep -qE 'AddressSanitizer|runtime error:|UndefinedBehaviorSanitizer' <<< "$out"; then
+        note "a sanitizer reported:"
+        grep -m2 -E 'AddressSanitizer|runtime error:' <<< "$out" | sed 's/^/      /'
+        bad=1
+    fi
+    if grep -qE 'terminate called|Assertion|Aborted' <<< "$out"; then
+        note "the process aborted:"; bad=1
+    fi
+    grep -q '^bestmove' <<< "$out" || { note "no bestmove -- it stopped answering"; bad=1; }
+    grep -q 'Found 5 WDL' <<< "$out" \
+      || { note "the table did not load, so the decode loop was never reached"; bad=1; }
+
+    if [ "$bad" = "0" ]; then
+        printf '  %-19s absorbed\n' "$name"; PASS=$((PASS + 1))
+    else
+        printf '  %-19s NOT ABSORBED\n' "$name"; FAIL=$((FAIL + 1))
+    fi
+}
+
+corpus_files=0
+for f in "$CORPUS"/*.rtbw "$CORPUS"/*.rtbz; do [ -s "$f" ] && corpus_files=$((corpus_files + 1)); done
+
+if [ "$corpus_files" -ne 10 ]; then
+    echo "  absorbed family     SKIPPED -- $CORPUS has $corpus_files/10 files (./build.sh tb-fetch)"
+else
+    mutate "$WORK/mut/huffman-noncanon" KRvK.rtbw \
+      32 220 108 111 29 250 109 40 189 0 65 158 113 213 163 212
+    check_absorbed "huffman-noncanon" "$WORK/mut/huffman-noncanon" \
+      "4k3/8/8/8/8/8/8/3RK3 w - - 0 1"
+
+    mutate "$WORK/mut/symbol-past-end" KQvK.rtbw \
+      144 1 222 248 35 189 268 220 66 15 228 85 229 65 108 212
+    check_absorbed "symbol-past-end" "$WORK/mut/symbol-past-end" \
+      "4k3/8/8/8/8/8/8/3QK3 w - - 0 1"
+
+    mutate "$WORK/mut/cyclic-btree" KRvK.rtbw 100 132 53 183 119 76 185 57 183 198
+    check_absorbed "cyclic-btree" "$WORK/mut/cyclic-btree" \
+      "4k3/8/8/8/8/8/8/3RK3 w - - 0 1"
+
+    mutate "$WORK/mut/flags-vs-material" KNvK.rtbw 4 192 41 124 33 37 5 7 61 88 54 110
+    check_absorbed "flags-vs-material" "$WORK/mut/flags-vs-material" \
+      "4k3/8/8/8/8/8/8/3NK3 w - - 0 1"
+fi
 
 # ------------------------------------------------------------ the control
 #
