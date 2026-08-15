@@ -158,7 +158,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `fixture-coverage` | [`../tools/fixture_coverage.sh`](../tools/fixture_coverage.sh) holds [`../tools/fixture_properties.tsv`](../tools/fixture_properties.tsv) to the tree | that the input domain is written down. Each row names a property the engine branches on, the file that branches, the fixture that presents it and a **witness** regex that must still match — so a fixture which stops presenting its property reddens. Fires in BOTH directions: a property with no fixture, and a `cases/*.uci` no row claims. In `parity`. **Limit**: it cannot prove the branch is exercised — that needs coverage data this tree does not collect |
 | `negative-control` | mutates the engine once per gate — a razor margin, the `d` command's `Checkers:` line, the knight under-promotion — and requires that gate to exit non-zero, then restores and requires it to pass | that a gate can FAIL. Every other gate's detection power is an assumption until something breaks the engine on purpose; two gates this month turned out to be incapable of failing at all. Both rig faults are distinguished from verdicts: a pattern that matches nothing exits 2, and a mutant that outruns `NEG_GATE_TIMEOUT` exits 2 rather than being credited as a detection. **LOCAL**, ~100s for the engine rows and about as much again for the four added since. Nothing is held; the `simd-scalar` mutant had to be bounded first (see below) |
 | `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant — **and, since the tiers now run different ALGORITHMS, that those algorithms agree.** Upstream switches slider attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port follows; that makes this step the gate for a whole class of change, because it compares the vector path against the scalar path *on the same tree*. `signature` alone tests one tier and would pass over a wrong attack set at another. Run it on every ISA-gated commit. Not in `parity`: it is several full builds |
-| `malformed` | two families past the sanitized engine: five crafted `.rtbw` headers that must be REFUSED (exit 0, no sanitizer report, a diagnostic naming the file, and it still answers) and four real 3-man tables with a few bytes changed that must be ABSORBED (they load, so the search reaches the decode loop, and it stays inside its arrays), plus a clean-corpus control that must stay silent | that a file refused yesterday is refused today. `signature` is green with every parser defect it covers LIVE (the bench reads no file the engine did not ship with) and `fuzz-tb` is probabilistic and nightly, so nothing else is a regression test for the bounds in `decode.c` and `registry.c`. A fixture is a GENERATOR, not a blob: the interesting thing is which field is wrong. 2.4 s, in `parity` |
+| `malformed` | two families past the sanitized engine: five crafted `.rtbw` headers that must be REFUSED (exit 0, no sanitizer report, a diagnostic naming the file, and it still answers) and four real 3-man tables with a few bytes changed that must be ABSORBED (they load, so the search reaches the decode loop, and it stays inside its arrays), plus two controls that must stay silent -- an EMPTY path, which needs no tables and is the whole of the unconditional-`Corrupt` failure mode, and the real 3-man corpus. Without that corpus the gate NARROWS to the crafted family and the empty-path control and says so, rather than failing | that a file refused yesterday is refused today. `signature` is green with every parser defect it covers LIVE (the bench reads no file the engine did not ship with) and `fuzz-tb` is probabilistic and nightly, so nothing else is a regression test for the bounds in `decode.c` and `registry.c`. A fixture is a GENERATOR, not a blob: the interesting thing is which field is wrong. 2.4 s, in `parity` |
 | `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them — see [05-tablebases.md](05-tablebases.md) |
 | `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
 | `perf-budget-tb` / `perf-budget-tb-update` | the same measurement over a PROBING workload -- `tools/cases/tb_probe.fens` at depth 14, with `SyzygyPath` composed into the bench file -- filed under a `<tier>+syzygy` row | the tablebase reader, which `perf-budget` cannot see at all: every bench position has more men on it than any table `tb-fetch` installs, so `registry.c`, `do_probe_table` and the decode loop are absent from that figure and a bound inside them reads as free. **LOCAL**, needs `perf_event_open` *and* `./build.sh tb-fetch 5`; an incomplete corpus exits 127 loudly, because a probing measurement with no tables loaded is the bench list wearing a different name. The corpus is 5-man, so every figure over it is a LOWER BOUND -- block count scales with table size |
@@ -220,6 +220,20 @@ going, and then **names every skipped gate in its summary line** — because
 actually checked, is exactly how a gate rots into decoration. Those three are the
 gates here that can be skipped; every other one runs on a bare toolchain with no
 net.
+
+**Narrowing is a third state, and it is not skipping.** A skipped gate ran
+nothing; a narrowed one ran what its inputs allowed and says which half it could
+not reach. `tb` does this without the Syzygy corpus — discovery only, announced in
+red — and `malformed` does it the same way, running its crafted-header family and
+an empty-path control while reporting the mutated-table family unexercised. The
+distinction earns its keep in both directions: a gate that FAILS for a missing
+optional resource takes the aggregate down with it for a reason unrelated to the
+change under test (`malformed` did exactly that to the blocking lane, exiting 2
+on every CI run for want of 26 KB of tables), and one that quietly passes over the
+same absence is decoration. Narrowing is how a gate stays honest about a resource
+it does not control — but only if what remains still asserts something, which is
+why `malformed` keeps a control that needs no tables rather than trading its
+control for an exit code.
 
 ### A path that agrees is not a path that ran
 
@@ -974,10 +988,18 @@ Runs on every push and PR, with four jobs:
   minute beats whitespace drift caught fifteen minutes in. clang-format is
   installed at the **same pinned major** as the compiler, because a different
   major reflows code that was clean under another one and the gate would flap.
-- **`parity`** — `./build.sh parity` and nothing else, after asserting the
-  installed clang is new enough for the C23 the tree uses. The pin is explicit so
-  a toolchain regression is attributable to a commit rather than to a floating
-  runner image.
+- **`parity`** — `./build.sh parity`, after asserting the installed clang is new
+  enough for the C23 the tree uses. The pin is explicit so a toolchain regression
+  is attributable to a commit rather than to a floating runner image.
+
+  It fetches two RESOURCES first, and both are best effort by design: the NNUE net
+  (cached; without it `signature`, `net-roundtrip` and `simd-scalar` skip) and the
+  26 KB 3-man Syzygy set (without it `tb` and `malformed` narrow). Neither is this
+  project's dependency to be held hostage by, so a mirror that is down costs
+  coverage the run announces rather than a red blocking lane. What that buys is
+  the difference between a lane that is green and one that checked what it claims:
+  before the tables were fetched here, `tb` had only ever asserted discovery in
+  CI.
 - **`sanitizers`** — ASan+UBSan over paths `parity`'s test binary never reaches:
   the release search at bench depth and the perft path through `shell/`. Kept
   separate because the instrumented binary is roughly an order of magnitude

@@ -181,7 +181,9 @@ outside it is unwired, not deferred:
   `tb-fetch` installs, so `registry.c`, `do_probe_table` and the decode loop are
   absent from `signature`, `perf-budget` and every counter this tree records.
   `./build.sh malformed` (in `parity`, 2.4 s) drives crafted headers and mutated
-  real tables past the sanitized binary and judges refusal and survival;
+  real tables past the sanitized binary and judges refusal and survival — without
+  the corpus it NARROWS to the half that needs no tables and says so, the way `tb`
+  does, rather than failing;
   `./build.sh perf-budget-tb` measures a PROBING workload against its own
   `<tier>+syzygy` budget row. **Run `perf-budget-tb` on any edit to
   `src/platform/syzygy/`** — it caught a 0.13% regression in a diagnostic that
