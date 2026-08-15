@@ -1512,6 +1512,7 @@ NEGATIVE_CONTROL_ROWS=(
   "a decoded symbol is unbounded%src/platform/syzygy/decode.c%s#if ((size_t) sym >= d->symlen_size) {#if ((size_t) sym >= (size_t) -1) {#%malformed%run"
   "an unbounded search is never stopped%src/shell/engine.c%s#if (search_running_unbounded())#if (false \&\& search_running_unbounded())#%async-check%run"
   "every search is stopped, bounded or not%src/shell/engine.c%s#if (search_running_unbounded())#if (true \|\| search_running_unbounded())#%async-check%run"
+  "hash_bytes sign-extends its tail%src/engine/eval/nnue/nnue_hash.c%s#k = (k << 8) | (uint64_t) data\[tail + i\];#k = (k << 8) | (uint64_t) (int64_t) (int8_t) data[tail + i];#%test%run"
 )
 
 # Bound each mutated gate run. 900s clears every row measured here with room to
