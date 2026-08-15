@@ -39,12 +39,26 @@ uint64_t nnue_hash_bytes(const uint8_t *data, size_t len) {
         size_t i = len & 7;
         while (i > 0) {
             i -= 1;
-            // SIGN-extend. Upstream's hash_bytes takes `const char*` and does
-            // `u64(end[i])` (misc.cpp:481); plain char is SIGNED on x86-64, so a
-            // tail byte >= 0x80 fills the high bits with ones. Zero-extending
-            // here would silently produce a different digest for any input whose
-            // length is not a multiple of 8 and whose tail has the high bit set.
-            k = (k << 8) | (uint64_t) (int64_t) (int8_t) data[tail + i];
+            // ZERO-extend, as reference MurmurHash64A does by reading through a
+            // `const unsigned char*`.
+            //
+            // Upstream sign-extends by accident: `hash_bytes` takes a `const char*`
+            // and does `u64(end[i])` (misc.cpp:481), and plain char is SIGNED here,
+            // so a tail byte >= 0x80 becomes 0xFFFFFFFFFFFFFF00 | byte -- and the
+            // `or` then sets every bit above bit 7, ERASING everything already
+            // accumulated from the higher tail indices. Over all 65536 two-byte
+            // inputs that leaves 32896 distinct digests instead of 65536, and
+            // {0x80,0x02,0x03} and {0x80,0x02,0x04} collide outright.
+            //
+            // Reproducing it was deliberate while it looked like a compatibility
+            // requirement. It is not one: the only readers of this digest are the
+            // three `*_content_hash` functions, which upstream uses to name a
+            // shared-memory segment and which NOTHING in this tree calls -- the net
+            // reader and writer compare the u32 ARCHITECTURE hashes, built by
+            // `combine_hash` over dimensions, which never reach this function. So
+            // the old comment was instructing future readers to preserve a defect
+            // for a consumer that does not exist.
+            k = (k << 8) | (uint64_t) data[tail + i];
         }
         h ^= k;
         h *= m;
