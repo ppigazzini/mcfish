@@ -6,6 +6,7 @@
 #include "../platform/thread.h"
 #include "../platform/worker_pool.h"
 #include "engine.h"
+#include "engine_options.h"
 #include "speedtest_positions.h"
 #include "uci.h"
 #include "uci_output.h"
@@ -76,6 +77,29 @@ static bool next_int(const char **cursor, int *out) {
     return true;
 }
 
+// Clamp a field a user typed to the range the thing it feeds accepts, and say so.
+//
+// Every one of these three numbers is multiplied below -- `desired_time_s * 1000` and
+// `TT_SIZE_PER_THREAD * threads` -- in `int`, on a value that arrives off the command
+// line. `speedtest 4 128 2147484` overflowed the first, which made the scale factor
+// negative and handed every `go movetime` a negative argument; `speedtest 100000000`
+// overflowed the second to -84901888, which went out as `setoption name Hash value
+// -84901888`, was refused by the option table, and left the run measuring whatever
+// Hash was already set. Both are signed overflow, so neither has a defined result to
+// reproduce.
+//
+// The clamp is REPORTED rather than silent: a corrected number that says nothing is
+// the same failure wearing a nicer hat, and the report is what tells the operator the
+// run they read is not the run they asked for. The `User invocation` echo still shows
+// what was typed; `Filled invocation` shows what ran.
+static int clamp_field(const char *what, int value, int lo, int hi) {
+    const int fixed = value < lo ? lo : (value > hi ? hi : value);
+    if (fixed != value)
+        uci_output_printf("info string speedtest: %s %d is outside [%d, %d]; using %d\n", what,
+                          value, lo, hi, fixed);
+    return fixed;
+}
+
 // Count the go commands the run will issue: one per position of every game.
 static int count_positions(void) {
     int n = 0;
@@ -119,16 +143,24 @@ void speedtest_run(const char *args) {
     const char *cursor = args != nullptr ? args : "";
     size_t original_len = 0;
 
-    if (next_int(&cursor, &threads))
+    if (next_int(&cursor, &threads)) {
         original_len +=
           (size_t) snprintf(original + original_len, sizeof original - original_len, "%d", threads);
-    tt_size = TT_SIZE_PER_THREAD * threads;
-    if (next_int(&cursor, &tt_size))
+        threads = clamp_field("threads", threads, 1, engine_options_max_threads());
+    }
+    // Clamp the DERIVED size too: the default is a multiplication by the thread count,
+    // which is exactly the product that used to overflow.
+    tt_size = clamp_field("hash", TT_SIZE_PER_THREAD * threads, 1, engine_options_max_hash_mb());
+    if (next_int(&cursor, &tt_size)) {
         original_len += (size_t) snprintf(original + original_len, sizeof original - original_len,
                                           " %d", tt_size);
-    if (next_int(&cursor, &desired_time_s))
+        tt_size = clamp_field("hash", tt_size, 1, engine_options_max_hash_mb());
+    }
+    if (next_int(&cursor, &desired_time_s)) {
         (void) snprintf(original + original_len, sizeof original - original_len, " %d",
                         desired_time_s);
+        desired_time_s = clamp_field("seconds", desired_time_s, 1, INT_MAX / 1000);
+    }
 
     char filled[64];
     snprintf(filled, sizeof filled, "%d %d %d", threads, tt_size, desired_time_s);

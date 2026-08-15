@@ -155,7 +155,7 @@ enum { SKILL_LOWEST_ELO = 1320, SKILL_HIGHEST_ELO = 3190 };
 
 // Upstream's max(1024, 4 * get_hardware_concurrency()) (engine.cpp:52), ported as
 // the expression so the advertised maximum tracks upstream past 256 cores.
-static int max_threads(void) {
+int engine_options_max_threads(void) {
     long online = 0;
 #if defined(_SC_NPROCESSORS_ONLN)
     online = sysconf(_SC_NPROCESSORS_ONLN);
@@ -165,7 +165,7 @@ static int max_threads(void) {
 }
 
 // Upstream's MaxHashMB = Is64Bit ? 33554432 : 2048 (engine.cpp:51).
-static int max_hash_mb(void) { return sizeof(size_t) >= 8 ? 33554432 : 2048; }
+int engine_options_max_hash_mb(void) { return sizeof(size_t) >= 8 ? 33554432 : 2048; }
 
 void engine_options_register(void) {
     char elo[16];
@@ -174,8 +174,8 @@ void engine_options_register(void) {
 
     options_add(&Options, "Debug Log File", OPTION_STRING, "", 0, 0, on_debug_log_file);
     options_add(&Options, "NumaPolicy", OPTION_STRING, "auto", 0, 0, on_numa_policy);
-    options_add(&Options, "Threads", OPTION_SPIN, "1", 1, max_threads(), on_threads);
-    options_add(&Options, "Hash", OPTION_SPIN, "16", 1, max_hash_mb(), on_hash);
+    options_add(&Options, "Threads", OPTION_SPIN, "1", 1, engine_options_max_threads(), on_threads);
+    options_add(&Options, "Hash", OPTION_SPIN, "16", 1, engine_options_max_hash_mb(), on_hash);
     options_add(&Options, "Clear Hash", OPTION_BUTTON, "", 0, 0, on_clear_hash);
     options_add(&Options, "Ponder", OPTION_CHECK, "false", 0, 0, nullptr);
     options_add(&Options, "MultiPV", OPTION_SPIN, "1", 1, MAX_MOVES, nullptr);
