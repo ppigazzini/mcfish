@@ -14,6 +14,13 @@
 // Fill the table in upstream's wire order with its wired callbacks. Call once.
 void engine_options_register(void);
 
+// The two spin maxima the registration advertises. Declared here because `speedtest`
+// DERIVES a thread count and a hash size and then emits them as `setoption` lines: the
+// producer has to know the range the consumer will accept, and keeping the range
+// private to engine_options.c is what let the two disagree in silence.
+int engine_options_max_threads(void);
+int engine_options_max_hash_mb(void);
+
 // Install the sink on-change messages emit through (one `info string` line per line).
 void engine_options_set_info(void (*emit_info)(const char *message));
 
