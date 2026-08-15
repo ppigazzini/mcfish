@@ -321,6 +321,10 @@ typedef struct {
     const uint8_t *magic;
     const uint8_t *base;
     size_t size;
+    // The path of a file that was OPENED, empty while none was. This is what
+    // separates a table that is absent -- the normal case, and silent -- from one
+    // that is present and unusable, which the caller has to be able to name.
+    char path[4200];
 } MapCtx;
 
 // Map <dir>/<stem><ext> read-only and verify its magic and its length. Return
@@ -333,8 +337,9 @@ static bool visit_map(const char *dir, size_t dir_len, void *ctx) {
     }
     const int fd = open(full, O_RDONLY);
     if (fd < 0) {
-        return false;
+        return false;  // absent here; keep looking down the path
     }
+    snprintf(c->path, sizeof c->path, "%s", full);
     struct stat sb;
     if (fstat(fd, &sb) != 0 || sb.st_size <= 0) {
         close(fd);
@@ -362,6 +367,11 @@ static bool visit_map(const char *dir, size_t dir_len, void *ctx) {
         return false;
     }
     if (memcmp(addr, c->magic, 4) != 0 || !record_mapping(addr, size)) {
+        // A file NAMED <stem>.rtbw whose first four bytes are not the WDL magic is
+        // not a stray the search should walk past in silence -- the reader was
+        // asked for exactly this name and cannot use what it found.
+        if (memcmp(addr, c->magic, 4) != 0)
+            fprintf(stderr, "info string Corrupt tablebase file %s\n", full);
         munmap(addr, size);
         return false;
     }
@@ -370,19 +380,37 @@ static bool visit_map(const char *dir, size_t dir_len, void *ctx) {
     return true;
 }
 
-static const uint8_t *
-map_file(const TBTable *t, const char *ext, const uint8_t magic[4], size_t *out_size) {
+// OUT_PATH names the file that was opened, or is left empty when none was found.
+// The caller needs that to tell a table that is absent from one it could not parse:
+// the first is the normal case and says nothing, the second is a file the operator
+// put there and the engine is not using.
+static const uint8_t *map_file(const TBTable *t,
+                               const char *ext,
+                               const uint8_t magic[4],
+                               size_t *out_size,
+                               char *out_path,
+                               size_t out_path_cap) {
     MapCtx c = { .stem = t->stem,
                  .stem_len = t->stem_len,
                  .ext = ext,
                  .magic = magic,
                  .base = nullptr,
-                 .size = 0 };
-    if (!for_each_path_dir(visit_map, &c)) {
+                 .size = 0,
+                 .path = { 0 } };
+    const bool found = for_each_path_dir(visit_map, &c);
+    snprintf(out_path, out_path_cap, "%s", c.path);
+    if (!found) {
         return nullptr;
     }
     *out_size = c.size;
     return c.base;
+}
+
+// Report a file the reader mapped and then could not use. Silent for a table that is
+// simply not there: PATH is empty unless something was opened.
+static void report_unusable(const char *path) {
+    if (path[0] != '\0')
+        fprintf(stderr, "info string Corrupt tablebase file %s\n", path);
 }
 
 // ---- set: parse the file's PairsData records --------------------------------
@@ -581,11 +609,17 @@ bool registry_map_wdl(TBTable *t) {
     }
 
     size_t size = 0;
-    const uint8_t *buf = map_file(t, ".rtbw", WdlMagic, &size);
+    char path[4200] = { 0 };
+    const uint8_t *buf = map_file(t, ".rtbw", WdlMagic, &size, path, sizeof path);
     if (buf != nullptr && set(t, false, buf, size)) {
         t->base = buf;
         t->base_size = size;
     } else {
+        // The parse refused it. Every OTHER refusal in this reader already says which
+        // file it was; this one -- the deepest and the only one a crafted table can
+        // reach -- did not, so a table with a bad symbol-length pair or a btree past
+        // the end left the engine quietly not probing with nothing to explain it.
+        report_unusable(path);
         t->base = nullptr;  // a mapping made here stays owned by the chunk list
     }
 
@@ -606,11 +640,17 @@ bool registry_map_dtz(TBTable *t) {
     }
 
     size_t size = 0;
-    const uint8_t *buf = map_file(t, ".rtbz", DtzMagic, &size);
+    char path[4200] = { 0 };
+    const uint8_t *buf = map_file(t, ".rtbz", DtzMagic, &size, path, sizeof path);
     if (buf != nullptr && set(t, true, buf, size)) {
         t->dtz_base = buf;
         t->dtz_base_size = size;
     } else {
+        // The parse refused it. Every OTHER refusal in this reader already says which
+        // file it was; this one -- the deepest and the only one a crafted table can
+        // reach -- did not, so a table with a bad symbol-length pair or a btree past
+        // the end left the engine quietly not probing with nothing to explain it.
+        report_unusable(path);
         t->dtz_base = nullptr;
     }
 
