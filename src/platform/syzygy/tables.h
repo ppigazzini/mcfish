@@ -61,7 +61,19 @@ typedef struct PairsData {
     size_t data_size;     // bytes of `data` inside the file, for bounds checks
     uint64_t *base64;     // owned by the registry arena
     size_t base64_size;
-    uint8_t *symlen;  // owned by the registry arena
+
+    // Per-LENGTH decode values, filled by decode_set_sizes and indexed by the length
+    // the base64[] scan returns. A table has at most 63 distinct symbol lengths
+    // (base64_size == max_sym_len - min_sym_len + 1, with min >= 1 and max < 64), so
+    // 64 entries cover every length the scan can produce.
+    //
+    // Held INLINE rather than behind a pointer: the decode loop already runs out of
+    // registers, and reaching each table off `d` folds the index into the load's own
+    // addressing instead of spending a register on a base pointer.
+    uint8_t len_shift[64];    // 64 - len - min_sym_len, always in [1, 63]
+    uint16_t len_offset[64];  // lowest_sym[len] - (base64[len] >> shift), mod 2^16
+    uint8_t len_real[64];     // len + min_sym_len: the bits the symbol consumes
+    uint8_t *symlen;          // owned by the registry arena
     size_t symlen_size;
     uint8_t pieces[TB_PIECES];
     uint64_t group_idx[TB_PIECES + 1];
