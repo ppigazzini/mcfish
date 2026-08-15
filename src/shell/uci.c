@@ -148,6 +148,39 @@ static long long go_value_int(const char *key, const char *value, long long lo, 
     return v;
 }
 
+// Bound a clock WHERE IT ENTERS, and say so.
+//
+// The five clocks arrive as a signed TimePoint straight off the wire and reach
+// timeman.c's arithmetic unvalidated, where a magnitude the protocol never had a right
+// to send is signed overflow:
+//
+//   go wtime 1000 winc -9223372036854775808
+//     src/engine/search/timeman.c:67:51 signed integer overflow:
+//       -9223372036854775808 * 49 cannot be represented in type 'int64_t'
+//   go wtime 4000000000000000000 winc 4000000000000000000 btime 1000
+//     src/engine/search/timeman.c:67:51 signed integer overflow: 4000000000000000000 * 49
+//
+// That is not a defect in the arithmetic. It is asked to hold a number nothing bounded,
+// and the parser is the only place that knows the number came from outside. The width
+// check above stays what it is -- the accept/reject boundary a GUI can observe, which
+// upstream's failbit defines -- so this clamps the VALUE without moving that boundary.
+//
+// The bound is 1e12 ms, about 31 years: past any real time control, and far enough
+// below the top that every product timeman forms stays inside a TimePoint. The one
+// divergence from upstream is a clock between 1e12 and the overflow threshold, where
+// upstream's arithmetic is still defined -- a time control no game has and no GUI
+// sends. Outside the bound is reported, never silently taken.
+static constexpr long long MaxClockMs = 1000000000000;
+
+static long long go_clock(const char *key, const char *value) {
+    const long long given = go_value_int(key, value, INT64_MIN, INT64_MAX);
+    const long long bounded = given < 0 ? 0 : (given > MaxClockMs ? MaxClockMs : given);
+    if (bounded != given)
+        uci_output_printf("info string %s %lld is outside [0, %lld]; using %lld\n", key, given,
+                          MaxClockMs, bounded);
+    return bounded;
+}
+
 // `nodes` is upstream's `u64`, read the way a C++ stream reads one: a leading minus is
 // ACCEPTED and the magnitude wraps, so `go nodes -1` is a budget of UINT64_MAX on both
 // sides, while a magnitude past UINT64_MAX is a critical error.
@@ -285,7 +318,7 @@ static void go_line(char *args, bool announce) {
         if (slot != nullptr)
             *slot = (int) go_value_int(token, value, INT_MIN, INT_MAX);
         else if (clock_slot != nullptr)
-            *clock_slot = go_value_int(token, value, INT64_MIN, INT64_MAX);
+            *clock_slot = go_clock(token, value);
         else if (wants_nodes)
             limits.nodes = go_value_u64(token, value);
         else if (wants_perft)
