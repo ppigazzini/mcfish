@@ -239,6 +239,15 @@ graph LR
 beside them. All of them are `TimePoint` and nothing in the type system relates
 them.
 
+`movetime` is the crossing that was NOT right, and it is what this section costs
+when it is only a diagram. `timeman` scales `time` and `inc` by npmsec because the
+mode demands it; `movetime` was the one budget nothing scaled, so a millisecond
+count was compared against a node count and `go movetime 1000` under
+`nodestime 600` stopped at 1416 nodes of a 600000-node budget. It is converted
+where it enters the time state now, beside the other two. Upstream carries the
+defect; nothing in either type system could have objected, which is the point the
+paragraph below makes in the abstract and this makes concretely.
+
 The crossings that matter are right, and they are right **structurally rather than
 by type**: `timeman` converts the maximum into the budget's own unit, so the stop
 check compares like with like, and reporting has its own producer — `search_emit`
@@ -394,10 +403,13 @@ overlooked. The producers are vectorized writers that store whole vectors of
 unchecked cast at exactly the boundary the type exists to guard. Typing at the
 boundary or not at all is the rule, and this is the case that earned it.
 
-**A physical unit.** `optimum_time`, `maximum_time` and the elapsed figure are all
-`TimePoint`, and the first two change unit under `nodestime`. Nothing rejects a
-comparison between two of them in different units. What holds here is a separate
-*producer* for the wall clock, not a separate type.
+**A physical unit.** `optimum_time`, `maximum_time`, `movetime` and the elapsed
+figure are all `TimePoint`, and the first three change unit under `nodestime`.
+Nothing rejects a comparison between two of them in different units, and one such
+comparison was wrong for as long as the port existed — `movetime` in milliseconds
+against an elapsed figure in nodes. What holds here is a separate *producer* for
+the wall clock, not a separate type; what did NOT hold is anything protecting the
+conversions, and the fix is a conversion at the boundary rather than a new type.
 
 **Boolean provenance at a call site.** `cut_node` is a bare `bool` passed
 positionally, and `cont_hist_page(h, in_check, capture, pc, to)` takes two

@@ -15,7 +15,7 @@ disagree, Stockfish wins.
 
 ## The siblings
 
-There are **three** peer ports of the same golden beside this one, and none of them
+There are **four** peer ports of the same golden beside this one, and none of them
 is a source:
 
 | tree | language | what it is |
@@ -23,6 +23,15 @@ is a source:
 | `../zfish` | Zig | the tree mcfish was first ported FROM; that relationship is over |
 | `../rfish` | Rust | a peer port, swept four times into this tree |
 | `../fcfish` | C17 | a peer port written to parse under Frama-C |
+| `../Stockfish` branch `refish` | C++ | a refactor of the golden IN the golden's own checkout, on the same pin this tree tracks |
+
+**`refish` is the one that does not look like a sibling.** It lives in
+`../Stockfish` -- the golden's checkout -- as a branch, so `git log` there answers
+for it unless you say `upstream/master`. It is NOT the golden: `origin` is a fork,
+and `refish` carries 199 commits on top of upstream. Everything below applies to it
+exactly as to the other three, and its untracked dev notes carry a register of
+**twenty confirmed defects in upstream Stockfish**, each with a reproducer that was
+run. All twenty are closed in this tree as of 2026-08-15.
 
 Four consequences an agent gets wrong before reading
 [tools/upstream/README.md](tools/upstream/README.md):
@@ -116,6 +125,29 @@ Four consequences an agent gets wrong before reading
   the board array), and the zero-wait `stop`/`quit` (`37070852` — every existing
   async invariant sleeps first, so none of them drove the shape every harness
   sends). Ask what a sibling's harness EXPLORES that this tree only enumerates.
+- **A defect you DECLINE to port needs the same evidence as one you take.** The
+  eleventh sweep (2026-08-15, the first of `refish`) closed the last two of the
+  twenty upstream defects still open here, and both had been deferred earlier in
+  the same session on reasoning that did not survive being checked. `nodestime`
+  making `movetime` mean nodes was declined as "a defined-behaviour divergence the
+  bench and goldens depend on" — a claim carried over from a sibling where it was
+  true; here `nodestime` appears in `tools/` exactly once, as the handshake option
+  line, so the conversion is inert in every gated path (`03c6aeae`). `hash_bytes`'
+  sign-extended tail was declined as "reproduced on purpose, and its consumers are
+  dead" — and dead is precisely why it was safe, since the net reader compares the
+  u32 ARCHITECTURE hashes and never reaches that function (`c7d6749a`). A decision
+  to leave a defect alone is a claim about this tree, and it rots the same way a
+  port does.
+- **A gate ported from a sibling reports on THIS tree's instruments first.** The
+  same sweep took `refish`'s corrupt-table fixtures, and the first run found the
+  reader refusing a crafted header without saying which file (`c6caae18`) — its
+  judge asks four things of a refusal and this tree answered three. Then two of the
+  seven fixtures turned out to gate nothing here, because they PASS this parser by
+  design and were scored as refusals by a second per-side header landing in zero
+  padding (`b079dcaa`). Re-derive what a borrowed fixture actually trips, against
+  an instrumented build; a green gate over a hollow fixture is the failure mode a
+  sibling cannot warn you about, because in ITS tree the fixture is real.
+
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
@@ -143,6 +175,17 @@ outside it is unwired, not deferred:
   `./build.sh tb-cursed`, which needs `./build.sh tb-fetch 5` and is deliberately
   **not** in `parity` — a gate that is usually skipped stops being read — so run it
   by hand when touching the prober.
+
+  Two more instruments own this reader, and both exist because the bench list
+  cannot reach it: every bench position has more men on it than any table
+  `tb-fetch` installs, so `registry.c`, `do_probe_table` and the decode loop are
+  absent from `signature`, `perf-budget` and every counter this tree records.
+  `./build.sh malformed` (in `parity`, 2.4 s) drives crafted headers and mutated
+  real tables past the sanitized binary and judges refusal and survival;
+  `./build.sh perf-budget-tb` measures a PROBING workload against its own
+  `<tier>+syzygy` budget row. **Run `perf-budget-tb` on any edit to
+  `src/platform/syzygy/`** — it caught a 0.13% regression in a diagnostic that
+  `perf-budget` read as free (`647965a6`).
 - **Lazy-SMP threading and NUMA** — **wired.** `Threads` builds a worker set,
   `NumaPolicy` chooses the topology it binds under, and a `go` runs N workers over
   one root. `worker_pool.c` is the driver; every piece of per-worker state that
@@ -238,7 +281,7 @@ There is **no Makefile and no build system**. A new `.c` file must be added to
 
 ```sh
 ./build.sh parity       # build, zone-check, fmt, docs-lint, test, signature,
-                        # simd-scalar, perft, golden, tb
+                        # simd-scalar, perft, golden, tb, malformed
 ./build.sh signature    # just the anchor
 ./build.sh test         # unit + property suite, ASan+UBSan
 ```
