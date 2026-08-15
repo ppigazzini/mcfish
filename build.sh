@@ -1509,6 +1509,7 @@ NEGATIVE_CONTROL_ROWS=(
   "scalar shift off by one%src/engine/eval/nnue/simd.h%s#(Elem) (a.l\[i\] >> s)#(Elem) (a.l[i] >> (s + 1))#%simd-scalar%run"
   "exported FT component hash zeroed%src/engine/eval/nnue/network.c%s#nnue_write_u32_le(w, nnue_feature_transformer_hash_value());#nnue_write_u32_le(w, 0);#%net-roundtrip%run"
   "a refused table says nothing%src/platform/syzygy/registry.c%s#report_unusable(path);#(void) path;#%malformed%run"
+  "a decoded symbol is unbounded%src/platform/syzygy/decode.c%s#if ((size_t) sym >= d->symlen_size) {#if ((size_t) sym >= (size_t) -1) {#%malformed%run"
 )
 
 # Bound each mutated gate run. 900s clears every row measured here with room to
