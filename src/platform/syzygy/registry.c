@@ -598,16 +598,12 @@ static Mutex DtzMapMutex = { .handle = PTHREAD_MUTEX_INITIALIZER };
 // strictly stronger, so the guarantee upstream relies on -- that a thread seeing
 // `ready` also sees every write made before it was set -- holds; the difference
 // costs a fence on a path taken once per table per game.
-bool registry_map_wdl(TBTable *t) {
-    if (atomic_bool_load(&t->ready))
-        return t->base != nullptr;
-
-    mutex_lock(&WdlMapMutex);
-    if (atomic_bool_load(&t->ready)) {  // recheck: another thread may have mapped it
-        mutex_unlock(&WdlMapMutex);
-        return t->base != nullptr;
-    }
-
+// Map and parse one side of a table. NOINLINE and separate on purpose: it owns a
+// 4200-byte path buffer, and its caller's hot path is the `ready` early return taken
+// on EVERY probe. Leaving the buffer in that frame cost 7,359,682 instructions --
+// +0.13% -- on a probing search, which `perf-budget-tb` caught and no other gate
+// could see.
+__attribute__((noinline)) static void map_and_set_wdl(TBTable *t) {
     size_t size = 0;
     char path[4200] = { 0 };
     const uint8_t *buf = map_file(t, ".rtbw", WdlMagic, &size, path, sizeof path);
@@ -622,6 +618,41 @@ bool registry_map_wdl(TBTable *t) {
         report_unusable(path);
         t->base = nullptr;  // a mapping made here stays owned by the chunk list
     }
+}
+
+// Map and parse one side of a table. NOINLINE and separate on purpose: it owns a
+// 4200-byte path buffer, and its caller's hot path is the `ready` early return taken
+// on EVERY probe. Leaving the buffer in that frame cost 7,359,682 instructions --
+// +0.13% -- on a probing search, which `perf-budget-tb` caught and no other gate
+// could see.
+__attribute__((noinline)) static void map_and_set_dtz(TBTable *t) {
+    size_t size = 0;
+    char path[4200] = { 0 };
+    const uint8_t *buf = map_file(t, ".rtbz", DtzMagic, &size, path, sizeof path);
+    if (buf != nullptr && set(t, true, buf, size)) {
+        t->dtz_base = buf;
+        t->dtz_base_size = size;
+    } else {
+        // The parse refused it. Every OTHER refusal in this reader already says which
+        // file it was; this one -- the deepest and the only one a crafted table can
+        // reach -- did not, so a table with a bad symbol-length pair or a btree past
+        // the end left the engine quietly not probing with nothing to explain it.
+        report_unusable(path);
+        t->dtz_base = nullptr;
+    }
+}
+
+bool registry_map_wdl(TBTable *t) {
+    if (atomic_bool_load(&t->ready))
+        return t->base != nullptr;
+
+    mutex_lock(&WdlMapMutex);
+    if (atomic_bool_load(&t->ready)) {  // recheck: another thread may have mapped it
+        mutex_unlock(&WdlMapMutex);
+        return t->base != nullptr;
+    }
+
+    map_and_set_wdl(t);
 
     const bool mapped = t->base != nullptr;
     atomic_bool_store(&t->ready, true);
@@ -639,20 +670,7 @@ bool registry_map_dtz(TBTable *t) {
         return t->dtz_base != nullptr;
     }
 
-    size_t size = 0;
-    char path[4200] = { 0 };
-    const uint8_t *buf = map_file(t, ".rtbz", DtzMagic, &size, path, sizeof path);
-    if (buf != nullptr && set(t, true, buf, size)) {
-        t->dtz_base = buf;
-        t->dtz_base_size = size;
-    } else {
-        // The parse refused it. Every OTHER refusal in this reader already says which
-        // file it was; this one -- the deepest and the only one a crafted table can
-        // reach -- did not, so a table with a bad symbol-length pair or a btree past
-        // the end left the engine quietly not probing with nothing to explain it.
-        report_unusable(path);
-        t->dtz_base = nullptr;
-    }
+    map_and_set_dtz(t);
 
     const bool mapped = t->dtz_base != nullptr;
     atomic_bool_store(&t->dtz_ready, true);
