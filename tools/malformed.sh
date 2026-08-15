@@ -305,35 +305,56 @@ else
       "4k3/8/8/8/8/8/8/3NK3 w - - 0 1"
 fi
 
-# ------------------------------------------------------------ the control
+# ------------------------------------------------------------ the controls
 #
 # A gate that only ever asks for the word "Corrupt" is passed by an engine that
-# prints it unconditionally. This is the row that stops that, and it is the reason
-# the fixtures above can be trusted at all.
-n=0
-for f in "$CORPUS"/*.rtbw "$CORPUS"/*.rtbz; do [ -s "$f" ] && n=$((n + 1)); done
-if [ "$n" -ne 10 ]; then
-    echo "  clean-corpus        SKIPPED -- $CORPUS has $n/10 files (./build.sh tb-fetch)"
-    echo
-    echo "malformed: $PASS refused, $FAIL not refused, control SKIPPED"
-    echo "A skipped control proves nothing: the refusals above are unguarded." >&2
-    [ "$FAIL" = "0" ] || exit 1
-    exit 2
+# prints it unconditionally. These are the rows that stop that, and they are the
+# reason the refusals above can be trusted at all.
+#
+# The FIRST needs no corpus, which is what makes it the one that always runs: a
+# SyzygyPath with no tables in it must produce no diagnostic. That is the whole of
+# the unconditional-print failure mode, and it is available on a machine that has
+# fetched nothing.
+mkdir -p "$WORK/empty"
+out=$(probe "$WORK/empty")
+if grep -qi 'Corrupt tablebase file' <<< "$out"; then
+    note "an EMPTY path produced a corruption diagnostic:"
+    grep -m2 -i 'Corrupt' <<< "$out" | sed 's/^/      /'
+    printf '  %-19s FAILED\n' "empty-path"; FAIL=$((FAIL + 1))
+elif ! grep -q '^bestmove' <<< "$out"; then
+    note "the engine stopped answering with an empty tablebase path"
+    printf '  %-19s FAILED\n' "empty-path"; FAIL=$((FAIL + 1))
+else
+    printf '  %-19s silent\n' "empty-path"; PASS=$((PASS + 1))
 fi
 
-out=$(probe "$CORPUS")
-if grep -qi 'Corrupt tablebase file' <<< "$out"; then
-    note "a VALID table was reported corrupt:"
-    grep -m2 -i 'Corrupt' <<< "$out" | sed 's/^/      /'
-    printf '  %-19s FAILED\n' "clean-corpus"; FAIL=$((FAIL + 1))
-elif ! grep -q 'Found 5 WDL' <<< "$out"; then
-    note "the control loaded no table, so it tested nothing"
-    printf '  %-19s FAILED\n' "clean-corpus"; FAIL=$((FAIL + 1))
+# The SECOND needs the 3-man set, and is the stronger claim: a table that is REAL
+# must load and stay quiet. Without the corpus it is unexercised, which is reported
+# the way `do_tb` reports its own missing half -- narrow the gate, never fail it,
+# and never let the narrowing read as a pass.
+if [ "$corpus_files" -ne 10 ]; then
+    printf '  %-19s SKIPPED -- %s has %s/10 files\n' "clean-corpus" "$CORPUS" "$corpus_files"
 else
-    printf '  %-19s silent\n' "clean-corpus"; PASS=$((PASS + 1))
+    out=$(probe "$CORPUS")
+    if grep -qi 'Corrupt tablebase file' <<< "$out"; then
+        note "a VALID table was reported corrupt:"
+        grep -m2 -i 'Corrupt' <<< "$out" | sed 's/^/      /'
+        printf '  %-19s FAILED\n' "clean-corpus"; FAIL=$((FAIL + 1))
+    elif ! grep -q 'Found 5 WDL' <<< "$out"; then
+        note "the control loaded no table, so it tested nothing"
+        printf '  %-19s FAILED\n' "clean-corpus"; FAIL=$((FAIL + 1))
+    else
+        printf '  %-19s silent\n' "clean-corpus"; PASS=$((PASS + 1))
+    fi
 fi
 
 echo
-echo "malformed: $PASS passed, $FAIL failed"
+if [ "$corpus_files" -ne 10 ]; then
+    echo "malformed: $PASS passed, $FAIL failed -- THE CORPUS HALF IS UNEXERCISED" >&2
+    echo "  the absorbed family and the clean-corpus control need ./build.sh tb-fetch;" >&2
+    echo "  what ran is the crafted-header family and the empty-path control." >&2
+else
+    echo "malformed: $PASS passed, $FAIL failed"
+fi
 [ "$FAIL" = "0" ] || exit 1
 exit 0
