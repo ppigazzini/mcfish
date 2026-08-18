@@ -51,7 +51,7 @@
 #     properly shows it is byte-identical.
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
 ROOT=$PWD
 RESOURCES=$ROOT/resources
 GO_SETTLE=${GO_SETTLE:-5}

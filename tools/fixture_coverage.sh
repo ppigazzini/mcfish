@@ -18,7 +18,7 @@
 # fixtures still present what the table claims, not that the branches are tested.
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
 
 TABLE=tools/fixture_properties.tsv
 
