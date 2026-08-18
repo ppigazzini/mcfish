@@ -25,7 +25,7 @@
 #         MCFISH_OUT=... SF_OUT=...            # where to leave the two binaries
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
 ROOT=$PWD
 ARCH=${1:-sse41}
 case "$ARCH" in

@@ -29,7 +29,7 @@
 #         ORACLE_SHA=<sha> ./build.sh fingerprint
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
 ROOT=$PWD
 BENCH=${*:-16 1 8}
 # NOT `GROUPS`: that is a bash BUILT-IN array holding the caller's group ids, so the
@@ -58,7 +58,9 @@ cp "$ROOT/build/mcfish" "$WORK/mcfish"
 # Assert the two engines search the SAME TREE before comparing anything about how
 # they searched it. A different tree is a different workload and every row below
 # would be noise wearing a number.
+# shellcheck disable=SC2086  # BENCH is a bench ARGUMENT LIST; the split is the point
 mc_nodes=$(cd "$ROOT/resources" && "$WORK/mcfish" bench $BENCH 2>&1 | grep -oP 'Nodes searched\s*:\s*\K[0-9]+')
+# shellcheck disable=SC2086  # BENCH is a bench ARGUMENT LIST; the split is the point
 or_nodes=$(cd "$ROOT/resources" && "$ORACLE" bench $BENCH 2>&1 | grep -oP 'Nodes searched\s*:\s*\K[0-9]+')
 if [[ -z $mc_nodes || $mc_nodes != "$or_nodes" ]]; then
   red "fingerprint: node counts differ (mcfish ${mc_nodes:-none}, upstream ${or_nodes:-none})"
@@ -70,6 +72,7 @@ info "fingerprint: both engines search $mc_nodes nodes on bench $BENCH"
 for side in mcfish oracle; do
   bin=$WORK/mcfish; [[ $side == oracle ]] && bin=$ORACLE
   info "fingerprint: profiling $side (callgrind, this is slow)"
+  # shellcheck disable=SC2086  # BENCH is a bench ARGUMENT LIST; the split is the point
   ( cd "$ROOT/resources" && OUT=$WORK/$side.out "$ROOT/tools/perf_callgrind.sh" "$bin" $BENCH ) \
     >"$WORK/$side.log" 2>&1 || { red "fingerprint: $side profile failed"; exit 2; }
   # A profile of a run that never searched looks plausible and is worthless.

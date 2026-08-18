@@ -45,7 +45,7 @@ echo "# callgrind: $BIN bench ${BENCH_ARGS[*]}  -> $OUT"
 # void if the two trees differ -- so `perf_callgrind_delta.py` reads this sidecar
 # and refuses rather than trusting the caller to have checked by eye.
 RAW=$(valgrind --tool=callgrind --callgrind-out-file="$OUT" --cache-sim=yes --branch-sim=yes \
-  "$BIN" bench ${BENCH_ARGS[*]} 2>&1)
+  "$BIN" bench "${BENCH_ARGS[@]}" 2>&1)
 printf '%s\n' "$RAW" |
   grep -E "Nodes searched|I   refs|I1  misses|D   refs|D1  misses|LLd misses|D1  miss rate|Branches|Mispredicts"
 printf '%s\n' "$RAW" | grep -oP 'Nodes searched\s*:\s*\K[0-9]+' > "$OUT.nodes" || true
