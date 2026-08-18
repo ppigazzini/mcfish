@@ -43,11 +43,25 @@ bool pos_legal(const Position *pos, Move m) {
             if (pos_attackers_to_occ(pos, s, pieces(pos)) & pieces_c(pos, them))
                 return false;
 
-        // In Chess960 the castling rook can itself be the piece screening the king
-        // from an enemy slider (queen a1 behind the castling rook on b1): reject if
-        // moving it uncovers a check. `to` is the rook square. Golden:
+        // The castling rook can itself be the piece screening the king from an enemy
+        // slider (queen a1 behind the castling rook on b1): reject if moving it
+        // uncovers a check. `to` is the rook square. Golden:
         // Stockfish/src/position.cpp:686.
-        return !pos->chess960 || !(pos->st->blockers[us] & square_bb(to));
+        //
+        // TEST THE GEOMETRY, NOT THE OPTION. Upstream short-circuits this on
+        // `chess960`, and the option is not evidence about the board: the FEN parser
+        // does not require the castling field to agree with the pieces, so for a
+        // `K`/`Q` token it walks inward from the corner and adopts the first rook it
+        // meets. `4k3/8/8/8/8/8/8/qR2K3 w Q - 0 1` therefore records a 960 geometry
+        // while the option still says standard, and the short-circuit declared e1c1
+        // legal with the enemy queen on a1 screened only by the castling rook.
+        //
+        // Dropping the gate is correct in standard geometry rather than merely
+        // harmless there: a corner rook lies on no line between its own king and any
+        // slider -- rank 1 has nothing beyond a1 or h1, and neither square shares a
+        // file or diagonal with e1 -- so it can never be one of that king's blockers,
+        // and the test now always run is one that was always going to pass.
+        return !(pos->st->blockers[us] & square_bb(to));
     }
 
     if (type_of_piece(piece_on(pos, from)) == KING)
