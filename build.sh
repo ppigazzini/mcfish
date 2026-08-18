@@ -1583,6 +1583,7 @@ LANE_EXCUSED=(
   "perf-budget:LOCAL -- needs perf_event_open, which CI containers refuse, and the golden is per-machine"
   "perf-budget-update:writes that per-machine golden"
   "perf-budget-tb:LOCAL -- perf_event_open plus the 5-man tables (tb-fetch 5), too large for a lane"
+  "perf-decomp:LOCAL -- callgrind is minutes per side, and it takes the two binaries to compare rather than asserting a threshold"
   "perf-budget-tb-update:writes that per-machine golden"
   "counter-validate:LOCAL -- needs perf_event_open"
   "signature-update:re-derives the anchor; signature is what asserts it"
@@ -2975,6 +2976,28 @@ do_docs_lint() {
   bash tools/docs_lint.sh
 }
 
+# --- perf-decomp: WHERE the cost is, per component --------------------------------
+#
+# perf-budget says the instruction total moved; perf_counters.sh says whether the
+# machine executed it differently; fingerprint says whether we run upstream's
+# algorithm. None of them says WHICH PART got more expensive, and attribution across
+# two differently-inlined binaries is void by construction -- which is why this runs
+# callgrind over both sides and sums SELF cost per component.
+#
+# LOCAL: callgrind is minutes per side, so this is never in `parity`. It takes the
+# two binaries to compare, because the useful question is almost always "did MY
+# change move a component" and the caller already has both.
+do_perf_decomp() {
+  local base=${1:-} head=${2:-}
+  if [[ -z $base || -z $head ]]; then
+    red "usage: ./build.sh perf-decomp <base-binary> <head-binary> [bench-args...]"
+    red "  e.g. ./build.sh perf-decomp /tmp/mcfish-before build/mcfish 16 1 8"
+    return 2
+  fi
+  shift 2
+  bash tools/perf_decomp.sh "$base" "$head" "$@"
+}
+
 # --- cite-check: a cited SHA still names a commit a reader can reach ---------------
 #
 # docs-lint checks paths and symbols; nothing checked the ~37 commit SHAs the pages
@@ -3421,6 +3444,7 @@ usage: ./build.sh <step> [args]
   net-roundtrip      export the net and require it back byte-identical
                      (the only gate on the WRITING side of the .nnue format)
   speedtest-check    drive `speedtest` and assert its report's shape
+  perf-decomp <a> <b> LOCAL: per-COMPONENT Ir/D1mr/Bcm between two binaries (callgrind)
   perf-budget-tb     LOCAL: the same budget on a PROBING workload (needs tb-fetch 5)
   perf-budget        LOCAL: assert retired instructions vs tools/instr_budget.golden
                      (catches an nps regression the node signature is blind to)
@@ -3511,6 +3535,7 @@ case "${1:-build}" in
   upstream-parity)  shift; do_upstream_parity "$@" ;;
   shellcheck)       do_shellcheck ;;
   cite-check)       do_cite_check ;;
+  perf-decomp)      shift; do_perf_decomp "$@" ;;
   fmt)              do_fmt ;;
   fmt-fix)          do_fmt_fix ;;
   parity)           do_parity ;;
