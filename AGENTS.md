@@ -28,10 +28,11 @@ is a source:
 **`refish` is the one that does not look like a sibling.** It lives in
 `../Stockfish` -- the golden's checkout -- as a branch, so `git log` there answers
 for it unless you say `upstream/master`. It is NOT the golden: `origin` is a fork,
-and `refish` carries 199 commits on top of upstream. Everything below applies to it
+and `refish` carries 279 commits on top of upstream. Everything below applies to it
 exactly as to the other three, and its untracked dev notes carry a register of
-**twenty confirmed defects in upstream Stockfish**, each with a reproducer that was
-run. All twenty are closed in this tree as of 2026-08-15.
+**thirty-four confirmed defects in upstream Stockfish**, each with a reproducer that
+was run. All thirty-four are closed or refuted in this tree as of 2026-08-18: the
+first twenty on 2026-08-15, and the second campaign's fourteen on 2026-08-18.
 
 Four consequences an agent gets wrong before reading
 [tools/upstream/README.md](tools/upstream/README.md):
@@ -147,6 +148,30 @@ Four consequences an agent gets wrong before reading
   padding (`b079dcaa`). Re-derive what a borrowed fixture actually trips, against
   an instrumented build; a green gate over a hollow fixture is the failure mode a
   sibling cannot warn you about, because in ITS tree the fixture is real.
+
+- **A sibling's OWN numbers already tell you which half transfers.** The twelfth
+  sweep (2026-08-18, `refish`'s second upstream campaign, defects 21-34) landed six
+  fixes and four perf commits, and every perf decision was made by reading the
+  sibling's per-COMPILER columns before writing any code. This tree is clang: the
+  pairing-tree repack reads gcc -0.79% and clang -0.15%, so it was refused rather
+  than measured — a structural rewrite of a hostile-input parser is not worth a
+  clang tenth. `50db0afd`'s arena zeroing and `2faa286a`'s accumulator were already
+  this tree's shape, and `2faa286a`'s remaining half is worth clang -0.0007% by its
+  own note. What DID transfer transferred larger than advertised, because the
+  corpus differs: the bucket-table length lookup measured **-7.09%** here against
+  refish's -4.78%, and resuming the escape walk **-4.00%** against its -0.66%/-1.72%
+  — this tree's probing lane opens 5-man tables whose `max_sym_len` reaches 20
+  against a twelve-bit cap, so the walk it deletes was doing more. Read the columns,
+  then re-measure what survives them.
+- **The instruction axis and the clock can disagree, and only one tool settles it.**
+  The same sweep's `2e3dd920` port reads a clean -0.412% on `perf-budget` with a
+  0.00001% floor, while a hand-rolled timing loop called it a 1.3% REGRESSION on
+  three consecutive pairs. `tools/nps_ab.sh`, which pins a core and alternates the
+  order, put the median at 1.0077-1.0087 in the change's favour over 9 and 17 rounds
+  and printed that the spread straddles 1.000 — this host cannot resolve under 1% on
+  the clock. Never take a timing number from a loop you wrote yourself. And the
+  refutation half is the same instrument: `daa06206`'s `save` hoist measured
+  **+0.018%** here, 5.0M instructions above the floor, and was reverted.
 
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
