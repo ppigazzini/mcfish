@@ -188,6 +188,40 @@ bool decode_set_sizes(
     d->symlen_size = symlen_size;
     memset(d->symlen, 0, symlen_size + 1);
 
+    // PROVE THE ALPHABET HERE, so decode_pairs does not test one per symbol.
+    //
+    // It forms the symbol from two file-derived terms -- the bitstream word and the
+    // per-length fold of lowest_sym[] and base64[] -- and then has to ask whether the
+    // result is inside symlen[]'s domain. That question is a property of the TABLE,
+    // and everything needed to answer it is in hand here.
+    //
+    // The scan stops at the FIRST len with buf64 >= base64[len], so buf64 <=
+    // base64[len - 1] - 1 for every len it can reach, and buf64 <= ~0 at len 0. UPPER
+    // carries that bound down the lengths, which makes the largest symbol each length
+    // can name known here. A table whose largest lies outside the domain is refused,
+    // the way a non-canonical base64[] above it already is -- once per table opened
+    // rather than once per symbol decoded.
+    //
+    // A length whose base equals its predecessor's is never reached by the scan and so
+    // is not bounded, and a base of 0 catches every word, so no longer length is
+    // reachable past one and the walk ends there. The sum is taken in 64 bits, where
+    // the loop's is truncated to a Sym: proving the untruncated value is in range
+    // proves the truncation never happened.
+    uint64_t upper = ~(uint64_t) 0;
+    for (size_t k = 0; k < base64_size; ++k) {
+        if (upper >= d->base64[k]) {
+            const uint64_t largest = (uint64_t) rd_sym(d->lowest_sym + k * 2)
+                                   + ((upper - d->base64[k]) >> d->len_shift[k]);
+            if (largest >= symlen_size) {
+                return false;
+            }
+        }
+        if (d->base64[k] == 0) {
+            break;
+        }
+        upper = d->base64[k] - 1;
+    }
+
     bool *visited = alloc(symlen_size + 1);
     if (visited == nullptr) {
         return false;
@@ -313,10 +347,11 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
         // the LENGTH, decided once per table in decode_set_sizes.
         sym = (Sym) ((Sym) (buf64 >> d->len_shift[len]) + d->len_offset[len]);
 
-        if ((size_t) sym >= d->symlen_size) {
-            *ok = false;
-            return 0;
-        }
+        // `sym` IS INSIDE symlen[]'s DOMAIN AND NOTHING HERE HAS TO SAY SO. Both terms
+        // are file-derived, so this used to be tested per symbol decoded;
+        // decode_set_sizes now refuses a table whose base64[]/lowest_sym[] pair could
+        // name a symbol outside the domain, which is the same guarantee derived once
+        // per table opened.
         if (offset < (int32_t) d->symlen[sym] + 1) {
             break;
         }
