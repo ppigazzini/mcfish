@@ -181,6 +181,37 @@ static long long go_clock(const char *key, const char *value) {
     return bounded;
 }
 
+// Bound `movestogo` and `mate` WHERE THEY ENTER, the way go_clock bounds the clocks.
+//
+// Both are read straight off the wire into an `int` and both reach arithmetic that has
+// no room for the extremes of that type:
+//
+//   go wtime 60000 btime 60000 winc 1000000000000 movestogo -2147483648
+//     src/engine/search/timeman.c:67:51 signed integer overflow:
+//       1000000000000 * -2147483649 cannot be represented in type 'int64_t'
+//   go mate 2147483647
+//     src/engine/search/search_id.c:384:64 signed integer overflow:
+//       2 * 2147483647 cannot be represented in type 'int'
+//
+// timeman already widens `movestogo` to int64_t, so the plain `mtg - 1` upstream
+// overflows on is safe here and only the product with a clock at the 1e12 bound
+// reaches it; `2 * mate` is still an `int` because upstream's stop condition is.
+//
+// The bounds are each field's own domain. `movestogo` counts moves, so a negative is
+// not a shorter time control but a value the protocol never had a right to send, and 0
+// is what timeman already reads as "absent". `mate` is halved because the condition
+// doubles it. As with go_clock this clamps the VALUE without moving the accept/reject
+// boundary the width check above defines, and outside the bound is reported, never
+// silently taken.
+static long long go_bounded_int(const char *key, const char *value, long long lo, long long hi) {
+    const long long given = go_value_int(key, value, INT_MIN, INT_MAX);
+    const long long bounded = given < lo ? lo : (given > hi ? hi : given);
+    if (bounded != given)
+        uci_output_printf("info string %s %lld is outside [%lld, %lld]; using %lld\n", key, given,
+                          lo, hi, bounded);
+    return bounded;
+}
+
 // `nodes` is upstream's `u64`, read the way a C++ stream reads one: a leading minus is
 // ACCEPTED and the magnitude wraps, so `go nodes -1` is a budget of UINT64_MAX on both
 // sides, while a magnitude past UINT64_MAX is a critical error.
@@ -278,6 +309,8 @@ static void go_line(char *args, bool announce) {
         // handled above, because it consumes the rest of the line rather than one
         // value.
         int *slot = nullptr;
+        long long slot_lo = INT_MIN;
+        long long slot_hi = INT_MAX;
         int64_t *clock_slot = nullptr;
         bool wants_nodes = false;
         bool wants_perft = false;
@@ -293,11 +326,14 @@ static void go_line(char *args, bool announce) {
             clock_slot = &limits.inc_ms[WHITE];
         else if (strcmp(token, "binc") == 0)
             clock_slot = &limits.inc_ms[BLACK];
-        else if (strcmp(token, "movestogo") == 0)
+        else if (strcmp(token, "movestogo") == 0) {
             slot = &limits.moves_to_go;
-        else if (strcmp(token, "mate") == 0)
+            slot_lo = 0;
+        } else if (strcmp(token, "mate") == 0) {
             slot = &limits.mate;
-        else if (strcmp(token, "nodes") == 0)
+            slot_lo = 0;
+            slot_hi = INT_MAX / 2;
+        } else if (strcmp(token, "nodes") == 0)
             wants_nodes = true;
         else if (strcmp(token, "perft") == 0)
             wants_perft = true;
@@ -316,7 +352,7 @@ static void go_line(char *args, bool announce) {
         const char *value = strtok(nullptr, " \t\n");
 
         if (slot != nullptr)
-            *slot = (int) go_value_int(token, value, INT_MIN, INT_MAX);
+            *slot = (int) go_bounded_int(token, value, slot_lo, slot_hi);
         else if (clock_slot != nullptr)
             *clock_slot = go_clock(token, value);
         else if (wants_nodes)
