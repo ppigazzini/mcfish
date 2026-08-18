@@ -27,6 +27,22 @@ enum { TB_PIECES = 7 };  // upstream TBPIECES: the largest table supported
 // divides a bucket, so that length and everything below it stay SYZYGY_NO_FAST_LEN.
 // The marker cannot collide with a length: a length here is base64[]'s own index,
 // and decode_set_sizes refuses a table with max_sym_len at 64 or above.
+//
+// TWELVE IS NEAR THE COVERAGE KNEE, not an arbitrary round number. refish
+// instrumented the fill on a 5-man corpus, where a typical table is min_sym_len 5 /
+// max_sym_len 18, and measured the share of buckets left undecided:
+//
+//   12 bits -> 4 KB table, ~22% escape      10 bits -> 1 KB, 41.3%
+//    8 bits -> 256 B table, 71.6% escape
+//
+// Coverage falls off a cliff below it. THREE WAYS TO SHRINK THIS WERE TRIED THERE
+// AND ALL THREE LOST, so do not re-walk them: dropping to 8 bits buys D1mr 0.6067
+// and pays 2.52x the mispredicts, which is the entire thing the table removes;
+// four-bit entries at the same bucket count preserve coverage exactly (Bcm 0.9912)
+// and still lose, because the nibble extract is ~4 instructions in a body of ~20;
+// and packing the three per-length arrays into one 4-byte entry costs +2.03% because
+// holding it live across the branch spills a loop already at the register file's
+// limit. Reopen only on a 6-man corpus, where the working set genuinely exceeds L1.
 enum { SYZYGY_LEN_TAB_MAX_BITS = 12, SYZYGY_NO_FAST_LEN = 0xFF };
 
 typedef uint16_t Sym;  // RE-PAIR / canonical-Huffman symbol
