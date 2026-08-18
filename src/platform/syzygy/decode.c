@@ -154,6 +154,22 @@ bool decode_set_sizes(
     }
     memset(d->len_tab, SYZYGY_NO_FAST_LEN, len_tab_size);
 
+    // WHERE THE SCAN RESUMES FROM A BUCKET THE TABLE DECLINED. The fill below takes a
+    // length only while `k + min_sym_len <= len_tab_bits`, so a bucket left
+    // SYZYGY_NO_FAST_LEN names no length below that bound -- a length under the cap
+    // owns a WHOLE NUMBER of buckets, so a bucket holding a word of one of them was
+    // filled from it. Every word in an undecided bucket is therefore at least
+    // `len_tab_bits - min_sym_len + 1` long, and starting there skips the lengths the
+    // load has already ruled out.
+    //
+    // Clamped to the last base64[] entry, the one left zero and the one that stops the
+    // walk: len_tab_bits == max_sym_len fills every bucket and reaches no escape at
+    // all. The clamp is what makes the index safe, rather than an argument that the
+    // escape cannot happen.
+    const size_t first_unfilled =
+      len_tab_bits >= d->min_sym_len ? (size_t) (len_tab_bits - d->min_sym_len) + 1 : 0;
+    d->escape_len = (uint8_t) (first_unfilled < base64_size - 1 ? first_unfilled : base64_size - 1);
+
     uint64_t top = ~(uint64_t) 0;
     for (size_t k = 0; k < base64_size; ++k) {
         if (k + d->min_sym_len <= len_tab_bits && top >= d->base64[k]) {
@@ -333,7 +349,7 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
         // predictor learns.
         unsigned len = d->len_tab[buf64 >> d->len_tab_shift];
         if (len == SYZYGY_NO_FAST_LEN) {
-            len = 0;
+            len = d->escape_len;  // the lengths below it are the ones the load ruled out
             while (buf64 < d->base64[len]) {
                 ++len;
                 if ((size_t) len >= d->base64_size) {

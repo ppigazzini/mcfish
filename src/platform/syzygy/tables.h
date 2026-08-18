@@ -97,6 +97,7 @@ typedef struct PairsData {
     // 4 KiB, which is not something to hold inline in every PairsData.
     uint8_t *len_tab;       // owned by the registry arena
     uint8_t len_tab_shift;  // 64 minus how many top bits len_tab indexes
+    uint8_t escape_len;     // the first length len_tab cannot answer for
     uint8_t *symlen;        // owned by the registry arena
     size_t symlen_size;
     uint8_t pieces[TB_PIECES];
