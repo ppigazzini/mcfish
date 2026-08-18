@@ -1965,6 +1965,8 @@ do_async_check() {
   [[ -n $legal ]] || { red "async-check: could not read the legal move list -- rig fault"; return 2; }
 
   local fails=0
+  local WORK_EXPORT; WORK_EXPORT=$(mktemp -u)/exported.nnue
+  mkdir -p "$(dirname "$WORK_EXPORT")"
 
   # 1. A stop inside a running search: exactly one bestmove, and it is legal.
   local out bm n
@@ -2110,8 +2112,76 @@ do_async_check() {
            "$without"
   fi
 
+  # THE THREE REMAINING HANG SHAPES from the upstream defect register. All three are
+  # closed in this tree's CODE and none of them was reached by any gate -- which is
+  # the reading refish's liveness.sh exists to force: ask what a sibling's instrument
+  # POINTS AT, not only whether the defect is here. None of the three changes an
+  # answer; each one stops there being an answer, and only a deadline the harness
+  # owns can tell that from a slow search.
+
+  # 8. `export_net` arriving during a live search. Upstream destroys the network
+  #    replicas under the running workers; here every mutating command goes through
+  #    the same end-search seam the wedge case above tests, and export_net is one.
+  local netout=$WORK_EXPORT
+  rc=0
+  out=$({ printf 'position startpos\ngo infinite\n'; sleep 2
+          printf 'export_net %s\nisready\n' "$netout"; sleep 2
+          printf 'quit\n'; sleep 1; } \
+        | ( cd "$ROOT/$RESOURCES_DIR" && timeout 60 "$ROOT/$BIN" ) 2>&1) || rc=$?
+  if [[ $rc -eq 124 ]]; then
+    red "  export_net during search: the engine never answered -- a hang"; fails=$((fails + 1))
+  elif ! grep -q '^readyok' <<< "$out"; then
+    red "  export_net during search: no readyok afterwards"; fails=$((fails + 1))
+  elif [[ $(grep -cE '^bestmove ' <<< "$out" || true) -ne 1 ]]; then
+    red "  export_net during search: expected exactly one bestmove"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    an export_net during a live search returns and the engine answers\n'
+  fi
+  rm -f "$netout"
+
+  # 9. `go movetime 0`. Zero means ABSENT everywhere below the parse, so this is an
+  #    unbounded search rather than an instant one -- which is upstream's shape and
+  #    the reason its own `movetime 0` never comes back. It must still be stoppable.
+  rc=0
+  out=$({ printf 'position startpos\ngo movetime 0\n'; sleep 2
+          printf 'stop\nisready\n'; sleep 1
+          printf 'quit\n'; sleep 1; } \
+        | ( cd "$ROOT/$RESOURCES_DIR" && timeout 30 "$ROOT/$BIN" ) 2>&1) || rc=$?
+  n=$(grep -cE '^bestmove ' <<< "$out" || true)
+  bm=$(grep -E '^bestmove ' <<< "$out" | head -1 | awk '{print $2}' || true)
+  if [[ $rc -eq 124 ]]; then
+    red "  movetime 0: the engine never answered -- an unstoppable search"; fails=$((fails + 1))
+  elif [[ $n -ne 1 ]]; then
+    red "  movetime 0: expected exactly one bestmove, got $n"; fails=$((fails + 1))
+  elif ! grep -qx -- "$bm" <<< "$legal"; then
+    red "  movetime 0: bestmove '$bm' is not legal in the position"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    a go movetime 0 is stoppable and answers (%s)\n' "$bm"
+  fi
+
+  # 10. A CRITICAL ERROR raised while a search is running. Upstream calls std::exit()
+  #     with its workers still inside the search -- and, with a SyzygyPath set, inside
+  #     a tablebase probe. This tree stops the search and shuts the workers down
+  #     before exiting, so the assertion is that the process ENDS: a join against a
+  #     worker nobody stopped would hang here and nowhere else.
+  local tbopt=""
+  [[ -d $TB_DIR ]] && tbopt="setoption name SyzygyPath value $ROOT/$TB_DIR"
+  rc=0
+  out=$({ [[ -n $tbopt ]] && printf '%s\n' "$tbopt"
+          printf 'position startpos\ngo infinite\n'; sleep 2
+          printf 'position fen not-a-fen\n'; sleep 2; } \
+        | ( cd "$ROOT/$RESOURCES_DIR" && timeout 30 "$ROOT/$BIN" ) 2>&1) || rc=$?
+  if [[ $rc -eq 124 ]]; then
+    red "  critical error during search: the process never exited -- a hang"; fails=$((fails + 1))
+  elif ! grep -q 'CRITICAL ERROR' <<< "$out"; then
+    red "  critical error during search: no CRITICAL ERROR reported"; fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    a critical error during a search exits instead of hanging%s\n' \
+      "$([[ -n $tbopt ]] && echo ' (tablebases loaded)' || echo ' (no tablebases -- NARROWED)')"
+  fi
+
   [[ $fails -eq 0 ]] || { red "async-check: $fails invariant(s) broken"; return 1; }
-  green "async-check: 7 of 7 invariants hold on the interrupted-search path"
+  green "async-check: 10 of 10 invariants hold on the interrupted-search path"
 }
 
 do_fixture_coverage() {
