@@ -64,3 +64,13 @@ repos:
         language: system
         files: '\.sh$'
         pass_filenames: false
+      # A commit SHA quoted in a page is a claim like any other, and the one docs-lint
+      # never read. Cheap here and impossible in CI, which clones shallow: ancestry is
+      # unanswerable without history, so the gate narrows there and this is where it
+      # actually runs.
+      - id: cite-check
+        name: build.sh cite-check
+        entry: ./build.sh cite-check
+        language: system
+        files: '\.md$'
+        pass_filenames: false
