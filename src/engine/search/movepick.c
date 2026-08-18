@@ -112,14 +112,8 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
             const int from_threatened = (threat_by_lesser[pt] & square_bb(from)) != 0;
             const int to_threatened = (threat_by_lesser[pt] & square_bb(to)) != 0;
 
-            int low_ply_bonus = 0;
-            if (mp->ply < LOW_PLY_HISTORY_SIZE) {
-                const int low_ply = h->low_ply_history[(size_t) mp->ply * HIST_UINT16 + (size_t) m];
-                low_ply_bonus = 8 * low_ply / (1 + mp->ply);
-            }
-
             value = 2 * main_history + 2 * pawn_history + continuation_sum + check_bonus * 16384
-                  + PieceValues[pt] * 20 * (from_threatened - to_threatened) + low_ply_bonus;
+                  + PieceValues[pt] * 20 * (from_threatened - to_threatened);
         } else {
             if (capture_stage(pos, m)) {
                 value = PieceValues[captured] + (1 << 28);
@@ -130,6 +124,23 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
         }
 
         out[i].value = value;
+    }
+
+    // THE LOW-PLY TERM IS A SECOND PASS over the same list, and the reason is the loop
+    // above rather than this one. `ply`, the row it selects and the divisor it forms
+    // are all invariant across a move list, but see_ge a few lines up is opaque, so
+    // the compiler may not hoist any of them across it and re-derived all three per
+    // move. Here there is no call: the row address and the divisor are formed once,
+    // and a list scored at a ply past the table pays no test at all.
+    //
+    // Each move's term is the same value added to the same accumulator with nothing
+    // between, so the sum is identical -- the signature is what says so.
+    if (kind == KIND_QUIETS && mp->ply < LOW_PLY_HISTORY_SIZE) {
+        const int16_t *const low_ply_row = &h->low_ply_history[(size_t) mp->ply * HIST_UINT16];
+        const int divisor = 1 + mp->ply;
+        for (size_t i = 0; i < count; ++i) {
+            out[i].value += 8 * (int) low_ply_row[(size_t) out[i].move] / divisor;
+        }
     }
 
     return count;
