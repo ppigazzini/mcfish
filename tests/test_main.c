@@ -1645,14 +1645,21 @@ static void test_numa_from_string(void) {
     CHECK(!parse_policy("0,0", &nodes, &cpus), "duplicate cpu in one node is refused");
     CHECK(!parse_policy("0-3:2", &nodes, &cpus), "cpu claimed by two nodes is refused");
 
-    // A malformed ELEMENT contributes nothing and the rest of the list still parses;
-    // upstream's indices_from_shortened_string never fails (numa.h:1033).
-    CHECK(parse_policy("0-1,7-3", &nodes, &cpus), "reversed range is skipped, not fatal");
-    CHECK(nodes == 1 && cpus == 2, "0-1,7-3 -> node {0,1}, got %zu cpus", cpus);
-    CHECK(parse_policy("0-1,x", &nodes, &cpus), "unparseable element is skipped");
-    CHECK(cpus == 2, "0-1,x -> 2 cpus, got %zu", cpus);
-    CHECK(parse_policy("0-1,1-2-3", &nodes, &cpus), "three-part element is skipped");
-    CHECK(cpus == 2, "0-1,1-2-3 -> 2 cpus, got %zu", cpus);
+    // A malformed ELEMENT fails the WHOLE string, which is this reader's one deliberate
+    // divergence from upstream: indices_from_shortened_string never fails (numa.h:1033),
+    // so upstream reads each of these in part and installs a topology nobody asked for
+    // with nothing said. The caller's "keeping previous config" path is what a refusal
+    // reaches. These three cases used to assert the lenient reading.
+    CHECK(!parse_policy("0-1,7-3", &nodes, &cpus), "reversed range fails the string");
+    CHECK(!parse_policy("0-1,x", &nodes, &cpus), "unparseable element fails the string");
+    CHECK(!parse_policy("0-1,1-2-3", &nodes, &cpus), "three-part element fails the string");
+
+    // The tail after the digits must be whitespace in FULL, not just its first byte:
+    // upstream inspects one character (misc.cpp:557), so "1 2" reads as 1 and
+    // `NumaPolicy 0,1 2,3` -- split on `, : -` alone -- installed {0,1,3}.
+    CHECK(!parse_policy("0,1 2,3", &nodes, &cpus), "an embedded space fails the string");
+    CHECK(parse_policy("0, 1 ,2", &nodes, &cpus), "surrounding whitespace still parses");
+    CHECK(nodes == 1 && cpus == 3, "0, 1 ,2 -> 3 cpus, got %zu", cpus);
 
     // The range cap is upstream's 1 << 20 (numa.h:1053), so a hostile range costs nothing
     // rather than asking for a multi-gigabyte allocation.

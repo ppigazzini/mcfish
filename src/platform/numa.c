@@ -203,7 +203,13 @@ static bool is_space(char c) {
 // The no-conversion case is strtoull's too, and is the one that is easy to get wrong:
 // when no digit converts, strtoull stores the ORIGINAL start in endptr, so the accept
 // test looks at the element's first character rather than at where the whitespace skip
-// ended. " x" is therefore accepted as 0 and "x" is rejected.
+// ended.
+//
+// THE WHOLE TAIL MUST BE WHITESPACE, not just its first byte. Upstream inspects one
+// character (misc.cpp:557), so "1 2" parses as 1 -- and a policy is split on `, : -`
+// alone, which made `NumaPolicy 0,1 2,3` split to ["0", "1 2", "3"] and apply as
+// {0,1,3}. Whitespace is still accepted at all because the sysfs lines this reader
+// parses are not stripped and carry a trailing newline.
 static bool parse_uint(const char *s, size_t len, size_t *out) {
     size_t i = 0;
     while (i < len && is_space(s[i]))
@@ -222,8 +228,9 @@ static bool parse_uint(const char *s, size_t len, size_t *out) {
 
     if (i == first_digit)
         i = 0;
-    if (i < len && !is_space(s[i]))
-        return false;
+    for (size_t j = i; j < len; ++j)
+        if (!is_space(s[j]))
+            return false;
 
     *out = value;
     return true;
@@ -265,16 +272,32 @@ static bool parse_element(const char *s, size_t len, size_t *lo, size_t *hi) {
     return *hi - *lo < (size_t) NumaMaxRangeIndices;
 }
 
-// Walk a comma-separated index list, calling SINK for each index. Skip empty elements and
-// any element that parses to nothing. Return false only when SINK refuses -- that is an
-// OOM or a topology conflict, which the caller must propagate.
+// Walk a comma-separated index list, calling SINK for each index. Skip empty elements.
+// Return false when SINK refuses -- that is an OOM or a topology conflict, which the
+// caller must propagate -- and, under STRICT, when any element fails to parse.
+//
+// A COMPONENT THAT DOES NOT PARSE FAILS THE WHOLE STRING, for the user's policy. Every
+// component used to be optional, matching upstream's indices_from_shortened_string
+// (numa.h:1033), which never fails; that is why `0,1 2,3` produced {0,1,3} and reported
+// nothing, and the caller had no way to tell that from the policy the user typed.
+// engine_options.c already owns a "keeping previous config" path for a string it cannot
+// read, and nothing could reach it. The divergence is deliberate and is confined to
+// strings upstream reads only in part: a topology silently different from the one asked
+// for is worse than a refusal that says so, and no gate, node count or search result
+// depends on it.
+//
+// The sysfs readers pass STRICT false and keep the lenient reading: a kernel file this
+// reader cannot follow is not a reason to stop reading the ones it can.
 //
 // Hand each element to the parser UNTRIMMED. Upstream skips only the empty element and
 // leaves every other byte to str_to_size_t, whose own whitespace rule then decides;
-// trimming here instead would agree with it on the /sys reads and disagree on an element
-// like "0 1", which upstream reads as 0 and a trimming parser rejects outright.
-static bool for_each_index(
-  const char *s, size_t len, bool (*sink)(void *ctx, size_t index), void *ctx, bool *out_any) {
+// trimming here instead would disagree with it on an element like "0 1".
+static bool for_each_index(const char *s,
+                           size_t len,
+                           bool (*sink)(void *ctx, size_t index),
+                           void *ctx,
+                           bool *out_any,
+                           bool strict) {
     size_t start = 0;
     for (size_t i = 0; i <= len; ++i) {
         if (i != len && s[i] != ',')
@@ -289,8 +312,11 @@ static bool for_each_index(
 
         size_t lo = 0;
         size_t hi = 0;
-        if (!parse_element(element, element_len, &lo, &hi))
+        if (!parse_element(element, element_len, &lo, &hi)) {
+            if (strict)
+                return false;
             continue;
+        }
 
         for (size_t index = lo; index <= hi; ++index) {
             if (!sink(ctx, index))
@@ -324,7 +350,7 @@ bool numa_config_from_string(NumaConfig *out, const char *s, size_t len) {
 
         AddSink sink = { &cfg, node };
         bool any = false;
-        if (!for_each_index(s + start, i - start, add_sink, &sink, &any)) {
+        if (!for_each_index(s + start, i - start, add_sink, &sink, &any, true)) {
             numa_config_destroy(&cfg);
             return false;
         }
@@ -502,7 +528,7 @@ static bool sys_node_sink(void *ctx, size_t index) {
     if (cpu_ids == nullptr)
         return false;  // bail only when the file does not exist; an empty node is fine
 
-    const bool ok = for_each_index(cpu_ids, len, sys_cpu_sink, s, nullptr);
+    const bool ok = for_each_index(cpu_ids, len, sys_cpu_sink, s, nullptr, false);
     free(cpu_ids);
     return ok && !s->failed;
 }
@@ -524,7 +550,7 @@ static bool from_system_numa(NumaConfig *out, bool respect_process_affinity) {
     numa_config_init(&cfg);
 
     SysNodeSink sink = { &cfg, &mask, 0, false };
-    const bool ok = for_each_index(node_ids, len, sys_node_sink, &sink, nullptr);
+    const bool ok = for_each_index(node_ids, len, sys_node_sink, &sink, nullptr, false);
     free(node_ids);
 
     if (!ok) {
@@ -734,7 +760,7 @@ try_get_l3_aware_config(NumaConfig *out, bool respect_process_affinity, size_t b
 
         L3Domain domain = { 0, { nullptr, 0, 0 } };
         L3CpuSink sink = { &system_cfg, &mask, &domain, seen, system_cfg.cpu_map_len, false };
-        ok = for_each_index(siblings, len, l3_cpu_sink, &sink, nullptr) && !sink.failed;
+        ok = for_each_index(siblings, len, l3_cpu_sink, &sink, nullptr, false) && !sink.failed;
         free(siblings);
 
         if (!ok || domain.cpus.count == 0) {
