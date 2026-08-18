@@ -250,6 +250,18 @@ static void set_castling_right(Position *pos, Color c, Square rfrom) {
     const CastlingRights cr =
       (CastlingRights) ((c == WHITE ? WHITE_OO : BLACK_OO) << (rfrom < kfrom));
 
+    // ONE RIGHT, ONE ROOK. castling_rook_square holds a single square per right, so
+    // a second token resolving to the SAME CastlingRights overwrites it while the
+    // first rook keeps its mask bit -- and do_move clears the rights of whatever
+    // square a piece leaves, so moving the rook the position had discarded destroyed
+    // the right the surviving rook owns. Clear the outgoing rook's bit first.
+    // `4k3/8/8/8/8/8/8/RR1K4 w AB - 0 1` then `a1a2` kept the `B` right instead of
+    // losing it. Only a malformed castling field reaches this, since a well-formed
+    // one names each side once, and pos_is_ok cannot see it: the mask is not among
+    // the things it re-derives.
+    if (pos->st->castling_rights & cr)
+        pos->castling_rights_mask[pos->castling_rook_square[cr]] &= (uint8_t) ~cr;
+
     pos->st->castling_rights |= cr;
     pos->castling_rights_mask[kfrom] |= cr;
     pos->castling_rights_mask[rfrom] |= cr;
