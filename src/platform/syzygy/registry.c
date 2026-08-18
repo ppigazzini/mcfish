@@ -680,20 +680,27 @@ bool registry_map_dtz(TBTable *t) {
 
 // ---- init: enumerate every material configuration ---------------------------
 
-// Port upstream `TBTables::add`: count the DTZ file when present, then the WDL
-// file — a table counts as found only when its `.rtbw` exists — and raise the max
-// cardinality to this configuration's piece count.
+// Port upstream `TBTables::add`: a table counts as found only when its `.rtbw`
+// exists, so take the DTZ count BEHIND that gate, and raise the max cardinality to
+// this configuration's piece count.
+//
+// Upstream counts the DTZ file first (tbprobe.cpp:562), which makes the count a
+// tally of files present rather than of tables usable: a directory holding only
+// `.rtbz` files reported `Found 0 WDL and 5 DTZ tablebase files (up to 0-man)` --
+// five tables the engine had just decided not to use, printed beside a cardinality
+// saying it uses none. The WDL file is the gate everywhere else in this reader, so
+// it is the gate here.
 static void add(const uint8_t *pieces, size_t n) {
     char stem[8];
     size_t stem_len = 0;
     build_stem(pieces, n, stem, &stem_len);
-    if (tb_file_exists(stem, stem_len, ".rtbz")) {
-        FoundDtz += 1;
-    }
     if (!tb_file_exists(stem, stem_len, ".rtbw")) {
         return;
     }
     FoundWdl += 1;
+    if (tb_file_exists(stem, stem_len, ".rtbz")) {
+        FoundDtz += 1;
+    }
     if (n > MaxCard) {
         MaxCard = n;
     }
