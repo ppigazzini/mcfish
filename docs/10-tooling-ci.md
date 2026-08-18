@@ -987,8 +987,47 @@ engine and 3.69 for the other, on a 6-wide machine).
 
 ### Isolate the component instead of attributing it
 
-Two workloads answer questions no profile of the full engine can, and neither needs an
-attribution argument because each simply removes what it is not measuring:
+**`perf-decomp` is the axis that attributes DIRECTLY**, and it is the one to reach for
+first when a total moved and the question is which part moved it. It runs
+[`../tools/perf_decomp.sh`](../tools/perf_decomp.sh) over two binaries under callgrind
+with the cache and branch simulators on, sums **self** cost per symbol — the line after
+a `calls=` line is the callee's inclusive cost and is skipped, or the whole NNUE
+evaluation would be counted inside the search and again inside itself — and groups the
+symbols by [`../tools/perf_components.tsv`](../tools/perf_components.tsv).
+
+Two properties make it worth callgrind's order-of-magnitude slowdown, and they pull in
+opposite directions. **It is deterministic**: two runs of one binary give identical
+counts, so a component difference of any size is real rather than thermal, which is why
+the depth stays small. **And it is a model**: the cache simulator is a fixed two-level
+geometry with no prefetcher and no out-of-order execution. It ranks locality; it does
+not predict time. Where it and `perf_counters.sh` disagree, that one is measuring the
+hardware and this one a model of it.
+
+Its first run localised a known change exactly — the low-ply hoist out of the quiet
+scoring loop read `movepick 130.5M → 122.9M, 0.9417` with **every other row at
+1.0000**, against a whole-program 0.9968.
+
+Three rules the components file carries, each of which is a way to be wrong:
+
+- **Rows are tried in order and the first match wins**, so a narrow row must precede
+  the wider one that would swallow it.
+- **A row matching nothing on both sides is reported BY NAME, never printed as a
+  zero** — a zero reads as a total win forever. It means the workload did not exercise
+  it (the tablebase rows on a bench-list run, which is why the bench list needs the
+  probing workload to reach them) or the symbol stopped surviving inlining. There is no
+  `tt` row for exactly that reason: clang inlines `tt_probe` and `tt_save` into the
+  search at every tier here, so their work is inside `search nodes`.
+- **A row matching on ONE side only divides a real cost by nothing.** It is marked `X`,
+  excluded from the verdict and the run exits 1 — the other rows still stand, because
+  asymmetric inlining is the expected outcome of the refactors this axis measures.
+
+**Startup is its own rows**, and that is not bookkeeping: at a small depth the net
+parse and the magic-table init are the largest rows in the profile, 17.6% and 14.4% of
+a depth-7 run. A table that folded them into one total would report a search ratio that
+is mostly startup.
+
+Two more workloads answer questions no profile of the full engine can, and neither needs
+an attribution argument because each simply removes what it is not measuring:
 
 - **`perft`** is the board zone — movegen, make/unmake, legality, threats — with no
   TT, no histories, no move ordering and no evaluation. It reports its own node count,

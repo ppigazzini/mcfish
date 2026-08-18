@@ -1,0 +1,66 @@
+# Per-component decomposition groups: NAME <TAB> REGEX
+#
+# One regex per logical component, matched against the symbol names in BOTH
+# profiles, and the SELF costs summed. Rows are tried IN ORDER and the first match
+# wins, so a narrow row must precede the wider one that would otherwise swallow it
+# -- `nnue acc apply` before `nnue other`.
+#
+# WHAT A ROW MEANS. "This much of the work happens here." It is a claim about COST,
+# not about the algorithm; tools/fingerprint_groups.tsv owns the call-count claim,
+# which is immune to inlining at the callee but not at the caller -- a function
+# inlined into its caller leaves the profile entirely.
+#
+# CHOOSE SYMBOLS THAT SURVIVE INLINING ON BOTH SIDES. A row matching nothing on
+# either side is reported BY NAME rather than printed as a zero, because a zero
+# reads as a total win forever and the real cause is usually a symbol that stopped
+# surviving LTO. mcfish builds with LTO, so the specialised search bodies appear as
+# `search_node_nonpv'2` and similar clones -- the regexes below are deliberately
+# loose enough to keep collecting them when the clone suffix changes.
+#
+# STARTUP IS ITS OWN ROWS, and that is not bookkeeping. At a small depth the net
+# parse and the magic-table init are the LARGEST rows in the profile -- 17.6% and
+# 14.4% of a depth-7 run -- so a table that folded them into a total would report a
+# search ratio that is mostly startup. Read `search total` and the NNUE rows against
+# each other; read the startup rows to know whether the depth was big enough that
+# they stopped mattering.
+
+# ---- startup: everything before the first node ----------------------------------
+net parse	^read_leb_section$|^nnue_parse|^load_network_bytes$|^nnue_read
+magics init	^init_magics$|^init_sliding
+history clear	^history_clear$|^clear_span$|^worker_clear$
+
+# ---- NNUE: narrow rows first ----------------------------------------------------
+nnue acc apply	^nnue_acc_apply|^apply_combined$
+nnue refresh	^refresh_combined$|^nnue_acc_refresh|^nnue_full_append
+nnue affine	^nnue_affine|^propagate
+nnue eval	^evaluate_bucket_raw$|^evaluate_side|^eval_acc_push$|^nnue_evaluate
+nnue other	^nnue_
+
+# ---- search ---------------------------------------------------------------------
+search nodes	^search_node_(pv|nonpv)|^qsearch_node
+iterative deepening	^iterative_deepening$
+movepick	^movepick_next$|^score_moves$|^partial_insertion
+history update	^search_update_continuation|^stat_|^shared_stat_
+
+# ---- board ----------------------------------------------------------------------
+do/undo move	^pos_do_move$|^pos_undo_move$|^pos_do_null|^pos_undo_null
+threats	^threats_update_piece
+check info	^set_check_info$|^pos_gives_check$
+legality	^pos_legal$|^see_ge$|^pos_is_draw$|^pos_is_repetition$
+movegen	^generate_|^pair_generate
+
+# NO `tt` ROW, and its absence is a measurement rather than an oversight: clang
+# inlines tt_probe and tt_save into the search at every tier this tree builds, so
+# they carry no self cost and a row for them matched nothing. Their work is inside
+# `search nodes`. Add the row back only if a profile ever shows the symbols.
+
+# ---- tablebases: absent from the bench list, present under a probing workload ----
+# Both rows report "matched nothing" on a bench-list run, and that is CORRECT: every
+# bench position has more men on it than any table tb-fetch installs. Drive the tool
+# with a probing workload (tools/cases/tb_probe.fens, plus a SyzygyPath setoption
+# line) to make them appear.
+tb decode	^decode_pairs$|^decode_set_sizes$
+tb probe	^do_probe_table$|^probe_wdl|^probe_dtz|^search_wdl$
+
+# ---- libc: not ours, but it is real cost and it must not vanish into the gap -----
+libc mem	^__mem(set|cpy|move)
