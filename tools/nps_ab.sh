@@ -57,6 +57,7 @@ for f in "$A" "$B"; do [ -x "$f" ] || { echo "error: $f not executable" >&2; exi
 
 # `Total time` is the search-only clock: bench takes its start AFTER the ucinewgame
 # clear, so no process startup is inside it. Nodes come back for the tree assertion.
+# shellcheck disable=SC2086  # BENCH is a bench ARGUMENT LIST; the split is the point
 run() { taskset -c "$CORE" "$1" bench $BENCH 2>&1 |
         sed -n 's/^Total time (ms)  *: *\([0-9]*\)/T\1/p; s/^Nodes searched  *: *\([0-9]*\)/N\1/p'; }
 

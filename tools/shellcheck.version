@@ -1,0 +1,7 @@
+# The shellcheck pin, in two fields, because they are two different numbers:
+# the PyPI package version of shellcheck-py, and the version the binary inside
+# it reports. shellcheck-py 0.11.0.1 ships shellcheck 0.11.0, and a gate that
+# pinned only one of them would either fail to resolve or fail to verify.
+#
+# <shellcheck-py package version> <shellcheck binary version>
+0.11.0.1 0.11.0

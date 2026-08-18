@@ -53,3 +53,14 @@ repos:
         language: system
         files: '\.md$'
         pass_filenames: false
+      # The shell is the language every gate is written in, and it was the one this
+      # config did not read: ruff and ty cover the Python, clang-format the C. Through
+      # build.sh for the same reason as the two above -- tools/shellcheck.sh owns the
+      # version pin, and a third-party mirror would add a supply-chain edge to resolve
+      # one binary. Whole-tree, like the gate.
+      - id: shellcheck
+        name: build.sh shellcheck
+        entry: ./build.sh shellcheck
+        language: system
+        files: '\.sh$'
+        pass_filenames: false

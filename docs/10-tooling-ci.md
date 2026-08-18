@@ -142,6 +142,7 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `tb` | runs the discovery report and the root probe battery in [`../tools/cases/tb.fens`](../tools/cases/tb.fens), diffed against [`../tools/tb.golden`](../tools/tb.golden) | Syzygy discovery, the root DTZ/WDL ranking and the probe path. **Without the tables it checks discovery only and says so in red** — the probe half reads as unexercised, never as a pass |
 | `fmt` / `fmt-fix` | `clang-format --dry-run --Werror` over `src/` and `tests/` | formatting. Exits **127** when no `clang-format` is found |
 | `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) | dead internal links, named paths that do not exist — in prose **and** in backticks, wherever the claim carries a file extension — a quoted bench signature, a backticked `snake_case` symbol absent from the whole tree, and a `build.sh` step no tracked page mentions. Paths resolve against this repo's **index** (or the golden beside it), never the working directory, so an untracked local file cannot green a claim a fresh clone would fail; a `.gitignore`d path is exempt and therefore checked by nothing. Two extractions are floored, so a pattern that goes stale fails at 2 instead of reporting OK over nothing. See [12-writing.md](12-writing.md) |
+| `shellcheck` | [`../tools/shellcheck.sh`](../tools/shellcheck.sh) over every `.sh` the index tracks, at severity `style` | the defect classes shellcheck knows, in the language the gates themselves are written in. Held at **zero findings with no baseline** — a suppression is a `# shellcheck disable=` at the site with its reason beside it, because the findings here are cheap enough to fix that a register would be the only debt list that could never expire. The version is pinned in **two fields** (`tools/shellcheck.version`): the `shellcheck-py` package version and the binary version it ships, which are not the same number. Resolved through `uvx`, as `ruff` and `ty` already are; exits **127** when neither a matching binary nor `uvx` is reachable |
 | `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | mcfish's bench against a pristine upstream build — see below |
 | `golden-audit` | [`../tools/upstream_golden_audit.sh`](../tools/upstream_golden_audit.sh) drives every `tools/cases/*.uci` script through a PRISTINE upstream build and diffs the result against the committed golden | that each golden is upstream's bytes rather than a photograph of mcfish. `golden-update` drives MCFISH, so every resync silently converts oracle-derived goldens back into self-photographs -- which is what happened to six of the eight during the c5aef2bf1 sync. `--write` re-derives from the oracle instead, and is what to reach for in place of `golden-update`. **LOCAL** -- it needs the oracle build. See [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md) |
 | `fingerprint` | [`../tools/upstream_fingerprint.sh`](../tools/upstream_fingerprint.sh) profiles both engines under callgrind on one tree and asserts each group in [`../tools/fingerprint_groups.tsv`](../tools/fingerprint_groups.tsv) is CALLED as often here as upstream | the ALGORITHM, which every other differential is blind to. The anchor, the goldens and the node differential all compare VALUES, so each passes over a state divergence that happens not to move a node count on the positions it drives -- and two real defects were found by this and nothing else (a `ucinewgame` that discarded the position, a terminal root that skipped the per-worker reset), both surfacing as ONE call of difference. Inlining-immune: a call count does not care how the callee was reached. Deterministic, so a loaded box cannot flap it. **LOCAL** -- needs valgrind and the oracle; ~50x slow, so it is not in `parity` |
@@ -167,6 +168,33 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `upstream-map` / `upstream-nodes` | the declared-map audit and uncovered ratchet; the random-position node differential | see *Resyncing the pin* below. **LOCAL** — both need the pinned upstream tree |
 | `bench` / `clean` | run the benchmark; remove `build/` | nothing |
 | `signature-update` / `golden-update` / `tb-cursed-update` | re-derive an anchor | read the warning below before running any of them |
+
+### The gates are written in a language nothing was reading
+
+`build.sh` is over three thousand lines of hand-written bash and it decides every
+claim this tree makes; `tools/` holds fifteen more scripts that do the deciding. The
+pre-commit config lints, formats and type-checks the Python and `fmt` covers the C.
+Until `shellcheck` landed, the shell had nothing.
+
+**What it proves is narrow, and the narrowness is the point.** shellcheck reads
+syntax and idiom. It cannot tell whether a gate checks the thing it claims to —
+that is `negative-control`'s job, and the two are not substitutes: a script can be
+shellcheck-clean and assert nothing at all. What it does catch is the class one
+level below, where `do_fmt`'s own comment already names the failure mode — a gate
+invoked as the left operand of `||` runs with `set -e` disabled for its whole body,
+so a missing `|| return 1` prints "all gates passed" over real violations.
+
+Its first run found thirty findings, and two were defects rather than idiom: five
+`cd` calls in gate scripts that would have run the rest of the script in the wrong
+tree had the `cd` failed, and a `A && B || C` reporting line that prints **both**
+verdicts if `B` ever returns non-zero. The rest were quoting and a dead local.
+
+**Pin the version, in both fields.** A lint's finding set is version-dependent —
+0.9.0 reports a trap-invoked cleanup as `SC2317` and 0.11.0 as `SC2329` — so a
+suppression written against one version is not a suppression under the other.
+refish records running its equivalent unpinned and getting 0 findings on one box and
+65 on another from the same tree, which is the most expensive false positive a lint
+can produce: the gate goes red and nobody changed a script.
 
 ### The mutant must be bounded, not merely wrong
 
@@ -199,8 +227,8 @@ different tree, the scalar build benches a different total, and the gate reddens
 35s. The rule generalises to any mutant aimed at an evaluation: **perturb the value,
 do not remove the bound.**
 
-`parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `fixture-coverage`,
-`lane-coverage`, `golden-coverage`, `tools-smoke`, `test`,
+`parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `shellcheck`,
+`fixture-coverage`, `lane-coverage`, `golden-coverage`, `tools-smoke`, `test`,
 `signature`, `net-roundtrip`, `speedtest-check`, `simd-scalar`, `perft`, `golden`, `tb`.
 
 `tools/tb.golden` is **oracle-derived**: `./build.sh tb-update` regenerates it by

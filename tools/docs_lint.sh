@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016  # FILE-WIDE, and it is this file's whole subject: every
+# pattern here MATCHES markdown backticks and `$`-shaped prose, so a literal backtick or
+# dollar inside single quotes is the payload, never a substitution this file wants expanded.
 # Check the mechanical half of the documentation: dead internal links, named
 # source paths that do not exist, a bench signature quoted into prose, backticked
 # symbols the tree does not contain, and a build.sh step no page mentions.
@@ -10,7 +13,7 @@
 # spend its attention on the half that needs a reader. See docs/12-writing.md.
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
 
 # Docs here legitimately name paths in TWO repos: mcfish's own tree and the Stockfish
 # golden. A path is a valid claim if it resolves in either. Checking only mcfish would
