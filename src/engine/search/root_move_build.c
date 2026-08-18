@@ -200,7 +200,16 @@ static bool rank_root_moves_wdl(
 
         int32_t wdl = WDL_DRAW;
         bool probe_failed = false;
-        if (!pos_is_draw(pos, 1)) {
+        // `rule50` is the option, and this test used to ignore it -- upstream's
+        // root_probe_wdl spells a bare `is_draw(1)` where root_probe above spells
+        // `(rule50 && is_draw(1)) || is_repetition(1)`. Every root move therefore
+        // became WDL_DRAW once the halfmove clock crossed 99, so with
+        // Syzygy50MoveRule off -- the setting that says the clock does NOT end the
+        // game -- a won position was ranked and scored as drawn, and the caller then
+        // zeroed the cardinality and stopped probing during the search. A repetition
+        // is a draw under either setting, which is why only the clock half takes the
+        // flag. Reached whenever DTZ ranking is unavailable, i.e. a WDL-only corpus.
+        if (!((rule50 && pos_is_draw(pos, 1)) || pos_is_repetition(pos, 1))) {
             const TbProbeResult probe = probe_position(pos);
             probe_failed = probe.wdl_state == PROBE_FAIL;
             wdl = -probe.wdl;
