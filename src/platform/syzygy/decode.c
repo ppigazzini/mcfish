@@ -132,6 +132,41 @@ bool decode_set_sizes(
         d->len_real[k] = (uint8_t) (k + d->min_sym_len);
     }
 
+    // Fill the bucket table the decode loop reads INSTEAD of walking base64[].
+    //
+    // The span a length owns runs from its own base to one below its predecessor's,
+    // and both ends land on a bucket boundary while the length fits in the index --
+    // so the fill is exact rather than approximate. A length past the cap divides a
+    // bucket, so it and everything below it keep SYZYGY_NO_FAST_LEN and reach the
+    // scan, which is still there and still bounded.
+    //
+    // `top` is the largest word that can reach length i: the scan stops at the FIRST
+    // len with buf64 >= base64[len], so a word above base64[i - 1] - 1 stopped
+    // earlier. A base of 0 catches every word, so no longer length is reachable past
+    // one and the fill ends there -- the same rule the scan itself obeys.
+    const unsigned len_tab_bits =
+      d->max_sym_len < SYZYGY_LEN_TAB_MAX_BITS ? d->max_sym_len : SYZYGY_LEN_TAB_MAX_BITS;
+    const size_t len_tab_size = (size_t) 1 << len_tab_bits;
+    d->len_tab_shift = (uint8_t) (64 - len_tab_bits);
+    d->len_tab = alloc(len_tab_size);
+    if (d->len_tab == nullptr) {
+        return false;
+    }
+    memset(d->len_tab, SYZYGY_NO_FAST_LEN, len_tab_size);
+
+    uint64_t top = ~(uint64_t) 0;
+    for (size_t k = 0; k < base64_size; ++k) {
+        if (k + d->min_sym_len <= len_tab_bits && top >= d->base64[k]) {
+            for (uint64_t b = d->base64[k] >> d->len_tab_shift; b <= top >> d->len_tab_shift; ++b) {
+                d->len_tab[b] = (uint8_t) k;
+            }
+        }
+        if (d->base64[k] == 0) {
+            break;
+        }
+        top = d->base64[k] - 1;
+    }
+
     p += base64_size * 2;  // sizeof(Sym)
     if (!fits(p, 2, buf_len)) {
         return false;
@@ -254,15 +289,23 @@ int32_t decode_pairs(const PairsData *d, uint64_t idx, bool *ok) {
     Sym sym = 0;
 
     while (true) {
-        // `len` is UNSIGNED on purpose: as an int, every one of the three table loads
-        // below wants a sign-extension the byte-wide index has already made
-        // unnecessary.
-        unsigned len = 0;  // symbol length - min_sym_len
-        while (buf64 < d->base64[len]) {
-            ++len;
-            if ((size_t) len >= d->base64_size) {
-                *ok = false;
-                return 0;
+        // THE SYMBOL LENGTH, minus min_sym_len, in one load. `len` is UNSIGNED on
+        // purpose: as an int, every one of the three table loads below wants a
+        // sign-extension the byte-wide index has already made unnecessary.
+        //
+        // The scan below is what this replaces, and it stays for the buckets the fill
+        // could not decide -- which on a table whose longest code fits under the cap
+        // is none of them. It was a data-dependent loop, which is a branch no
+        // predictor learns.
+        unsigned len = d->len_tab[buf64 >> d->len_tab_shift];
+        if (len == SYZYGY_NO_FAST_LEN) {
+            len = 0;
+            while (buf64 < d->base64[len]) {
+                ++len;
+                if ((size_t) len >= d->base64_size) {
+                    *ok = false;
+                    return 0;
+                }
             }
         }
         // Three loads, where this used to be five arithmetic operations and a read out

@@ -20,6 +20,15 @@
 
 enum { TB_PIECES = 7 };  // upstream TBPIECES: the largest table supported
 
+// How many top bits of the bitstream word PairsData::len_tab may index, and the
+// entry meaning "this bucket holds no single length; take the scan".
+//
+// Uncapped the table wants 2^63 entries. Under the cap the FIRST length past it
+// divides a bucket, so that length and everything below it stay SYZYGY_NO_FAST_LEN.
+// The marker cannot collide with a length: a length here is base64[]'s own index,
+// and decode_set_sizes refuses a table with max_sym_len at 64 or above.
+enum { SYZYGY_LEN_TAB_MAX_BITS = 12, SYZYGY_NO_FAST_LEN = 0xFF };
+
 typedef uint16_t Sym;  // RE-PAIR / canonical-Huffman symbol
 
 // Pack two 12-bit symbols (left child, right child) into 3 bytes. When the symbol
@@ -73,7 +82,22 @@ typedef struct PairsData {
     uint8_t len_shift[64];    // 64 - len - min_sym_len, always in [1, 63]
     uint16_t len_offset[64];  // lowest_sym[len] - (base64[len] >> shift), mod 2^16
     uint8_t len_real[64];     // len + min_sym_len: the bits the symbol consumes
-    uint8_t *symlen;          // owned by the registry arena
+
+    // Answer the base64[] scan with ONE load, indexed by the top bits of the
+    // bitstream word. A code no longer than K bits owns a WHOLE NUMBER of buckets of
+    // those bits, because base64[] is right-padded to 64: a length's span runs from
+    // its own base to one below its predecessor's, and both ends land on a bucket
+    // boundary while the length fits in the index. So the fill is exact rather than
+    // approximate, and a bucket the fill could not decide says SYZYGY_NO_FAST_LEN and
+    // reaches the scan.
+    //
+    // Sized to the TABLE's own max_sym_len, not to the cap: the buckets the stream
+    // reaches are the whole table either way, so sizing to the cap would only touch
+    // more cache lines. Behind a pointer, unlike the three above -- at the cap it is
+    // 4 KiB, which is not something to hold inline in every PairsData.
+    uint8_t *len_tab;       // owned by the registry arena
+    uint8_t len_tab_shift;  // 64 minus how many top bits len_tab indexes
+    uint8_t *symlen;        // owned by the registry arena
     size_t symlen_size;
     uint8_t pieces[TB_PIECES];
     uint64_t group_idx[TB_PIECES + 1];
