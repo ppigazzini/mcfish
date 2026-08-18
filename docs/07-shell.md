@@ -26,6 +26,13 @@ search actually exiting. Those hold whatever the clock did, and they need no ref
 — which is why they are the right shape here rather than an mcfish-authored
 expectation of upstream's output.
 
+Three of the ten are a different claim: the engine still **answers at all**. An
+`export_net` arriving during a live search, a `go movetime 0` — unbounded here,
+because zero means absent everywhere below the parse — and a critical error raised
+while workers sit inside a tablebase probe. None of them changes an answer; each stops
+there being one, and only a deadline the harness owns can tell that from a slow
+search.
+
 ## The split
 
 The zone is decomposed into single-responsibility modules, each owning one thing and
