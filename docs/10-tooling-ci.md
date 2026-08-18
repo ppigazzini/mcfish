@@ -985,6 +985,48 @@ netted to +3M cycles against a measured +212M gap), and does the derived quantit
 a sane magnitude (dispatched-ops + starved + stalled came to 3.56 slots/cycle for one
 engine and 3.69 for the other, on a 6-wide machine).
 
+### Nothing here measured more than one thread
+
+Every speed axis on this page runs `Threads 1` — `nps_ab.sh`, `perf-budget`,
+`perf-budget-tb`, `perf_counters.sh`, `perf-decomp` — and the Elo matches default to
+it. A player runs eight or sixteen. So until
+[`../tools/nps_threads.sh`](../tools/nps_threads.sh) landed, nothing in this tree
+could see whether a change contends worse on the shared last level, on the
+transposition table, or on the counters the manager polls.
+
+**The other axes cannot simply be pointed at more threads.** Each refuses a
+comparison whose node counts differ, and is right to. But a multi-threaded search at
+a **fixed depth is not reproducible against itself**. Three runs of `bench 128 8 10`
+on this tree:
+
+```
+3,773,312    6,144,045    4,460,748        a 62.8% spread
+```
+
+against a 0.02% tolerance. Every existing gate reports VOID, correctly, and learns
+nothing.
+
+**Make the node count the input instead of the output.** `bench <hash> <threads> <N>
+default nodes` gives every position the same budget, and the same three runs read
+
+```
+9,849,966    9,854,910    9,852,636        a 0.05% spread
+```
+
+Lazy-SMP threads still overshoot a budget slightly and by a different amount each
+run, so the node check here is a **band** rather than equality — the one place in this
+tree where that is true, and it is a property of threaded search rather than a
+concession.
+
+**Read `r(T)/r(1)`, never the A/B column.** The ratio at T threads carries the
+single-thread speed difference inside it, so a binary that is merely faster looks like
+it scales better. Dividing by the ratio at one thread removes exactly that, and what
+is left is the only column that answers whether the two **scale** differently. A
+spread with no trend means nothing changed.
+
+It does **not** pin a core, where `nps_ab.sh` does: contention between N threads is the
+subject.
+
 ### Isolate the component instead of attributing it
 
 **`perf-decomp` is the axis that attributes DIRECTLY**, and it is the one to reach for

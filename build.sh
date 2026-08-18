@@ -1811,8 +1811,24 @@ do_tools_smoke() {
     red "  perf_counter_validate: does not compile"; fails=$((fails + 1))
   fi
 
+  # nps_threads.sh: the only axis here that runs more than one thread. Its usage is
+  # the contract, and the rule that matters most in it is which column to read -- an
+  # nps ratio at T threads carries the single-thread speed difference inside it, so a
+  # reader who takes that column learns the wrong thing. Assert the rule survives.
+  out=$(bash tools/nps_threads.sh 2>&1 || true)
+  if grep -q 'nps_threads.sh <binA> <binB>' <<< "$out"; then
+    printf '  \033[32mok\033[0m    nps_threads.sh prints its usage\n'
+  else
+    red "  nps_threads.sh: no usage message"; fails=$((fails + 1))
+  fi
+  if grep -q 'r(T)/r(1)' tools/nps_threads.sh; then
+    printf '  \033[32mok\033[0m    nps_threads.sh still names the column to read\n'
+  else
+    red "  nps_threads.sh: the r(T)/r(1) rule is gone from its header"; fails=$((fails + 1))
+  fi
+
   [[ $fails -eq 0 ]] || { red "tools-smoke: $fails tool(s) broken"; return 1; }
-  green "tools-smoke: 4 of 4 unlaned tools still run and print their interface"
+  green "tools-smoke: 5 of 5 unlaned tools still run and print their interface"
 }
 
 # Check the counter against two bottlenecks known from first principles. An
