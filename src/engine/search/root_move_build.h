@@ -57,6 +57,24 @@ typedef struct {
 // as "never abort".
 typedef bool (*TbTimeAbort)(void *ctx);
 
+// The two flags the root ranking carries, as TYPES rather than as two adjacent
+// bools. They were `bool rule50, bool rank_dtz` in argument position, which is the
+// hole docs/09-type-design.md names as the largest one here -- "two arguments of the
+// same type, transposed" -- and both inversions are silent AND meaningful: rule50
+// changes the verdict a table gives, rank_dtz changes whether DTZ ranking happens at
+// all. Callers passed bare `true`/`false` literals at three sites.
+//
+// Two distinct `enum : uint8_t`, which is this tree's newtype tier for a tag, so the
+// transposition is a hard error under the -Werror=enum-conversion promotion
+// build.sh probes for -- and `./build.sh type-check` is what keeps that promotion
+// from quietly going missing.
+//
+// The values are 0/1 so the enum is still usable where upstream's bool was, and the
+// ranking is a ROOT operation -- once per `go`, never per node -- so the cost rule's
+// concern (a scalar threaded through a hot function's control flow) does not apply.
+typedef enum : uint8_t { RULE50_IGNORE = 0, RULE50_APPLY = 1 } Rule50;
+typedef enum : uint8_t { RANK_DTZ_NO = 0, RANK_DTZ_YES = 1 } RankDtz;
+
 // Rank MOVES for POS by DTZ, falling back to WDL, and return the resolved config.
 //
 // POS is walked with do/undo and restored exactly on every return, including the
@@ -69,15 +87,15 @@ typedef bool (*TbTimeAbort)(void *ctx);
 // whose chain carries no game history, while the counters that must feed the DTZ
 // bound are the real root's.
 //
-// RANK_DTZ is upstream's `rankDTZ`: false ranks all certain wins equally, true
-// orders them by exact DTZ. It is forced true where DTZ ranks as DTM.
+// RANK_DTZ is upstream's `rankDTZ`: RANK_DTZ_NO ranks all certain wins equally,
+// RANK_DTZ_YES orders them by exact DTZ. It is forced YES where DTZ ranks as DTM.
 //
 // Upstream `Stockfish/src/syzygy/tbprobe.cpp:1780` (Tablebases::rank_root_moves).
 TbConfig tb_rank_moves(Position *pos,
                        StateInfo *st,
                        RankedRootMove *ranked,
                        size_t count,
-                       bool rank_dtz,
+                       RankDtz rank_dtz,
                        int32_t cnt50,
                        bool has_repeated,
                        TbTimeAbort time_abort,

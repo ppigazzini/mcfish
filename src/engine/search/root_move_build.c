@@ -117,15 +117,15 @@ typedef enum { DTZ_SUCCESS, DTZ_FALLBACK_TO_WDL } DtzRankResult;
 
 static DtzRankResult rank_root_moves_dtz(Position *pos,
                                          StateInfo *st,
-                                         bool rule50,
-                                         bool rank_dtz,
+                                         Rule50 rule50,
+                                         RankDtz rank_dtz,
                                          int32_t root_rule50,
                                          bool root_has_repeated,
                                          RankedRootMove *ranked,
                                          size_t count,
                                          TbTimeAbort time_abort,
                                          void *abort_ctx) {
-    const int32_t bound = rule50 ? MAX_DTZ / 2 - 100 : 1;
+    const int32_t bound = rule50 == RULE50_APPLY ? MAX_DTZ / 2 - 100 : 1;
 
     for (size_t i = 0; i < count; ++i) {
         RankedRootMove *const rm = &ranked[i];
@@ -138,7 +138,7 @@ static DtzRankResult rank_root_moves_dtz(Position *pos,
             const TbProbeResult probe = probe_position(pos);
             probe_failed = probe.wdl_state == PROBE_FAIL;
             dtz = dtz_before_zeroing(-probe.wdl);
-        } else if ((rule50 && pos_is_draw(pos, 1)) || pos_is_repetition(pos, 1)) {
+        } else if ((rule50 == RULE50_APPLY && pos_is_draw(pos, 1)) || pos_is_repetition(pos, 1)) {
             dtz = 0;
         } else {
             const TbProbeResult probe = probe_position(pos);
@@ -161,7 +161,7 @@ static DtzRankResult rank_root_moves_dtz(Position *pos,
         if (probe_failed || aborted(time_abort, abort_ctx))
             return DTZ_FALLBACK_TO_WDL;
 
-        const int32_t rank_term = rank_dtz ? dtz : 0;
+        const int32_t rank_term = rank_dtz == RANK_DTZ_YES ? dtz : 0;
         int32_t rank;
         if (dtz > 0)
             rank = (dtz + root_rule50 <= 99 && !root_has_repeated)
@@ -192,7 +192,7 @@ static DtzRankResult rank_root_moves_dtz(Position *pos,
 }
 
 static bool rank_root_moves_wdl(
-  Position *pos, StateInfo *st, bool rule50, RankedRootMove *ranked, size_t count) {
+  Position *pos, StateInfo *st, Rule50 rule50, RankedRootMove *ranked, size_t count) {
     for (size_t i = 0; i < count; ++i) {
         RankedRootMove *const rm = &ranked[i];
         pos_do_move(pos, rm->raw_move, st, pos_gives_check(pos, rm->raw_move), &pos->scratch_dp,
@@ -209,7 +209,7 @@ static bool rank_root_moves_wdl(
         // zeroed the cardinality and stopped probing during the search. A repetition
         // is a draw under either setting, which is why only the clock half takes the
         // flag. Reached whenever DTZ ranking is unavailable, i.e. a WDL-only corpus.
-        if (!((rule50 && pos_is_draw(pos, 1)) || pos_is_repetition(pos, 1))) {
+        if (!((rule50 == RULE50_APPLY && pos_is_draw(pos, 1)) || pos_is_repetition(pos, 1))) {
             const TbProbeResult probe = probe_position(pos);
             probe_failed = probe.wdl_state == PROBE_FAIL;
             wdl = -probe.wdl;
@@ -222,7 +222,7 @@ static bool rank_root_moves_wdl(
         rm->tb_rank = WdlToRank[wdl + 2];
 
         int32_t score_wdl = wdl;
-        if (!rule50)
+        if (rule50 == RULE50_IGNORE)
             score_wdl = wdl > 0 ? WDL_WIN : (wdl < 0 ? WDL_LOSS : WDL_DRAW);
         rm->tb_score = WdlToValue[score_wdl + 2];
     }
@@ -246,7 +246,7 @@ TbConfig tb_rank_moves(Position *pos,
                        StateInfo *st,
                        RankedRootMove *ranked,
                        size_t count,
-                       bool rank_dtz,
+                       RankDtz rank_dtz,
                        int32_t cnt50,
                        bool has_repeated,
                        TbTimeAbort time_abort,
@@ -257,6 +257,11 @@ TbConfig tb_rank_moves(Position *pos,
 
     bool dtz_available = true;
 
+    // TYPE AT THE BOUNDARY. TbConfig carries the option as a bool because it is read
+    // as one elsewhere; this is the one place it becomes the flag the ranking takes,
+    // and the conversion is a line a reviewer can see.
+    const Rule50 rule50 = config.use_rule50 ? RULE50_APPLY : RULE50_IGNORE;
+
     // Rank only when the position itself fits the tablebase and cannot castle.
     // Otherwise it is searched normally, with cardinality kept so the in-search
     // Step 6 probe still fires at smaller in-tree positions.
@@ -264,17 +269,17 @@ TbConfig tb_rank_moves(Position *pos,
         // Where DTZ ranks as DTM, the exact DTZ is the only ordering that puts the
         // fastest mate first; without this every certain win ties at MAX_DTZ and
         // the tie-break falls to generator order.
-        rank_dtz = rank_dtz || dtz_is_dtm(pos);
+        if (dtz_is_dtm(pos))
+            rank_dtz = RANK_DTZ_YES;
 
-        const DtzRankResult dtz_result =
-          rank_root_moves_dtz(pos, st, config.use_rule50, rank_dtz, cnt50, has_repeated, ranked,
-                              count, time_abort, abort_ctx);
+        const DtzRankResult dtz_result = rank_root_moves_dtz(
+          pos, st, rule50, rank_dtz, cnt50, has_repeated, ranked, count, time_abort, abort_ctx);
 
         if (dtz_result == DTZ_SUCCESS) {
             config.root_in_tb = true;
         } else if (!aborted(time_abort, abort_ctx)) {
             dtz_available = false;
-            config.root_in_tb = rank_root_moves_wdl(pos, st, config.use_rule50, ranked, count);
+            config.root_in_tb = rank_root_moves_wdl(pos, st, rule50, ranked, count);
         }
     }
 
@@ -348,8 +353,8 @@ bool root_moves_build(const Position *pos,
             return false;
         }
         if (pos_set(&sp->pos, root_fen, chess960, &sp->root_st))
-            tb_config = tb_rank_moves(&sp->pos, &sp->move_st, ranked, count, false, pos->st->rule50,
-                                      pos_has_repeated(pos), nullptr, nullptr);
+            tb_config = tb_rank_moves(&sp->pos, &sp->move_st, ranked, count, RANK_DTZ_NO,
+                                      pos->st->rule50, pos_has_repeated(pos), nullptr, nullptr);
         free(sp);
     }
 
