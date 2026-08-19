@@ -9,16 +9,16 @@ Audience: anyone editing these docs.
 ## The set
 
 `README.md` is the index — GitHub renders it for the folder, so it is what a
-reader lands on. The rest are `00-`…`13-`, numbered by **reading
+reader lands on. The rest are `00-`…`14-`, numbered by **reading
 order**, not importance: a contributor works down from the architecture into a
 zone. The prefix is the only ordinal, and the last page is a lookup rather than a
-stop on that walk: [13-glossary.md](13-glossary.md) defines the words the other
+stop on that walk: [14-glossary.md](14-glossary.md) defines the words the other
 pages use without pausing on them.
 
 Each page owns one subsystem and names its **audience** in the index table. A page
 describes **what this codebase does** — not what upstream does, not what a chess
 engine does in general. Anything a reader could get from the Chess Programming
-Wiki belongs in [11-references.md](11-references.md) as a link.
+Wiki belongs in [12-references.md](12-references.md) as a link.
 
 ### Naming a module that does not exist here yet
 
@@ -156,9 +156,9 @@ who broke it.
 | [08-idiomatic-c.md](08-idiomatic-c.md) | the C23 patterns, the porting patterns, the measurement discipline | cold |
 | [09-type-design.md](09-type-design.md) | what each quantity denotes, and which of them are types | cold — the refutations outlive the code they were measured on |
 | [10-tooling-ci.md](10-tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
-| [11-references.md](11-references.md) | external links | cold |
+| [12-references.md](12-references.md) | external links | cold |
 | this page | the rules | cold |
-| [13-glossary.md](13-glossary.md) | the words, and which tier each belongs to | warm — an entry names an owner, so a rename dates it |
+| [14-glossary.md](14-glossary.md) | the words, and which tier each belongs to | warm — an entry names an owner, so a rename dates it |
 
 Cold does not mean unowned. It means the claim outlives a release, so when it *is*
 wrong it has usually been wrong for a long time.

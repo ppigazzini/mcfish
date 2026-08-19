@@ -1,7 +1,7 @@
 # References
 
 Links only. Anything a reader could learn from one of these does not belong in
-the rest of this set — see [12-writing.md](12-writing.md).
+the rest of this set — see [13-writing.md](13-writing.md).
 
 Audience: all developers.
 
