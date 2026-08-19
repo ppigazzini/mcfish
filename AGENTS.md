@@ -307,8 +307,10 @@ There is **no Makefile and no build system**. A new `.c` file must be added to
 **A behaviour-changing edit is not done until a gate says so.**
 
 ```sh
-./build.sh parity       # build, zone-check, fmt, docs-lint, test, signature,
-                        # simd-scalar, perft, golden, tb, malformed
+./build.sh parity       # the aggregate: twenty gates. build, zone-check, fmt,
+                        # docs-lint, shellcheck, cite-check, type-check, the four
+                        # coverage gates, test, signature, net-roundtrip,
+                        # speedtest-check, simd-scalar, perft, golden, tb, malformed
 ./build.sh signature    # just the anchor
 ./build.sh test         # unit + property suite, ASan+UBSan
 ```
@@ -346,10 +348,22 @@ before re-deriving an idea.** Four rules that outrank intuition here:
   deficit that direct measurement (bench's own `Total time`, which contains no
   startup by construction) put at 1.004 and 1.018. Time the search, do not
   subtract it.
-- **Isolate the component instead of attributing it.** `perft` is the board zone
-  alone; `MCFISH_EVAL_MATERIAL=1` is the spine and search with the network gone.
-  Comparing the same pair over both localises an effect to a zone in two commands.
-  Attribution across two differently-inlined binaries is void by construction.
+- **Isolate the component instead of attributing it.** `./build.sh perf-decomp <base>
+  <head>` attributes DIRECTLY -- callgrind over both binaries, SELF cost per symbol,
+  grouped by `tools/perf_components.tsv`, deterministic to the instruction. It
+  localised the low-ply hoist to `movepick 0.9417` with every other row at 1.0000.
+  Where it cannot reach, `perft` is the board zone alone and `MCFISH_EVAL_MATERIAL=1`
+  is the spine and search with the network gone; comparing the same pair over both
+  localises an effect to a zone in two commands. Attribution BY HAND across two
+  differently-inlined binaries is void by construction -- that is what the tool exists
+  to replace. Read its cache columns as a model that RANKS locality, never as time.
+- **Measure the threads too, and only with `tools/nps_threads.sh`.** Every other axis
+  here runs one thread. That tool is the only one that does not, and it works because
+  the node count is its INPUT: a threaded fixed-DEPTH bench is not reproducible even
+  against itself -- three runs of `bench 128 8 10` read 3.77 M, 6.14 M and 4.46 M
+  nodes, a 62.8% spread, against 0.05% for the same runs under a node budget. Read
+  `r(T)/r(1)`, never the A/B column: the latter carries the single-thread speed
+  difference inside it, so a binary that is merely faster looks like it scales better.
 - **Size an Elo run BEFORE you start it.** Speed converts at ~70 Elo per doubling,
   so a 6% per-node change is ~6 Elo and needs ~10,000 games/cell to see; a
   1000-game cell carries ±18. Two runs of the same binaries at the same TC here
