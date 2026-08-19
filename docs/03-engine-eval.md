@@ -535,3 +535,78 @@ oracle or not at all.
   not merely a current total. What the anchor cannot prove is faithfulness off the
   fixed bench list; that is the per-position differential's job. See
   [10-tooling-ci.md](10-tooling-ci.md).
+
+## The gates
+
+The evaluation is where a second way to compute an answer is cheapest to add and
+hardest to gate, because a dead path answers correctly through its fallback. Two of
+the rows below exist for that reason alone.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `net-roundtrip` | the .nnue **writer**, which every other gate is structurally blind to | this page |
+| `simd-scalar` | that `simd.h`'s two implementations are value-identical | this page |
+| `net` / `net-fetch` | nothing — one reports where the net must be, the other fetches and sha256-verifies it | this page |
+| `test` | that each accumulator update path AGREES with a control, and separately that it RAN | this page |
+| `golden` | the `eval` trace, byte for byte, against a golden derived from the ORACLE | [07-shell.md](07-shell.md) |
+| `arch-determinism` | that the tiers, which now run different ALGORITHMS, agree on one node count | [06-platform.md](06-platform.md) |
+
+### `./build.sh net-roundtrip`
+
+Drives `export_net` and compares the exported file with the net in `resources/`,
+byte for byte. That holds the **writer**, which every other gate is structurally
+blind to: the rest of the battery reads only what the engine CONSUMES, and
+`export_net` is not on the eval path — so a writer that drifts from its reader keeps
+the anchor, `simd-scalar` and every golden green.
+
+The shipped net was written by upstream's own exporter, which makes the comparison a
+differential against upstream's bytes rather than against a second derivation: it
+checks every LEB128 group, every split point, every component hash and the inverse of
+the tier's SIMD permutation at once.
+
+It writes outside `resources/` — a half-written file there is a net the next run
+loads — refuses a zero-byte subject, and **skips** with a red note when no net is
+present.
+
+### `./build.sh simd-scalar`
+
+Rebuilds with `MCFISH_SIMD_SCALAR`, every vector type and intrinsic compiled out, and
+re-asserts the anchor. In `parity`, and the only gate that can see a
+portable-spelling/scalar divergence.
+
+### `./build.sh net` and `./build.sh net-fetch`
+
+`net` names the `.nnue` this build expects, lists the directories the engine
+searches, prints the download command, and says whether the file is present. It
+deliberately does not fetch, so that `build` never becomes a network dependency.
+`net-fetch` is the separate step that downloads it into `resources/` and
+**sha256-verifies** it, and is what the CI lanes run before a gate that needs a net.
+
+### A path that agrees is not a path that ran
+
+Some ports add a second way to compute an answer the tree already computes: the
+accumulator's hybrid king-move step and its shared both-perspectives walk are both
+"no functional change" by construction. **Every value gate in this repository is
+blind to one of those going dead.** The fallback answers correctly in its place, so
+the anchor, the goldens, `simd-scalar`, `arch-determinism` and even the upstream
+node differential all stay green while the new code never executes.
+
+The value gates cannot close that, because agreement is what they test. Two claims
+are needed and they are separate:
+
+- **the path agrees with a control.** `test_nnue_accumulator_paths` walks move
+  sequences through the accumulator bracket and compares every ply against a second
+  arena reset before each evaluation, which must therefore rebuild from the board.
+- **the path was taken.** The same test asserts the counters
+  `nnue_accumulator.h` exposes under `MCFISH_ACC_STATS`, which `build.sh` defines
+  for `test` and `tsan` and for nothing else — a release binary must not carry a
+  counter in the engine's hottest function.
+
+Both halves were checked against deliberate mutations before being trusted: killing
+the hybrid condition fails only the coverage assertion (every value still correct),
+and flipping a sign in its arithmetic fails only the comparison. A gate that has
+never failed for the right reason has not been shown to be a gate.
+
+When you add a third way to compute something here, add both halves. And assert
+only on counters the path under test can move: the control arena refreshes on
+purpose, so the `refresh` counter carries both arenas' work and proves nothing.
