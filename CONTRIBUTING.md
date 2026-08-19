@@ -40,7 +40,8 @@ its sibling. Run it unpiped, or redirect and test `$?`.
   `./build.sh tsan-search` for the search itself. A race does not have to fire to
   be there.
 
-All ten, in the order `parity` runs them:
+All twenty, in the order `parity` runs them. The first seven are static — they
+read the tree rather than run the engine, so they fail in seconds:
 
 | Gate | Asserts |
 |---|---|
@@ -48,12 +49,22 @@ All ten, in the order `parity` runs them:
 | `zone-check` | `engine/` + `platform/` link with no `shell/` object |
 | `fmt` | clang-format is clean |
 | `docs-lint` | no dead doc links, no named paths that do not exist |
+| `shellcheck` | every tracked `.sh` is clean at severity `style`, against a pinned shellcheck |
+| `cite-check` | every commit SHA the docs cite is reachable — an ancestor, a ref, or a sibling checkout |
+| `type-check` | each mistake [09-type-design.md](docs/09-type-design.md) says a compile error stops is still refused, and each legal form beside it still compiles |
+| `fixture-coverage` | the property list and the fixture sets agree, both directions |
+| `lane-coverage` | every `build.sh` step runs in a lane or is excused with a reason |
+| `golden-coverage` | every golden is read by a gate, or owned with a reason |
+| `tools-smoke` | every tool no other lane invokes still runs and prints its interface |
 | `test` | the unit + property suite passes under ASan+UBSan |
 | `signature` | `bench` reproduces `tools/signature.golden` |
+| `net-roundtrip` | `export_net` returns the net byte-identical — the only gate on the WRITING side of the format |
+| `speedtest-check` | `speedtest` still produces a report of the shape its consumers read |
 | `simd-scalar` | the scalar SIMD fallback reproduces the same anchor as the vector path |
 | `perft` | the reference positions in `tools/perft.table` match |
 | `golden` | the UCI case outputs match `tools/*.golden` |
 | `tb` | Syzygy discovery and the root probe match `tools/tb.golden` |
+| `malformed` | a crafted or mutated tablebase file is refused or absorbed, under ASan+UBSan |
 
 A gate whose **tool** is missing exits 127; `parity` names it as SKIPPED and does
 not claim it passed. A skipped gate proves nothing — install the tool before
