@@ -549,7 +549,7 @@ the rows below exist for that reason alone.
 | `net` / `net-fetch` | nothing — one reports where the net must be, the other fetches and sha256-verifies it | this page |
 | `test` | that each accumulator update path AGREES with a control, and separately that it RAN | this page |
 | `golden` | the `eval` trace, byte for byte, against a golden derived from the ORACLE | [07-shell.md](07-shell.md) |
-| `arch-determinism` | that the tiers, which now run different ALGORITHMS, agree on one node count | [06-platform.md](06-platform.md) |
+| `arch-determinism` | that the tiers, which now run different ALGORITHMS, agree on one node count | [08-idiomatic-c.md](08-idiomatic-c.md) |
 
 ### `./build.sh net-roundtrip`
 
