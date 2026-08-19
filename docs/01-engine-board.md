@@ -490,6 +490,24 @@ room to castle. `set_castling_right` records the rook origin in
 `castling_rights_mask`, which is what lets `pos_do_move` drop a right by masking on
 the from- and to-square together.
 
+**One right, one rook**, and the two arrays are kept to it. `castling_rook_square`
+holds a single square per right, so a malformed field naming the same side twice used
+to overwrite it while the FIRST rook kept its mask bit — and since `pos_do_move`
+clears the rights of whatever square a piece leaves, moving the rook the position had
+discarded destroyed the right the surviving rook owns. Setting a right that is already
+set now clears the outgoing rook's bit first. `pos_is_ok` cannot see this: the mask is
+not among the things it re-derives.
+
+**Castling legality tests the GEOMETRY, not the `UCI_Chess960` option.** The rook can
+itself be the piece screening its own king from an enemy slider, and the option is not
+evidence about the board — `pos_set` does not require the castling field to agree with
+the pieces, so a `K`/`Q` token walks inward from the corner and adopts the first rook
+it meets. `4k3/8/8/8/8/8/8/qR2K3 w Q - 0 1` therefore records a 960 geometry under the
+standard option, and gating the blocker test on the option generated `e1c1` into
+check. Running it always is correct rather than merely harmless in standard geometry:
+a corner rook lies on no line between its own king and any slider, so it can never be
+one of that king's blockers.
+
 **The en-passant field is stored only when the capture is actually available, and a
 square that fails the SYNTAX is a different outcome from one that fails the test.**
 The rank is checked against the side to move — relative rank 6, so `6` for white and

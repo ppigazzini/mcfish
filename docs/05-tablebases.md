@@ -127,8 +127,10 @@ fills is exactly the layers [`decode.c`](../src/platform/syzygy/decode.c) and
 | Symbol lengths | `set_sym_len`, called from `decode_set_sizes` for every unvisited symbol, fills `d->symlen` by recursive descent over the btree: a leaf is 0, an internal symbol is `symlen[left] + symlen[right] + 1` — the count of values that symbol represents, minus one. Golden: `set_symlen` `tbprobe.cpp:1061`. |
 | Canonical Huffman | `decode_set_sizes` builds `d->base64` from `d->lowest_sym`, right-padded so `base64[i] >= base64[i+1]`, and records `min_sym_len`/`max_sym_len`. Golden: `set_sizes` `tbprobe.cpp:1080-1137`, the `base64` comment at `:366`. |
 | Per-length tables | Three of the values `decode_pairs` formed per SYMBOL depend only on the symbol's LENGTH, of which a table has at most 63: the right-padding shift, the lowest symbol of that length, and the real bit length consumed. `decode_set_sizes` fills `len_shift`/`len_offset`/`len_real` once per table, turning five arithmetic operations and a read out of the mapping into three loads, and the subtraction folds in exactly — `base64[len]`'s low `shift` bits are zero and the scan only stops where `buf64 >= base64[len]`, so there is no borrow to lose. The per-symbol shift RANGE test went with them: the refusal above bounds it to `[1, 63]` for every length the scan can return, so it could not fire. |
+| Length in one load | The scan those tables are indexed BY is itself a table now. A code no longer than K bits owns a whole number of buckets of the stream word's top K bits, because `base64[]` is right-padded to 64, so `len_tab[buf64 >> len_tab_shift]` answers exactly what the walk searched for. `SYZYGY_LEN_TAB_MAX_BITS` is 12 and sits near a coverage knee rather than on a round number — the constant's own comment carries the three measurements and the three refused alternatives. A bucket the fill cannot decide says `SYZYGY_NO_FAST_LEN` and reaches the walk, which resumes at `d->escape_len` rather than at zero: a length under the cap owns whole buckets, so an undecided bucket holds no word of any length below `len_tab_bits - min_sym_len + 1`. **−7.09% and −4.00%** on the probing lane. |
+| Alphabet proved at load | `decode_pairs` no longer tests each decoded symbol against `symlen[]`'s domain. The scan stops at the FIRST `len` with `buf64 >= base64[len]`, so `buf64 <= base64[len - 1] - 1` for every length it can reach, which makes the largest symbol each length can name known in `decode_set_sizes` — where a table whose largest lies outside the domain is REFUSED, beside the non-canonical `base64[]` refusal. The proof is taken in 64 bits where the loop's sum truncates to a `Sym`, so proving the untruncated value in range is what proves the truncation never happened. **−1.13%**, and the per-symbol test is gone rather than moved. |
 | Indices | `SparseEntry` (`tables.h`) is 6 bytes (`block[4]`, `offset[2]`). `sparse_index_size` and `block_length_size` are computed in the registry parse from the table's `span`/`blocks_num` (`registry.c`). |
-| Pairs data | `decode_pairs` locates the block through the sparse index, walks `block_length[]` to the exact block, reads that block's bitstream in **big-endian** 64-bit windows, decodes the symbol against `base64`, then descends the `LR` btree to the leaf value. Golden: `decompress_pairs` `tbprobe.cpp:602`. |
+| Pairs data | `decode_pairs` locates the block through the sparse index, walks `block_length[]` to the exact block, reads that block's bitstream in **big-endian** 64-bit windows, resolves the symbol's length through `len_tab`, then descends the `LR` btree to the leaf value. Golden: `decompress_pairs` `tbprobe.cpp:602`. |
 | Single value | When `TB_FLAG_SINGLE_VALUE` is set, the table stores one value and `decode_pairs` returns it for every index without touching the bitstream at all. |
 
 The six [`decode.h`](../src/platform/syzygy/decode.h) flags —
@@ -346,8 +348,17 @@ stronger:
   not pretend to.
 
 Both families are held by `negative-control` rows, and the second row is what says
-the absorbed family reaches the decoder: remove `sym >= symlen_size` and
-`symbol-past-end` becomes an ASan heap-buffer-overflow.
+the absorbed family reaches the decoder: remove the load-time alphabet proof —
+`largest >= symlen_size` in `decode_set_sizes` — and `symbol-past-end` becomes an
+ASan heap-buffer-overflow.
+
+That row names the load-time proof because the check MOVED there, and the row did
+not follow it for two commits. A held row is not run, so nothing noticed: two full
+`parity` runs reported `9 of 9` while one of the ten rows could no longer apply at
+all, and the rot surfaced only on an explicit `./build.sh negative-control
+malformed`, as a rig fault rather than a verdict. The default run now greps each
+held row's search text and fails if the tree no longer carries it — a held row that
+cannot apply asserts nothing.
 
 **Without the corpus the gate NARROWS rather than fails**, the way `tb` does: the
 crafted-header family and an empty-path control still run — that control is what

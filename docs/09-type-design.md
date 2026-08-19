@@ -373,6 +373,12 @@ asymmetry the flag list records.
   file assigned straight to a `TbFile`.
 - The Syzygy side-to-move and the table file, transposed at the DTZ read.
 - A correction counter read through a field the row's key did not select.
+- The root ranking's two flags, transposed. `rank_root_moves_dtz` took `bool
+  rule50, bool rank_dtz` adjacent and `tb_rank_moves` carried the second across
+  the seam where three call sites passed a bare `true` or `false`. Both inversions
+  are silent AND meaningful: `Rule50` changes the verdict a table gives — its
+  omission from the WDL path was a live defect — and `RankDtz` changes whether DTZ
+  ranking happens at all.
 - A history bonus and the table's gravity clamp, transposed. Upstream cannot
   express that swap because its limit is a template parameter, one per
   `StatsEntry` instantiation; C has no compile-time parameter, but `HistLimit` —
@@ -393,13 +399,26 @@ A page that omits its own boundary invites over-trust, and this one is short
 enough to invite it.
 
 **Two arguments of the same type, transposed.** The single largest hole, and it is
-structural rather than an oversight. `make_square(f, r)` takes two `int`s;
-`make_move(from, to)` takes two `Square`s; the four correction accessors share a
-signature. A newtype stops a `Direction` reaching a `Square` parameter and does
-nothing about two arguments that are genuinely two of the same thing. Where it
-mattered most the fix was not another type — it was moving both halves *into* the
-accessor so no call site carries one to transpose — and that technique does not
-generalise to `from` / `to`.
+structural rather than an oversight. A newtype stops a `Direction` reaching a
+`Square` parameter and does nothing about two arguments that are genuinely two of
+the same thing.
+
+What separates the pairs that were closed from the ones left open is whether the
+two arguments are *the same kind of thing*:
+
+| pair | state | why |
+|---|---|---|
+| the four correction accessors | **closed** | not by a type — by moving both halves *into* the accessor, so no call site carries one to transpose |
+| history bonus / gravity clamp | **closed** | `HistLimit`, a one-member struct that converts to nothing, so both directions are a hard error under any flags |
+| root ranking's `rule50` / `rank_dtz` | **closed** | two `enum : uint8_t`. They were adjacent bools that happened to sit together; being two different *flags*, they had a type each waiting to be written |
+| `make_move(from, to)` | open | two `Square`s, and they are genuinely two squares. No type distinguishes them; only a name does |
+| `make_square(f, r)` | open | two `int`s, and both are untyped by the deliberate choice below |
+| the aspiration window's bounds | open | two `Value`s, and `Value` is an alias rather than a type |
+
+The rule that falls out: **a pair is closable when the two arguments denote
+different sets and merely share a representation.** Two flags do; two squares do
+not. Where neither holds, moving both halves into the callee is the technique that
+worked, and it does not generalise to `from` / `to`.
 
 **A wrong index that is in range.** Every index type here is a distinct type over
 an integer, not a refinement over a range. `TbFile` narrows *which space* an index
