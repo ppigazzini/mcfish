@@ -501,3 +501,33 @@ source.
    code, never a piped fragment.
 7. Add a row here — to a map, to the boundary, or to both. A type added without
    one makes this page quietly wrong.
+
+## The gates
+
+Most of this page is a claim about what the COMPILER refuses, which means the
+compiler is the gate — and a gate nobody has watched refuse is a gate nobody has
+shown can fail. One step exists to watch it.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `type-check` | that every refusal `## What a compile error stops` claims is still refused, and every legal form beside it still compiles | this page |
+| `negative-control` | that the gates named on the other pages can fail at all, which is the same argument applied to the value gates | [10-tooling-ci.md](10-tooling-ci.md) |
+
+### `./build.sh type-check`
+
+Compiles `tools/type_cases/*.c` with `-fsyntax-only` and **`CFLAGS_COMMON` itself**.
+A `.refuse.c` must fail to compile; a `.accept.c` beside it must succeed.
+
+**Two-sided by construction, and the second side is what catches a broken rig.** A
+`.refuse.c` alone cannot distinguish a type doing its job from a header that stopped
+compiling at all — that failure scores as a detection. Each refusal therefore ships
+with the legal spelling it is meant to leave alone.
+
+**It is the gate on the flag list, not on the headers.** The claims rest on the
+`-Werror=` promotions `detect_enum_flags` probes, not on the types alone: without
+them, four of the seven refusals compile silently. That is why the step uses the
+build's own array directly rather than re-spelling it — a second copy could pass
+while the real build had lost a promotion.
+
+A case may name the promotion it needs. Where the compiler lacks it — gcc has no
+int-to-enum diagnostic — the case **narrows** instead of failing.
