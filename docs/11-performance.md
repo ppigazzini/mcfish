@@ -535,3 +535,76 @@ full-engine one — which they are not on absolutes.
 
 Running the same comparison over both is what localised the IPC gap to the search
 rather than the board, in two commands and with no per-function attribution at all.
+
+## The gates
+
+Nothing on this page blocks a merge except the two budgets, and both are **LOCAL**:
+their reference file is host- and toolchain-specific and is gitignored, so a fresh
+clone reads 127 until someone records one. Every other row here is an instrument, not
+a gate.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `perf-budget` / `perf-budget-update` | an instruction-count regression the node signature is blind to, keyed by the ISA tier in the binary and held to 0.05% | this page |
+| `perf-budget-tb` / `perf-budget-tb-update` | the same, over a PROBING workload, for the reader `perf-budget` cannot see at all | this page |
+| `perf-decomp` | where the cost is, per component, deterministically — callgrind over both binaries, SELF cost per symbol | this page |
+| `counter-validate` | that a counter means what its name says on *this* host | this page |
+| `material-eval` | nothing — it is the ablation that isolates the spine from the network | this page |
+| `fingerprint` | the ALGORITHM: that each group is CALLED as often here as upstream. **A call-count divergence outranks every cost finding.** | this page |
+| `signature` | that both sides searched the same tree, without which every figure above is void | [10-tooling-ci.md](10-tooling-ci.md) |
+| `arch-determinism` | that a number taken at one tier is a number about that tier and not about a divergence between them | [08-idiomatic-c.md](08-idiomatic-c.md) |
+
+### `./build.sh perf-budget` and `perf-budget-update`
+
+Measure retired instructions against `tools/instr_budget.golden`, keyed by the ISA
+TIER in the binary (`MCFISH_ARCH_STRING`, so `native` is filed as the tier it
+selected) and held to 0.05%. **LOCAL**: needs `perf_event_open`.
+
+`perf-budget` measures the EXISTING `build/mcfish`. The stamp rebuild and the
+tier-keyed budget close the old fake-regression trap between tiers; what is left is a
+rebuild landing inside the timed step, so run `./build.sh build` first anyway.
+
+### `./build.sh perf-budget-tb` and `perf-budget-tb-update`
+
+The same measurement over a PROBING workload — `tools/cases/tb_probe.fens` at depth
+14, with `SyzygyPath` composed into the bench file — filed under a `<tier>+syzygy`
+row. It exists because `perf-budget` cannot see the tablebase reader at all: every
+bench position has more men on it than any table `tb-fetch` installs, so
+`registry.c`, `do_probe_table` and the decode loop are absent from that figure and a
+bound inside them reads as free. It caught a 0.13% regression in a diagnostic that
+`perf-budget` read as free.
+
+**Run it on any edit under `src/platform/syzygy/`.** **LOCAL**, needs
+`perf_event_open` *and* `./build.sh tb-fetch 5`; an incomplete corpus exits 127
+loudly, because a probing measurement with no tables loaded is the bench list wearing
+a different name. The corpus is 5-man, so every figure over it is a LOWER BOUND —
+block count scales with table size.
+
+### `./build.sh fingerprint`
+
+[`../tools/upstream_fingerprint.sh`](../tools/upstream_fingerprint.sh) profiles both
+engines under callgrind on one tree and asserts each group in
+[`../tools/fingerprint_groups.tsv`](../tools/fingerprint_groups.tsv) is CALLED as
+often here as upstream.
+
+It holds the ALGORITHM, which every other differential is blind to. The anchor, the
+goldens and the node differential all compare VALUES, so each passes over a state
+divergence that happens not to move a node count on the positions it drives — and two
+real defects were found by this and nothing else: a `ucinewgame` that discarded the
+position, and a terminal root that skipped the per-worker reset, both surfacing as ONE
+call of difference.
+
+Inlining-immune, because a call count does not care how the callee was reached.
+Deterministic, so a loaded box cannot flap it. **LOCAL** — needs valgrind and the
+oracle; ~50x slow, so it is not in `parity`.
+
+### `./build.sh counter-validate`
+
+Drives [`../tools/perf_counter_validate.c`](../tools/perf_counter_validate.c)'s two
+loops under the counter harness and asserts the **separation**: a latency-bound serial
+chain must report IPC near 1, a throughput-bound one 3+.
+
+Running the validator alone proves nothing — it prints one checksum. It is a
+**workload**, and the measurement is what a counter says about it. **LOCAL**: needs
+`perf_event_open`. Why an instrument is a hypothesis until it has answered a known
+question is [above](#a-counter-is-a-hypothesis-until-it-is-validated).
