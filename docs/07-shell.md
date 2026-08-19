@@ -562,3 +562,167 @@ harnesses can walk the same script. `benchmark.c` drives the run **through the e
 own UCI surface** (`uci_execute`), handing every script line to the same dispatcher a
 GUI's input reaches, so the signature measures the shipped command path rather than a
 private one that could drift from it.
+
+## The gates
+
+The shell is the only zone with an observable surface, so most of what holds it
+compares BYTES. Four of the six are differentials against the oracle or against a
+committed transcript; the other two hold the corpus those differentials read.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `golden` | the observable UCI surface, byte for byte after normalization | this page |
+| `upstream-transcript` | the same surface against the ORACLE, which `golden` structurally cannot do | this page |
+| `golden-audit` | each committed golden is upstream's bytes rather than a photograph of mcfish | this page |
+| `golden-coverage` | every `tools/*.golden` has a reader, and every case has a golden | this page |
+| `fixture-coverage` | the input domain is written down: each property the engine branches on has a fixture that still presents it | this page |
+| `speedtest-check` | the `speedtest` command, whose every number is a property of the machine | this page |
+| `async-check` | the interrupted-search path, which no byte-golden can hold | this page |
+| `signature` | that the command loop still drives the same search — `benchmark.c` goes through `uci_execute`, so the anchor measures the shipped dispatcher | [02-engine-search.md](02-engine-search.md) |
+| `net-roundtrip` | `export_net`, the one command whose output no other gate reads | [03-engine-eval.md](03-engine-eval.md) |
+| `tb` | the `d` command's tablebase lines, and the four Syzygy options | [05-tablebases.md](05-tablebases.md) |
+
+### The golden-diff harness
+
+`do_golden` runs each script in `tools/cases/` through the binary, merges stdout
+and stderr, pipes the result through `normalize()`, and diffs against
+`tools/<name>.golden`.
+
+The cases cover the board dump, malformed input, the eval trace, the UCI
+handshake, perft output, and a search transcript.
+
+#### normalize(), and what it costs
+
+It lives in [`../tools/lib/normalize.sh`](../tools/lib/normalize.sh) — one
+definition, sourced by `build.sh` for `golden`/`golden-update` and by
+`upstream_golden_audit.sh` for the oracle run. Both must see the same filter or
+the two gates stop meaning the same thing, and a second copy would drift exactly
+when it matters: when a gap closes and its line must stop being dropped.
+
+```bash
+sed -E 's/ nps [0-9]+//; s/ time [0-9]+//;
+        s/^Total time \(ms\) *: [0-9]+$/Total time (ms) : <elided>/;
+        s/^Nodes\/second *: [0-9]+$/Nodes\/second    : <elided>/'
+```
+
+Four fields, all wall-clock derived, all elided. A golden must pin **behaviour**,
+not the speed of the machine that produced it; without this, every golden fails on
+a runner faster or slower than the developer's.
+
+**`nodes` is deliberately not normalized.** The node count is a deterministic
+function of the search, so it is exactly the field a golden should hold — eliding
+it would leave the search transcripts asserting little more than that the engine
+printed some lines.
+
+Keep the list minimal, and read it as a list of things no golden guards. Every
+field added here is a field that can drift forever without a gate noticing.
+
+### `./build.sh upstream-transcript`
+
+Drives both engines over [`../tools/cases/transcript/`](../tools/cases/transcript)
+and diffs the whole output. It holds the UCI surface against the golden, which
+`golden` structurally cannot do — that gate pins what mcfish printed last time, so
+both sides move together when a golden is re-derived.
+
+Machine-dependent fields are elided and nothing else; accepted divergences carry an
+argued reason in
+[`../tools/transcript_known.txt`](../tools/transcript_known.txt). **LOCAL** — it
+needs the oracle build.
+
+A case holds stdin open for five seconds unless it declares `# hold <seconds>`,
+which both engines read as a comment: the root `currmove` line only prints past ten
+million nodes, so the case that reaches it needs about a minute and everything
+shorter would compare two truncated searches. A case that declares a hold must reach
+`bestmove` inside it, or the run is a rig fault rather than a diff.
+
+### `./build.sh golden-audit`
+
+[`../tools/upstream_golden_audit.sh`](../tools/upstream_golden_audit.sh) drives every
+`tools/cases/*.uci` script through a **pristine** upstream build and diffs the result
+against the committed golden, so each golden is held to being upstream's bytes rather
+than a photograph of mcfish.
+
+`golden-update` drives MCFISH, so every resync silently converts oracle-derived
+goldens back into self-photographs — which is what happened to six of the eight
+during the c5aef2bf1 sync. `--write` re-derives from the oracle instead, and is what
+to reach for in place of `golden-update`. **LOCAL** — it needs the oracle build. See
+[`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md).
+
+### `./build.sh golden-coverage`
+
+Globs `tools/*.golden` from the **tree** and holds each to a reader: a
+`tools/cases/<name>.uci` the `golden` gate diffs it against, or an owner row naming
+the file that reads it and arguing why no case can. **A golden nobody diffs is a
+file, not a check.** `lane-coverage` holds every step to a lane; nothing held the
+other half of the battery, and the failure is silent by construction — the gate that
+stopped reading a golden is not the gate that goes red.
+
+It asks both directions: an unclaimed golden, and a case with no golden (checkable
+without a binary, where `golden` catches it only after a build). The universe is
+**globbed, never listed** — a second list would rot exactly as this exists to catch.
+
+Owner rows expire three ways: the golden gone, a case appearing that covers it, or an
+owner that does not NAME it. "Gone" means gone **and not gitignored** — a LOCAL
+golden like `instr_budget.golden` is absent from every fresh checkout by design, and
+reading that as retired split the gate by machine (green where the file happened to
+sit, red in CI). An absent golden still owes the same witness, so retiring one means
+deleting the row, the file and its ignore. In `parity`.
+
+### `./build.sh fixture-coverage`
+
+[`../tools/fixture_coverage.sh`](../tools/fixture_coverage.sh) holds
+[`../tools/fixture_properties.tsv`](../tools/fixture_properties.tsv) to the tree, so
+that the input domain is written down. Each row names a property the engine branches
+on, the file that branches, the fixture that presents it and a **witness** regex that
+must still match — so a fixture which stops presenting its property reddens. Fires in
+BOTH directions: a property with no fixture, and a `cases/*.uci` no row claims. In
+`parity`.
+
+**Limit**: it cannot prove the branch is exercised — that needs coverage data this
+tree does not collect.
+
+### `./build.sh speedtest-check`
+
+Drives `speedtest 1 8 1` and reads the report back. Every NUMBER in that report is a
+property of the machine and so can never be a golden; what is assertable is asserted:
+that the run reaches the last position, that all sixteen report fields are present,
+that both invocation echoes come back, and that the node count is positive.
+
+The expected position count is read from
+[`../src/shell/speedtest_positions.c`](../src/shell/speedtest_positions.c), not
+written here, so a game dropped from the table fails this gate instead of quietly
+shortening the run — nothing else in the tree reads that table.
+
+### `./build.sh async-check`
+
+The only instrument that reaches the interrupted-search path. A `stop` inside a
+running search ends it wherever the clock got to — the final info line's node count
+moved 443388 → 460932 between two runs of one binary — so no byte-golden can hold it.
+**LOCAL**, ~6s.
+
+It drives a real interrupted search and asserts ten invariants. Five are the shapes a
+GUI sends: a stopped search returns exactly one **legal** bestmove and leaves an
+engine that still answers `isready`; a `stop` with no search running answers nothing;
+`quit` mid-search exits; and the same `stop` and `quit` again in the ZERO-WAIT shape —
+piped in the same buffer as the `go` they interrupt, so the command is readable before
+the search has begun, which is what every harness actually sends and what the first
+three cannot reach because they sleep first.
+
+Two more the first five structurally cannot see, because all five interrupt with
+`stop` or `quit`, the commands dispatched BEFORE the end-search call: that a
+`setoption` arriving during `go infinite` does not WEDGE, and that a BOUNDED search is
+not truncated by a following mutating command, asserted on the node count rather than
+on the bestmove. The wedge is upstream's own defect — its `setoption` waits for a
+search only the UCI thread can stop, and that thread is now inside `setoption`. Both
+edits of that one line are wrong in opposite directions, which is why the gate holds
+both: never stop an unbounded search is the wedge, and stop every search including
+bounded ones is the truncation.
+
+The last three are the remaining HANG shapes from the upstream defect register, each
+closed in this tree's code and reached by no gate until they were added: an
+`export_net` arriving during a live search (upstream destroys the network replicas
+under its own workers), a `go movetime 0` — which is an UNBOUNDED search here, because
+zero means absent everywhere below the parse — being stoppable, and a CRITICAL ERROR
+raised mid-search exiting rather than hanging on a join, with `SyzygyPath` set so the
+workers may be inside a probe. None of the three changes an answer; each one stops
+there being an answer, which is why the deadline is the whole assertion.
