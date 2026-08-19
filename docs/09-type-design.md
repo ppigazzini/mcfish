@@ -345,7 +345,27 @@ rather than a result ([08-idiomatic-c.md](08-idiomatic-c.md)).
 
 ## What a compile error stops
 
-Each has been made to fail on purpose, and the errors counted.
+Each has been made to fail on purpose, and the errors counted — and since
+`./build.sh type-check`, each is a file that the build's own flags are watched
+rejecting, rather than a thing done once by hand.
+
+**The claims do not rest on the types alone**, which is the reason the gate exists.
+They rest on the `-Werror=` promotions `detect_enum_flags` probes for, because both
+compilers diagnose a domain confusion as a *warning* by default. Compiled without
+them, four of the seven refusals below **compile silently** — the enum crossing, the
+Syzygy transposition, the `[[nodiscard]]` discard and the narrowing integer. If a
+probe ever stops matching, the tree still builds clean and this page quietly becomes
+false; that is the failure the gate is pointed at, one level up from the flag list
+itself.
+
+The two `HistLimit` rows are the exception and the strongest of the set: a struct
+that converts to nothing is a hard error under any flags.
+
+Every claim is two-sided. A refusal on its own cannot tell "the type refused this"
+from "the header stopped compiling", so each carries a legal form beside it that
+fails the gate if the surface merely broke. On gcc the narrowing-integer row
+**narrows** rather than failing, because gcc has no int-to-enum diagnostic — the same
+asymmetry the flag list records.
 
 - One domain enum reaching another's parameter — a `Direction` where a `Square`
   belongs, and the reverse.
@@ -395,6 +415,9 @@ normal case rather than an exception.
 **Every `typedef` over an integer that is not an enum.** `Key`, `Value`,
 `Bitboard`, `Move` and `TimePoint` are aliases, not types. A `Key` where a
 `Bitboard` belongs compiles silently, and so does a `Value` where a `Move` does.
+`type-check` pins that hole from the other side: `typedef-gap.accept.c` is a `Key`
+passed as a `Bitboard`, and it is required to **compile**. If it ever stops, this
+section has gone stale — which is a finding about the page, not a win.
 Only the `enum` and `struct` tiers are types; a plain `typedef` is documentation.
 
 **The NNUE feature index spaces.** Still `uint32_t`, and blocked rather than

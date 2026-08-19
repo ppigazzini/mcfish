@@ -3084,6 +3084,76 @@ do_perf_decomp() {
   bash tools/perf_decomp.sh "$base" "$head" "$@"
 }
 
+# --- type-check: the claims in docs/09-type-design.md, compiled ---------------------
+#
+# A type meant to make a mistake unrepresentable is an ASSUMPTION until something
+# writes the mistake and the compiler is watched rejecting it. That page lists what a
+# compile error stops here, and its own line -- "each has been made to fail on
+# purpose, and the errors counted" -- describes a thing done once, by hand, with
+# nothing preserving it.
+#
+# The claims do not rest on the types alone. They rest on ENUM_FLAGS, which
+# detect_enum_flags PROBES per compiler, because both compilers diagnose a domain
+# confusion as a WARNING by default -- "an advisory, not a guarantee", as the comment
+# up there puts it. If a probe silently stops matching, the tree still builds clean
+# and every claim on that page quietly becomes false. This is the gate one level up
+# from that comment.
+#
+# IT USES THE BUILD'S OWN FLAGS, which is why it lives here rather than in tools/: a
+# gate that re-spelled CFLAGS_COMMON could pass while the real build had lost a
+# promotion. Nothing is duplicated -- the array is passed straight through.
+#
+# BOTH HALVES, ALWAYS. A `.refuse.c` alone cannot tell "the type refused this" from
+# "the header stopped compiling", so every claim carries an `.accept.c` beside it and
+# a surface that merely broke fails the gate rather than passing it.
+do_type_check() {
+  info "type-check: docs/09-type-design.md's claims, compiled with the build's own flags"
+  local cases=(tools/type_cases/*.c)
+  [[ -e ${cases[0]} ]] || { red "type-check: no cases in tools/type_cases/"; return 2; }
+
+  local fails=0 narrowed=0 checked=0 f base want need out rc
+  for f in "${cases[@]}"; do
+    base=$(basename "$f")
+    case $base in
+      *.refuse.c) want=refuse ;;
+      *.accept.c) want=accept ;;
+      *) red "  $base: name says neither .refuse.c nor .accept.c"; fails=$((fails + 1)); continue ;;
+    esac
+
+    # A refusal that depends on a promotion this compiler does not have is NARROWED,
+    # not failed: gcc has no int-to-enum narrowing diagnostic, which detect_enum_flags
+    # already records. Reporting it as a defect would make the gate red on a
+    # toolchain the tree supports.
+    need=$(sed -n 's|^// REQUIRES: *||p' "$f")
+    if [[ -n $need ]] && ! printf '%s\n' "${ENUM_FLAGS[@]}" | grep -qx -- "$need"; then
+      printf '  \033[36mnarrowed\033[0m  %-32s needs %s, which this compiler lacks\n' "$base" "$need"
+      narrowed=$((narrowed + 1))
+      continue
+    fi
+
+    rc=0
+    out=$("$CC" "${CFLAGS_COMMON[@]}" -fsyntax-only "$f" 2>&1) || rc=$?
+    checked=$((checked + 1))
+    if [[ $want == refuse && $rc -eq 0 ]]; then
+      red "  ACCEPTED  $base -- the mistake this case exists to stop now COMPILES"
+      fails=$((fails + 1))
+    elif [[ $want == accept && $rc -ne 0 ]]; then
+      red "  REFUSED   $base -- the LEGAL form no longer compiles:"
+      printf '%s\n' "$out" | head -3 | sed 's/^/            /'
+      fails=$((fails + 1))
+    else
+      printf '  \033[32mok\033[0m        %-32s %s\n' "$base" "$want"
+    fi
+  done
+
+  [[ $fails -eq 0 ]] || { red "type-check: $fails case(s) disagree with docs/09-type-design.md"; return 1; }
+  if [[ $narrowed -gt 0 ]]; then
+    green "type-check: $checked case(s) hold; $narrowed NARROWED (a promotion this compiler lacks)"
+  else
+    green "type-check: $checked case(s) hold, both directions"
+  fi
+}
+
 # --- cite-check: a cited SHA still names a commit a reader can reach ---------------
 #
 # docs-lint checks paths and symbols; nothing checked the ~37 commit SHAs the pages
@@ -3452,6 +3522,7 @@ do_parity() {
   do_docs_lint
   do_shellcheck || { [[ $? -eq 127 ]] && skipped+=(shellcheck) || return 1; }
   do_cite_check
+  do_type_check
   do_fixture_coverage
   do_lane_coverage
   do_golden_coverage
@@ -3546,6 +3617,7 @@ usage: ./build.sh <step> [args]
   docs-lint          check docs for dead links and stale paths
   shellcheck         lint every .sh in the tree (pinned shellcheck, severity style)
   cite-check         every commit SHA the docs cite still resolves (needs a full clone)
+  type-check         compile docs/09-type-design.md's claims: each mistake still refused
   sync-status        report drift between the pinned SHAs and the tracked repos
   upstream-map       LOCAL: audit the declared upstream map, ratchet uncovered surface
   upstream-nodes     node-for-node differential on RANDOM positions vs the oracle
@@ -3621,6 +3693,7 @@ case "${1:-build}" in
   upstream-parity)  shift; do_upstream_parity "$@" ;;
   shellcheck)       do_shellcheck ;;
   cite-check)       do_cite_check ;;
+  type-check)       do_type_check ;;
   perf-decomp)      shift; do_perf_decomp "$@" ;;
   fmt)              do_fmt ;;
   fmt-fix)          do_fmt_fix ;;
