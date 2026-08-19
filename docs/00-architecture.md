@@ -449,7 +449,7 @@ links engine alone without a platform.
 | `engine-standalone` | the engine→platform edge, as a ratcheted COUNT rather than a claim | this page |
 | `test` | a second, independent instance of `zone-check` with the same blind spots: the suite links the same `ENGINE_SOURCES` and a test needing a shell symbol does not link | [10-tooling-ci.md](10-tooling-ci.md) |
 | `fuzz-search` | that the engine zone runs with no host registered at all, under ASan and UBSan | [02-engine-search.md](02-engine-search.md) |
-| `build` | that the files **in `SOURCES`** compile under the full warning set — not the tree | [06-platform.md](06-platform.md) |
+| `build` | that the files **in `SOURCES`** compile under the full warning set — not the tree | [08-idiomatic-c.md](08-idiomatic-c.md) |
 
 `zone-check` is described under
 [How the zone rule is enforced](#how-the-zone-rule-is-enforced) above, beside the

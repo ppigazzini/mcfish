@@ -340,6 +340,114 @@ for step in "${STEPS[@]}"; do
     || fail "docs: ./build.sh '$step' is a real step but no tracked page mentions it"
 done
 
+# --------------------------------- every page carries the gates that hold it
+#
+# THE ROUTING IS THE LIST, so it is derived rather than proofread. Every page under
+# docs/ ends with (or, for the tooling page, opens on) `## The gates`, naming the
+# steps that bear on it; a row's last cell is where the step is DESCRIBED, and `this
+# page` means here. Three ways that decays, and all three are checked:
+#
+#   a. a page with no section at all -- a reader of that page never learns what
+#      holds it, and the step it needed is discoverable only by grepping;
+#   b. a step in no page's section -- the step-coverage check above passes on an
+#      incidental mention anywhere in the prose, which is not the same as being
+#      routed to. That check is why `perft` could sit on the tooling page for a
+#      year while 01-engine-board.md explained the rows it drives;
+#   c. a row pointing at a page that does not carry the step -- the pointer
+#      outlives its target, so it expires in the second direction the way every
+#      other held list here does.
+#
+# Two pages hold no gates and say so rather than carrying an empty table. The list
+# expires BOTH ways: an exempt page that grows a section is a stale exemption, and
+# an exemption naming a page the tree no longer has fails.
+GATELESS_PAGES=(docs/12-references.md docs/14-glossary.md)
+
+# Emit `step<TAB>page` per row of a page's gates table. Steps come from the FIRST
+# cell and the routing link from the LAST -- never from the whole row. A middle cell
+# routinely names another step ("the scalar half of the same question
+# `arch-determinism` asks") and routinely links another page, and pairing those
+# would manufacture a routing claim nobody wrote.
+gates_rows() {
+  awk -F'|' '
+    /^## The gates[[:space:]]*$/ { ing = 1; next }
+    ing && /^## /                { ing = 0 }
+    !ing                         { next }
+    /^\|[-: |]+\|$/              { next }
+    /^\|/ {
+      first = $2; last = $(NF - 1)
+      np = 0
+      s = last
+      while (match(s, /[0-9][0-9]-[a-z0-9-]+\.md/)) {
+        pp[++np] = substr(s, RSTART, RLENGTH); s = substr(s, RSTART + RLENGTH)
+      }
+      ng = 0
+      s = first
+      # every backtick-delimited span; the step is its first word
+      while (match(s, /`[^`]+`/)) {
+        tok = substr(s, RSTART + 1, RLENGTH - 2); s = substr(s, RSTART + RLENGTH)
+        sub(/[[:space:]].*$/, "", tok)
+        if (tok != "") g[++ng] = tok
+      }
+      for (i = 1; i <= ng; i++)
+        if (np == 0) print g[i] "\t-"
+        else for (j = 1; j <= np; j++) print g[i] "\t" pp[j]
+      delete g; delete pp
+    }
+  ' "$1"
+}
+
+gateless() {
+  local pg=$1 e
+  for e in "${GATELESS_PAGES[@]}"; do [[ $pg == "$e" ]] && return 0; done
+  return 1
+}
+
+all_rows=$(mktemp) || exit 2
+pages_with_section=0
+for pg in docs/[0-9]*.md; do
+  [[ -f $pg ]] || continue
+  n=$(grep -c '^## The gates[[:space:]]*$' "$pg" || true)
+  if gateless "$pg"; then
+    [[ $n == 0 ]] || fail "$pg is on the gateless list and has a gates section -- stale exemption"
+    continue
+  fi
+  case "$n" in
+    1) pages_with_section=$((pages_with_section + 1))
+       gates_rows "$pg" | sort -u | sed "s#\$#\t$pg#" >> "$all_rows" ;;
+    0) fail "$pg has no '## The gates' section" ;;
+    *) fail "$pg has $n '## The gates' sections -- want exactly one" ;;
+  esac
+done
+for e in "${GATELESS_PAGES[@]}"; do
+  [[ -f $e ]] || fail "the gateless list names $e, which the tree does not carry"
+done
+
+# b. every step build.sh dispatches is routed to by some page. STEPS is the floored
+# extraction above, so this inherits its guard: a stale pattern there exits 2 rather
+# than reporting every step routed.
+for step in "${STEPS[@]}"; do
+  [[ -z $step ]] && continue
+  cut -f1 "$all_rows" | grep -qxF -- "$step" \
+    || fail "docs: ./build.sh '$step' is in no page's '## The gates' table"
+done
+
+# c. a row that routes a step to a page must find the step there. The membership set
+# is built once rather than re-read per row, so nothing reads the row file while
+# another command in the same pipeline is writing it.
+carried=$(mktemp) || exit 2
+cut -f1,3 "$all_rows" | sort -u > "$carried"
+while IFS=$'\t' read -r step target src; do
+  [[ $target == '-' ]] && continue
+  if [[ ! -f docs/$target ]]; then
+    fail "$src routes '$step' to docs/$target, which does not exist"
+  elif ! grep -qxF -- "$step	docs/$target" "$carried"; then
+    fail "$src routes '$step' to $target, whose gates table does not name it"
+  fi
+done < "$all_rows"
+
+routed=$(cut -f1 "$all_rows" | sort -u | wc -l)
+rm -f "$all_rows" "$carried"
+
 # ------------------------------------------------------------------ report
 
 if [[ $fails -ne 0 ]]; then
@@ -349,4 +457,4 @@ fi
 
 # Print the denominator, so coverage is legible in the pass line rather than
 # inferable from it -- the same reason the transcript gate prints its case count.
-green "docs-lint passed (${#DOCS[@]} files, $path_claims backticked path claims)"
+green "docs-lint passed (${#DOCS[@]} files, $path_claims backticked path claims, $routed step(s) routed over $pages_with_section page(s))"
