@@ -106,8 +106,9 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
         const Move pv_move = rm->pv.moves[ply];
 
         const size_t n = collect_legal(pos, ranked);
-        const TbConfig config = tb_rank_moves(pos, &sts[made], ranked, n, false, pos->st->rule50,
-                                              pos_has_repeated(pos), deadline_expired, &deadline);
+        const TbConfig config =
+          tb_rank_moves(pos, &sts[made], ranked, n, RANK_DTZ_NO, pos->st->rule50,
+                        pos_has_repeated(pos), deadline_expired, &deadline);
 
         const RankedRootMove *const entry = find_ranked(ranked, n, pv_move);
         if (n == 0 || !entry || ranked[0].tb_rank != entry->tb_rank)
@@ -154,8 +155,9 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
         tb_stable_sort_by_rank(ranked, n);
 
         // The winning side minimises DTZ, the losing side maximises it.
-        const TbConfig config = tb_rank_moves(pos, &sts[made], ranked, n, true, pos->st->rule50,
-                                              pos_has_repeated(pos), deadline_expired, &deadline);
+        const TbConfig config =
+          tb_rank_moves(pos, &sts[made], ranked, n, RANK_DTZ_YES, pos->st->rule50,
+                        pos_has_repeated(pos), deadline_expired, &deadline);
 
         // Without DTZ there is no mate to walk toward, so stop rather than guess.
         if (!config.root_in_tb || config.cardinality > 0)
