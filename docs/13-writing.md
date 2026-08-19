@@ -267,48 +267,104 @@ project decides functional changes on fishtest, which this port does not use. Th
 evidence here is a gate on one machine, and it belongs in the gates block where
 the next reader can re-run it.
 
-## The gate
+## The gates
+
+Three steps decide prose rather than code, and all three are this page's subject.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `docs-lint` | the mechanical half of documentation rot: links, named paths, a quoted signature, a symbol that no longer exists, and a step no page mentions | this page |
+| `cite-check` | that a cited commit SHA still names a commit a reader can REACH — ancestry, not existence | this page |
+| `shellcheck` | the gates themselves are sound shell, which is the language most of the claims on these pages are enforced in | [10-tooling-ci.md](10-tooling-ci.md) |
+
+### `./build.sh docs-lint`
 
 ```bash
 ./build.sh docs-lint      # also runs inside ./build.sh parity
 ```
 
-[`../tools/docs_lint.sh`](../tools/docs_lint.sh) finds every `*.md` outside
-`build/`, `.git/` and `resources/` — tracked or not — and fails on:
+[`../tools/docs_lint.sh`](../tools/docs_lint.sh) lints exactly the **tracked**
+`*.md` files — `git ls-files`, so untracked scratch, build output and agent
+worktrees carry no claims it owns — and fails on:
 
 - **A dead internal link.** Any `[text](target)` whose target is not an external
   URL, a `mailto:`, or a bare `#anchor` must resolve as a path relative to the
   linking file. A trailing `#anchor` is stripped before the check, so the anchor
   itself is **not** verified — a link to a heading that no longer exists passes.
-- **A named path that exists in no repo.** Any `src/…`, `tools/…` or `tests/…`
-  spelled out in prose is a claim about *a* tree, and
-  must resolve under one of the roots `tools/docs_lint.sh` searches.
-  **That is the limit to hold in mind**: a `src/…` path that exists only in
-  Stockfish passes this gate while reading, in a mcfish page, as a claim about
-  mcfish. The naming convention above is what keeps the two apart, and nothing
-  mechanical enforces it.
+- **A named path that exists in no repo**, in prose *and* in backticks. The prose
+  half reads `src/…`, `tools/…`, `tests/…`, `verify/…`, `scripts/…` and `docs/…`;
+  the backticked half reads the same set plus `build/`, `resources/` and
+  `.github/`, and requires a file **extension**, which is what confines it to file
+  claims rather than to directories. Paths resolve against this repo's **index**
+  or the golden checkout beside it, never the working directory, so an untracked
+  local file cannot green a claim a fresh clone would fail.
+- **A reference into the gitignored dev area.** A tracked file that names it sends
+  every other reader to something their checkout does not contain.
 - **A quoted bench signature.** The current value of `tools/signature.golden`
   appearing anywhere in a doc is a failure, with the message pointing at
-  `./build.sh signature`. Note the limit: it only catches *that* number. A node
-  count, an nps figure or a module count written into prose passes cleanly and is
-  just as stale.
+  `./build.sh signature`.
+- **A backticked `snake_case` symbol absent from the whole tree.**
+- **A `build.sh` step no tracked page mentions**, and its reverse: a shipped file
+  that says `./build.sh <step>` for a step `build.sh` does not dispatch.
 
-Three more things it does not see, each of which will let a false claim through:
+**Two extractions are floored.** The step list and the backticked path claims are
+both read out of the tree by pattern, so a pattern that goes stale finds nothing
+and the loop over it runs zero times — a green report over nothing. Each is held to
+a floor just under its real count and exits 2 rather than 0 when it falls through.
+That is not hypothetical: `../zfish`'s equivalent matched 5 of its 77 steps for as
+long as it existed, green throughout, because its build file spells most steps
+across three lines.
 
-- **Anything inside backticks or a fenced block is stripped before scanning.** An
-  inline `` `src/does/not/exist.c` `` is invisible to the path check. Write a path
-  bare, or as a markdown link target, if you want the gate to hold it.
+Three things it does not see, each of which will let a false claim through:
+
+- **A `.gitignore`d path is exempt** and therefore checked by nothing. A page
+  legitimately describes the tool that writes an ignored artifact; the dev-area
+  check above exists separately for exactly this reason.
 - **A path containing `*` is treated as a pattern**, not a claim, and skipped.
-- **A bare filename** like `uci.c` is not checked at all.
+- **A bare filename** like `uci.c` is not checked at all. Write the path if you
+  want the gate to hold it.
 
-### It cannot tell you a sentence is false
+**The limit to hold in mind**: a `src/…` path that exists only in Stockfish passes
+this gate while reading, in a mcfish page, as a claim about mcfish. The naming
+convention above is what keeps the two apart, and nothing mechanical enforces it.
+
+### `./build.sh cite-check`
+
+[`../tools/docs_cite.sh`](../tools/docs_cite.sh) reads every backticked 7–12 digit
+hex token in a tracked `.md` and asks whether a reader can still reach the commit
+it names. `docs-lint` holds the pages to paths and symbols that exist; it never
+read the SHAs, and by the time this gate landed the tracked pages quoted
+thirty-seven of them.
+
+**The wrong test is the obvious one.** `git cat-file -e "$sha^{commit}"` asks
+whether the object is in **this** clone — and a rebased branch leaves its
+pre-rebase commits in the object store, where a backup ref pins them indefinitely.
+A citation to a pre-rebase identity therefore resolves on the author's machine,
+forever, and resolves nowhere else. The test here is ancestry:
+`git merge-base --is-ancestor`.
+
+**Off-branch is not a defect here, which is why there are four tiers rather than
+two:**
+
+- an ancestor of HEAD;
+- off-branch but reachable from some ref — what
+  `tools/upstream/PORT_SOURCES.md`'s upstream Stockfish SHAs are, reachable from
+  the upstream remote and from tags but ancestors of nothing on this branch;
+- resolved in a sibling checkout — what AGENTS.md's rfish, zfish and refish
+  citations are, which are not objects in this repository at all;
+- reachable from nothing, which is the finding.
+
+A missing sibling **narrows** the run and names it rather than failing, and a
+shallow clone narrows to nothing, because ancestry is unanswerable there.
+
+### They cannot tell you a sentence is false
 
 This is the whole point of the section. A page can link cleanly, name only real
 paths, quote no signature — and still describe code that was replaced three
 commits ago, or frame an unported subsystem as a design decision. Both failures
 have happened in this set, and neither is mechanically detectable.
 
-The gate buys the mechanical half so review can spend its attention on the half
+The gates buy the mechanical half so review can spend its attention on the half
 that needs a reader. That is the failure mode to write against: docs here are
 accurate when written and rot where the code moves under them, and in a repository
 mid-port the code moves a lot. Prefer the claim that stays true — name the owner
