@@ -156,6 +156,7 @@ who broke it.
 | [08-idiomatic-c.md](08-idiomatic-c.md) | the C23 patterns, the porting patterns, the measurement discipline | cold |
 | [09-type-design.md](09-type-design.md) | what each quantity denotes, and which of them are types | cold — the refutations outlive the code they were measured on |
 | [10-tooling-ci.md](10-tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
+| [11-performance.md](11-performance.md) | the nine instruments, and where this port stands against the golden | hot — a standing dies to the next sync |
 | [12-references.md](12-references.md) | external links | cold |
 | this page | the rules | cold |
 | [14-glossary.md](14-glossary.md) | the words, and which tier each belongs to | warm — an entry names an owner, so a rename dates it |
