@@ -165,6 +165,18 @@ correct single-node run. An unparseable `NumaPolicy` string is the one case that
 installing a config with zero nodes makes `distribute_threads` and
 `suggests_binding_threads` divide by a node count of zero.
 
+**A string that parses only in PART is refused on the same ground**, and that is a
+deliberate divergence from the golden. Upstream's `indices_from_shortened_string`
+never fails: a component it cannot read contributes nothing and the walk continues, so
+`NumaPolicy 0,1 2,3` — a policy with one space in it — was applied as `{0,1,3}` with
+nothing said, and `0-1,7-3` is read as node `{0,1}`. A topology silently different
+from the one asked for is worse than a refusal that says so, and no gate, node count,
+bench position or search result depends on which of the two an engine picks. The tail
+after a number's digits must now be whitespace in FULL rather than only its first
+byte, which is what makes the space split visible at all. The three `/sys` readers
+keep the lenient reading, spelled at their call sites: a kernel file this reader
+cannot follow is not a reason to stop reading the ones it can.
+
 **The partition is L3-aware first.** Upstream's default policy is
 `BundledL3Policy{32}` (`engine.cpp:58`), and `from_system` tries the L3-aware config
 before falling back to the raw `/sys/devices/system/node` read (`numa.h:583`). This is

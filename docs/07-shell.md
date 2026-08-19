@@ -355,11 +355,24 @@ search, and a divergence from the moment the search moved onto worker 0.
 **Each argument parses at the width of the field it goes into**, through
 `go_value_int` and `go_value_u64`. `is >> field` fails when the text does not fit the
 FIELD's type and upstream turns that failbit into a critical error on the next line,
-so the width is observable from a GUI: `int` for `depth`/`mate`/`movestogo`/`perft`,
+so the width is observable from a GUI: `int` for `depth`/`perft`, and for
+`mate`/`movestogo` a width check followed by a BOUND (below),
 `TimePoint` (int64) for the four clocks, `u64` for `nodes` — read the way a C++
 stream reads one, where a leading minus is accepted and the magnitude wraps, so `go
 nodes -1` is a budget of `UINT64_MAX`. `go depth 3000000000` is `Invalid argument for
 'depth'` and terminates; `go nodes 18446744073709551615` searches.
+
+**`movestogo` and `mate` are bounded where they enter too**, by the same shape as the
+clocks and for the same reason: both are read into an `int` and both reach arithmetic
+with no room for that type's extremes. `2 * limits_mate` is a signed overflow at
+`INT_MAX` and, worse, wraps to `-2` so the stop condition can never hold — `go mate
+2147483647` ran past a mate it already had, to depth 245, where `go mate 1` stops at
+depth 1. `movestogo` needs a clock to reach: timeman widens it to `int64_t`, so
+upstream's `mtg - 1` is safe here and only the product with an increment at the 1e12
+bound overflows. The bounds are each field's own domain — `movestogo` counts moves, so
+a negative is not a shorter time control and `0` is what timeman already reads as
+absent; `mate` is halved because the condition doubles it. Outside the bound is
+reported on an `info string`, never silently taken.
 
 **A clock is bounded where it enters**, after that width check and without moving
 it. The width is the accept/reject boundary a GUI can observe, so it stays what
