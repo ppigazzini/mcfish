@@ -1525,7 +1525,7 @@ NEGATIVE_CONTROL_ROWS=(
   # which this rig would credit as "the gate passed a mutated engine" -- a verdict
   # about the machine rather than about the code. Run it by hand:
   #   ./build.sh tb-fetch && ./build.sh negative-control malformed
-  "a decoded symbol is unbounded%src/platform/syzygy/decode.c%s#if ((size_t) sym >= d->symlen_size) {#if ((size_t) sym >= (size_t) -1) {#%malformed%hold"
+  "a decoded symbol is unbounded%src/platform/syzygy/decode.c%s#if (largest >= symlen_size) {#if (largest >= (uint64_t) -1) {#%malformed%hold"
   "an unbounded search is never stopped%src/shell/engine.c%s#if (search_running_unbounded())#if (false \&\& search_running_unbounded())#%async-check%run"
   "every search is stopped, bounded or not%src/shell/engine.c%s#if (search_running_unbounded())#if (true \|\| search_running_unbounded())#%async-check%run"
   "hash_bytes sign-extends its tail%src/engine/eval/nnue/nnue_hash.c%s#k = (k << 8) | (uint64_t) data\[tail + i\];#k = (k << 8) | (uint64_t) (int64_t) (int8_t) data[tail + i];#%test%run"
@@ -2194,7 +2194,7 @@ do_negative_control() {
   NEG_BACKUP_DIR=$(mktemp -d)
   trap negative_control_restore EXIT
 
-  local pass=0 fail=0 ran=0
+  local pass=0 fail=0 ran=0 fails_held=0
   local held=()
   local row label file script gate
   for row in "${NEGATIVE_CONTROL_ROWS[@]}"; do
@@ -2215,6 +2215,20 @@ do_negative_control() {
       for w in "${want[@]}"; do [[ $w == "$gate" ]] && keep=1; done
       [[ $keep == 0 ]] && continue
     elif [[ $mode == hold ]]; then
+      # A HELD row is not run, so its pattern rots in silence -- and the rot only
+      # surfaces when somebody finally asks for it and gets a RIG FAULT instead of a
+      # verdict. That happened: `e175be19` moved the decoder's symbol bound to load
+      # time and the row still named the line it had deleted, through two full
+      # `parity` runs that reported "9 of 9". So the SEARCH half is checked here,
+      # which costs a grep and no build.
+      local pat=${script#s#}
+      pat=${pat%%#*}
+      if ! grep -qF -- "$pat" "$file"; then
+        red "  HELD row '$label' names text that is not in $file:"
+        red "    $pat"
+        red "  The pattern has rotted. A held row that cannot apply asserts nothing."
+        fails_held=$((fails_held + 1))
+      fi
       held+=("$gate")
       continue
     fi
@@ -2285,7 +2299,8 @@ do_negative_control() {
   [[ $rc -eq 0 ]] || { red "negative-control: the tree did NOT come back clean (signature exit $rc)"; return 1; }
 
   [[ $fail -eq 0 ]] || { red "negative-control: $fail of $ran gate(s) passed a mutated engine"; return 1; }
-  [[ ${#held[@]} -eq 0 ]] || info "negative-control: HELD (not run by default): ${held[*]} -- see the row table"
+  [[ $fails_held -eq 0 ]] || { red "negative-control: $fails_held held row(s) name text the tree no longer has"; return 1; }
+  [[ ${#held[@]} -eq 0 ]] || info "negative-control: HELD (not run by default): ${held[*]} -- pattern present, not applied"
   green "negative-control: $ran of $ran gate(s) detected their mutation, tree restored"
 }
 
