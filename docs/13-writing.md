@@ -306,6 +306,10 @@ worktrees carry no claims it owns — and fails on:
 - **A backticked `snake_case` symbol absent from the whole tree.**
 - **A `build.sh` step no tracked page mentions**, and its reverse: a shipped file
   that says `./build.sh <step>` for a step `build.sh` does not dispatch.
+- **A page under `docs/` with no `## The gates` section**, a step in no page's
+  gates table, or a row routing a step to a page whose own table does not name
+  it. Mentioning a step somewhere in the prose is not the same as being routed
+  to, which is what the check above settles for and this one does not.
 
 **Two extractions are floored.** The step list and the backticked path claims are
 both read out of the tree by pattern, so a pattern that goes stale finds nothing

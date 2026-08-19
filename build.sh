@@ -3073,7 +3073,7 @@ do_upstream_parity() {
 }
 
 do_docs_lint() {
-  info "docs-lint: links, paths, signature, symbols, step coverage"
+  info "docs-lint: links, paths, signature, symbols, step coverage, gate routing"
   bash tools/docs_lint.sh
 }
 
