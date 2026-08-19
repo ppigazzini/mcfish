@@ -269,7 +269,55 @@ trips a break can still finish over budget, and upstream warns there too: the
 condition is "the extension ran out of time", not "a loop stopped because of
 time".
 
-## Testing
+## Gaps
+
+- **The `tb` gate is 3-man only** — but the cursed-win / blessed-loss branches of
+  `map_score_dtz` and `probe_dtz` are no longer unexercised. They need DTZ > 100,
+  so only a 5-man table reaches them, and `./build.sh tb-cursed` drives exactly
+  that against `tools/tb_cursed.golden` after `./build.sh tb-fetch 5`. It is
+  deliberately outside `parity`, because it depends on tables `tb-fetch` does not
+  get by default and a gate that is usually skipped stops being read. Run it by
+  hand when touching the prober; it exits **127**, not 0, when the tables are
+  absent. Its golden mixes provenance — oracle-pinned probe results over two
+  self-golden node totals — and `./build.sh tb-cursed-update` re-derives only the
+  latter, refusing outright if the former has moved. See
+  [10-tooling-ci.md](10-tooling-ci.md).
+- **The material key is local.** Upstream looks tables up by
+  `Position::material_key`; mcfish's `Position` carries none, so `registry.c`
+  hashes the piece counts with a private fixed-seed table. Only self-consistency
+  matters today, because the key never leaves the module — but the fix is to add
+  `Key material_key` to `StateInfo`, maintained incrementally by `pos_do_move`
+  exactly as upstream does.
+**Not a gap, and listed here because it reads like one: `gives_check` is a
+contract the prober must honour, not a parameter it may ignore.** `pos_do_move`
+**trusts** the argument — `new_st->checkers` is derived from it rather than
+recomputed from the board (`position.c`) — so every probe site passes the real
+`pos_gives_check(pos, m)`: `probe.c` and `wdl.c` on the walk, and both
+`pos_do_move` calls in `root_move_build.c` on the root ranking. Passing `false`
+there is not a cheap approximation; it hands the child an empty checkers set and
+the prober mis-probes with no diagnostic. Each site carries that note inline, and
+upstream reaches the same place differently: its `search<CheckZeroingMoves>` uses
+the two-argument `do_move`, which computes the predicate itself.
+
+## The gates
+
+Every bench position has more men on it than any table `tb-fetch` installs, so
+`registry.c`, `do_probe_table` and the decode loop are absent from the anchor, from
+`perf-budget` and from every counter this tree records. Nothing on this page is
+reachable by a gate that does not open a table on purpose, which is why there are
+seven of them.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `tb` | discovery, the root DTZ/WDL ranking and the probe path, against an oracle-derived golden | this page |
+| `tb-fetch` | nothing — it fetches, and verifies each file's Syzygy magic so a mirror's error page cannot masquerade as a table | this page |
+| `tb-update` | nothing — it re-derives `tools/tb.golden` from the ORACLE, and refuses without the full set | this page |
+| `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5` | this page |
+| `tb-cursed-update` | nothing — it re-derives only the node-limited legs, and only once the oracle-pinned half is green | this page |
+| `fuzz-tb` | the parse under two libFuzzer lanes, neither of which subsumes the other | this page |
+| `malformed` | that a file refused yesterday is refused today, and that a mutated one that loads stays inside its arrays | this page |
+| `negative-control` | that `malformed` can fail — one row per family, and the second is HELD | [10-tooling-ci.md](10-tooling-ci.md) |
+| `perf-budget-tb` | an instruction-count regression inside the reader, which `perf-budget` reads as free. **Run it on any edit under `src/platform/syzygy/`** | [11-performance.md](11-performance.md) |
 
 `./build.sh tb` runs two halves and reports them separately:
 
@@ -308,7 +356,16 @@ real files, points a real `SyzygyPath` at them, probes, and then ranks the root 
 a thousand times slower, and the only one that runs `set`, `set_groups`,
 `set_dtz_map` and `map_file` rather than a model of them. It is seeded from the
 3-man set when `./build.sh tb-fetch` has been run, so mutation starts from a
-table that parses.
+table that parses, and says so in red when the tables are not there.
+
+Both lanes pass `-timeout`, because a corrupt btree could once make the descent run
+forever, so a hang is a finding. Both assert their executed count against a floor
+rather than trusting an exit code — and the whole-file lane additionally floors what
+it REACHED, since an executed count cannot tell a decoder walked thousands of times
+from a parse refusing every file. Both are clang-only, libFuzzer having no gcc lane,
+and both are out of `parity` for the same reason `fuzz-search` is: their own build
+and a real time budget, and a clean run means "no crash in that budget", not "there
+is none".
 
 **The probe is not the only consumer of a score the file decided.** The
 whole-file lane stopped at `tablebase_probe_fen` — the value — while the ROOT
@@ -339,7 +396,8 @@ stronger:
   than trusted, and two inherited from a sibling were dropped for gating nothing
   here.
 - **ABSORBED** — four real 3-man tables with a handful of bytes changed, replayed
-  as byte lists rather than fuzz seeds. These LOAD, so the search reaches the
+  as byte lists rather than fuzz seeds. A fixture is a GENERATOR, not a blob: the
+  interesting thing about it is which field is wrong. These LOAD, so the search reaches the
   decode loop, which is where the per-symbol bounds live and where no crafted
   header can reach: an 80-byte file is refused long before, its sparse index alone
   outrunning the file. Their judge asks for SURVIVAL, not a diagnostic — these land
@@ -367,33 +425,3 @@ the run says in as many words that the corpus half is unexercised. The blocking 
 lane fetches the 26 KB 3-man set on a best-effort step so both halves run there;
 if the mirror is down the lane narrows instead of going red, because a tablebase
 mirror is not this project's dependency to be held hostage by.
-
-## Gaps
-
-- **The `tb` gate is 3-man only** — but the cursed-win / blessed-loss branches of
-  `map_score_dtz` and `probe_dtz` are no longer unexercised. They need DTZ > 100,
-  so only a 5-man table reaches them, and `./build.sh tb-cursed` drives exactly
-  that against `tools/tb_cursed.golden` after `./build.sh tb-fetch 5`. It is
-  deliberately outside `parity`, because it depends on tables `tb-fetch` does not
-  get by default and a gate that is usually skipped stops being read. Run it by
-  hand when touching the prober; it exits **127**, not 0, when the tables are
-  absent. Its golden mixes provenance — oracle-pinned probe results over two
-  self-golden node totals — and `./build.sh tb-cursed-update` re-derives only the
-  latter, refusing outright if the former has moved. See
-  [10-tooling-ci.md](10-tooling-ci.md).
-- **The material key is local.** Upstream looks tables up by
-  `Position::material_key`; mcfish's `Position` carries none, so `registry.c`
-  hashes the piece counts with a private fixed-seed table. Only self-consistency
-  matters today, because the key never leaves the module — but the fix is to add
-  `Key material_key` to `StateInfo`, maintained incrementally by `pos_do_move`
-  exactly as upstream does.
-**Not a gap, and listed here because it reads like one: `gives_check` is a
-contract the prober must honour, not a parameter it may ignore.** `pos_do_move`
-**trusts** the argument — `new_st->checkers` is derived from it rather than
-recomputed from the board (`position.c`) — so every probe site passes the real
-`pos_gives_check(pos, m)`: `probe.c` and `wdl.c` on the walk, and both
-`pos_do_move` calls in `root_move_build.c` on the root ranking. Passing `false`
-there is not a cheap approximation; it hands the child an empty checkers set and
-the prober mis-probes with no diagnostic. Each site carries that note inline, and
-upstream reaches the same place differently: its `search<CheckZeroingMoves>` uses
-the two-argument `do_move`, which computes the predicate itself.
