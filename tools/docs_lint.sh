@@ -10,7 +10,7 @@
 # claim still be wrong -- a real symbol placed in the wrong file, a list with the
 # wrong count or order, a flag described as absent from a build that sets it. None
 # of those is reachable from here. This gate buys the mechanical half so review can
-# spend its attention on the half that needs a reader. See docs/12-writing.md.
+# spend its attention on the half that needs a reader. See docs/13-writing.md.
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 2
@@ -48,7 +48,7 @@ fi
 
 # Strip what must not be scanned, in this order:
 #   1. fenced code blocks  -- shell transcripts and examples, not prose claims
-#   2. inline code spans   -- `[text](target)` in 12-writing.md is a SYNTAX EXAMPLE,
+#   2. inline code spans   -- `[text](target)` in 13-writing.md is a SYNTAX EXAMPLE,
 #                             not a link; scanning it reports a dead link to "target"
 #   3. URLs                -- github.com/.../src/nnue is a link, not a local path
 strip_noise() {
@@ -176,7 +176,7 @@ done
 # in these pages names a family rather than a thing that can be renamed out from
 # under the prose. It is also why this needs no separate directory rule.
 #
-# THE SENTINEL: docs/12-writing.md has to be able to SPELL a dead reference in order
+# THE SENTINEL: docs/13-writing.md has to be able to SPELL a dead reference in order
 # to rule on one. It uses the path below, which this repository guarantees never
 # exists -- and the guard under the loop enforces that guarantee, so the exemption
 # cannot quietly grow to cover a real file.

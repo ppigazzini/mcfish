@@ -6,7 +6,7 @@ stated as plainly as the rest — which of them it cannot.
 [08-idiomatic-c.md](08-idiomatic-c.md) is the neighbouring page: it records how a
 C++ construct becomes a C23 one and what each translation measured. This one
 records what the resulting values denote. The theory each family rests on is
-collected in [11-references.md](11-references.md) under "Type theory and type
+collected in [12-references.md](12-references.md) under "Type theory and type
 design", with what each citation is for.
 
 Audience: engine and platform contributors.
@@ -78,7 +78,7 @@ and leaves both parameters `int`, which is a rename dressed as a guarantee.
 `[[strong]]` attribute) would give a distinct type that still participates in
 arithmetic, which is exactly what a score or a key would need. It is a proposal
 for a future revision, implemented by no compiler this port builds with, and
-[11-references.md](11-references.md) carries it as a thing to watch rather than a
+[12-references.md](12-references.md) carries it as a thing to watch rather than a
 thing to use.
 
 ## The maps
@@ -308,7 +308,7 @@ choice that serves all six turns any depth into any integer. **A type that needs
 six output types needs none.**
 
 Units-of-measure systems solve this with unit polymorphism, where a function is
-generic in the unit it returns ([11-references.md](11-references.md)). C cannot
+generic in the unit it returns ([12-references.md](12-references.md)). C cannot
 express that, so the honest answer is to leave these scalars and say why.
 
 ## The cost rule

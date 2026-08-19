@@ -6,7 +6,7 @@ that must not be confused:
 - **Section 1 is Stockfish's vocabulary.** Upstream owns the word; the entry says
   which symbol carries it here. It does not teach the concept — a page in this
   set describes what this codebase does, and the domain reference is a link in
-  [11-references.md](11-references.md).
+  [12-references.md](12-references.md).
 - **Section 2 is this repository's vocabulary.** None of it appears in the
   Stockfish source, and upstream is not obliged to agree with any of it.
 - **Section 3 is the words that mean two things here.** Each entry is a

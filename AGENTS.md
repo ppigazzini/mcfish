@@ -288,7 +288,7 @@ buries the correction that mattered.
 [docs/](docs/README.md) or a report in the reply. Cover the substance and stop: no
 restated summary, no recap of what a gate prints, no next-steps list nobody asked
 for. Length is not thoroughness; it is where rot hides
-([docs/12-writing.md](docs/12-writing.md)).
+([docs/13-writing.md](docs/13-writing.md)).
 
 ## Setup
 
