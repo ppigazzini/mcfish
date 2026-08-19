@@ -145,9 +145,9 @@ section, and routed to from here.
 | `tb-fetch` | downloads the 3-man Syzygy set (KPvK KNvK KBvK KRvK KQvK, WDL+DTZ) into `resources/syzygy/` | nothing — it *fetches*, and verifies each file's Syzygy magic. Described in [05-tablebases.md](05-tablebases.md) |
 | `tb` | runs the discovery report and the root probe battery in [`../tools/cases/tb.fens`](../tools/cases/tb.fens), diffed against [`../tools/tb.golden`](../tools/tb.golden) | Syzygy discovery, the root DTZ/WDL ranking and the probe path. **Without the tables it checks discovery only and says so in red.** `tb-update` re-derives that golden from the ORACLE. Described in [05-tablebases.md](05-tablebases.md) |
 | `fmt` / `fmt-fix` | `clang-format --dry-run --Werror` over `src/` and `tests/` | formatting. Exits **127** when no `clang-format` is found |
-| `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) | dead internal links, named paths that do not exist — in prose **and** in backticks, wherever the claim carries a file extension — a quoted bench signature, a backticked `snake_case` symbol absent from the whole tree, and a `build.sh` step no tracked page mentions. Paths resolve against this repo's **index** (or the golden beside it), never the working directory, so an untracked local file cannot green a claim a fresh clone would fail; a `.gitignore`d path is exempt and therefore checked by nothing. Two extractions are floored, so a pattern that goes stale fails at 2 instead of reporting OK over nothing. See [13-writing.md](13-writing.md) |
+| `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) over every tracked `*.md` | dead internal links, named paths that do not exist, a quoted bench signature, a vanished symbol, and a `build.sh` step no page mentions — with two floored extractions, so a stale pattern fails at 2 instead of reporting OK over nothing. Described in [13-writing.md](13-writing.md) |
 | `type-check` | `tools/type_cases/*.c` compiled with `-fsyntax-only` and **`CFLAGS_COMMON` itself** | that every claim in [09-type-design.md](09-type-design.md)'s "what a compile error stops" is still refused, and every legal form beside it still compiles. Two-sided by construction: a `.refuse.c` alone cannot distinguish a type doing its job from a header that stopped compiling. The claims rest on the `-Werror=` promotions `detect_enum_flags` probes, not on the types alone — without them four of the seven refusals compile silently — so this is the gate on the flag list, not on the headers. It uses the build's array directly rather than re-spelling it, or it could pass while the real build had lost a promotion. A case may name the promotion it needs; where the compiler lacks it (gcc has no int-to-enum diagnostic) the case **narrows** instead of failing |
-| `cite-check` | [`../tools/docs_cite.sh`](../tools/docs_cite.sh) over every backticked 7–12 digit hex token in a tracked `.md` | that a cited commit SHA still names a commit a reader can reach. The test is **ancestry, not existence** — `git merge-base --is-ancestor`, never `git cat-file -e`, because a rebase leaves its pre-rebase commits in the object store and any backup ref pins them forever, so the existence test passes on the author's machine and nowhere else. **Four tiers:** ancestor of HEAD; off-branch but reachable from some ref (what `tools/upstream/PORT_SOURCES.md`'s upstream SHAs are, and not a defect); resolved in a sibling checkout (what AGENTS.md's rfish/zfish/refish citations are); reachable from nothing, which is the finding. A missing sibling **narrows** the run and names it rather than failing, and a shallow clone narrows to nothing, because ancestry is unanswerable there |
+| `cite-check` | [`../tools/docs_cite.sh`](../tools/docs_cite.sh) over every backticked 7–12 digit hex token in a tracked `.md` | that a cited commit SHA still names a commit a reader can reach. **Ancestry, not existence**, in four tiers. Described in [13-writing.md](13-writing.md) |
 | `shellcheck` | [`../tools/shellcheck.sh`](../tools/shellcheck.sh) over every `.sh` the index tracks, at severity `style` | the defect classes shellcheck knows, in the language the gates themselves are written in. Held at **zero findings with no baseline** — a suppression is a `# shellcheck disable=` at the site with its reason beside it, because the findings here are cheap enough to fix that a register would be the only debt list that could never expire. The version is pinned in **two fields** (`tools/shellcheck.version`): the `shellcheck-py` package version and the binary version it ships, which are not the same number. Resolved through `uvx`, as `ruff` and `ty` already are; exits **127** when neither a matching binary nor `uvx` is reachable |
 | `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | mcfish's bench against a pristine upstream build — see below |
 | `golden-audit` | drives every `tools/cases/*.uci` script through a PRISTINE upstream build and diffs against the committed golden | that each golden is upstream's bytes rather than a photograph of mcfish. **LOCAL**. Described in [07-shell.md](07-shell.md) |
@@ -200,31 +200,6 @@ suppression written against one version is not a suppression under the other.
 refish records running its equivalent unpinned and getting 0 findings on one box and
 65 on another from the same tree, which is the most expensive false positive a lint
 can produce: the gate goes red and nobody changed a script.
-
-### A SHA that resolves is not a SHA that is reachable
-
-`docs-lint` holds the pages to paths and symbols that exist. It never read the
-commit SHAs, and by the time `cite-check` landed the tracked pages quoted
-thirty-seven of them.
-
-The wrong test is the obvious one. `git cat-file -e "$sha^{commit}"` asks whether
-the object is in **this** clone — and a rebased branch leaves its pre-rebase
-commits in the object store, where a backup ref pins them indefinitely. A citation
-to a pre-rebase identity therefore resolves on the author's machine, forever, and
-resolves nowhere else. refish records two consecutive audits running the existence
-test: the first could not size the problem and the second used it to **retract a
-correct finding**.
-
-**Off-branch is not a defect here, which is why there are four tiers rather than
-two.** `tools/upstream/PORT_SOURCES.md` cites upstream Stockfish SHAs that are
-reachable from the upstream remote and from tags but are ancestors of nothing on
-this branch, and AGENTS.md cites rfish, zfish and refish commits that are not
-objects in this repository at all. Only a SHA reachable from nothing is reported.
-
-**And the gate is not the durable fix.** It cannot tell whether the commit a SHA
-names is the commit the sentence means; a rebase onto a reachable but wrong commit
-passes cleanly. What survives a rebase is a subject quoted beside the SHA, so the
-gate prints the subject of everything it reports and a repair is a paste.
 
 ### The mutant must be bounded, not merely wrong
 
