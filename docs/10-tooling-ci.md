@@ -138,7 +138,6 @@ battery. `./build.sh help` prints the list; this table says what each step
 | `signature` | runs the default `bench` (a bare `engine bench` — the full position list at depth 13, `Hash 16`, one `ucinewgame`), compares the node total to [`../tools/signature.golden`](../tools/signature.golden) | that no edit changed search behaviour unintentionally |
 | `net-roundtrip` | drives `export_net` and compares the exported file with the net in `resources/`, byte for byte | the .nnue **writer**, which every other gate is structurally blind to. The rest of the battery reads only what the engine CONSUMES, and `export_net` is not on the eval path — so a writer that drifts from its reader keeps the anchor, `simd-scalar` and every golden green. The shipped net was written by upstream's own exporter, which makes the comparison a differential against upstream's bytes rather than against a second derivation: it checks every LEB128 group, every split point, every component hash and the inverse of the tier's SIMD permutation at once. Writes outside `resources/` (a half-written file there is a net the next run loads), refuses a zero-byte subject, and **skips** with a red note when no net is present |
 | `speedtest-check` | drives `speedtest 1 8 1` and reads the report back | the `speedtest` command, whose every NUMBER is a property of the machine and so can never be a golden. What is assertable is asserted: that the run reaches the last position, that all sixteen report fields are present, that both invocation echoes come back, and that the node count is positive. The expected position count is read from [`../src/shell/speedtest_positions.c`](../src/shell/speedtest_positions.c), not written here, so a game dropped from the table fails this gate instead of quietly shortening the run — nothing else in the tree reads that table |
-| `perft` | drives every row of [`../tools/perft.table`](../tools/perft.table) through the UCI front end | move generation totality |
 | `golden` | diffs each `tools/cases/*.uci` transcript against its `.golden` | the observable UCI surface, byte for byte after normalization |
 | `tb-fetch` | downloads the 3-man Syzygy set (KPvK KNvK KBvK KRvK KQvK, WDL+DTZ) into `resources/syzygy/` | nothing — it *fetches*. It verifies each file's Syzygy magic (`.rtbw` `71 E8 23 5D`, `.rtbz` `D7 66 0C A5`) and deletes anything that fails, so a mirror's HTML error page cannot masquerade as a table |
 | `tb` | runs the discovery report and the root probe battery in [`../tools/cases/tb.fens`](../tools/cases/tb.fens), diffed against [`../tools/tb.golden`](../tools/tb.golden) | Syzygy discovery, the root DTZ/WDL ranking and the probe path. **Without the tables it checks discovery only and says so in red** — the probe half reads as unexercised, never as a pass |
@@ -390,21 +389,10 @@ real bug gets normalised away.
 
 **[`../tools/perft.table`](../tools/perft.table) is not a golden.** Its counts are
 mathematical facts about chess — the number of leaves in the legal tree below a
-position. They do not depend on this engine, on its evaluation, on its search, or
-on the port's progress. **A perft mismatch is always a move generation bug**, and
-there is no circumstance in which the correct response is to edit the number. The
-same is true of the deep counts hardcoded in
-[`../.github/workflows/mcfish_perft.yml`](../.github/workflows/mcfish_perft.yml).
-
-A row's optional fourth field is the **variant**, and `960` there is not decoration:
-the flag reaches `Position::set` and decides whether the castling rook is tested for
-screening its own king, so a Shredder-FEN row driven without it walks a different
-legality path than the one it was written for. The three chess960 rows exist because
-no standard-chess position can put the king's castling destination on the opposite
-side from its rook — a king on b1 castling queen-side moves *right*, to c1 — so the
-six standard rows are blind to that shape by construction. The engine walked off the
-board there until 2026-08-10, and the only instrument that could see it was the
-weekly random differential.
+position — so they do not depend on this engine, on its evaluation, on its search,
+or on the port's progress. A mismatch is always a move generation bug and never an
+update candidate. The rows, the variant field and what the table is blind to are
+[01-engine-board.md](01-engine-board.md)'s, beside the generator they hold.
 
 **`tools/*.golden` are goldens.** They record what *this* binary printed, and they
 move legitimately whenever behaviour changes on purpose. `tools/signature.golden`
