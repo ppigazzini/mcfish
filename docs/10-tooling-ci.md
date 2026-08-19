@@ -128,8 +128,8 @@ section, and routed to from here.
 
 | Step | What it does | What it gates |
 | --- | --- | --- |
-| `build` | clang `-O3 -DNDEBUG`, one invocation over `SOURCES` | that the files **in `SOURCES`** compile under the full warning set. Not the tree — see above |
-| `debug` | the same sources with ASan + UBSan and `-fno-sanitize-recover=undefined` | nothing on its own; it is the binary the sanitizer lane drives |
+| `build` | clang `-O3 -DNDEBUG`, one invocation over `SOURCES` | that the files **in `SOURCES`** compile under the full warning set. Not the tree — see above. Described in [08-idiomatic-c.md](08-idiomatic-c.md) |
+| `debug` | the same sources with ASan + UBSan and `-fno-sanitize-recover=undefined` | nothing on its own; it is the binary the sanitizer lane drives. Described in [08-idiomatic-c.md](08-idiomatic-c.md) |
 | `zone-check` | checks both arrays against `find src -name '*.c'`, then links `ENGINE_SOURCES` plus a stub `main`, with no shell object | that no `engine/` file calls into `shell/`, over the whole zone rather than over whatever the array happens to name. Described in [00-architecture.md](00-architecture.md) |
 | `engine-standalone` | compiles every `src/engine/*.c` alone and links them with **no** platform object | the engine→platform edge, as a ratcheted count against [`../tools/engine_platform.baseline`](../tools/engine_platform.baseline). Described in [00-architecture.md](00-architecture.md) |
 | `test` | builds `ENGINE_SOURCES` + [`../tests/test_main.c`](../tests/test_main.c) under ASan+UBSan and runs it, with `-DMCFISH_ACC_STATS` | the unit and property suite: perft to reference counts, make/unmake round-trip, incremental-vs-recomputed Zobrist, search determinism, the accumulator's four update paths, each asserted twice — see [03-engine-eval.md](03-engine-eval.md) — and three randomised walks, each seeded and fixed so a failure reproduces: 200 searches from positions reached by random legal moves — the only always-run gate that enters the node body from an arbitrary board, and the only one whose searches evaluate through the network at all, since every other search in the suite runs before the net is loaded; 200 lines of up to 60 plies compared key-for-key against a from-scratch parse at every ply and then unwound to the root, which is where the states a depth-3 tree never reaches live; and 4000 mutated and random FEN strings, where rejection is never a failure but every string ACCEPTED must generate moves and render a FEN that parses back to the same board |
@@ -144,7 +144,7 @@ section, and routed to from here.
 | `golden` | diffs each `tools/cases/*.uci` transcript against its `.golden` | the observable UCI surface, byte for byte after normalization. Described in [07-shell.md](07-shell.md) |
 | `tb-fetch` | downloads the 3-man Syzygy set (KPvK KNvK KBvK KRvK KQvK, WDL+DTZ) into `resources/syzygy/` | nothing — it *fetches*, and verifies each file's Syzygy magic. Described in [05-tablebases.md](05-tablebases.md) |
 | `tb` | runs the discovery report and the root probe battery in [`../tools/cases/tb.fens`](../tools/cases/tb.fens), diffed against [`../tools/tb.golden`](../tools/tb.golden) | Syzygy discovery, the root DTZ/WDL ranking and the probe path. **Without the tables it checks discovery only and says so in red.** `tb-update` re-derives that golden from the ORACLE. Described in [05-tablebases.md](05-tablebases.md) |
-| `fmt` / `fmt-fix` | `clang-format --dry-run --Werror` over `src/` and `tests/` | formatting. Exits **127** when no `clang-format` is found |
+| `fmt` / `fmt-fix` | `clang-format --dry-run --Werror` over `src/` and `tests/` | formatting. Exits **127** when no `clang-format` is found. Described in [08-idiomatic-c.md](08-idiomatic-c.md) |
 | `docs-lint` | [`../tools/docs_lint.sh`](../tools/docs_lint.sh) over every tracked `*.md` | dead internal links, named paths that do not exist, a quoted bench signature, a vanished symbol, and a `build.sh` step no page mentions — with two floored extractions, so a stale pattern fails at 2 instead of reporting OK over nothing. Described in [13-writing.md](13-writing.md) |
 | `type-check` | `tools/type_cases/*.c` compiled with `-fsyntax-only` and **`CFLAGS_COMMON` itself** | that every claim in [09-type-design.md](09-type-design.md)'s "what a compile error stops" is still refused, and every legal form beside it still compiles. Two-sided by construction: a `.refuse.c` alone cannot distinguish a type doing its job from a header that stopped compiling. The claims rest on the `-Werror=` promotions `detect_enum_flags` probes, not on the types alone — without them four of the seven refusals compile silently — so this is the gate on the flag list, not on the headers. It uses the build's array directly rather than re-spelling it, or it could pass while the real build had lost a promotion. A case may name the promotion it needs; where the compiler lacks it (gcc has no int-to-enum diagnostic) the case **narrows** instead of failing |
 | `cite-check` | [`../tools/docs_cite.sh`](../tools/docs_cite.sh) over every backticked 7–12 digit hex token in a tracked `.md` | that a cited commit SHA still names a commit a reader can reach. **Ancestry, not existence**, in four tiers. Described in [13-writing.md](13-writing.md) |
@@ -163,10 +163,10 @@ section, and routed to from here.
 | `async-check` | drives a REAL interrupted search and asserts ten invariants over `stop`, `quit`, a mid-search `setoption`, `export_net`, `go movetime 0` and a critical error | the interrupted-search path, which no byte-golden can hold. Described in [07-shell.md](07-shell.md). **LOCAL**, ~6s |
 | `fixture-coverage` | holds [`../tools/fixture_properties.tsv`](../tools/fixture_properties.tsv) to the tree, in both directions | that the input domain is written down. In `parity`. Described in [07-shell.md](07-shell.md) |
 | `negative-control` | mutates the engine once per gate — a razor margin, the `d` command's `Checkers:` line, the knight under-promotion — and requires that gate to exit non-zero, then restores and requires it to pass | that a gate can FAIL. Every other gate's detection power is an assumption until something breaks the engine on purpose; two gates this month turned out to be incapable of failing at all. Both rig faults are distinguished from verdicts: a pattern that matches nothing exits 2, and a mutant that outruns `NEG_GATE_TIMEOUT` exits 2 rather than being credited as a detection. One row IS held (see below) and the default run greps its search text without building, because a held row rots in silence otherwise. **LOCAL**, ~100s for the engine rows and about as much again for the four added since; the `simd-scalar` mutant had to be bounded first (see below) |
-| `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant — **and, since the tiers now run different ALGORITHMS, that those algorithms agree.** Upstream switches slider attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port follows; that makes this step the gate for a whole class of change, because it compares the vector path against the scalar path *on the same tree*. `signature` alone tests one tier and would pass over a wrong attack set at another. Run it on every ISA-gated commit. Not in `parity`: it is several full builds |
+| `arch-determinism` | builds every ISA tier the host can execute and requires one node count | that the evaluation is arch-invariant, and — since the tiers now run different ALGORITHMS — that those algorithms agree. Not in `parity`: several full builds. Described in [08-idiomatic-c.md](08-idiomatic-c.md) |
 | `malformed` | two families past the sanitized engine — crafted `.rtbw` headers that must be REFUSED, and real tables with a few bytes changed that must be ABSORBED — plus two controls that must stay silent | that a file refused yesterday is refused today, which neither `signature` nor the nightly fuzz lane can be. 2.4 s, in `parity`. Described in [05-tablebases.md](05-tablebases.md) |
 | `tb-cursed` / `tb-cursed-update` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them. Described in [05-tablebases.md](05-tablebases.md) |
-| `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Opt-in, mirroring upstream's separate profile build, so `build` and `parity` stay unprofiled |
+| `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. Described in [08-idiomatic-c.md](08-idiomatic-c.md) |
 | `perf-budget-tb` / `perf-budget-tb-update` | the same measurement over a PROBING workload -- `tools/cases/tb_probe.fens` at depth 14, with `SyzygyPath` composed into the bench file -- filed under a `<tier>+syzygy` row | the tablebase reader, which `perf-budget` cannot see at all: every bench position has more men on it than any table `tb-fetch` installs, so `registry.c`, `do_probe_table` and the decode loop are absent from that figure and a bound inside them reads as free. **LOCAL**, needs `perf_event_open` *and* `./build.sh tb-fetch 5`; an incomplete corpus exits 127 loudly, because a probing measurement with no tables loaded is the bench list wearing a different name. The corpus is 5-man, so every figure over it is a LOWER BOUND -- block count scales with table size |
 | `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, keyed by the ISA TIER in the binary (`MCFISH_ARCH_STRING`, so `native` is filed as the tier it selected) and held to 0.05% | an instruction-count regression the node signature is blind to. **LOCAL**: needs `perf_event_open`, and the budget file is host- and toolchain-specific, so it is gitignored — a fresh clone reads 127 until someone records one |
 | `sync-status` | compares `UPSTREAM_BASE` against the golden checkout, in BOTH directions | that the pin is honest: a checkout *behind* the pin is red (every grep of it then answers from source already ported past), a pin behind its checkout is a yellow report. Tracks the golden ONLY — `../zfish` is a sibling port with no pin here, see [`../tools/upstream/README.md`](../tools/upstream/README.md). Not a `parity` gate |
@@ -477,38 +477,6 @@ the others cannot:
   counter, a persisting time-check counter) drifts across the suite. The
   bisection tool for this class is per-`go` checksums of each shared structure,
   compared side by side until one drifts.
-
-## The arch ladder, and why `native` is a selector
-
-`MCFISH_ARCH` picks one of five tiers, each a fixed `-m` flag list mirroring
-upstream's own `ARCH` set: `sse41`, `avx2`, `avx512`, `vnni512`, `avx512icl`. A
-sixth spelling, `native`, is **not** a sixth tier — it reads `/proc/cpuinfo` and
-selects the widest of the five this host can execute, then builds exactly that.
-
-It is deliberately not `-march=native`. Host-specific codegen makes the emitted code
-a property of the machine that ran the build: clang resolves `-march=native` to a
-`-target-cpu` — `znver4` on a Zen 4 host — carrying tuning and extensions no tier
-name records, so two hosts reporting the same tier would ship different binaries
-and every
-per-tier number — budget row, instruction ratio, Elo standing — would quietly mean
-"whatever box took it". Selecting among named tiers makes the tier name a complete
-description of the code, which is what lets a standing be reproduced elsewhere and
-both engines be built at the SAME named ISA. `../zfish` resolves `native` the same
-way, through `detectArchFromCpu` into an enumerated `archConfigFor`.
-
-The floor is deliberate: a host with `avx512f` but no VNNI takes `avx512`, and one
-without AVX-512 takes `avx2`, even where `-march=native` would find one more
-extension. **That costs instructions wherever the host is tuned for more than its
-tier names**, and the size is a measurement, not a guess:
-[`../tools/perf_counters.sh`](../tools/perf_counters.sh) against a `-march=native`
-build settles it for a given box. It is paid deliberately — every gate, budget and
-standing here is a comparison across builds, and none survive a binary that varies
-with the machine that compiled it.
-
-`arch-determinism` builds every tier the host can execute and requires one node count
-from all of them, which is what keeps the widening honest. `native` is absent from
-that list: it is an alias for one of the five and would only build a duplicate.
-
 
 ## CI
 
