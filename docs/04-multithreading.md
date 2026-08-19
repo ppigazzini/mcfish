@@ -13,6 +13,25 @@ Audience: engine and platform contributors. The zone layout is in
 and a `go` runs N workers over one root. Node counts scale with the thread count
 and the bestmove is the pool's vote.
 
+**What that scaling actually measures, on this host** (16 logical CPUs, `bench 256
+<threads> 2000000 default nodes`, so every position gets the same node budget):
+
+| threads | nodes | time | nps | speedup |
+|---|---|---|---|---|
+| 1 | 98,016,854 | 109,333 ms | 896,498 | 1.00x |
+| 2 | 98,027,473 | 57,164 ms | 1,714,846 | 1.91x |
+| 4 | 98,060,707 | 33,358 ms | 2,939,645 | 3.28x |
+
+**A threaded search is not reproducible at a fixed DEPTH, and that is the fact to
+carry away.** Three runs of `bench 128 8 10` read 3,773,312 / 6,144,045 / 4,460,748
+nodes — a **62.8% spread**, because which thread finishes a depth first decides what
+the others skip. The same three runs under a node BUDGET read 9,849,966 / 9,854,910 /
+9,852,636, a 0.05% spread. So every gate in this tree that asserts a node count runs
+`Threads 1`, correctly, and the only axis that can compare two binaries above one
+thread is [`tools/nps_threads.sh`](../tools/nps_threads.sh), which makes the node
+count its input for exactly this reason. Lazy-SMP threads still overshoot a budget by
+a little and by a different amount each run, which is why its node check is a band.
+
 [`worker_pool.c`](../src/platform/worker_pool.c) is the driver: it owns
 the pool, one `SearchWorker` per thread, one shared history bank per occupied NUMA
 node, the summed counters and the thread vote.
