@@ -668,3 +668,42 @@ the same path — the parser has no notion of "syntactically valid". It also mea
 move can only be parsed against the position it applies to, which is why
 `cmd_position` in [`../src/shell/uci.c`](../src/shell/uci.c) applies moves one at a
 time as it walks the `moves` list.
+
+## The gates
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `perft` | move generation is right, in both dialects, against counts that are facts rather than a golden | this page |
+| `test` | the same counts from inside the suite, plus make/unmake round-trip, the incremental-versus-recomputed key, and 4000 mutated FEN strings | [10-tooling-ci.md](10-tooling-ci.md) |
+| `upstream-nodes` | the node total over positions reached by random legal moves, which is the only instrument that has ever caught a movegen bug this table's rows are blind to | [10-tooling-ci.md](10-tooling-ci.md) |
+| `fuzz-search` | the node body entered from an arbitrary board, under ASan and UBSan | [02-engine-search.md](02-engine-search.md) |
+
+### `./build.sh perft`
+
+Drives every row of [`../tools/perft.table`](../tools/perft.table) through the UCI
+front end and compares the leaf total at depth.
+
+**The counts are facts about chess, not a golden.** They are the number of leaves in
+the legal tree below a position: they do not depend on this engine, on its
+evaluation, on its search, or on the port's progress. **A perft mismatch is always a
+move generation bug**, and there is no circumstance in which the correct response is
+to edit the number. The same is true of the deep counts hardcoded in
+[`../.github/workflows/mcfish_perft.yml`](../.github/workflows/mcfish_perft.yml).
+[10-tooling-ci.md](10-tooling-ci.md) is where that distinction is drawn against the
+other kind of expected-value file, which *does* move on purpose.
+
+A row's optional fourth field is the **variant**, and `960` there is not decoration:
+the flag reaches `pos_set` and decides whether the castling rook is tested for
+screening its own king, so a Shredder-FEN row driven without it walks a different
+legality path than the one it was written for. The three chess960 rows exist because
+no standard-chess position can put the king's castling destination on the opposite
+side from its rook — a king on b1 castling queen-side moves *right*, to c1 — so the
+six standard rows are blind to that shape by construction. The engine walked off the
+board there until 2026-08-10, and the only instrument that could see it was the
+weekly random differential.
+
+**It cannot see a key that desyncs and resyncs**, because perft counts leaves: a
+position whose Zobrist key goes wrong and comes back right generates the same moves
+and reaches the same total. Neither can the anchor, which is a fixed position list.
+What holds the key is `walk_roundtrip` in the suite, which compares the incremental
+key against a from-scratch parse at every ply of a 60-ply line and then unwinds it.
