@@ -382,3 +382,26 @@ commit discovers is how far. Wire each module in the commit that finishes it, or
 expect to re-port it.
 
 One logical change per commit.
+
+## The gates
+
+**This zone owns no gate of its own, and that is the finding rather than an
+omission.** `src/platform/` is inside `ENGINE_SOURCES`, so every gate that links
+the engine links this code too — and every one of them reads a value the platform
+is only the substrate for. The five below are the ones whose subject is actually
+here, and each is described on the page that owns the question it answers.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `engine-standalone` | the engine→platform edge, as a ratcheted count of undefined symbols — the only instrument that can see this boundary at all | [00-architecture.md](00-architecture.md) |
+| `tsan` | that the pool's spawn, dispatch, wait and join carry the happens-before edges `thread.c` claims | [04-multithreading.md](04-multithreading.md) |
+| `tb`, `malformed`, `fuzz-tb` | the Syzygy subsystem: discovery, the probe path, and the parse against untrusted bytes | [05-tablebases.md](05-tablebases.md) |
+| `test` | the memory and clock modules, and the arena the accumulator is built on | [10-tooling-ci.md](10-tooling-ci.md) |
+| `tools-smoke` | that `tools/valgrind.sh` still prints the interface its callers read — the one tool pointed at this zone that no other lane invokes | [10-tooling-ci.md](10-tooling-ci.md) |
+
+Two of this zone's claims are held by no gate and must be checked by reading. The
+monotonic clock's choice of `CLOCK_MONOTONIC` over `CLOCK_REALTIME` is invisible to
+every value gate — a clock that jumps backwards changes a time-managed search and no
+gate here runs one — and the feature-test macro's placement is a compile-order fact
+that only fails on a host whose headers disagree with this one's. Both are described
+above; neither reddens.
