@@ -241,9 +241,12 @@ Three properties of this check matter:
   the check passes. `zone-check` proves exactly one thing: engine plus platform
   links without shell. It says nothing about the boundary between engine and
   platform — `engine-standalone` is the gate for that.
-- **It cannot see a file that is not in the array.** An unwired engine module
-  could call straight into `shell/` and `zone-check` would stay green, because it
-  never compiles that file at all.
+- **It cannot see a file that is not in the array** — so it checks the array
+  first. `do_zone_check` compares both `SOURCES` and `ENGINE_SOURCES` against
+  `find src -name '*.c'` before it links anything, which is what keeps the proof
+  from silently shrinking when a file is added to `SOURCES` alone. Without that,
+  an unwired engine module could call straight into `shell/` and the gate would
+  stay green, because it never compiles that file at all.
 
 [`../tests/test_main.c`](../tests/test_main.c) is built from the same
 `ENGINE_SOURCES` list, so `./build.sh test` is a second, independent instance of the
@@ -433,3 +436,35 @@ no engine state. Both are in `SOURCES`. [07-shell.md](07-shell.md) describes the
 split.
 
 The zone diagram above is the shape all of that lands into.
+
+## The gates
+
+The zone boundary is **checked, not described**, and the two checks are blind
+where each other sees: one links engine plus platform without a shell, the other
+links engine alone without a platform.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `zone-check` | that no `engine/` file calls into `shell/`, over the whole zone rather than over whatever the array happens to name | this page |
+| `engine-standalone` | the engine→platform edge, as a ratcheted COUNT rather than a claim | this page |
+| `test` | a second, independent instance of `zone-check` with the same blind spots: the suite links the same `ENGINE_SOURCES` and a test needing a shell symbol does not link | [10-tooling-ci.md](10-tooling-ci.md) |
+| `fuzz-search` | that the engine zone runs with no host registered at all, under ASan and UBSan | [02-engine-search.md](02-engine-search.md) |
+| `build` | that the files **in `SOURCES`** compile under the full warning set — not the tree | [06-platform.md](06-platform.md) |
+
+`zone-check` is described under
+[How the zone rule is enforced](#how-the-zone-rule-is-enforced) above, beside the
+rule it holds.
+
+### `./build.sh engine-standalone`
+
+Compiles every `src/engine/*.c` alone and links them with **no** platform object, so
+the engine→platform edge is measured rather than asserted. `zone-check` cannot see
+that edge at all — every `platform/` file is inside `ENGINE_SOURCES`, so an engine
+file's include of a platform header resolves and the check passes.
+
+What survives the link is a list of undefined symbols, and the gate ratchets it
+against [`../tools/engine_platform.baseline`](../tools/engine_platform.baseline). A
+new symbol fails — fix it with a seam, not a baseline edit — and a **stale** one
+fails too, so the list cannot outlive what it measures. The baseline sits at empty
+today, which is what makes the ratchet a linker fact rather than a text-parsed
+import graph: a proof root maintained by hand cannot report that it got smaller.
