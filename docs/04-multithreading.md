@@ -254,7 +254,41 @@ a wider accumulator would move the ties and hand a different node to a thread.
   banks and the vote are covered only by `tsan-search` and by the multi-thread
   runs, not by the unit suite.
 
-## Testing
+## What the wiring commit decided
+
+For the record, in the order the dependencies forced:
+
+1. `Histories` split into worker-owned and node-shared halves, with the shared
+   bank sized by its node's thread count and cleared in stripes.
+2. `SearchCtx`, the NNUE arenas and the per-search scalars moved into the
+   `SearchWorker` block, which was itself rebuilt on the live search types after
+   the parallel record set in `src/engine/state/` was deleted.
+3. The pool's `stop` / `increase_depth` made the only copies.
+4. The node sum, the thread vote and `best_move_changes` routed through
+   `pool_source.h`, which answers with thread 0's own values at `Threads 1`.
+5. `NumaPolicy` dispatched to `numa_context_set_system` / `_hardware` / `_none` /
+   `_from_string`, and refused rather than degraded when it names no node.
+
+`-lpthread` was already on every link line.
+
+## The gates
+
+**`bench` is single-threaded, so every gate that reads a node count stays green
+while a data race is live and while contention is getting worse.** These are the
+ones that do not — and two of the four report on a thread count rather than on a
+value, because that is the only thing a one-threaded gate cannot fake.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `tsan` | the pool: that spawning, dispatching, waiting on the condition variable and joining carry the happens-before edges they claim | this page |
+| `tsan-search` | races in the SEARCH, which `tsan` structurally cannot reach, at a real thread count it measures rather than assumes | this page |
+| `async-check` | that a `setoption` arriving during `go infinite` does not wedge on the thread that would release it | [07-shell.md](07-shell.md) |
+| `engine-standalone` | that the engine zone links with no platform object behind it, which is what makes the thread seam a seam | [00-architecture.md](00-architecture.md) |
+
+`tools/nps_threads.sh` is the only instrument in the tree that measures more than
+one thread, and it is not a gate — see [11-performance.md](11-performance.md). Read
+`r(T)/r(1)` from it and never the A/B column, which carries the single-thread speed
+difference inside it.
 
 `./build.sh tsan` rebuilds the whole engine zone plus the test suite under
 ThreadSanitizer and runs it. It is the gate this zone actually needs: the pool
@@ -303,20 +337,3 @@ of them is falsifiable.
 
 Also note the TSan build uses a reduced flag set and does not inherit
 `CFLAGS_COMMON`, so it is not a second warning gate.
-
-## What the wiring commit decided
-
-For the record, in the order the dependencies forced:
-
-1. `Histories` split into worker-owned and node-shared halves, with the shared
-   bank sized by its node's thread count and cleared in stripes.
-2. `SearchCtx`, the NNUE arenas and the per-search scalars moved into the
-   `SearchWorker` block, which was itself rebuilt on the live search types after
-   the parallel record set in `src/engine/state/` was deleted.
-3. The pool's `stop` / `increase_depth` made the only copies.
-4. The node sum, the thread vote and `best_move_changes` routed through
-   `pool_source.h`, which answers with thread 0's own values at `Threads 1`.
-5. `NumaPolicy` dispatched to `numa_context_set_system` / `_hardware` / `_none` /
-   `_from_string`, and refused rather than degraded when it names no node.
-
-`-lpthread` was already on every link line.
