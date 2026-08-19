@@ -159,7 +159,7 @@ for doc in "${DOCS[@]}"; do
     path=${path%%[,.:;\`\)]}
     path_exists "$path" || fail "$doc: names a path that exists in no repo -> $path"
   done < <(strip_noise "$doc" \
-           | grep -oE '\b(src|tools|tests|verify|scripts)/[A-Za-z0-9_.*/-]+' | sort -u)
+           | grep -oE '\b(src|tools|tests|verify|scripts|docs)/[A-Za-z0-9_.*/-]+' | sort -u)
 done
 
 # ------------------------------------ named paths IN BACKTICKS must exist too
