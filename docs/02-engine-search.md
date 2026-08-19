@@ -669,3 +669,37 @@ it prints stays comparable with upstream's `go perft`. The counts it produces ar
 gated two ways — by `test_perft` in the unit suite and by
 [`../tools/perft.table`](../tools/perft.table) via `./build.sh perft`. See
 [10-tooling-ci.md](10-tooling-ci.md).
+
+## The gates
+
+The anchor is a fixed position list and every value gate in the tree reads it, so
+what holds this zone is the two instruments that do NOT: a differential over
+positions nobody chose, and a fuzzer that enters the node body with no shell in
+front of it.
+
+| step | what it proves here | owned by |
+|---|---|---|
+| `fuzz-search` | the real search in-process, from an arbitrary board, with no shell and no UCI text in the way | this page |
+| `signature` | that no edit changed search behaviour unintentionally — on 51 positions and no others | [10-tooling-ci.md](10-tooling-ci.md) |
+| `upstream-nodes` | the same question off the bench list, over positions reached by random legal moves | [10-tooling-ci.md](10-tooling-ci.md) |
+| `test` | search determinism, `test_perft`, and 200 searches from randomly reached positions — the only always-run searches that evaluate through the network | [10-tooling-ci.md](10-tooling-ci.md) |
+| `tsan-search` | races in the search itself, which the thread-pool `tsan` run structurally cannot reach | [04-multithreading.md](04-multithreading.md) |
+| `fingerprint` | that the node bodies still CALL what upstream's call, as often — the one differential that is not blind to a state divergence holding the node count | [11-performance.md](11-performance.md) |
+
+### `./build.sh fuzz-search [seconds]`
+
+Builds `ENGINE_SOURCES` + [`../tools/fuzz_search.c`](../tools/fuzz_search.c) under
+libFuzzer+ASan+UBSan and runs it for the given budget (default 30s). The harness
+takes a fuzzer-selected random-legal-move walk from the start position and then calls
+`search_go` at a shallow depth — the real search, in-process, with no shell and no UCI
+text in the way, and no seam registered, so nothing a host would have supplied is
+standing in.
+
+That is the contrast with `uci_fuzz.py`, which drives stdin and spends most of its
+budget in the command parser. Neither subsumes the other.
+
+clang-only, libFuzzer having no gcc lane. The step **asserts the lane executed**
+rather than merely that it exited 0. Kept out of `parity`, same reason as `tsan`: its
+own build and a real time budget, and a clean run means "no crash in that budget",
+not "there is none". See
+[00-architecture.md](00-architecture.md#what-the-library-boundary-buys).
