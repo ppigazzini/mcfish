@@ -817,7 +817,7 @@ is void by construction; removal is not.
 whose bottleneck is known — one dependency chain, one independent-ILP loop — and a
 counter that does not respond the way the bottleneck demands does not mean what its
 name says on this host. Two conclusions in this tree have died to this; see
-[10-tooling-ci.md](10-tooling-ci.md#a-counter-is-a-hypothesis-until-it-is-validated).
+[11-performance.md](11-performance.md#a-counter-is-a-hypothesis-until-it-is-validated).
 
 **Run the call-count parity test FIRST.** `perf_fingerprint.py compare --calls` is
 inlining-immune and answers "do we run Stockfish's algorithm?". On the spine it comes
