@@ -1,7 +1,7 @@
 <engine banner>
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 a2a3: 8457
 b2b3: 9345
@@ -28,14 +28,14 @@ Nodes searched: 197281
 
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
-info depth 1 seldepth 2 multipv 1 score cp 15 nodes 20 hashfull 0 tbhits 0 pv d2d4
-info depth 2 seldepth 3 multipv 1 score cp 23 nodes 47 hashfull 0 tbhits 0 pv d2d4
-bestmove d2d4
+info depth 1 seldepth 2 multipv 1 score cp 22 nodes 20 hashfull 0 tbhits 0 pv d2d4
+info depth 2 seldepth 3 multipv 1 score cp 21 nodes 154 hashfull 0 tbhits 0 pv e2e4
+bestmove e2e4
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 a2a3: 2186
 b2b3: 1964
@@ -90,7 +90,7 @@ Nodes searched: 97862
 
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 e2e3: 3107
 g2g3: 1014
@@ -112,7 +112,7 @@ Nodes searched: 43238
 info string Using 1 thread
 
 Position: 1/1 (8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1)
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 e2e3: 3107
 g2g3: 1014
