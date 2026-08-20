@@ -156,8 +156,12 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
     // abort-rollback memory and is written only when the best move changes — a
     // different quantity, and a different lifetime, from the per-pvIdx follow-PV
     // memory in ctx->last_iter_pv. Sharing one buffer conflates them.
-    PVMoves last_best_move_pv;
-    last_best_move_pv.length = 0;
+    RootPVMoves last_best_move_pv;
+    // Reserve up front so the saves below never allocate. A failure here is not
+    // fatal and is deliberately not propagated: root_pv_copy retries the
+    // allocation on every save, and until one succeeds this reads as length 0,
+    // which every consumer below already treats as "no line remembered".
+    (void) root_pv_init(&last_best_move_pv);
     int32_t last_best_move_score = -VALUE_INFINITE;
     int32_t last_best_move_depth = 0;
     Value best_value = -VALUE_INFINITE;
@@ -202,7 +206,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
         // MultiPV > 1.
         for (size_t ri = 0; ri < ctx->root_moves_count; ++ri) {
             ctx->root_moves[ri].previous_score = ctx->root_moves[ri].score;
-            ctx->root_moves[ri].previous_pv = ctx->root_moves[ri].pv;
+            root_pv_copy(&ctx->root_moves[ri].previous_pv, &ctx->root_moves[ri].pv);
             ctx->root_moves[ri].previous_score_exact = ri < multi_pv;
         }
 
@@ -224,7 +228,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
 
             // Point the follow-PV memory at THIS line's PV from the previous
             // iteration. It is per-pvIdx, NOT the best move's PV.
-            ctx->last_iter_pv = ctx->root_moves[ctx->pv_idx].previous_pv;
+            pv_from_root(&ctx->last_iter_pv, &ctx->root_moves[ctx->pv_idx].previous_pv);
 
             ctx->sel_depth = 0;
 
@@ -290,7 +294,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                         cur->score = cur->previous_score;
                         cur->uci_score = cur->previous_score;
                         cur->previous_score = -VALUE_INFINITE;
-                        cur->pv = cur->previous_pv;
+                        root_pv_copy(&cur->pv, &cur->previous_pv);
                         root_move_unset_bound_flags(cur);
                     } else {
                         // Otherwise cap the score to the best possible and mark it
@@ -299,7 +303,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                             cur->score = prev_line->score;
                             cur->uci_score = prev_line->score;
                             cur->previous_score = -VALUE_INFINITE;
-                            cur->pv.length = 1;
+                            root_pv_truncate(&cur->pv, 1);
                             cur->score_upperbound = true;
                         } else {
                             cur->score_upperbound = false;
@@ -348,7 +352,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
 
             // Do not replace a (shorter) mate score from a previous iteration.
             if (!forgotten_mate) {
-                last_best_move_pv = ctx->root_moves[0].pv;
+                root_pv_copy(&last_best_move_pv, &ctx->root_moves[0].pv);
                 last_best_move_score = ctx->root_moves[0].score;
             }
         }
@@ -368,7 +372,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                 move_to_front(ctx->root_moves, ctx->root_moves_count, last_best_move_pv.moves[0]);
                 ctx->root_moves[0].score = last_best_move_score;
                 ctx->root_moves[0].uci_score = last_best_move_score;
-                ctx->root_moves[0].pv = last_best_move_pv;
+                root_pv_copy(&ctx->root_moves[0].pv, &last_best_move_pv);
                 root_move_unset_bound_flags(&ctx->root_moves[0]);
                 if (main_thread)
                     uci_pv_sent = false;
@@ -454,14 +458,20 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
         iter_idx = (iter_idx + 1) & 3;
     }
 
-    if (!main_thread)
-        return false;
-
-    id->previous_time_reduction = time_reduction;
-    // Swap the best PV line with the sub-optimal one if the skill level is on.
-    if (id->skill_enabled) {
-        const Move sel = skill_best != MOVE_NONE ? skill_best : skill_pick_best(ctx, id, multi_pv);
-        skill_swap_best(ctx, sel);
+    // One exit from here on: last_best_move_pv owns a buffer, and a second return
+    // would leak it.
+    bool sent = false;
+    if (main_thread) {
+        id->previous_time_reduction = time_reduction;
+        // Swap the best PV line with the sub-optimal one if the skill level is on.
+        if (id->skill_enabled) {
+            const Move sel =
+              skill_best != MOVE_NONE ? skill_best : skill_pick_best(ctx, id, multi_pv);
+            skill_swap_best(ctx, sel);
+        }
+        sent = uci_pv_sent;
     }
-    return uci_pv_sent;
+
+    root_pv_release(&last_best_move_pv);
+    return sent;
 }

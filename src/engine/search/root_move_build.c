@@ -299,11 +299,33 @@ TbConfig tb_rank_moves(Position *pos,
     return config;
 }
 
+// Allocate COUNT zeroed root moves, each with both PV buffers reserved, or null.
+//
+// Reserving here is what lets every later write by the search land in a capacity
+// that already exists (root_pv.h). Unwind the whole block on the first failure:
+// a RootMove holding no buffer reads as an empty PV, not as an error.
+static RootMove *root_moves_alloc(size_t count) {
+    RootMove *const elems = calloc(count, sizeof *elems);
+    if (elems == nullptr)
+        return nullptr;
+    for (size_t i = 0; i < count; ++i) {
+        if (!root_pv_init(&elems[i].pv) || !root_pv_init(&elems[i].previous_pv)) {
+            for (size_t j = 0; j <= i; ++j) {
+                root_pv_release(&elems[j].pv);
+                root_pv_release(&elems[j].previous_pv);
+            }
+            free(elems);
+            return nullptr;
+        }
+    }
+    return elems;
+}
+
 static RootMove *root_moves_create_ranked(const RankedRootMove *items, size_t count) {
     if (count == 0)
         return nullptr;
-    RootMove *const elems = calloc(count, sizeof *elems);
-    if (!elems)
+    RootMove *const elems = root_moves_alloc(count);
+    if (elems == nullptr)
         return nullptr;
     for (size_t i = 0; i < count; ++i) {
         RootMove *const rm = &elems[i];
@@ -314,13 +336,55 @@ static RootMove *root_moves_create_ranked(const RankedRootMove *items, size_t co
         rm->uci_score = -VALUE_INFINITE;
         rm->tb_rank = items[i].tb_rank;
         rm->tb_score = items[i].tb_score;
-        rm->pv.moves[0] = items[i].raw_move;
-        rm->pv.length = 1;
+        root_pv_set_line(&rm->pv, items[i].raw_move, nullptr, 0);
     }
     return elems;
 }
 
+bool root_moves_copy(RootMoveList *dst, const RootMoveList *src) {
+    // DEEP, not a memcpy of the array. Every RootMove OWNS its two PV buffers
+    // (root_pv.h), so a bytewise copy leaves the two lists aliasing one buffer
+    // each and the first `root_moves_free` dangles the other.
+    if (src->count == 0) {
+        root_moves_free(dst);
+        dst->tb_config = src->tb_config;
+        return true;
+    }
+
+    // Reuse DST's elements, and their buffers, when the count already matches:
+    // that is the steady state across the workers of one `go`, and it keeps this
+    // off the allocator entirely.
+    if (dst->moves == nullptr || dst->count != src->count) {
+        root_moves_free(dst);
+        RootMove *const elems = root_moves_alloc(src->count);
+        if (elems == nullptr)
+            return false;
+        dst->moves = elems;
+        dst->count = src->count;
+    }
+
+    for (size_t i = 0; i < src->count; ++i) {
+        // Take the scalar record wholesale, then put DST's own buffers back and
+        // fill them. Naming the scalar fields instead would drop the next one
+        // added to RootMove, silently and at the root of every search.
+        const RootPVMoves pv = dst->moves[i].pv;
+        const RootPVMoves previous_pv = dst->moves[i].previous_pv;
+        dst->moves[i] = src->moves[i];
+        dst->moves[i].pv = pv;
+        dst->moves[i].previous_pv = previous_pv;
+        root_pv_copy(&dst->moves[i].pv, &src->moves[i].pv);
+        root_pv_copy(&dst->moves[i].previous_pv, &src->moves[i].previous_pv);
+    }
+
+    dst->tb_config = src->tb_config;
+    return true;
+}
+
 void root_moves_free(RootMoveList *list) {
+    for (size_t i = 0; i < list->count; ++i) {
+        root_pv_release(&list->moves[i].pv);
+        root_pv_release(&list->moves[i].previous_pv);
+    }
     free(list->moves);
     list->moves = nullptr;
     list->count = 0;

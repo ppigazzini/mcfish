@@ -355,6 +355,7 @@ SOURCES=(
   src/engine/search/worker_set.c
   src/engine/search/syzygy_pv.c
   src/engine/search/root_move_build.c
+  src/engine/search/root_pv.c
   src/engine/search/uci_wdl.c
   src/engine/search/movepick.c
   src/engine/search/history.c
@@ -433,6 +434,7 @@ ENGINE_SOURCES=(
   src/engine/search/worker_set.c
   src/engine/search/syzygy_pv.c
   src/engine/search/root_move_build.c
+  src/engine/search/root_pv.c
   src/engine/search/uci_wdl.c
   src/engine/search/movepick.c
   src/engine/search/history.c

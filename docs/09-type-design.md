@@ -151,6 +151,39 @@ where the threat block ends — a property `NNUE_PAIR_INDEX_BASE` derives from
 close the confusion, and [the boundary](#what-a-compile-error-does-not-stop) says
 why the type is blocked.
 
+### Principal variations: two types, because the bound differs
+
+```mermaid
+graph LR
+  SEARCH["search recursion<br/>stops at MAX_PLY"] --> PVM["PVMoves<br/>Move[MAX_PLY + 1], inline"]
+  PVM -->|"root_pv_set_line"| RPV["RootPVMoves<br/>owned buffer, grows"]
+  DTZ["syzygy_extend_pv<br/>bounded by the POSITION"] -->|"root_pv_push"| RPV
+  RPV -->|"pv_from_root — TRUNCATES"| PVM2["PVMoves — the follow-PV memory"]
+```
+
+`PVMoves` is a fixed `Move[MAX_PLY + 1]`, and that is an *exact* bound rather than
+a generous one: a search line cannot outrun the recursion that produced it. A ROOT
+move's PV has a different producer. `syzygy_extend_pv` walks on from where the
+search stopped, appending minimum-DTZ moves toward a tablebase mate, and that walk
+is bounded by the position — a six-man DTZ line runs past MAX_PLY plies. Two
+capacity contracts, two types; upstream reaches the same shape in `RootPVMoves`
+(upstream `search.h:64`).
+
+The cost is ownership: a `RootPVMoves` holds a buffer, so a `RootMove` is not
+trivially copyable. MOVING one is plain struct assignment — the root list's
+insertion sort and its two rotations permute elements, so every buffer keeps exactly
+one owner — and DUPLICATING one goes through `root_pv_copy`, or `root_moves_copy`
+for a whole list. **Nothing in the type system says which of the two you wrote**,
+and that is the limit of what this split bought. The per-worker seeding is where it
+bites: a `memcpy` of the root array leaves every worker aliasing the ranker's
+buffers, and the first `root_moves_free` dangles the rest — a use-after-free ASan
+reports on the first `./build.sh test`, and one nothing else here would catch.
+
+`pv_from_root` is the single crossing between the contracts, and it truncates. That
+is upstream's `PVMoves::operator=(const RootPVMoves&)`, and it loses nothing: the
+only consumer is the follow-PV test, which indexes by ply and never reads past
+MAX_PLY.
+
 ### Hashes: four key spaces, and the counters they select
 
 ```mermaid

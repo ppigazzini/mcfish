@@ -115,12 +115,8 @@ void root_update(SearchCtx *ctx,
             rm->uci_score = alpha;
         }
         // Keep pv[0] (== move) with pv.resize(1), then append the child PV.
-        rm->pv.length = 1;
-        if (child_pv) {
-            for (size_t j = 0; j < child_pv->length; ++j)
-                rm->pv.moves[1 + j] = child_pv->moves[j];
-            rm->pv.length = 1 + child_pv->length;
-        }
+        root_pv_set_line(&rm->pv, move, child_pv ? child_pv->moves : nullptr,
+                         child_pv ? child_pv->length : 0);
         if (move_count > 1 && ctx->pv_idx == 0)
             ctx_set_best_move_changes(ctx, ctx_best_move_changes(ctx) + 1);
     } else {
