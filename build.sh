@@ -1514,7 +1514,7 @@ do_malformed() {
 # simd-scalar` reproduces the rig fault -- and a bounded mutant for the scalar arm is
 # the open work, not a bigger timeout.
 NEGATIVE_CONTROL_ROWS=(
-  "razor margin 483->484%src/engine/search/search_common.c%s#483 + 318#484 + 318#%signature%run"
+  "razor margin 482->483%src/engine/search/search_common.c%s#482 \* depth#483 * depth#%signature%run"
   "d omits Checkers:%src/engine/board/fen.c%s#Checkers: #CheckersZ: #%golden%run"
   "no knight under-promotion%src/engine/board/movegen.c%/make_move_typed(PROMOTION, from, to, KNIGHT)/d%perft%run"
   "scalar shift off by one%src/engine/eval/nnue/simd.h%s#(Elem) (a.l\[i\] >> s)#(Elem) (a.l[i] >> (s + 1))#%simd-scalar%run"
