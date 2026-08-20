@@ -283,6 +283,15 @@ int lmr_corr_reduction(int correction_value) {
 
 int lmr_stat_score_reduction(int stat_score) { return stat_score * 439 / 4096; }
 
+// Scale the reduction by how far alpha sits from the static eval. The result is
+// SIGNED and is added to r, where a larger r searches shallower: a node whose eval
+// already beats alpha keeps depth, and one that would have to climb to alpha is
+// cut harder. The clamp is asymmetric, so climbing costs more than beating pays.
+int lmr_alpha_gap_reduction(int alpha, int eval) {
+    const int gap = alpha - eval;
+    return 3 * (gap < -64 ? -64 : gap > 96 ? 96 : gap);
+}
+
 int lmr_all_node_scale(int r, int depth) { return r * 276 / (256 * depth + 268); }
 
 int capture_stat_score(int piece_val, int capture_hist) {

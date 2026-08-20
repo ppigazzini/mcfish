@@ -141,6 +141,7 @@ int reduction_of(
 int lmr_ttpv_reduction(bool pv_node, bool value_gt_alpha, bool depth_ge, bool cut_node);
 int lmr_corr_reduction(int correction_value);
 int lmr_stat_score_reduction(int stat_score);
+int lmr_alpha_gap_reduction(int alpha, int eval);
 int lmr_all_node_scale(int r, int depth);
 
 int capture_stat_score(int piece_val, int capture_hist);
