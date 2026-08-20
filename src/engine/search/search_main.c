@@ -530,6 +530,12 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         }
 
         r -= lmr_stat_score_reduction(ss->stat_score);
+
+        // Skip a decisive alpha: the gap is a mate distance there, not an
+        // evaluation difference, so scaling a reduction by it means nothing.
+        if (!capture && !value_is_decisive(alpha))
+            r += lmr_alpha_gap_reduction(alpha, eval);
+
         if (all_node)
             r += lmr_all_node_scale(r, depth);
 
