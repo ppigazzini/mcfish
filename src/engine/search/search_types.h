@@ -13,6 +13,7 @@
 #define MCFISH_SEARCH_TYPES_H
 
 #include "history.h"
+#include "root_pv.h"
 #include "timeman.h"
 
 #include "../board/position.h"
@@ -35,13 +36,32 @@ typedef enum : uint8_t {
 static inline bool nt_is_pv(NodeType nt) { return nt != NT_NON_PV; }
 static inline bool nt_is_root(NodeType nt) { return nt == NT_ROOT; }
 
-// Hold one principal variation: a fixed buffer plus a length, never a pointer.
-// Copying a PVMoves by assignment is how the root move list saves and restores
-// a line, so it must stay trivially copyable.
+// Hold one principal variation the SEARCH produced: a fixed buffer plus a
+// length, never a pointer. MAX_PLY + 1 is an exact bound rather than a generous
+// one -- a search line cannot outrun the recursion that built it. Copying a
+// PVMoves by assignment is how a node hands its line to its parent, so it must
+// stay trivially copyable.
+//
+// A ROOT move's PV is NOT this type: see root_pv.h for the contract that differs.
 typedef struct {
     Move moves[MAX_PLY + 1];
     size_t length;
 } PVMoves;
+
+// Narrow a ROOT PV into a per-ply one, truncating at the per-ply capacity.
+//
+// This is the ONE crossing between the two capacity contracts, and it is
+// upstream's `PVMoves::operator=(const RootPVMoves&)` (search.h:108). Truncation
+// costs nothing: the only consumer is the follow-PV test, which indexes by ply
+// and so never reads past MAX_PLY.
+static inline void pv_from_root(PVMoves *dst, const RootPVMoves *src) {
+    size_t len = src->length;
+    if (len > MAX_PLY + 1)
+        len = MAX_PLY + 1;
+    for (size_t i = 0; i < len; ++i)
+        dst->moves[i] = src->moves[i];
+    dst->length = len;
+}
 
 // Carry one root move's search record. `score` is this iteration's, `uci_score`
 // is what the info line prints (clamped to the aspiration bound on a fail),
@@ -63,8 +83,13 @@ typedef struct {
     int32_t sel_depth;
     int32_t tb_rank;
     int32_t tb_score;
-    PVMoves pv;
-    PVMoves previous_pv;
+    // Owned buffers, not inline arrays: the tablebase PV extension can append
+    // past MAX_PLY (root_pv.h). MOVING a RootMove by struct assignment stays
+    // correct -- the root list's insertion sort and its two rotations permute
+    // elements, so every buffer keeps exactly one owner -- but DUPLICATING one
+    // must go through root_pv_copy.
+    RootPVMoves pv;
+    RootPVMoves previous_pv;
 } RootMove;
 
 static inline bool root_move_score_is_bound(const RootMove *rm) {

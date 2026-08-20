@@ -328,7 +328,20 @@ seven of them.
 Depth 1 is the whole point: there the PV is entirely the work of
 `syzygy_extend_pv`, because the search has contributed one move and everything
 after it is the tablebase's own minimum-DTZ walk. An unported or half-ported
-extension shows up as a one-move PV. Score, tbhits and pv are pinned; nodes,
+extension shows up as a one-move PV.
+
+**Nothing bounds that walk at MAX_PLY.** The root PV is its own growable type
+([09-type-design.md](09-type-design.md)), so what ends the walk is the position —
+a draw, a mate, a table that stops ranking, the Move Overhead deadline — or an
+allocation that fails, which reports the line already built. The `StateInfo`
+backing each made move comes from chained fixed blocks rather than one array,
+because `pos_do_move` links the slot into the position's state chain and a
+reallocation would leave that chain pointing into freed memory.
+
+**No gate here reaches the long case.** `tb-fetch` installs three-man tables and
+`tb-fetch 5` five-man ones, and neither holds a DTZ line past MAX_PLY plies, so
+the capacity contract is gated at the type instead — `test_root_pv_capacity`,
+under `test`. Score, tbhits and pv are pinned; nodes,
 seldepth and bestmove are not — they are search-side, and this is not a search
 gate.
 
