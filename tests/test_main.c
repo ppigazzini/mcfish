@@ -30,6 +30,7 @@
 #include "../src/engine/search/movepick.h"
 #include "../src/engine/search/search.h"
 #include "../src/engine/search/search_common.h"
+#include "../src/engine/search/timeman.h"
 #include "../src/engine/search/tt.h"
 #include "../src/engine/eval/nnue/simd.h"
 #include "../src/platform/numa.h"
@@ -1510,6 +1511,62 @@ static void test_search_step_margins(void) {
           "clamped below at a quarter of the limit, got %d", multicut_correction_bonus(-30000, 60));
 }
 
+// ------------------------------------------------- time budget on a zero clock
+
+// Pin what the budget answers when the side to move has no clock.
+//
+// `use_time_management` is true when EITHER side's clock is set, so `go wtime 0
+// btime N` runs a managed search whose own clock is zero -- and both bounds are
+// then read, by the per-node maximum check and by the iteration's optimum
+// scaling. Before upstream 92c90f41e neither had a value on that path: upstream
+// left them indeterminate, and this tree passed the PREVIOUS `go`'s budget
+// through, so a search after a timed one inherited its deadline. The bound is
+// the property; the specific sentinel is not, so assert the shape -- a value far
+// past any real clock, and independent of what came before.
+static void test_timeman_zero_clock(void) {
+    banner("time budget on a zero clock");
+
+    const TimemanInput zero = {
+        .time = 0,
+        .inc = 0,
+        .start_time = 1000,
+        .npmsec = 0,
+        .move_overhead = 10,
+        .available_nodes = -1,
+        // What a previous `go` would have left behind: a one-second budget.
+        .current_optimum_time = 500,
+        .current_maximum_time = 1000,
+        .movestogo = 0,
+        .ply = 0,
+        .original_time_adjust = -1.0,
+        .ponder = false,
+    };
+    const TimemanOutput out = timeman_compute(zero);
+    CHECK(out.optimum_time == TIMEMAN_NO_BOUND,
+          "a zero clock bounds the optimum at NO_BOUND, got %lld", (long long) out.optimum_time);
+    CHECK(out.maximum_time == TIMEMAN_NO_BOUND,
+          "a zero clock bounds the maximum at NO_BOUND, got %lld", (long long) out.maximum_time);
+    CHECK(out.start_time == 1000, "the start time still comes through");
+
+    // A real clock still computes a real budget, and one well under the sentinel.
+    TimemanInput real = zero;
+    real.time = 60000;
+    double adjust = -1.0;
+    real.original_time_adjust = adjust;
+    const TimemanOutput got = timeman_compute(real);
+    CHECK(got.optimum_time > 0 && got.optimum_time < TIMEMAN_NO_BOUND,
+          "a real clock computes a real optimum, got %lld", (long long) got.optimum_time);
+    CHECK(got.maximum_time >= got.optimum_time, "the maximum is never below the optimum");
+
+    // timeman_clear must establish the same two bounds, or the very first `go` of
+    // a game reads whatever the block was allocated with.
+    TimeManagement tm = { .optimum_time = 7, .maximum_time = 9 };
+    timeman_clear(&tm);
+    CHECK(tm.optimum_time == TIMEMAN_NO_BOUND && tm.maximum_time == TIMEMAN_NO_BOUND,
+          "a cleared manager carries no budget from the last game");
+    CHECK(tm.available_nodes == -1, "and no node budget either");
+}
+
 // ------------------------------------------------- syzygy WDL score domain
 
 // Pin the domain `wdl.h` promises for a WDL probe: a score in -2..2.
@@ -1897,6 +1954,7 @@ int main(void) {
     test_nnue_accumulator_paths();
     test_nnue_pair_changed_both();
     test_search_step_margins();
+    test_timeman_zero_clock();
     test_movepick_poison();
     test_nnue_parse_poison();
     test_nnue_leb_roundtrip();
