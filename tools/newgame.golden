@@ -24,7 +24,7 @@ Key: BA0586148EFA180B
 Checkers: 
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 info depth 0 score cp 0
 bestmove (none)
@@ -53,13 +53,13 @@ Key: 9A5A0ABF2A13D4C9
 Checkers: 
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 info depth 0 score mate 0
 bestmove (none)
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 info depth 0 score mate 0
 bestmove (none)

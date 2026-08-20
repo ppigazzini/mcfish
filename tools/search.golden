@@ -1,19 +1,19 @@
 <engine banner>
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
-info depth 1 seldepth 2 multipv 1 score cp 15 nodes 20 hashfull 0 tbhits 0 pv d2d4
-info depth 2 seldepth 3 multipv 1 score cp 23 nodes 47 hashfull 0 tbhits 0 pv d2d4
-info depth 3 seldepth 4 multipv 1 score cp 27 nodes 105 hashfull 0 tbhits 0 pv d2d4
-info depth 4 seldepth 8 multipv 1 score cp 16 nodes 1051 hashfull 0 tbhits 0 pv e2e4 g8f6 b1c3 d7d5
-info depth 5 seldepth 10 multipv 1 score cp 25 nodes 1226 hashfull 0 tbhits 0 pv e2e4 g8f6
-info depth 6 seldepth 8 multipv 1 score cp 22 nodes 1639 hashfull 0 tbhits 0 pv e2e4 c7c5 b1c3 e7e6 d2d4 c5d4 d1d4
-info depth 7 seldepth 11 multipv 1 score cp 19 nodes 3115 hashfull 0 tbhits 0 pv e2e4 c7c5 c2c3 b8c6 d2d4 c5d4 c3d4 d7d5
-bestmove e2e4 ponder c7c5
+info depth 1 seldepth 2 multipv 1 score cp 22 nodes 20 hashfull 0 tbhits 0 pv d2d4
+info depth 2 seldepth 3 multipv 1 score cp 21 nodes 154 hashfull 0 tbhits 0 pv e2e4
+info depth 3 seldepth 5 multipv 1 score cp 17 nodes 800 hashfull 0 tbhits 0 pv e2e4 g8f6 b1c3
+info depth 4 seldepth 7 multipv 1 score cp 18 nodes 1172 hashfull 0 tbhits 0 pv e2e4 d7d5 e4d5 d8d5 d2d4 g8f6
+info depth 5 seldepth 6 multipv 1 score cp 18 nodes 1227 hashfull 0 tbhits 0 pv e2e4 d7d5 e4d5 d8d5 d2d4
+info depth 6 seldepth 8 multipv 1 score cp 20 nodes 1629 hashfull 0 tbhits 0 pv e2e4 d7d5 e4d5 d8d5 g1f3
+info depth 7 seldepth 10 multipv 1 score cp 21 nodes 2321 hashfull 1 tbhits 0 pv e2e4 e7e5 g1f3 g8f6 f3e5 f6e4 d1f3 e4f6 f1c4
+bestmove e2e4 ponder e7e5
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 info depth 1 seldepth 2 multipv 1 score mate 1 nodes 16 hashfull 0 tbhits 0 pv a1a8
 info depth 2 seldepth 2 multipv 1 score mate 1 nodes 32 hashfull 0 tbhits 0 pv a1a8
@@ -23,18 +23,18 @@ info depth 5 seldepth 2 multipv 1 score mate 1 nodes 80 hashfull 0 tbhits 0 pv a
 bestmove a1a8
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
-info depth 1 seldepth 5 multipv 1 score cp 14 nodes 19 hashfull 0 tbhits 0 pv e4g6 d5f7 g6f7 e8f7
-info depth 2 seldepth 5 multipv 1 score cp 17 nodes 51 hashfull 0 tbhits 0 pv e4d5
-info depth 3 seldepth 4 multipv 1 score cp 17 nodes 85 hashfull 0 tbhits 0 pv e4d5 e8d7
-info depth 4 seldepth 5 multipv 1 score cp 19 nodes 215 hashfull 0 tbhits 0 pv e4d5 e8f8
-info depth 5 seldepth 6 multipv 1 score cp 19 nodes 623 hashfull 0 tbhits 0 pv e4d5 e8e7 d5g2
-info depth 6 seldepth 7 multipv 1 score cp 19 nodes 1531 hashfull 0 tbhits 0 pv e4d5 e8d7
-bestmove e4d5 ponder e8d7
+info depth 1 seldepth 2 multipv 1 score cp -15 nodes 14 hashfull 0 tbhits 0 pv e4d5
+info depth 2 seldepth 3 multipv 1 score cp -7 nodes 37 hashfull 0 tbhits 0 pv e4d5
+info depth 3 seldepth 4 multipv 1 score cp -10 nodes 58 hashfull 0 tbhits 0 pv e4d5 e8d8 d5a2
+info depth 4 seldepth 5 multipv 1 score cp -5 nodes 251 hashfull 0 tbhits 0 pv e4d5 e8d8 d5a2
+info depth 5 seldepth 5 multipv 1 score cp -3 nodes 449 hashfull 0 tbhits 0 pv e4d5 e8f8
+info depth 6 seldepth 7 multipv 1 score cp -4 nodes 579 hashfull 0 tbhits 0 pv e4d5 e8f8 e1d1 f8g7 d5c4
+bestmove e4d5 ponder e8f8
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-ab28990d4ea3.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 info depth 0 score mate 0
 bestmove (none)
