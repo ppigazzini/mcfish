@@ -14,7 +14,8 @@
 // queries on a node-count checkpoint rather than in the recursion.
 //
 // available_nodes is -1 until the first init of a `nodes as time` game and is
-// carried across moves; timeman_clear resets it at the start of a new game.
+// carried across moves; timeman_clear resets it, and both budget bounds, at the
+// start of a new game.
 //
 // Upstream: timeman.h:34 (TimeManagement).
 
@@ -31,6 +32,19 @@
 // the same type carries a node count instead — the conversion is what that mode
 // is. The unit is milliseconds, matching upstream's TimePoint.
 typedef int64_t TimePoint;
+
+// Stand for "no budget was computed", in the budget's own type.
+//
+// A `go` whose side-to-move clock is zero still runs under time management when
+// the OTHER side's clock is set, and both bounds are read on that path; without a
+// value of their own they answer with the previous `go`'s budget. This is a
+// TimePoint like every real deadline and nothing distinguishes them -- a value in
+// the domain, not a state outside it, which docs/09-type-design.md records
+// alongside the same limitation on the UNIT these bounds carry.
+//
+// Half of the range rather than all of it: a comparison may add to a bound, and
+// signed overflow is undefined.
+static constexpr TimePoint TIMEMAN_NO_BOUND = INT64_MAX / 2;
 
 typedef struct {
     TimePoint start_time;
@@ -84,9 +98,9 @@ typedef struct {
     bool use_nodes_time;
 } TimemanOutput;
 
-// Compute the budget. With a zero clock, pass the current optimum and maximum
-// straight through: only start_time and use_nodes_time are established, which is
-// all a movetime or infinite search reads.
+// Compute the budget. With a zero clock, report both bounds as TIMEMAN_NO_BOUND;
+// only start_time and use_nodes_time are otherwise established (upstream
+// timeman.cpp:61).
 TimemanOutput timeman_compute(TimemanInput input);
 
 // Set up TM for the search about to start and return the effective clock. Read
