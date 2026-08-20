@@ -18,7 +18,7 @@ src/history.h	src/engine/search/history.h,src/engine/search/history.c
 src/main.cpp	src/shell/uci.c
 src/memory.cpp	src/platform/memory.h,src/platform/memory.c
 src/memory.h	src/platform/memory.h
-src/misc.cpp	src/engine/eval/nnue/nnue_hash.h,src/shell/uci_output.c,src/engine/eval/nnue/nnue_hash.c,src/shell/uci.c,src/shell/uci_output.h,src/platform/numa.c
+src/misc.cpp	src/engine/eval/nnue/nnue_hash.h,src/shell/uci_output.c,src/engine/eval/nnue/nnue_hash.c,src/shell/uci.c,src/shell/uci_output.h,src/platform/numa.c,tests/test_main.c
 src/misc.h	src/engine/search/tt.h,src/engine/state/atomic.h
 src/movegen.cpp	src/engine/board/movegen.c,src/engine/board/movegen.h
 src/movegen.h	src/engine/board/movegen.h
