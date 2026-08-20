@@ -10,7 +10,7 @@ info string Using 1 thread
 info string NNUE evaluation using nn-1a298aa575a0.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 info depth 1 seldepth 2 multipv 1 score cp 22 nodes 20 hashfull 0 tbhits 0 pv d2d4
-info depth 2 seldepth 3 multipv 1 score cp 21 nodes 153 hashfull 0 tbhits 0 pv e2e4
-info depth 3 seldepth 5 multipv 1 score cp 17 nodes 730 hashfull 0 tbhits 0 pv e2e4 g8f6 b1c3
+info depth 2 seldepth 3 multipv 1 score cp 21 nodes 147 hashfull 0 tbhits 0 pv e2e4
+info depth 3 seldepth 5 multipv 1 score cp 18 nodes 688 hashfull 0 tbhits 0 pv e2e4 g8f6 b1c3
 bestmove e2e4 ponder g8f6
 exit=0
