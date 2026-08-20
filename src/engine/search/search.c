@@ -224,7 +224,7 @@ static bool root_move_extract_ponder_from_tt(RootMove *rm, Position *pos) {
             const ExtMove *const end = generate_legal(pos, list);
             for (const ExtMove *m = list; m != end; ++m) {
                 if (m->move == probe.data.move) {
-                    rm->pv.moves[rm->pv.length++] = probe.data.move;
+                    (void) root_pv_push(&rm->pv, probe.data.move);
                     break;
                 }
             }
@@ -262,26 +262,9 @@ static bool worker_root_setup(SearchWorker *w,
                               const RootMoveList *src,
                               const SearchZoneLimits *zone_limits) {
     // An EMPTY source list is reachable: a mate or stalemate root re-seeds every
-    // worker with no moves, as upstream's start_thinking does. Handle it before the
-    // allocation rather than through it -- calloc(0, n) may legitimately return null,
-    // which the guard below would read as failure.
-    if (src->count == 0) {
-        root_moves_free(&w->rml);
-    } else {
-        if (w->rml.moves == nullptr || w->rml.count != src->count) {
-            root_moves_free(&w->rml);
-            w->rml.moves = calloc(src->count, sizeof *w->rml.moves);
-            if (w->rml.moves == nullptr)
-                return false;
-        }
-        // Keep the copy on the arm where BOTH pointers are real. memcpy's operands
-        // are declared nonnull, so a zero-length copy out of a null source is
-        // undefined even though it moves no byte -- and on the empty arm both sides
-        // are null. UBSan says so; the copy itself would have looked harmless.
-        memcpy(w->rml.moves, src->moves, src->count * sizeof *src->moves);
-    }
-    w->rml.count = src->count;
-    w->rml.tb_config = src->tb_config;
+    // worker with no moves, as upstream's start_thinking does.
+    if (!root_moves_copy(&w->rml, src))
+        return false;
 
     if (!pos_set(&w->root_pos, root_fen, board_is_chess960(pos), &w->root_state))
         return false;

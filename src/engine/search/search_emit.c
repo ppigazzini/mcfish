@@ -50,12 +50,14 @@ static void score_text(int v, int material, char *buf, size_t n) {
 }
 
 // Render a PV into BUF as space-separated UCI moves.
-static void render_pv(const Position *pos, const PVMoves *pv, char *buf, size_t n) {
+// Take the moves and the length rather than a PV struct: the root PV and a
+// per-ply PV are different types (root_pv.h) and this renders either.
+static void render_pv(const Position *pos, const Move *moves, size_t length, char *buf, size_t n) {
     size_t used = 0;
     buf[0] = '\0';
-    for (size_t i = 0; i < pv->length; ++i) {
+    for (size_t i = 0; i < length; ++i) {
         char mbuf[8];
-        move_to_uci(pos, pv->moves[i], mbuf);
+        move_to_uci(pos, moves[i], mbuf);
         const size_t len = strlen(mbuf);
         if (used + len + 2 >= n)
             break;
@@ -141,7 +143,8 @@ void search_emit_pv(SearchCtx *ctx, int depth) {
         // (Stockfish/src/search.cpp:2262). mcfish already maintained previous_pv and
         // read it in two other places; only the emitter was reading past it.
         char pv_text[PV_TEXT_MAX];
-        render_pv(pos, use_prev ? &rm->previous_pv : &rm->pv, pv_text, sizeof pv_text);
+        const RootPVMoves *const shown = use_prev ? &rm->previous_pv : &rm->pv;
+        render_pv(pos, shown->moves, shown->length, pv_text, sizeof pv_text);
 
         char line[LINE_MAX];
         uci_format_info_full(d, rm->sel_depth, i + 1, sbuf, bound_text, wbuf, show_wdl,

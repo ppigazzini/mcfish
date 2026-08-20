@@ -42,6 +42,13 @@ typedef struct {
                                     size_t count,
                                     RootMoveList *out);
 
+// Copy SRC's list into DST, DEEPLY: a RootMove owns its two PV buffers, so the
+// two lists must not come to share one. Reuses DST's elements when the counts
+// already match, which is every worker after the first `go`. Return false on
+// allocation failure, leaving DST usable but empty.
+[[nodiscard]] bool root_moves_copy(RootMoveList *dst, const RootMoveList *src);
+
+// Release LIST's elements and their PV buffers, and leave it empty.
 void root_moves_free(RootMoveList *list);
 
 // Carry one move through the Syzygy ranking. This is upstream's `RootMove` seen

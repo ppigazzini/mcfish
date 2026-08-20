@@ -30,6 +30,8 @@
 #include "../src/engine/search/movepick.h"
 #include "../src/engine/search/search.h"
 #include "../src/engine/search/search_common.h"
+#include "../src/engine/search/root_pv.h"
+#include "../src/engine/search/search_types.h"
 #include "../src/engine/search/timeman.h"
 #include "../src/engine/search/tt.h"
 #include "../src/engine/eval/nnue/simd.h"
@@ -1511,6 +1513,77 @@ static void test_search_step_margins(void) {
           "clamped below at a quarter of the limit, got %d", multicut_correction_bonus(-30000, 60));
 }
 
+// ------------------------------------------------- the root PV capacity contract
+
+// Pin what separates a ROOT PV from a per-ply one.
+//
+// `PVMoves` is a fixed MAX_PLY + 1 buffer and that bound is exact for a line the
+// SEARCH produced. A root move's PV is not only search-produced: syzygy_extend_pv
+// walks on past it toward a tablebase mate, and a six-man DTZ line is longer than
+// the recursion ever is. A shared type either overruns on that line or truncates
+// it, and neither is a report of what the tablebase proved.
+//
+// No gate here reaches the walk itself -- `tb-fetch` installs three-man tables and
+// `tb-fetch 5` five-man ones, and neither holds a DTZ line that long -- so this
+// drives the TYPE, which is where the contract lives.
+static void test_root_pv_capacity(void) {
+    banner("root PV capacity");
+
+    RootPVMoves pv;
+    CHECK(root_pv_init(&pv), "a root PV reserves its search-length buffer");
+    CHECK(pv.capacity >= (size_t) ROOT_PV_SEARCH_CAP, "reserved at least the search bound, got %zu",
+          pv.capacity);
+    CHECK(pv.length == 0, "and starts empty");
+
+    // A search-produced line: the root move plus a full-length child PV. This must
+    // fit the reservation, which is what lets root_pv_set_line be total.
+    Move child[MAX_PLY];
+    for (size_t i = 0; i < MAX_PLY; ++i)
+        child[i] = make_move((Square) (i % 64), (Square) ((i + 1) % 64));
+    root_pv_set_line(&pv, child[0], child, MAX_PLY);
+    CHECK(pv.length == (size_t) MAX_PLY + 1, "the longest search line fits exactly, got %zu",
+          pv.length);
+    CHECK(pv.moves[0] == child[0] && pv.moves[MAX_PLY] == child[MAX_PLY - 1],
+          "and both ends survive the copy");
+
+    // PAST the search bound. This is the shape the tablebase walk produces and the
+    // one the old fixed buffer could not hold.
+    const size_t extra = 400;
+    for (size_t i = 0; i < extra; ++i)
+        CHECK(root_pv_push(&pv, child[i % MAX_PLY]), "a DTZ move appends past the search bound");
+    CHECK(pv.length == (size_t) MAX_PLY + 1 + extra, "every appended move is in the line, got %zu",
+          pv.length);
+    CHECK(pv.capacity >= pv.length, "and the capacity grew to hold them");
+
+    // The copy that saves and restores a best line must carry the whole thing,
+    // growing a destination that was only reserved for a search line.
+    RootPVMoves saved;
+    CHECK(root_pv_init(&saved), "the save buffer reserves too");
+    root_pv_copy(&saved, &pv);
+    CHECK(saved.length == pv.length, "a save keeps the extended line whole, got %zu vs %zu",
+          saved.length, pv.length);
+    CHECK(memcmp(saved.moves, pv.moves, saved.length * sizeof *saved.moves) == 0,
+          "and every move of it");
+
+    // Narrowing to a per-ply PV is the one crossing between the two contracts, and
+    // it truncates rather than overruns.
+    PVMoves narrow;
+    pv_from_root(&narrow, &pv);
+    CHECK(narrow.length == (size_t) MAX_PLY + 1, "narrowing stops at the per-ply bound, got %zu",
+          narrow.length);
+    CHECK(narrow.moves[MAX_PLY] == pv.moves[MAX_PLY], "keeping the prefix it did copy");
+
+    root_pv_truncate(&pv, 3);
+    CHECK(pv.length == 3, "a truncation shrinks, got %zu", pv.length);
+    root_pv_truncate(&pv, 900);
+    CHECK(pv.length == 3, "and never grows");
+
+    root_pv_release(&saved);
+    root_pv_release(&pv);
+    CHECK(pv.moves == nullptr && pv.length == 0 && pv.capacity == 0, "a released PV holds nothing");
+    root_pv_release(&pv);  // idempotent
+}
+
 // ------------------------------------------------- time budget on a zero clock
 
 // Pin what the budget answers when the side to move has no clock.
@@ -1954,6 +2027,7 @@ int main(void) {
     test_nnue_accumulator_paths();
     test_nnue_pair_changed_both();
     test_search_step_margins();
+    test_root_pv_capacity();
     test_timeman_zero_clock();
     test_movepick_poison();
     test_nnue_parse_poison();

@@ -13,10 +13,53 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Bound the walk by the PV buffer, not by the tablebase: `PVMoves` holds
-// MAX_PLY + 1 moves and one StateInfo backs each made move, plus one slot the
-// ranking borrows as its trial ply.
-enum { PV_MOVES_MAX = MAX_PLY, STATE_SLOTS = MAX_PLY + 2 };
+// Hand out StateInfo slots whose ADDRESSES NEVER MOVE.
+//
+// `pos_do_move` links the slot it is given into the position's state chain, so a
+// growable ARRAY is the one shape this cannot be: a reallocation would leave that
+// chain pointing into freed memory, and the undo walk would follow it. Upstream
+// holds them in a `std::list<StateInfo>` for the same reason (search.cpp:2152).
+// Chaining fixed blocks settles a slot's address when its block is allocated,
+// however many blocks follow.
+//
+// Nothing here caps the number of slots, because nothing caps the walk: the root
+// PV grows with it (root_pv.h), and what ends it is the position -- a draw, a
+// mate, a table that stops ranking, the Move Overhead deadline -- or a block that
+// cannot be allocated, which reports the line already built.
+enum { STATE_BLOCK_SLOTS = 64 };
+
+typedef struct StateBlock {
+    struct StateBlock *next;
+    size_t used;
+    StateInfo slots[STATE_BLOCK_SLOTS];
+} StateBlock;
+
+typedef struct {
+    StateBlock *head;  // most recently allocated; slots are taken from here
+} StateArena;
+
+// Return the next free slot, allocating a block when the current one is full.
+// Null means the walk stops here.
+static StateInfo *state_arena_take(StateArena *a) {
+    if (a->head == nullptr || a->head->used == STATE_BLOCK_SLOTS) {
+        StateBlock *const b = calloc(1, sizeof *b);
+        if (b == nullptr)
+            return nullptr;
+        b->next = a->head;
+        a->head = b;
+    }
+    return &a->head->slots[a->head->used++];
+}
+
+static void state_arena_release(StateArena *a) {
+    StateBlock *b = a->head;
+    while (b != nullptr) {
+        StateBlock *const next = b->next;
+        free(b);
+        b = next;
+    }
+    a->head = nullptr;
+}
 
 typedef struct {
     TimePoint start;
@@ -83,18 +126,19 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
         .use_time_management = use_time_management,
     };
 
-    StateInfo *const sts = calloc(STATE_SLOTS, sizeof *sts);
+    StateArena arena = { .head = nullptr };
     RankedRootMove *const ranked = calloc(MAX_MOVES, sizeof *ranked);
-    if (!sts || !ranked) {
-        free(sts);
+    StateInfo *slot = state_arena_take(&arena);
+    if (ranked == nullptr || slot == nullptr) {
         free(ranked);
+        state_arena_release(&arena);
         return;
     }
 
     // Step 0: play the root move itself. It is never re-ranked — under MultiPV in
     // a tablebase it is deliberately not the top-ranked move.
     size_t made = 0;
-    pos_do_move(pos, rm->pv.moves[made], &sts[made], pos_gives_check(pos, rm->pv.moves[made]),
+    pos_do_move(pos, rm->pv.moves[made], slot, pos_gives_check(pos, rm->pv.moves[made]),
                 &pos->scratch_dp, &pos->scratch_dts, nullptr);
     ++made;
     size_t ply = 1;
@@ -102,20 +146,26 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
     // Step 1: keep the search PV for as long as each of its moves is still one of
     // the top-ranked moves. The first move that is not is where the tablebase stops
     // vouching for the line, and everything from there on is dropped.
-    while (ply < rm->pv.length && made < STATE_SLOTS - 1) {
+    while (ply < rm->pv.length) {
+        // One slot per iteration: the ranking borrows it as a trial ply and the
+        // move below then keeps it. An iteration that breaks leaves it unused,
+        // which costs a slot in a block that is about to be released.
+        slot = state_arena_take(&arena);
+        if (slot == nullptr)
+            break;
+
         const Move pv_move = rm->pv.moves[ply];
 
         const size_t n = collect_legal(pos, ranked);
-        const TbConfig config =
-          tb_rank_moves(pos, &sts[made], ranked, n, RANK_DTZ_NO, pos->st->rule50,
-                        pos_has_repeated(pos), deadline_expired, &deadline);
+        const TbConfig config = tb_rank_moves(pos, slot, ranked, n, RANK_DTZ_NO, pos->st->rule50,
+                                              pos_has_repeated(pos), deadline_expired, &deadline);
 
         const RankedRootMove *const entry = find_ranked(ranked, n, pv_move);
         if (n == 0 || !entry || ranked[0].tb_rank != entry->tb_rank)
             break;
 
         ++ply;
-        pos_do_move(pos, pv_move, &sts[made], pos_gives_check(pos, pv_move), &pos->scratch_dp,
+        pos_do_move(pos, pv_move, slot, pos_gives_check(pos, pv_move), &pos->scratch_dp,
                     &pos->scratch_dts, nullptr);
         ++made;
 
@@ -135,7 +185,7 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
             break;
     }
 
-    rm->pv.length = ply;
+    root_pv_truncate(&rm->pv, ply);
 
     // Step 2: walk on with minimum-DTZ moves, the line a user clicking top-ranked
     // moves on syzygy-tables.info would follow. It is optimal only for endgames
@@ -144,28 +194,32 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
     while (!(rule50 && pos_is_draw(pos, 0))) {
         if (deadline_expired(&deadline))
             break;
-        if (rm->pv.length >= PV_MOVES_MAX || made >= STATE_SLOTS - 1)
+
+        slot = state_arena_take(&arena);
+        if (slot == nullptr)
             break;
 
         const size_t n = collect_legal(pos, ranked);
         if (n == 0)  // mate
             break;
 
-        rank_by_opponent_mobility(pos, &sts[made], ranked, n);
+        rank_by_opponent_mobility(pos, slot, ranked, n);
         tb_stable_sort_by_rank(ranked, n);
 
         // The winning side minimises DTZ, the losing side maximises it.
-        const TbConfig config =
-          tb_rank_moves(pos, &sts[made], ranked, n, RANK_DTZ_YES, pos->st->rule50,
-                        pos_has_repeated(pos), deadline_expired, &deadline);
+        const TbConfig config = tb_rank_moves(pos, slot, ranked, n, RANK_DTZ_YES, pos->st->rule50,
+                                              pos_has_repeated(pos), deadline_expired, &deadline);
 
         // Without DTZ there is no mate to walk toward, so stop rather than guess.
         if (!config.root_in_tb || config.cardinality > 0)
             break;
 
         const Move pv_move = ranked[0].raw_move;
-        rm->pv.moves[rm->pv.length++] = pv_move;
-        pos_do_move(pos, pv_move, &sts[made], pos_gives_check(pos, pv_move), &pos->scratch_dp,
+        // The PV grows here and nowhere else. A refusal means the buffer could not
+        // be extended, which ends the walk on the line already built.
+        if (!root_pv_push(&rm->pv, pv_move))
+            break;
+        pos_do_move(pos, pv_move, slot, pos_gives_check(pos, pv_move), &pos->scratch_dp,
                     &pos->scratch_dts, nullptr);
         ++made;
     }
@@ -180,7 +234,7 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
     for (size_t i = made; i > 0; --i)
         pos_undo_move(pos, rm->pv.moves[i - 1]);
 
-    free(sts);
+    state_arena_release(&arena);
     free(ranked);
 
     if (deadline_expired(&deadline)) {
