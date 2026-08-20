@@ -30,10 +30,15 @@ TimemanOutput timeman_compute(TimemanInput input) {
         .use_nodes_time = input.npmsec != 0,
     };
 
-    // With no time there is no budget to fully initialize. start_time is used by
-    // movetime and use_nodes_time is used in the elapsed calls.
-    if (input.time == 0)
+    // With no time there is no budget to compute. start_time is used by movetime
+    // and use_nodes_time by the elapsed calls; both bounds still take a value,
+    // because `go wtime 0 btime N` runs under time management and a search reads
+    // them -- passing the caller's through answers with the previous `go`'s.
+    if (input.time == 0) {
+        output.optimum_time = TIMEMAN_NO_BOUND;
+        output.maximum_time = TIMEMAN_NO_BOUND;
         return output;
+    }
 
     TimePoint move_overhead = input.move_overhead;
 
@@ -148,6 +153,8 @@ TimemanLimits timeman_init(TimeManagement *tm,
 
 void timeman_clear(TimeManagement *tm) {
     tm->available_nodes = -1;  // When in `nodes as time` mode
+    tm->optimum_time = TIMEMAN_NO_BOUND;
+    tm->maximum_time = TIMEMAN_NO_BOUND;
 }
 
 void timeman_advance_nodes_time(TimeManagement *tm, int64_t nodes) {

@@ -248,6 +248,16 @@ where it enters the time state now, beside the other two. Upstream carries the
 defect; nothing in either type system could have objected, which is the point the
 paragraph below makes in the abstract and this makes concretely.
 
+One more value lives in that same undifferentiated domain: `TIMEMAN_NO_BOUND`, the
+budget a zero side-to-move clock produces. `use_time_management` is true when
+*either* clock is set, so `go wtime 0 btime N` runs a managed search with no clock
+of its own, reads both bounds, and — before they were given a value — answered
+with the previous `go`'s deadline. The sentinel is a `TimePoint` like every real
+budget, so nothing in the type system tells a caller which one it holds; it is
+`INT64_MAX / 2` so that a comparison may add to it without signed overflow. The
+alternative is an optional budget, and that is the same restructuring the
+paragraph below declines for the same reason.
+
 The crossings that matter are right, and they are right **structurally rather than
 by type**: `timeman` converts the maximum into the budget's own unit, so the stop
 check compares like with like, and reporting has its own producer — `search_emit`
