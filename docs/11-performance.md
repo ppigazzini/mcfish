@@ -222,13 +222,34 @@ that its figures rank locality and do not predict time. Read `Bcm` to find out
 *where* prediction moved once hardware has said *that* it moved; never the other
 way round.
 
-**Ratios chain, and this tree has checked it.** Measured step by step, each
-against the binary immediately before it, the five commits of that sweep read
-−0.0627%, −0.4453%, −0.0829%, −0.0393% and −0.0379%; their instruction deltas
-sum to exactly the direct reading of the first binary against the last,
-−174,894,277 instructions, −0.6668%. That holds because each step was measured
-against its own predecessor. Three ratios taken against a *common* base do not
-compose that way.
+**Ratios chain, and this tree has checked both halves.** Measured step by step,
+each against the binary immediately before it, the five commits of that sweep
+read −0.0627%, −0.4453%, −0.0829%, −0.0393% and −0.0379%; their instruction
+deltas sum to exactly the direct reading of the first binary against the last,
+−174,894,277 instructions, −0.6668%. That closes because each step was measured
+against its own predecessor.
+
+Measured against a **common** base it neither closes nor even applies. Each of
+the five was cherry-picked alone onto the pre-sweep commit and measured there:
+
+| change | vs common base | vs its predecessor | disagreement |
+| --- | --- | --- | --- |
+| three list walks out of the dispatch table | −16,411,919 | −16,442,625 | 0.19% of the effect |
+| flatten the quiet score's per-move work | −115,464,612 | −116,704,572 | 1.06% |
+| reductions table as u16 | −10,237,214 | −10,247,198 | 0.10% |
+| stop the good-quiet walk | *does not apply* | −21,619,879 | — |
+| carry the reduction window term | *does not apply* | −9,880,003 | — |
+
+Two of the five **cannot be measured against the common base at all**: the
+good-quiet stop needs the label hoist the first commit introduces, and the
+window-term hoist needs the u16 retype. A fleet chartered on one shared base
+cannot produce those two numbers, and the three it can produce are each a
+different number from the one the assembled stack pays — same sign and same
+order, but off by up to 1% of the effect, because a deterministic ratio is a
+fact about the code **and its base together**.
+
+So the assembled figure is a separate measurement, not a product of the parts,
+and it belongs to whoever assembles them.
 
 ### The bench understates a warm search, and by how much
 
