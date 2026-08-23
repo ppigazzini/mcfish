@@ -109,8 +109,51 @@ static constexpr HistLimit HIST_LIMIT_CONTINUATION = { 30000 };
 // `search_common.c` reads it as `/ 4` and the tests assert against that quarter.
 static constexpr HistLimit HIST_LIMIT_CORRECTION = { CORRECTION_HISTORY_LIMIT };
 
+// Fold the widening into the load itself, where the compiler will not.
+//
+// clang lowers a two-byte relaxed atomic load to `movzwl <mem>,%r` and then a SEPARATE
+// reg-reg `movswl`: LLVM's x86 ISel has no sextload pattern for ATOMIC_LOAD, so the
+// node's result type is i16 and the widening cannot fold into it. A plain i16 load gets
+// the one `movswl <mem>,%r`. Every C spelling of the atomic load produces the pair --
+// `atomic_load_explicit`, `__atomic_load_n` through a plain pointer, and an explicit
+// narrowing cast were each checked and each emits `movzwl` + `cwtl`.
+//
+// The cost is per LOAD, and these banks are the most-read memory in the engine: six
+// planes per quiet move scored, two more per quiet move in the reduction's stat score,
+// and four a node in the correction term.
+//
+// On x86-64 a naturally aligned two-byte load IS the relaxed atomic load, so the asm
+// claims nothing the hardware does not already give; the three assertions hold what the
+// operand assumes about the entry's layout and lock-freedom, so an implementation that
+// padded or locked it would fail the build rather than miscompile the search. Inline asm
+// carrying a memory operand is opaque to the compiler's memory analysis: it is not
+// forwarded across a store to the same entry and not hoisted across a call, which makes
+// it more ordered than the relaxed load it replaces, never less.
+#if defined(__clang__) && defined(__x86_64__)
+    #if !__has_feature(address_sanitizer) && !__has_feature(thread_sanitizer) \
+      && !__has_feature(memory_sanitizer)
+        // The sanitizer lanes keep the atomic. Inline asm is invisible to every one of
+        // them, and `./build.sh tsan` and `./build.sh test` exist to see exactly these
+        // accesses -- so those lanes establish the access PATTERN and not the
+        // instruction that ships, which is the limit of what they prove here.
+        #define MCFISH_WIDE_ATOMIC_LOAD_ASM 1
+    #endif
+#endif
+
 static inline int shared_stat_load(const SharedStat *entry) {
+#ifdef MCFISH_WIDE_ATOMIC_LOAD_ASM
+    static_assert(sizeof(SharedStat) == sizeof(int16_t),
+                  "the operand below reads exactly the two bytes the entry occupies");
+    static_assert(alignof(SharedStat) == alignof(int16_t),
+                  "an entry must be naturally aligned for a plain load to be atomic");
+    static_assert(ATOMIC_SHORT_LOCK_FREE == 2, "a locked atomic is not a plain load");
+
+    int value;
+    __asm__("movswl %1, %0" : "=r"(value) : "m"(*entry));
+    return value;
+#else
     return atomic_load_explicit(entry, memory_order_relaxed);
+#endif
 }
 
 static inline void shared_stat_store(SharedStat *entry, int16_t value) {
