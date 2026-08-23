@@ -212,7 +212,7 @@ typedef struct SearchCtx {
     int32_t root_depth;
     int32_t root_delta;
 
-    const int32_t *reductions;
+    const uint16_t *reductions;
 
     // EVERY FIELD ABOVE AND BELOW THIS COMMENT IS READ PER NODE, so they are kept
     // contiguous: `last_iter_pv` is a ~500-byte array and used to sit in the middle

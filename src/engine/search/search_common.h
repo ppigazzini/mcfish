@@ -123,7 +123,7 @@ int singular_triple_margin(
 
 // Fill REDUCTIONS[1, count) with int(2872/128 * ln i). Index 0 is left untouched,
 // matching upstream's clear().
-void search_fill_reductions(int32_t *reductions, size_t count);
+void search_fill_reductions(uint16_t *reductions, size_t count);
 
 // Return the shared, read-only reductions table of MAX_MOVES entries. The values
 // depend only on the index, so they are identical for every worker and every
@@ -131,12 +131,16 @@ void search_fill_reductions(int32_t *reductions, size_t count);
 // Compute the table on first use -- reached single-threaded during the main
 // thread's per-worker setup, before any sibling starts -- and hand every ctx the
 // same pointer, so no `go` pays the 256 log() calls or carries its own copy.
-const int32_t *search_reductions_table(void);
+const uint16_t *search_reductions_table(void);
 
 // Compute the 1024-scaled base reduction. DELTA is the node's window,
 // ROOT_DELTA the root window this iteration searched with.
-int reduction_of(
-  const int32_t *reductions, int depth, int move_number, int delta, int root_delta, bool improving);
+int reduction_of(const uint16_t *reductions,
+                 int depth,
+                 int move_number,
+                 int delta,
+                 int root_delta,
+                 bool improving);
 
 int lmr_ttpv_reduction(bool pv_node, bool value_gt_alpha, bool depth_ge, bool cut_node);
 int lmr_corr_reduction(int correction_value);
