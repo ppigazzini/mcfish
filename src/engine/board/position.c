@@ -65,9 +65,11 @@ static void toggle_aux_keys(StateInfo *st, Piece pc, Square sq) {
     #endif
     #define THREATS_RECORD_RAY(...) ((void) 0)
     #define THREATS_RECORD_NO_RAY(...) ((void) 0)
+    #define THREATS_RECORD_NO_RAY_AT(...) ((void) 0)
 #else
     #define THREATS_RECORD_RAY(...) threats_update_piece_ray(__VA_ARGS__)
     #define THREATS_RECORD_NO_RAY(...) threats_update_piece_no_ray(__VA_ARGS__)
+    #define THREATS_RECORD_NO_RAY_AT(...) threats_update_piece_no_ray_at(__VA_ARGS__)
 #endif
 
 static void put_piece(Position *pos, Piece pc, Square s, DirtyThreats *dts) {
@@ -120,14 +122,19 @@ static void swap_piece(Position *pos, Square s, Piece pc, DirtyThreats *dts) {
     const Piece old = pos->board[s];
 
     remove_piece(pos, s, nullptr);
-
-    if (dts)
-        THREATS_RECORD_NO_RAY(pos, old, false, s, dts, ALL_SQUARES_BB);
-
     put_piece(pos, pc, s, nullptr);
 
-    if (dts)
-        THREATS_RECORD_NO_RAY(pos, pc, true, s, dts, ALL_SQUARES_BB);
+    // Both scans read the same board. Everything either of them reads off the position is
+    // masked by an attack set computed FROM s, and no attack set from s contains s, so
+    // the one bit the two orders disagree on cannot reach either result -- which is what
+    // lets the scans move behind the swap and share one slider lookup between them.
+    if (dts) {
+        // maybe_unused: the MCFISH_NO_THREAT_RECORD ablation compiles the two scans out.
+        [[maybe_unused]] const DualAttacks slider_attacks =
+          both_attacks_bb(s, pos->by_type[ALL_PIECES]);
+        THREATS_RECORD_NO_RAY_AT(pos, old, false, s, dts, ALL_SQUARES_BB, slider_attacks);
+        THREATS_RECORD_NO_RAY_AT(pos, pc, true, s, dts, ALL_SQUARES_BB, slider_attacks);
+    }
 }
 
 Bitboard pos_attackers_to_occ(const Position *pos, Square s, Bitboard occupied) {
