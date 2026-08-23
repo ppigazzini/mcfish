@@ -55,8 +55,14 @@ static inline bool capture_stage(const Position *pos, Move m) {
     return is_capture(pos, m) || move_promotion(m) == QUEEN;
 }
 
-static inline int cont_hist_score(const MovePicker *mp, size_t slot, Piece pc, Square to) {
-    return shared_stat_load(&mp->cont_hist[slot][(size_t) pc * SQUARE_NB + (size_t) to]);
+// Read one continuation plane at an ALREADY-FLATTENED element index. The six history
+// planes a quiet move reads are all indexed at the same [pc][to], and each plane is one
+// run of HIST_PIECETO entries, so pc * SQUARE_NB + to names the element directly. Taking
+// the flat index as the argument lets the caller compute it once instead of six times:
+// clang lowers `row[pc * SQUARE_NB + to]` as `row + pc * 128` plus an index of `to * 2`,
+// so the addressing mode carries one term and an add carries the other, once per plane.
+static inline int cont_hist_score(const MovePicker *mp, size_t slot, size_t hi) {
+    return shared_stat_load(&mp->cont_hist[slot][hi]);
 }
 
 // Generate the KIND move list into OUT and fill each entry's ordering value.
@@ -75,6 +81,10 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
     // Collect, per moving piece type, the squares attacked by a strictly cheaper
     // enemy piece. Quiet scoring pays for stepping into one and rewards leaving one.
     Bitboard threat_by_lesser[PIECE_TYPE_NB] = { 0 };
+    // Hoisted out of the move loop: the row is a function of the pawn key alone, which
+    // does not change while one position's move list is scored, and the lookup masks and
+    // scales the key. It was paid once per QUIET move.
+    const SharedStat *pawn_row = nullptr;
     if (kind == KIND_QUIETS) {
         const Color them = flip_color(us);
         threat_by_lesser[PAWN] = 0;
@@ -84,6 +94,8 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
           attacks_by(pos, them, KNIGHT) | attacks_by(pos, them, BISHOP) | threat_by_lesser[KNIGHT];
         threat_by_lesser[QUEEN] = attacks_by(pos, them, ROOK) | threat_by_lesser[ROOK];
         threat_by_lesser[KING] = 0;
+
+        pawn_row = pawn_history_row(h, mp->pawn_key);
     }
 
     for (size_t i = 0; i < count; ++i) {
@@ -99,27 +111,38 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
         if (kind == KIND_CAPTURES) {
             value = *capture_entry(h, pc, to, type_of_piece(captured)) + 7 * PieceValues[captured];
         } else if (kind == KIND_QUIETS) {
+            const size_t hi = (size_t) pc * SQUARE_NB + (size_t) to;
+
             const int main_history = h->main_history[(size_t) us * HIST_UINT16 + (size_t) m];
-            const int pawn_history = shared_stat_load(
-              &pawn_history_row(h, mp->pawn_key)[(size_t) pc * SQUARE_NB + (size_t) to]);
-            const int continuation_sum =
-              cont_hist_score(mp, 0, pc, to) + cont_hist_score(mp, 1, pc, to)
-              + cont_hist_score(mp, 2, pc, to) + cont_hist_score(mp, 3, pc, to)
-              + cont_hist_score(mp, 5, pc, to);
+            const int pawn_history = shared_stat_load(&pawn_row[hi]);
+            const int continuation_sum = cont_hist_score(mp, 0, hi) + cont_hist_score(mp, 1, hi)
+                                       + cont_hist_score(mp, 2, hi) + cont_hist_score(mp, 3, hi)
+                                       + cont_hist_score(mp, 5, hi);
 
-            const int check_bonus =
-              (check_squares(pos, pt) & square_bb(to)) != 0 && see_ge(pos, m, -75);
-            const int from_threatened = (threat_by_lesser[pt] & square_bb(from)) != 0;
-            const int to_threatened = (threat_by_lesser[pt] & square_bb(to)) != 0;
+            // Both threat tests are the same bit test on the same bitboard, but
+            // `b & square_bb(s)` hands clang a VALUE to test where a shift hands it a bit
+            // POSITION: from the `to` half it builds `1 << to` and tests that, where the
+            // `from` half it already lowers to a `bt`. Written as shifts both are `bt`
+            // and the difference falls out of the carry.
+            const Bitboard threat = threat_by_lesser[pt];
+            const int threat_term = (int) (threat >> from & 1) - (int) (threat >> to & 1);
 
-            value = 2 * main_history + 2 * pawn_history + continuation_sum + check_bonus * 16384
-                  + PieceValues[pt] * 20 * (from_threatened - to_threatened);
+            value = 2 * main_history + 2 * pawn_history + continuation_sum
+                  + PieceValues[pt] * 20 * threat_term;
+
+            // A statement rather than a multiply by the predicate. The short circuit is
+            // already a branch, and the product makes its NOT-taken arm materialise a
+            // zero and add it -- and that arm is almost every move scored, since the
+            // check-square test in front of see_ge is false for the overwhelming
+            // majority of quiets.
+            if ((check_squares(pos, pt) & square_bb(to)) != 0 && see_ge(pos, m, -75))
+                value += 16384;
         } else {
             if (capture_stage(pos, m)) {
                 value = PieceValues[captured] + (1 << 28);
             } else {
                 value = h->main_history[(size_t) us * HIST_UINT16 + (size_t) m]
-                      + cont_hist_score(mp, 0, pc, to);
+                      + cont_hist_score(mp, 0, (size_t) pc * SQUARE_NB + (size_t) to);
             }
         }
 
