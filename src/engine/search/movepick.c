@@ -86,8 +86,8 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
     // an `st` the move loop has no register left to hold -- the six history planes, the
     // board and the list cursor are already more live pointers than the machine has --
     // so `st` came back off the stack once a move. A local array beside threat_by_lesser
-    // is addressed off the frame and the read is one load. The values cannot move: a
-    // position does not change while its own move list is scored.
+    // is addressed off the frame pointer and the read is one load. The values cannot
+    // move: a position does not change while its own move list is scored.
     Bitboard check_square[PIECE_TYPE_NB];
     // Hoisted out of the move loop: the row is a function of the pawn key alone, which
     // does not change while one position's move list is scored, and the lookup masks and
@@ -445,33 +445,62 @@ static Move select_probcut(MovePicker *mp) {
     return MOVE_NONE;
 }
 
-Move movepick_next(MovePicker *mp) {
+// The three stages that only walk a list, chained by fallthrough exactly as they were
+// when they were cases of the switch below. Reached by a range test rather than through
+// the jump table, so more than half of the dispatches are a direct branch and the table
+// keeps the rest.
+//
+// Naming them AHEAD of the switch while they were still cases of it does nothing: clang
+// folds a test whose target is a case label back into the jump table and emits a
+// byte-identical dispatch. They have to LEAVE the switch for the test to survive -- and
+// leaving the FUNCTION is what drops the frame, which is the other half of the cost.
+static Move walk_lists(MovePicker *mp) {
+    Move walk_move;
+
+    if (mp->stage == MP_GOOD_QUIET)
+        goto good_quiet;
+    if (mp->stage == MP_BAD_CAPTURE)
+        goto bad_capture;
+    goto bad_quiet;
+
+good_quiet:
+    if (!mp->skip_quiets) {
+        walk_move = -3560 * mp->depth <= GOOD_QUIET_THRESHOLD ? select_good_quiet_bounded(mp)
+                                                              : select_good_quiet(mp);
+        if (walk_move != MOVE_NONE)
+            return walk_move;
+    }
+
+    mp->cur = 0;
+    mp->end_cur = mp->end_bad_captures;
+    ++mp->stage;
+
+bad_capture:
+    walk_move = select_any(mp);
+    if (walk_move != MOVE_NONE)
+        return walk_move;
+
+    mp->cur = mp->end_captures;
+    mp->end_cur = mp->end_generated;
+    ++mp->stage;
+
+bad_quiet:
+    if (!mp->skip_quiets)
+        return select_bad_quiet(mp);
+    return MOVE_NONE;
+}
+
+// The stages that have no list to walk yet: the TT move, the three that generate and
+// score one, and the two that filter a list through see_ge.
+//
+// It is out of line and never inlined because of what it costs its CALLER to hold. The
+// generating arms inline score_list, whose per-list locals -- the threat and check-square
+// planes, and the two 512-bit halves of the move sorter above them -- need a 216-byte
+// frame and six callee-saved registers at avx512icl. Folding this back into
+// movepick_next charges that prologue and epilogue to every call, and more than half of
+// them reach nothing but walk_lists.
+[[gnu::noinline]] static Move generate_stage(MovePicker *mp) {
     for (;;) {
-        // Shared by the three hoisted walks below, which a `goto` enters: a declaration
-        // beside each one would sit past the switch, where nothing falls through to it.
-        Move walk_move;
-
-        // Essentially every indirect mispredict this engine pays is the switch below.
-        // Over a warm game the dispatch is entered several times a node, and more than
-        // half of those entries ask for one of the three CONSECUTIVE stages that do
-        // nothing but walk a list -- GOOD_QUIET, BAD_CAPTURE, BAD_QUIET. Hoist those
-        // three out of the switch and reach them by a range test, so the table keeps
-        // only the twelve stages that generate, score or sort. They still chain by
-        // fallthrough exactly as they did as cases; only QUIET_INIT reaches the first
-        // of them by a jump rather than by falling in.
-        //
-        // Naming them AHEAD of the switch while they were still cases of it does
-        // nothing: clang folds a test whose target is a case label back into the jump
-        // table and emits a byte-identical dispatch. They have to LEAVE the switch for
-        // the test to survive, which is why this is a move and not two lines.
-        if ((unsigned) (mp->stage - MP_GOOD_QUIET) <= (unsigned) (MP_BAD_QUIET - MP_GOOD_QUIET)) {
-            if (mp->stage == MP_GOOD_QUIET)
-                goto good_quiet;
-            if (mp->stage == MP_BAD_CAPTURE)
-                goto bad_capture;
-            goto bad_quiet;
-        }
-
         switch (mp->stage) {
         case MP_MAIN_TT :
         case MP_EVASION_TT :
@@ -522,7 +551,7 @@ Move movepick_next(MovePicker *mp) {
             }
 
             ++mp->stage;
-            goto good_quiet;
+            return walk_lists(mp);
         }
 
         case MP_EVASION_INIT : {
@@ -547,34 +576,19 @@ Move movepick_next(MovePicker *mp) {
         default :
             return MOVE_NONE;
         }
-
-        // Unreachable: every case above returns, continues or jumps. The three hoisted
-        // stages live here, past the switch, and are entered only through the range test
-        // at the top of the loop or through the jump out of QUIET_INIT.
-good_quiet:
-        if (!mp->skip_quiets) {
-            walk_move = -3560 * mp->depth <= GOOD_QUIET_THRESHOLD ? select_good_quiet_bounded(mp)
-                                                                  : select_good_quiet(mp);
-            if (walk_move != MOVE_NONE)
-                return walk_move;
-        }
-
-        mp->cur = 0;
-        mp->end_cur = mp->end_bad_captures;
-        ++mp->stage;
-
-bad_capture:
-        walk_move = select_any(mp);
-        if (walk_move != MOVE_NONE)
-            return walk_move;
-
-        mp->cur = mp->end_captures;
-        mp->end_cur = mp->end_generated;
-        ++mp->stage;
-
-bad_quiet:
-        if (!mp->skip_quiets)
-            return select_bad_quiet(mp);
-        return MOVE_NONE;
     }
+}
+
+// Emit one new pseudo-legal move per call, highest-scoring first, until the list runs
+// out.
+//
+// Essentially every indirect mispredict this engine pays is the jump table in
+// generate_stage. Over a warm game the dispatch is entered several times a node, and
+// more than half of those entries ask for one of the three CONSECUTIVE stages that do
+// nothing but walk a list, which the range test below answers without reaching it.
+Move movepick_next(MovePicker *mp) {
+    if ((unsigned) (mp->stage - MP_GOOD_QUIET) <= (unsigned) (MP_BAD_QUIET - MP_GOOD_QUIET))
+        return walk_lists(mp);
+
+    return generate_stage(mp);
 }
