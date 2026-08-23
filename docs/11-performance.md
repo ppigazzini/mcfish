@@ -206,6 +206,33 @@ column models a crude BTB against this part's ITTAGE and can read a *regression*
 where hardware reads parity. Use it to find out **where** prediction moved once a
 hardware run has said **that** it moved; a `Bcm` ratio alone refutes nothing.
 
+**A build hash proves neutrality, in one direction and for one command.** This
+tree bakes no SHA and no date into the binary, so two builds of the same source
+are byte-identical and `md5sum` answers *did this change reach the compiler's
+output at all* without measuring anything:
+
+```bash
+MCFISH_ARCH=avx2 BIN=/tmp/before ./build.sh build   # on the base
+MCFISH_ARCH=avx2 BIN=/tmp/after  ./build.sh build   # on the change
+md5sum /tmp/before /tmp/after
+```
+
+An identical hash proves nothing moved — LTO, layout and padding included. A
+differing hash proves only that something did, so it is a proof in one direction
+and never a measurement. Reach for it wherever a change is guarded to one tier
+and the untouched tiers need a statement rather than a number, and note that it
+resolves BELOW the counter: a byte-identical sse41 pair read an 11,101-instruction
+difference on `perf-budget`, against a 4,569 spread over three runs of one binary.
+
+**An instruction ratio is not a time claim.** Instructions removed can be off the
+critical path, and then the clock does not follow them. A stack worth −2.28% of
+retired instructions at `x86-64-avx512icl` read a median paired A/B search time of
+0.9855 on `nps_ab.sh` — inside the 0.9965..1.5094 band the same command printed
+for the base binary against a copy of itself, which is the tool declining to
+establish a direction. The instruction axis carries that standing on its own; the
+clock did not contradict it, it said nothing. Name the axis a number came from
+rather than promoting a counter's sign to a speed claim.
+
 **Measure each step against its predecessor, never against a shared base.** A
 deterministic ratio is a fact about the code *and its base together*: the same
 change reads a different number against the pre-stack commit than it pays in the
