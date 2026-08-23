@@ -67,4 +67,20 @@ void threats_update_piece_ray(
 void threats_update_piece_no_ray(
   const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays);
 
+// The no-ray scan with the slider pair supplied. The one caller that scans a square TWICE
+// -- the capture-and-promote swap, which records the piece leaving and the piece arriving
+// on one square -- pays two `both_attacks_bb(s, occupied)` for a pair neither scan can
+// tell apart: every set either of them reads is masked by an attack set computed FROM s,
+// and no attack set from s contains s, so "s is empty" and "s holds pc" are the same
+// board to both. Adjacency alone does not reach it -- neither compiler
+// common-subexpressions the lookup across the stores the first scan makes into the dirty
+// list -- so the pair is passed rather than recomputed.
+void threats_update_piece_no_ray_at(const Position *pos,
+                                    Piece pc,
+                                    bool put_piece,
+                                    Square s,
+                                    DirtyThreats *dts,
+                                    Bitboard no_rays,
+                                    DualAttacks slider_attacks);
+
 #endif  // MCFISH_THREATS_H
