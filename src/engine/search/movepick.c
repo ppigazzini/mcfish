@@ -233,6 +233,45 @@ static void move_sorter_write(const MoveSorter *s, ExtMove *moves, size_t count)
 }
 #endif
 
+// Sort every entry into descending order. Two of the three call sites pass a limit
+// no score can fail -- INT32_MIN -- and under it the general form above degenerates:
+// `sorted_end` advances on every move, so it tracks `scan` exactly and
+// `entries[scan] = entries[++sorted_end]` copies a slot onto itself. clang emits that
+// copy: it reloads the eight bytes and stores them back to the address it read them
+// from, once per move, and pays the limit test beside it.
+//
+// The order out is the order in: the ladder starts at `scan`, which is the slot
+// `sorted_end` names in the general form, and the vector prefix takes the same
+// first min(count, MOVE_SORTER_MAX) moves. ./build.sh signature is what says so --
+// one swap of difference moves the move loop and therefore the tree.
+static void sort_all(ExtMove *entries, size_t count) {
+    if (count == 0)
+        return;
+
+    size_t scan = 1;
+
+#ifdef __AVX512F__
+    // The general form breaks out when the sorter is full, which under an admitting
+    // limit is exactly `scan == MOVE_SORTER_MAX`.
+    const size_t vector_count = count < (size_t) MOVE_SORTER_MAX ? count : (size_t) MOVE_SORTER_MAX;
+    MoveSorter sorter = move_sorter_init(entries[0]);
+    for (; scan < vector_count; ++scan)
+        move_sorter_insert(&sorter, entries[scan]);
+    move_sorter_write(&sorter, entries, vector_count);
+#endif
+
+    for (; scan < count; ++scan) {
+        const ExtMove current = entries[scan];
+
+        size_t insert_at = scan;
+        while (insert_at != 0 && entries[insert_at - 1].value < current.value) {
+            entries[insert_at] = entries[insert_at - 1];
+            --insert_at;
+        }
+        entries[insert_at] = current;
+    }
+}
+
 static void partial_insertion_sort(ExtMove *entries, size_t count, int limit) {
     if (count == 0)
         return;
@@ -440,7 +479,7 @@ Move movepick_next(MovePicker *mp) {
 
             mp->end_cur = mp->cur + count;
             mp->end_captures = mp->end_cur;
-            partial_insertion_sort(mp->moves + mp->cur, count, INT32_MIN);
+            sort_all(mp->moves + mp->cur, count);
             ++mp->stage;
             // Re-dispatch, as upstream's `goto top` does here (movepick.cpp:305): three
             // stages share this block and each has a different successor, so the
@@ -482,7 +521,7 @@ Move movepick_next(MovePicker *mp) {
 
             mp->end_cur = mp->cur + count;
             mp->end_generated = mp->end_cur;
-            partial_insertion_sort(mp->moves + mp->cur, count, INT32_MIN);
+            sort_all(mp->moves + mp->cur, count);
             ++mp->stage;
             [[fallthrough]];
         }
