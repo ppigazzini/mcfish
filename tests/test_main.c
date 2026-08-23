@@ -112,6 +112,89 @@ static void test_bitboards(void) {
     CHECK(!aligned(SQ_A1, SQ_D4, SQ_H7), "non-alignment");
 }
 
+// Prove the slider geometry over its WHOLE domain rather than over the squares a bench
+// position happens to reach: for every square, every occupancy subset of that square's
+// own rook and bishop rays, against a ray-caster written here.
+//
+// The reference is deliberately not `attacks_bb` -- that IS one of the implementations
+// under test. What this compares depends on the tier the binary was built at, and it
+// says which:
+//
+//   sse41   both_attacks_bb forwards to the two magic lookups, so the run proves the
+//           magic tables against the ray-caster and nothing else.
+//   avx2+   both_attacks_bb is dual hyperbola quintessence on three lanes plus a scalar
+//           rank lookup, and the run proves that against the ray-caster too.
+//   avx512icl  the fourth lane carries the rank through vgf2p8affineqb, and the run is
+//           the only thing in the tree that proves the full 64-bit reversal agrees with
+//           the byte reversal wherever a mask can reach it.
+//
+// `./build.sh arch-determinism` benches every tier but does not build this binary per
+// tier, so an edit to the GFNI lane wants `MCFISH_ARCH=avx512icl ./build.sh test` by
+// hand -- which is the same reason ./build.sh tb-cursed is run by hand.
+static Bitboard ray_attacks(PieceType pt, Square s, Bitboard occupied) {
+    static const Direction rook_dirs[4] = { NORTH, EAST, SOUTH, WEST };
+    static const Direction bishop_dirs[4] = { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
+    const Direction *const dirs = pt == ROOK ? rook_dirs : bishop_dirs;
+
+    Bitboard attacks = 0;
+    for (int i = 0; i < 4; ++i) {
+        Square from = s;
+        for (;;) {
+            const int to = (int) from + (int) dirs[i];
+            if (to < 0 || to >= SQUARE_NB)
+                break;
+            const int df = file_of((Square) to) - file_of(from);
+            if (df < -2 || df > 2)
+                break;
+
+            from = (Square) to;
+            attacks |= square_bb(from);
+            if ((occupied & square_bb(from)) != 0)
+                break;
+        }
+    }
+    return attacks;
+}
+
+static void test_slider_attacks_exhaustive(void) {
+    banner("slider attacks over every occupancy");
+
+    long comparisons = 0;
+    int mismatches = 0;
+
+    for (Square s = SQ_A1; s <= SQ_H8; ++s) {
+        for (int slot = 0; slot < 2; ++slot) {
+            const Bitboard ray = ray_attacks(slot == 0 ? ROOK : BISHOP, s, 0);
+
+            // Enumerate every subset of RAY by the carry-rippling trick, the empty set
+            // first and last. Edge squares are INCLUDED: a magic masks them off and the
+            // vector lanes do not, so a form that only agrees on interior occupancies
+            // would pass a subset enumeration that dropped them.
+            Bitboard subset = 0;
+            do {
+                // One call answers both sliders, so each occupancy is checked twice --
+                // and the rook rays' subsets reach the bishop lanes and back.
+                const DualAttacks both = both_attacks_bb(s, subset);
+                const Bitboard want_rook = ray_attacks(ROOK, s, subset);
+                const Bitboard want_bishop = ray_attacks(BISHOP, s, subset);
+                comparisons += 2;
+                if ((both.rook != want_rook || both.bishop != want_bishop) && mismatches++ < 4)
+                    CHECK(both.rook == want_rook && both.bishop == want_bishop,
+                          "at %d, occupancy %llx: rook %llx != %llx, bishop %llx != %llx", (int) s,
+                          (unsigned long long) subset, (unsigned long long) both.rook,
+                          (unsigned long long) want_rook, (unsigned long long) both.bishop,
+                          (unsigned long long) want_bishop);
+
+                subset = (subset - ray) & ray;
+            } while (subset != 0);
+        }
+    }
+
+    CHECK(mismatches == 0, "%d of %ld occupancies disagree with the ray-caster", mismatches,
+          comparisons);
+    CHECK(comparisons == 2239488, "the enumeration is complete (%ld subsets)", comparisons);
+}
+
 // ---------------------------------------------------------------------- FEN
 
 static void test_fen(void) {
@@ -2010,6 +2093,7 @@ int main(void) {
     position_init();
 
     test_bitboards();
+    test_slider_attacks_exhaustive();
     test_fen();
     test_perft();
     test_fen_parse_robustness();
