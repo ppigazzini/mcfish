@@ -28,7 +28,7 @@ is a source:
 **`refish` is the one that does not look like a sibling.** It lives in
 `../Stockfish` -- the golden's checkout -- as a branch, so `git log` there answers
 for it unless you say `upstream/master`. It is NOT the golden: `origin` is a fork,
-and `refish` carries 385 commits on top of upstream. Everything below applies to it
+and `refish` carries 398 commits on top of upstream. Everything below applies to it
 exactly as to the other three, and its untracked dev notes carry a register of
 **thirty-four confirmed defects in upstream Stockfish**, each with a reproducer that
 was run. All thirty-four are closed or refuted in this tree as of 2026-08-18: the
@@ -200,6 +200,31 @@ The consequences an agent gets wrong before reading
   present and stronger — `ThreatIndexBlock` already merges the offsets into a u16
   plane AND colocates `lut1` — leaving its row dedup as an unmeasured hypothesis
   about cache footprint. `git log --grep=refish` finds each with its evidence.
+- **The sibling's column decides WHETHER; only this tree's decides HOW MUCH.** The
+  fourteenth sweep (2026-08-23) took seven commits, worth -0.67% at sse41 and -2.4%
+  at avx512icl on `perf-budget`, and every one of them read a different number here
+  than the sibling advertised — in both directions. The check-square hoist read
+  -0.141% at avx512icl against its -0.095%, because a wider tier holds more and the
+  register the hoist frees is the one that was spilling `st`. The sort
+  specialization read -0.015% against its -0.53%, because `build.sh` passes
+  `-fno-unroll-loops` at every 512-bit tier, so there was one self-copy chain to
+  delete rather than fifteen. Read the columns to decide; re-measure to size.
+- **Price the idea before building the machinery it needs.** The widening history
+  load wanted the first inline asm in this tree, under a clang/x86-64 guard that
+  excludes every sanitizer. Making `shared_stat_load` a plain non-atomic load and
+  reading `perf-budget` priced the whole idea at -0.49%/-0.96% before a line of asm
+  existed, and the asm then delivered 70% of that ceiling. A probe that is not
+  shippable still answers whether a shippable form is worth writing.
+- **A sibling's "only one of these may be taken" is a claim to re-run, not to
+  believe.** The same sweep declined the tt-entry half of that widening because it
+  was MEASURED here, not because the sibling declined it: +0.049% at sse41 and
+  -0.004% at avx512icl on top of the history half, against the sibling's +0.044%
+  for the pair. Also refused, with reasons that must not be re-derived: the gcc
+  `idiv` spelling and the gcc count-down accumulator loops, both neutral or worse
+  on the sibling's own clang column; the scored-list index walk and the
+  load/update narrowing, both already this tree's shape. Its warm-game axis
+  (`ltcreplay.py`/`ltcab.sh`) is a named GAP here rather than a defect — it is what
+  makes `perf-budget`'s cold bench a lower bound, and this tree has no counterpart.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
