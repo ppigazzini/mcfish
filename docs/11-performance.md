@@ -175,108 +175,53 @@ Four rules that each cost a wrong number before they were written down:
   Profile `printf 'quit\n' | <bin>` for a startup figure and subtract it, or name
   the offenders with `perf_fingerprint.py costs`.
 
-### What each column can resolve, and the control that says so
+### What a column can resolve, and what this workload cannot see
 
-Two properties separate the columns, and they decide which may carry a claim.
-Retired instructions are **deterministic** here: `perf-budget` reproduces a bench
-figure to eight significant digits across independently built binaries, and
-`perf-decomp` is callgrind, which is a simulation. Every other column —
-cycles, IPC, cache misses, branch misses — is a hardware counter sampling a
-shared machine, and none of them may carry a verdict until it has cleared a
-control taken in the same session.
+Two properties separate the columns and decide which may carry a claim.
+Retired instructions are **deterministic** here — `perf-budget` and callgrind
+both reproduce a figure across independently built binaries. Cycles, IPC, cache
+misses and branch misses are hardware counters sampling a shared machine, and
+none of them may carry a verdict until it has cleared a control.
 
-**Run the A/A.** Copy the base binary and measure it against itself through the
-same harness. Eight paired rounds of `bench 16 1 11` on this host, base against a
-byte-identical copy:
+**Run the A/A before believing any sampled column.** Copy the base binary and
+measure it against itself through the same harness:
 
-| column | A/A control | reads as |
-| --- | --- | --- |
-| instructions | 1.000 | deterministic — any deviation is a real effect |
-| macro-ops | 1.000 | same |
-| branch misses | 0.993 | ±0.7% floor |
-| cache misses | 0.984 | ±1.6% floor |
-| cycles | 0.983 | ±1.7% floor |
-| IPC | 1.017 | ±1.7% floor |
+```bash
+cp build/mcfish /tmp/aa && cd resources
+../tools/perf_counters.sh /tmp/aa /tmp/aa 8 bench 16 1 11
+```
 
-A sampled reading inside its own floor is not a small effect, it is *no
-measurement*. One commit of the 2026-08-23 refish sweep read cycles 1.010,
-branch misses 1.001 and cache misses 1.011 against that control: every column
-inside the floor, so the commit resolved on instructions and nowhere else. The
-same five commits taken TOGETHER read cycles 1.060, branch misses 1.024 and
-cache misses 1.051 — each clearing its floor by three times or more, which is
-what an effect looks like when it is there.
+Identical binaries do not read 1.000. On this host they read instructions and
+macro-ops at 1.000, branch misses within 0.7%, cache misses within 1.6%, cycles
+and IPC within 1.7%. **A sampled reading inside its own floor is not a small
+effect, it is no measurement** — re-derive the floor rather than trusting those
+figures, because it is a property of the host and the load on it.
 
-**The `perf` CLI is not installed on this host, and that does not matter.**
-`perf_counters.sh` opens the counters through `perf_event_open` directly, so
-every hardware column above is available. Concluding "no `perf`, therefore no
-branch counter" is wrong, and it cost this tree one commit body that had to be
-rewritten.
+**The absent `perf` CLI does not cost you the hardware columns.**
+`perf_counters.sh` opens the counters through `perf_event_open`, so every column
+above is available without it. "No `perf`, therefore no branch counter" is wrong.
 
-**callgrind's branch simulator is a model, and it can read against a real
-change.** `perf-decomp`'s `Bcm` column put movepick at 1.1024 — a 10% mispredict
-*regression* — for the commit that took three stages out of the dispatch table,
-which is a change aimed squarely at prediction. Hardware read 1.001 on the same
-pair, inside a 0.993 control: at parity, not worse. The simulator models a crude
-BTB against this part's ITTAGE, and `tools/perf_decomp.sh` says in its own header
-that its figures rank locality and do not predict time. Read `Bcm` to find out
-*where* prediction moved once hardware has said *that* it moved; never the other
-way round.
+**callgrind's `Bcm` locates, hardware adjudicates.** `perf-decomp`'s branch
+column models a crude BTB against this part's ITTAGE and can read a *regression*
+where hardware reads parity. Use it to find out **where** prediction moved once a
+hardware run has said **that** it moved; a `Bcm` ratio alone refutes nothing.
 
-**Ratios chain, and this tree has checked both halves.** Measured step by step,
-each against the binary immediately before it, the five commits of that sweep
-read −0.0627%, −0.4453%, −0.0829%, −0.0393% and −0.0379%; their instruction
-deltas sum to exactly the direct reading of the first binary against the last,
-−174,894,277 instructions, −0.6668%. That closes because each step was measured
-against its own predecessor.
+**Measure each step against its predecessor, never against a shared base.** A
+deterministic ratio is a fact about the code *and its base together*: the same
+change reads a different number against the pre-stack commit than it pays in the
+stack, and a change that depends on an earlier one cannot be measured against the
+shared base at all. Chained readings sum to the direct first-against-last
+reading; a set of common-base readings does not, and the assembled figure is a
+separate measurement rather than a product of the parts.
 
-Measured against a **common** base it neither closes nor even applies. Each of
-the five was cherry-picked alone onto the pre-sweep commit and measured there:
-
-| change | vs common base | vs its predecessor | disagreement |
-| --- | --- | --- | --- |
-| three list walks out of the dispatch table | −16,411,919 | −16,442,625 | 0.19% of the effect |
-| flatten the quiet score's per-move work | −115,464,612 | −116,704,572 | 1.06% |
-| reductions table as u16 | −10,237,214 | −10,247,198 | 0.10% |
-| stop the good-quiet walk | *does not apply* | −21,619,879 | — |
-| carry the reduction window term | *does not apply* | −9,880,003 | — |
-
-Two of the five **cannot be measured against the common base at all**: the
-good-quiet stop needs the label hoist the first commit introduces, and the
-window-term hoist needs the u16 retype. A fleet chartered on one shared base
-cannot produce those two numbers, and the three it can produce are each a
-different number from the one the assembled stack pays — same sign and same
-order, but off by up to 1% of the effect, because a deterministic ratio is a
-fact about the code **and its base together**.
-
-So the assembled figure is a separate measurement, not a product of the parts,
-and it belongs to whoever assembles them.
-
-### The bench understates a warm search, and by how much
-
-`perf-budget` runs `bench 16 1 13`: a cold search of 51 fixed positions against an
-empty table — and the same 51 the PGO profile is trained on. Anything whose cost
-scales with how often a node re-enters a stage, re-scores a list or re-walks a
-history plane is entered fewer times per node here than in a real game, so the
-gate reads a *lower bound* on the effect.
-
-The 2026-08-23 refish sweep measured that gap directly. Each row is one change,
-the sibling's figure taken on a warm 60-ply replay at depth 20, this tree's on the
-cold bench:
-
-| change | refish, warm depth 20 | here, cold bench |
-| --- | --- | --- |
-| three list walks out of the dispatch table | −0.688% (clang -O3) | −0.0627% |
-| flatten the quiet score's per-move work | −0.785% (clang -O3, its own budget) | −0.4453% |
-| stop the good-quiet walk at the first miss | −0.202% | −0.0829% |
-| reductions table as u16 | −0.0477% (its own budget) | −0.0393% |
-| carry the reduction window term | −0.0496% (clang -O3, its own budget) | −0.0379% |
-
-The two rows the sibling measured on its own *budget* gate rather than on a warm
-game land within a hundredth of a point of this tree's figure. The three it
-measured on a warm game land two to eleven times larger there. That is the size
-of the instrument gap, not disagreement between the trees — and it is the reason
-a change rejected for reading −0.03% on this gate may still be worth a warm-game
-measurement this tree does not yet have.
+**The gate's workload is a lower bound.** `perf-budget` runs `bench 16 1 13` — a
+cold search of 51 fixed positions against an empty table, and the same 51 the PGO
+profile trains on. Anything whose cost scales with how often a node re-enters a
+stage, re-scores a list or re-walks a history plane is entered fewer times per
+node here than in a game, so a warm search pays more than this gate reads, by up
+to an order of magnitude. **This tree has no warm-game axis**, so a change that
+reads near zero here is unmeasured at long time control rather than shown to be
+free.
 
 ### Call counts, not costs, are the parity test
 
