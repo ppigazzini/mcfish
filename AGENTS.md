@@ -173,16 +173,25 @@ The consequences an agent gets wrong before reading
   refutation half is the same instrument: `daa06206`'s `save` hoist measured
   **+0.018%** here, 5.0M instructions above the floor, and was reverted.
 
-- **`refish` REBASES, so a SHA is not a citation.** The thirteenth sweep
-  (2026-08-23) opened by checking the SHAs earlier sweeps had cited and found
-  many of them off-branch: `git cat-file -e` still resolves them, because a
-  rebase leaves its pre-rebase commits in the object store, but
-  `git merge-base --is-ancestor <sha> refish` says no. Derive the unswept range
-  by CONTENT — find the sibling commit whose change this tree already carries and
-  range from there — and cite by SUBJECT, which survives an amend. Two facts make
-  this cheap: `cite-check` reads docs pages only, so a rotted SHA in a commit
-  BODY is silent, and refish's base is now `229f6339e`, the same pin this tree
+- **`refish` is REWRITTEN WHOLESALE, so neither a SHA nor a subject is an
+  identifier.** The thirteenth sweep (2026-08-23) found many SHAs earlier sweeps
+  cited to be off-branch: `git cat-file -e` still resolves them, because the old
+  objects stay in the store, but `git merge-base --is-ancestor <sha> refish` says
+  no. `git reflog show refish` names the mechanism and it is not a plain rebase —
+  a `filter-branch: rewrite` moved every SHA on the branch, and a `msgfix` step
+  before it rewrote MESSAGES. Subjects are not durable either: the same commit
+  read `... as avx2 already does` in the reflog and `... as avx2 does` on the
+  branch, one word apart.
+  So cite the CONTENT — the file and the shape of the change — and treat a
+  subject as a search stem for `git log --grep`, never as a name. Derive the
+  unswept range by content too: find the sibling commit whose change this tree
+  already carries and range from there. Two facts make this survivable:
+  `cite-check` reads docs pages only, so a rotted SHA in a commit BODY is silent
+  rather than red, and refish's base is now `229f6339e`, the same pin this tree
   tracks, so its whole log is comparable rather than a moving target.
+  **And it moves under you.** Three docs commits landed on refish DURING that
+  sweep, after its opening `git log`. Re-read the tip before calling a range
+  swept.
 - **Read the sibling's own columns before writing a line, then re-measure the
   SHAPE rather than the size.** That same sweep took five perf commits worth
   **−0.667%** on `perf-budget`, every one bit-exact against `./build.sh
@@ -424,6 +433,14 @@ arithmetic over a diff is a guess, never a measurement.
 Multi-agent perf fleets are a standing pattern. Each rule below was paid for here
 or in zfish's fleet campaigns:
 
+- **The assembled stack figure belongs to the INTEGRATOR, and is not a product.**
+  Every agent measures from the base it was chartered on, so none of their ratios
+  is the stack's and the set of them does not add. Measured here: of five commits
+  in one sweep, two could not be measured against the shared base AT ALL — they
+  need their predecessors to apply — and the three that could each read a
+  different number from the one they pay assembled, by up to 1% of the effect.
+  Re-measure the assembled stack, and re-run the gates on it. See
+  [docs/11-performance.md](docs/11-performance.md).
 - **Charter a fleet only above the bar in *Working here*** — independent, sizeable
   tracks. Below it one agent working end to end beats three coordinating, and a fleet
   spawned to double-check a finished change buys nothing.
