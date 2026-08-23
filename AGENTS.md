@@ -28,13 +28,13 @@ is a source:
 **`refish` is the one that does not look like a sibling.** It lives in
 `../Stockfish` -- the golden's checkout -- as a branch, so `git log` there answers
 for it unless you say `upstream/master`. It is NOT the golden: `origin` is a fork,
-and `refish` carries 279 commits on top of upstream. Everything below applies to it
+and `refish` carries 385 commits on top of upstream. Everything below applies to it
 exactly as to the other three, and its untracked dev notes carry a register of
 **thirty-four confirmed defects in upstream Stockfish**, each with a reproducer that
 was run. All thirty-four are closed or refuted in this tree as of 2026-08-18: the
 first twenty on 2026-08-15, and the second campaign's fourteen on 2026-08-18.
 
-Four consequences an agent gets wrong before reading
+The consequences an agent gets wrong before reading
 [tools/upstream/README.md](tools/upstream/README.md):
 
 - **No tree is behind another.** There is no pin for any sibling and `sync-status`
@@ -173,6 +173,43 @@ Four consequences an agent gets wrong before reading
   refutation half is the same instrument: `daa06206`'s `save` hoist measured
   **+0.018%** here, 5.0M instructions above the floor, and was reverted.
 
+- **`refish` REBASES, so a SHA is not a citation.** The thirteenth sweep
+  (2026-08-23) opened by checking the SHAs earlier sweeps had cited and found
+  many of them off-branch: `git cat-file -e` still resolves them, because a
+  rebase leaves its pre-rebase commits in the object store, but
+  `git merge-base --is-ancestor <sha> refish` says no. Derive the unswept range
+  by CONTENT — find the sibling commit whose change this tree already carries and
+  range from there — and cite by SUBJECT, which survives an amend. Two facts make
+  this cheap: `cite-check` reads docs pages only, so a rotted SHA in a commit
+  BODY is silent, and refish's base is now `229f6339e`, the same pin this tree
+  tracks, so its whole log is comparable rather than a moving target.
+- **Read the sibling's own columns before writing a line, then re-measure the
+  SHAPE rather than the size.** That same sweep took five perf commits worth
+  **−0.667%** on `perf-budget`, every one bit-exact against `./build.sh
+  signature`, and refused thirteen. Five went on the sibling's OWN numbers: the
+  sparse-affine pin (clang −0.0000%), the all-node reciprocal (clang PGO
+  +0.0003%), the fail-high divisor (+0.0019% Ir) and the lmr-divisor reciprocal
+  (+0.0636% on the lane closest to this one) each read NEUTRAL OR WORSE on the
+  clang instruction axis this tree gates on, and their cycle claims cannot be
+  settled on this host; the root-window reciprocal quotes no budget figure at all,
+  only a codegen census, and after this tree's own window-term hoist its premise
+  — six divides in the hot path — no longer describes this tree.
+  Six went because the site is already this tree's shape or is absent: the
+  psq-before-threat ordering (both updaters already build psq first), the two
+  pair-activation clamps (mcfish has no `USE_PAIR_ACTIVATIONS` at any tier), the
+  eval-bucket shift (`piece_count_of` already returns `size_t`, so the division is
+  unsigned), the ASCII option fold (`ascii_lower` has been here all along), and
+  installing the workers' root from the calling thread (`search_go_start` already
+  loops over the workers on the UCI thread).
+  Two went because no instrument here can price them: the vectorised quiet-sort
+  limit test and the output layer's split dot product both claim LATENCY or
+  PREDICTION and cost instructions to buy it, and the sampled columns on this host
+  have a floor wider than either effect.
+  The threat-index fold is HALF here and the half present is stronger:
+  `ThreatIndexBlock` already merges `Offsets` into a u16 `comb` plane AND
+  colocates `lut1` behind one base, where the sibling's merge leaves `lut1`
+  separate. What it has that this tree does not is the dedup of twelve attacker
+  rows down to seven — a separate hypothesis about cache footprint, not measured.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
