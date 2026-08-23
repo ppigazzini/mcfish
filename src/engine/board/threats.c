@@ -137,20 +137,19 @@ static void process_sliders(const Position *pos,
 // function — the no-ray-only direct_sliders value survives the ray path and the
 // register allocator spills for the union of both paths — where a specialized
 // copy lets the ray variant drop it entirely.
-__attribute__((always_inline)) static inline void threats_update_piece_impl(bool compute_ray,
-                                                                            const Position *pos,
-                                                                            Piece pc,
-                                                                            bool put_piece,
-                                                                            Square s,
-                                                                            DirtyThreats *dts,
-                                                                            Bitboard no_rays) {
+__attribute__((always_inline)) static inline void
+threats_update_piece_impl(bool compute_ray,
+                          const Position *pos,
+                          Piece pc,
+                          bool put_piece,
+                          Square s,
+                          DirtyThreats *dts,
+                          Bitboard no_rays,
+                          DualAttacks slider_attacks) {
     const PieceType pt = type_of_piece(pc);
     const Bitboard occupied = pos->by_type[ALL_PIECES];
     const Bitboard rook_queens = pos->by_type[ROOK] | pos->by_type[QUEEN];
     const Bitboard bishop_queens = pos->by_type[BISHOP] | pos->by_type[QUEEN];
-    // Both ray sets in one pass, as upstream's update_piece_threats does
-    // (position.cpp:1203, `both_attacks_bb(s, occupied)`).
-    const DualAttacks slider_attacks = both_attacks_bb(s, occupied);
     const Bitboard r_attacks = slider_attacks.rook;
     const Bitboard b_attacks = slider_attacks.bishop;
     const Bitboard occupied_no_k = occupied ^ pos->by_type[KING];
@@ -247,12 +246,29 @@ __attribute__((always_inline)) static inline void threats_update_piece_impl(bool
 }
 
 // The two instantiations upstream's template emits. Left inlinable: see threats.h.
+//
+// Both ray sets come in one pass, as upstream's update_piece_threats does
+// (position.cpp:1203, `both_attacks_bb(s, occupied)`). They are a PARAMETER of the body
+// rather than a line in it so that a caller scanning the same square twice can hand the
+// same pair to both -- see threats_update_piece_no_ray_at.
 void threats_update_piece_ray(
   const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays) {
-    threats_update_piece_impl(true, pos, pc, put_piece, s, dts, no_rays);
+    threats_update_piece_impl(true, pos, pc, put_piece, s, dts, no_rays,
+                              both_attacks_bb(s, pos->by_type[ALL_PIECES]));
 }
 
 void threats_update_piece_no_ray(
   const Position *pos, Piece pc, bool put_piece, Square s, DirtyThreats *dts, Bitboard no_rays) {
-    threats_update_piece_impl(false, pos, pc, put_piece, s, dts, no_rays);
+    threats_update_piece_impl(false, pos, pc, put_piece, s, dts, no_rays,
+                              both_attacks_bb(s, pos->by_type[ALL_PIECES]));
+}
+
+void threats_update_piece_no_ray_at(const Position *pos,
+                                    Piece pc,
+                                    bool put_piece,
+                                    Square s,
+                                    DirtyThreats *dts,
+                                    Bitboard no_rays,
+                                    DualAttacks slider_attacks) {
+    threats_update_piece_impl(false, pos, pc, put_piece, s, dts, no_rays, slider_attacks);
 }
