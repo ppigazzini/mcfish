@@ -350,6 +350,31 @@ static Move select_probcut(MovePicker *mp) {
 
 Move movepick_next(MovePicker *mp) {
     for (;;) {
+        // Shared by the three hoisted walks below, which a `goto` enters: a declaration
+        // beside each one would sit past the switch, where nothing falls through to it.
+        Move walk_move;
+
+        // Essentially every indirect mispredict this engine pays is the switch below.
+        // Over a warm game the dispatch is entered several times a node, and more than
+        // half of those entries ask for one of the three CONSECUTIVE stages that do
+        // nothing but walk a list -- GOOD_QUIET, BAD_CAPTURE, BAD_QUIET. Hoist those
+        // three out of the switch and reach them by a range test, so the table keeps
+        // only the twelve stages that generate, score or sort. They still chain by
+        // fallthrough exactly as they did as cases; only QUIET_INIT reaches the first
+        // of them by a jump rather than by falling in.
+        //
+        // Naming them AHEAD of the switch while they were still cases of it does
+        // nothing: clang folds a test whose target is a case label back into the jump
+        // table and emits a byte-identical dispatch. They have to LEAVE the switch for
+        // the test to survive, which is why this is a move and not two lines.
+        if ((unsigned) (mp->stage - MP_GOOD_QUIET) <= (unsigned) (MP_BAD_QUIET - MP_GOOD_QUIET)) {
+            if (mp->stage == MP_GOOD_QUIET)
+                goto good_quiet;
+            if (mp->stage == MP_BAD_CAPTURE)
+                goto bad_capture;
+            goto bad_quiet;
+        }
+
         switch (mp->stage) {
         case MP_MAIN_TT :
         case MP_EVASION_TT :
@@ -400,37 +425,8 @@ Move movepick_next(MovePicker *mp) {
             }
 
             ++mp->stage;
-            [[fallthrough]];
+            goto good_quiet;
         }
-
-        case MP_GOOD_QUIET : {
-            if (!mp->skip_quiets) {
-                const Move m = select_good_quiet(mp);
-                if (m != MOVE_NONE)
-                    return m;
-            }
-
-            mp->cur = 0;
-            mp->end_cur = mp->end_bad_captures;
-            ++mp->stage;
-            [[fallthrough]];
-        }
-
-        case MP_BAD_CAPTURE : {
-            const Move m = select_any(mp);
-            if (m != MOVE_NONE)
-                return m;
-
-            mp->cur = mp->end_captures;
-            mp->end_cur = mp->end_generated;
-            ++mp->stage;
-            [[fallthrough]];
-        }
-
-        case MP_BAD_QUIET :
-            if (!mp->skip_quiets)
-                return select_bad_quiet(mp);
-            return MOVE_NONE;
 
         case MP_EVASION_INIT : {
             mp->cur = 0;
@@ -454,5 +450,33 @@ Move movepick_next(MovePicker *mp) {
         default :
             return MOVE_NONE;
         }
+
+        // Unreachable: every case above returns, continues or jumps. The three hoisted
+        // stages live here, past the switch, and are entered only through the range test
+        // at the top of the loop or through the jump out of QUIET_INIT.
+good_quiet:
+        if (!mp->skip_quiets) {
+            walk_move = select_good_quiet(mp);
+            if (walk_move != MOVE_NONE)
+                return walk_move;
+        }
+
+        mp->cur = 0;
+        mp->end_cur = mp->end_bad_captures;
+        ++mp->stage;
+
+bad_capture:
+        walk_move = select_any(mp);
+        if (walk_move != MOVE_NONE)
+            return walk_move;
+
+        mp->cur = mp->end_captures;
+        mp->end_cur = mp->end_generated;
+        ++mp->stage;
+
+bad_quiet:
+        if (!mp->skip_quiets)
+            return select_bad_quiet(mp);
+        return MOVE_NONE;
     }
 }
