@@ -39,8 +39,19 @@ static_assert(2 * sizeof(Magic) == 64, "a square's bishop/rook Magic pair must b
 typedef struct {
     // The four masks must be FIRST: both_attacks_bb loads them as one __m256i, and
     // the array below is 64-aligned so every element is 32-aligned as that load needs.
-    Bitboard mask_file, mask_diag, mask_none, mask_antidiag;
-    Bitboard r, rr;  // 2 * square_bb(s), 2 * square_bb(63 - s)
+    //
+    // The third lane is the RANK, and it is zero unless __GFNI__ solves it: without the
+    // intra-byte bit reversal below, a rank's eight squares all share one byte and the
+    // byte reversal moves none of them past each other, so hyperbola quintessence on
+    // that lane returns nothing and the scalar lookup answers instead.
+    Bitboard mask_file, mask_diag, mask_rank, mask_antidiag;
+    // 2 * square_bb(s), 2 * square_bb(63 - s). `rr` is the FULL bit reversal's image of
+    // `r`, which is what the GFNI lane performs; the byte-reversing form agrees with it
+    // only because no mask can reach the bits the two disagree on.
+    Bitboard r, rr;
+    // The scalar rank reader's two fields. They stay in the struct at every tier: the
+    // stride of the array below is what makes each element's mask quad 32-aligned for
+    // the load above, and the static_assert is what holds that.
     const uint8_t *rank_attacks_lookup;
     int shift;  // 8 * rank_of(s)
 } DualMagic;
@@ -158,7 +169,11 @@ static void init_dual_magics(void) {
         DualMagic *const m = &DualMagics[s];
         m->mask_file = line_mask(s, NORTH, SOUTH);
         m->mask_diag = line_mask(s, NORTH_EAST, SOUTH_WEST);
-        m->mask_none = 0;
+    #ifdef __GFNI__
+        m->mask_rank = line_mask(s, EAST, WEST);
+    #else
+        m->mask_rank = 0;
+    #endif
         m->mask_antidiag = line_mask(s, NORTH_WEST, SOUTH_EAST);
         m->r = square_bb(s) * 2;
         m->rr = square_bb((Square) (63 - (int) s)) * 2;
@@ -230,13 +245,32 @@ static void init_magics(PieceType pt, Bitboard *table) {
     }
 }
 
+#ifdef __AVX2__
+// Reverse each 64-bit lane. vpshufb reverses the BYTES, which is all hyperbola
+// quintessence needs for a file, a diagonal or an antidiagonal, because every square of
+// those rays sits in a distinct byte. Under __GFNI__ one vgf2p8affineqb by the
+// anti-diagonal matrix 0x8040201008040201 then reverses the bits INSIDE every byte, and
+// the pair is a full 64-bit reversal -- which is the one thing a rank needs to join
+// them, and it is what the AArch64 path has always done.
+//
+// Byte order across the two halves of a 128-bit lane is immaterial: `rr` is broadcast
+// and the second call undoes the first.
+static inline __m256i reverse_lanes(__m256i v, __m256i bswap_ctl) {
+    v = _mm256_shuffle_epi8(v, bswap_ctl);
+    #ifdef __GFNI__
+    v = _mm256_gf2p8affine_epi64_epi8(v, _mm256_set1_epi64x((long long) 0x8040201008040201LL), 0);
+    #endif
+    return v;
+}
+#endif
+
 DualAttacks both_attacks_bb(Square s, Bitboard occupied) {
 #ifdef __AVX2__
-    // Upstream attacks.h:108. One 256-bit load covers file/diag/unused/antidiag; the
-    // subtract-reverse-subtract-xor is hyperbola quintessence run on all three rays at
-    // once. The byte reversal is enough (not a full bit reversal) because every square
-    // of a file, diagonal or antidiagonal sits in a distinct byte -- which is exactly
-    // why the RANK cannot join them and comes from the 64-entry lookup instead.
+    // Upstream attacks.h:108. One 256-bit load covers file/diag/rank/antidiag; the
+    // subtract-reverse-subtract-xor is hyperbola quintessence run on every ray at once.
+    // A byte reversal is enough for the three rays whose squares sit in distinct bytes,
+    // and under __GFNI__ reverse_lanes makes it a full bit reversal, which is what lets
+    // the RANK take the fourth lane instead of the 64-entry lookup below.
     const DualMagic *const m = &DualMagics[s];
     const __m256i bswap_ctl = _mm256_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
                                               0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
@@ -247,13 +281,21 @@ DualAttacks both_attacks_bb(Square s, Bitboard occupied) {
     const __m256i o = _mm256_and_si256(mask, _mm256_set1_epi64x((long long) occupied));
     const __m256i fwd = _mm256_sub_epi64(o, rs);
     const __m256i rev =
-      _mm256_shuffle_epi8(_mm256_sub_epi64(_mm256_shuffle_epi8(o, bswap_ctl), rrs), bswap_ctl);
+      reverse_lanes(_mm256_sub_epi64(reverse_lanes(o, bswap_ctl), rrs), bswap_ctl);
     const __m256i result = _mm256_and_si256(_mm256_xor_si256(fwd, rev), mask);
 
-    // Lane 0 carries the file rays, lane 1 the two diagonals.
+    // Lanes 0 and 2 carry the rook rays, lanes 1 and 3 the two diagonals; the OR across
+    // the 128-bit halves folds each pair into one.
     const __m128i rook_bishop =
       _mm_or_si128(_mm256_extracti128_si256(result, 1), _mm256_castsi256_si128(result));
 
+    #ifdef __GFNI__
+    // Lane 2 already carried the rank, so the rook attacks are complete.
+    return (DualAttacks) {
+        .bishop = (Bitboard) _mm_extract_epi64(rook_bishop, 1),
+        .rook = (Bitboard) _mm_cvtsi128_si64(rook_bishop),
+    };
+    #else
     const Bitboard rank_attacks =
       (Bitboard) m->rank_attacks_lookup[(occupied >> (m->shift + 1)) & 0x3f] << m->shift;
 
@@ -261,6 +303,7 @@ DualAttacks both_attacks_bb(Square s, Bitboard occupied) {
         .bishop = (Bitboard) _mm_extract_epi64(rook_bishop, 1),
         .rook = (Bitboard) _mm_cvtsi128_si64(rook_bishop) + rank_attacks,
     };
+    #endif
 #else
     // Two magic lookups, which is what upstream's non-dual path does.
     return (DualAttacks) { .bishop = attacks_bb(BISHOP, s, occupied),
