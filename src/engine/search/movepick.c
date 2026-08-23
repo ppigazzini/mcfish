@@ -81,6 +81,14 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
     // Collect, per moving piece type, the squares attacked by a strictly cheaper
     // enemy piece. Quiet scoring pays for stepping into one and rewards leaving one.
     Bitboard threat_by_lesser[PIECE_TYPE_NB] = { 0 };
+    // Hoisted for the same reason as the pawn row below, but paid for by the ADDRESSING
+    // rather than by the lookup. `pos->st->check_squares[pt]` is two dependent loads off
+    // an `st` the move loop has no register left to hold -- the six history planes, the
+    // board and the list cursor are already more live pointers than the machine has --
+    // so `st` came back off the stack once a move. A local array beside threat_by_lesser
+    // is addressed off the frame and the read is one load. The values cannot move: a
+    // position does not change while its own move list is scored.
+    Bitboard check_square[PIECE_TYPE_NB];
     // Hoisted out of the move loop: the row is a function of the pawn key alone, which
     // does not change while one position's move list is scored, and the lookup masks and
     // scales the key. It was paid once per QUIET move.
@@ -96,6 +104,9 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
         threat_by_lesser[KING] = 0;
 
         pawn_row = pawn_history_row(h, mp->pawn_key);
+
+        for (PieceType pt = NO_PIECE_TYPE; pt < PIECE_TYPE_NB; ++pt)
+            check_square[pt] = check_squares(pos, pt);
     }
 
     for (size_t i = 0; i < count; ++i) {
@@ -135,7 +146,7 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
             // zero and add it -- and that arm is almost every move scored, since the
             // check-square test in front of see_ge is false for the overwhelming
             // majority of quiets.
-            if ((check_squares(pos, pt) & square_bb(to)) != 0 && see_ge(pos, m, -75))
+            if ((check_square[pt] & square_bb(to)) != 0 && see_ge(pos, m, -75))
                 value += 16384;
         } else {
             if (capture_stage(pos, m)) {
