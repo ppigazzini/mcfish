@@ -376,6 +376,16 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
 
     Value value = best_value;
     int move_count = 0;
+
+    // The window term of the reduction formula, carried ACROSS the move loop.
+    //
+    // It is the one runtime divisor in reduction_of: root_delta is fixed for the whole
+    // search and beta never moves inside this function, so the quotient can change only
+    // where alpha is raised -- the single assignment in step 20. Computed per move
+    // instead, it was a hardware integer divide on every move the node searches, and at
+    // a non-PV node alpha is pinned to beta - 1 and cannot be raised at all, so there
+    // the divide ran once per move to produce the same constant every time.
+    int delta_scaled = (beta - alpha) * 577 / ctx->root_delta;
     Move quiets_searched[32];
     size_t n_quiets = 0;
     Move captures_searched[32];
@@ -410,8 +420,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         const bool gc = search_gives_check(pos, move);
 
         int new_depth = depth - 1;
-        const int delta = beta - alpha;
-        int r = reduction_of(ctx->reductions, depth, move_count, delta, ctx->root_delta, improving);
+        int r = reduction_of(ctx->reductions, depth, move_count, delta_scaled, improving);
         if (ss->tt_pv)
             r += 929;
 
@@ -610,6 +619,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 if (depth > 3 && depth < 12 && !value_is_decisive(value))
                     depth -= 3;
                 alpha = value;
+                delta_scaled = (beta - alpha) * 577 / ctx->root_delta;
             }
         }
 

@@ -133,14 +133,12 @@ void search_fill_reductions(uint16_t *reductions, size_t count);
 // same pointer, so no `go` pays the 256 log() calls or carries its own copy.
 const uint16_t *search_reductions_table(void);
 
-// Compute the 1024-scaled base reduction. DELTA is the node's window,
-// ROOT_DELTA the root window this iteration searched with.
-int reduction_of(const uint16_t *reductions,
-                 int depth,
-                 int move_number,
-                 int delta,
-                 int root_delta,
-                 bool improving);
+// Compute the 1024-scaled base reduction. DELTA_SCALED is the window term
+// (beta - alpha) * 577 / root_delta, ALREADY DIVIDED: the divisor is fixed for the
+// whole search and the dividend moves only when alpha does, so the caller keeps the
+// quotient across the move loop and this takes it. See the loop in search_main.c.
+int reduction_of(
+  const uint16_t *reductions, int depth, int move_number, int delta_scaled, bool improving);
 
 int lmr_ttpv_reduction(bool pv_node, bool value_gt_alpha, bool depth_ge, bool cut_node);
 int lmr_corr_reduction(int correction_value);
