@@ -174,51 +174,32 @@ The consequences an agent gets wrong before reading
   **+0.018%** here, 5.0M instructions above the floor, and was reverted.
 
 - **`refish` is REWRITTEN WHOLESALE, so neither a SHA nor a subject is an
-  identifier.** The thirteenth sweep (2026-08-23) found many SHAs earlier sweeps
-  cited to be off-branch: `git cat-file -e` still resolves them, because the old
-  objects stay in the store, but `git merge-base --is-ancestor <sha> refish` says
-  no. `git reflog show refish` names the mechanism and it is not a plain rebase —
-  a `filter-branch: rewrite` moved every SHA on the branch, and a `msgfix` step
-  before it rewrote MESSAGES. Subjects are not durable either: the same commit
-  read `... as avx2 already does` in the reflog and `... as avx2 does` on the
-  branch, one word apart.
-  So cite the CONTENT — the file and the shape of the change — and treat a
-  subject as a search stem for `git log --grep`, never as a name. Derive the
-  unswept range by content too: find the sibling commit whose change this tree
-  already carries and range from there. Two facts make this survivable:
-  `cite-check` reads docs pages only, so a rotted SHA in a commit BODY is silent
-  rather than red, and refish's base is now `229f6339e`, the same pin this tree
-  tracks, so its whole log is comparable rather than a moving target.
-  **And it moves under you.** Three docs commits landed on refish DURING that
-  sweep, after its opening `git log`. Re-read the tip before calling a range
-  swept.
-- **Read the sibling's own columns before writing a line, then re-measure the
-  SHAPE rather than the size.** That same sweep took five perf commits worth
-  **−0.667%** on `perf-budget`, every one bit-exact against `./build.sh
-  signature`, and refused thirteen. Five went on the sibling's OWN numbers: the
-  sparse-affine pin (clang −0.0000%), the all-node reciprocal (clang PGO
-  +0.0003%), the fail-high divisor (+0.0019% Ir) and the lmr-divisor reciprocal
-  (+0.0636% on the lane closest to this one) each read NEUTRAL OR WORSE on the
-  clang instruction axis this tree gates on, and their cycle claims cannot be
-  settled on this host; the root-window reciprocal quotes no budget figure at all,
-  only a codegen census, and after this tree's own window-term hoist its premise
-  — six divides in the hot path — no longer describes this tree.
-  Six went because the site is already this tree's shape or is absent: the
-  psq-before-threat ordering (both updaters already build psq first), the two
-  pair-activation clamps (mcfish has no `USE_PAIR_ACTIVATIONS` at any tier), the
-  eval-bucket shift (`piece_count_of` already returns `size_t`, so the division is
-  unsigned), the ASCII option fold (`ascii_lower` has been here all along), and
-  installing the workers' root from the calling thread (`search_go_start` already
-  loops over the workers on the UCI thread).
-  Two went because no instrument here can price them: the vectorised quiet-sort
-  limit test and the output layer's split dot product both claim LATENCY or
-  PREDICTION and cost instructions to buy it, and the sampled columns on this host
-  have a floor wider than either effect.
-  The threat-index fold is HALF here and the half present is stronger:
-  `ThreatIndexBlock` already merges `Offsets` into a u16 `comb` plane AND
-  colocates `lut1` behind one base, where the sibling's merge leaves `lut1`
-  separate. What it has that this tree does not is the dedup of twelve attacker
-  rows down to seven — a separate hypothesis about cache footprint, not measured.
+  identifier.** `git reflog show refish` names the mechanism: a `filter-branch:
+  rewrite` moved every SHA on the branch, and a `msgfix` step before it rewrote
+  MESSAGES — one commit reads `... as avx2 already does` in the reflog and
+  `... as avx2 does` on the branch. Cite the CONTENT: the file and the shape of
+  the change. Treat a subject as a `git log --grep` stem, and derive the unswept
+  range the same way — find the sibling commit whose change this tree already
+  carries and range from there. `cite-check` cannot warn you: it reads docs
+  pages, so a rotted SHA in a commit BODY is silent. Two things make this
+  survivable: refish's base is the pin this tree tracks, so its whole log is
+  comparable; and it MOVES UNDER YOU — three commits landed mid-sweep, after the
+  opening `git log`, so re-read the tip before calling a range swept.
+- **Read the sibling's own per-compiler columns before writing a line.** The
+  thirteenth sweep (2026-08-23) took five perf commits and refused thirteen, and
+  every refusal was decided before any code was written. Five read NEUTRAL OR
+  WORSE on the clang instruction axis this tree gates on — the sparse-affine pin,
+  the all-node reciprocal, the fail-high divisor, the lmr-divisor reciprocal, and
+  the root-window reciprocal, which quotes no budget figure at all and whose
+  premise this tree's own window-term hoist had already removed. Six were already
+  this tree's shape or absent: the psq ordering, both pair-activation clamps
+  (mcfish has no `USE_PAIR_ACTIVATIONS` at any tier), the eval-bucket shift
+  (`piece_count_of` already returns `size_t`), the ASCII option fold, and the
+  worker-root install. Two claim LATENCY or PREDICTION and cost instructions to
+  buy it, which no instrument here can price. The threat-index fold is half
+  present and stronger — `ThreatIndexBlock` already merges the offsets into a u16
+  plane AND colocates `lut1` — leaving its row dedup as an unmeasured hypothesis
+  about cache footprint. `git log --grep=refish` finds each with its evidence.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
