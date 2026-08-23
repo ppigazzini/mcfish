@@ -238,16 +238,22 @@ int singular_triple_margin(
 
 // ---- Step 16 / 17 ------------------------------------------------------
 
-void search_fill_reductions(int32_t *reductions, size_t count) {
+// The entries are int(2872 / 128.0 * log(i)) -- a scaled logarithm, 0 through 124
+// across the whole table and never negative. u16 is what says so: as int32_t that is a
+// fact no compiler can use, so the `/ 512` in reduction_of has to allow for a negative
+// dividend and pays the round-toward-zero correction on every move the search reduces.
+// Both factors of the product below are then provably non-negative and the shift stands
+// alone. The table halves too, 1024 bytes to 512; nothing here measures that.
+void search_fill_reductions(uint16_t *reductions, size_t count) {
     for (size_t i = 1; i < count; ++i)
-        reductions[i] = (int32_t) (2872.0 / 128.0 * log((double) i));
+        reductions[i] = (uint16_t) (2872.0 / 128.0 * log((double) i));
 }
 
-const int32_t *search_reductions_table(void) {
+const uint16_t *search_reductions_table(void) {
     // Fill on first use. The values are a pure function of the index, so a benign
     // race would write byte-identical entries; first use is single-threaded anyway
     // (the main thread's per-worker setup runs before siblings start).
-    static int32_t table[MAX_MOVES];
+    static uint16_t table[MAX_MOVES];
     static bool filled = false;
     if (!filled) {
         search_fill_reductions(table, MAX_MOVES);
@@ -256,7 +262,7 @@ const int32_t *search_reductions_table(void) {
     return table;
 }
 
-int reduction_of(const int32_t *reductions,
+int reduction_of(const uint16_t *reductions,
                  int depth,
                  int move_number,
                  int delta,
