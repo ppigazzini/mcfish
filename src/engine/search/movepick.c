@@ -344,6 +344,30 @@ static Move select_good_capture(MovePicker *mp) {
     return MOVE_NONE;
 }
 
+// Walk for the next quiet scoring above GOOD_QUIET_THRESHOLD, stopping at the first
+// move that does not.
+//
+// partial_insertion_sort leaves the list in two pieces: a prefix that DESCENDS, and a
+// tail every member of which scores below the sort's own limit. So past the first move
+// at or below the threshold there is nothing left to find -- the rest of the prefix is
+// at or below it by the ordering, and the tail is below it by the limit.
+//
+// The tail half of that argument holds only while the LIMIT is at or below the
+// threshold. The limit is -3560 * depth and reaches -14000 at depth 4, so below that a
+// tail move can still outscore the threshold and the walk has to run to the end. The
+// caller picks between the two forms on exactly that test.
+static Move select_good_quiet_bounded(MovePicker *mp) {
+    while (mp->cur < mp->end_cur) {
+        const ExtMove entry = mp->moves[mp->cur];
+        if (entry.value <= GOOD_QUIET_THRESHOLD)
+            return MOVE_NONE;
+        ++mp->cur;
+        if (entry.move != mp->tt_move)
+            return entry.move;
+    }
+    return MOVE_NONE;
+}
+
 static Move select_good_quiet(MovePicker *mp) {
     while (mp->cur < mp->end_cur) {
         const ExtMove entry = mp->moves[mp->cur++];
@@ -479,7 +503,8 @@ Move movepick_next(MovePicker *mp) {
         // at the top of the loop or through the jump out of QUIET_INIT.
 good_quiet:
         if (!mp->skip_quiets) {
-            walk_move = select_good_quiet(mp);
+            walk_move = -3560 * mp->depth <= GOOD_QUIET_THRESHOLD ? select_good_quiet_bounded(mp)
+                                                                  : select_good_quiet(mp);
             if (walk_move != MOVE_NONE)
                 return walk_move;
         }
