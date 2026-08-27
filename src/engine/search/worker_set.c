@@ -178,7 +178,7 @@ static int64_t vote_for(Move m, int32_t min_score) {
 
 static bool is_decisive_exact(const RootMove *rm) {
     return rm->score != -VALUE_INFINITE && value_is_decisive((Value) rm->score)
-        && !root_move_score_is_bound(rm);
+        && !root_move_is_inexact(rm);
 }
 
 SearchWorker *search_worker_best(void) {

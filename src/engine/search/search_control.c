@@ -105,13 +105,13 @@ void root_update(SearchCtx *ctx,
         rm->score = value;
         rm->uci_score = value;
         rm->sel_depth = ctx->sel_depth;
-        rm->score_lowerbound = false;
-        rm->score_upperbound = false;
+        rm->inexact_lower = false;
+        rm->inexact_upper = false;
         if (value >= beta) {
-            rm->score_lowerbound = true;
+            rm->inexact_lower = true;
             rm->uci_score = beta;
         } else if (value <= alpha) {
-            rm->score_upperbound = true;
+            rm->inexact_upper = true;
             rm->uci_score = alpha;
         }
         // Keep pv[0] (== move) with pv.resize(1), then append the child PV.
