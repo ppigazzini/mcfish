@@ -70,4 +70,11 @@ static inline uint64_t atomic_u64_fetch_add(AtomicU64 *a, uint64_t delta) {
     return atomic_fetch_add_explicit(&a->value, delta, memory_order_relaxed);
 }
 
+// Subtract DELTA and return the value held BEFORE it, wrapping the same way. Spelled
+// out rather than left to `fetch_add((uint64_t) -1)`: a wrapping add of the all-ones
+// value is a decrement only to a reader who stops to work that out.
+static inline uint64_t atomic_u64_fetch_sub(AtomicU64 *a, uint64_t delta) {
+    return atomic_fetch_sub_explicit(&a->value, delta, memory_order_relaxed);
+}
+
 #endif  // MCFISH_ATOMIC_H

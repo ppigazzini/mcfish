@@ -39,6 +39,7 @@
 #include "../src/platform/syzygy/decode.h"
 #include "../src/platform/syzygy/encode.h"
 #include "../src/platform/syzygy/wdl.h"
+#include "../src/platform/memory.h"
 #include "../src/platform/thread_pool.h"
 
 #include <stdatomic.h>
@@ -1988,6 +1989,76 @@ static void test_thread_pool(void) {
     CHECK(thread_pool_num_threads(&pool) == 0, "churn leaves the pool empty");
 }
 
+// The mapping allocator's alloc/free round trip, and the count that says a block came
+// back.
+//
+// This is the only test that touches either allocator surface, and the count is the only
+// gate over them. Both are backed by mmap, which NEITHER leak checker in this tree
+// tracks: LeakSanitizer walks the malloc heap and valgrind's memcheck intercepts
+// allocators, so an anonymous mapping is outside both. Measured rather than assumed --
+// with `page_free_default` cut down to `(void) ptr;`, `./build.sh test`,
+// `tools/valgrind.sh` and the whole of `./build.sh parity` all pass over a build that
+// never releases an arena.
+//
+// Three size classes, because the alignment arithmetic is where this breaks: below one
+// large page, exactly one, and one byte past. Writing the first and last byte of what
+// the CALLER asked for is what catches a payload that starts inside the header or a
+// mapping short of the rounded size -- both are out-of-bounds the sanitizers do see,
+// once something touches the ends.
+static void test_page_allocator(void) {
+    banner("page allocator");
+
+    const size_t page = large_page_size();
+    const size_t sizes[] = { page / 2, page, page + 1 };
+    const uint64_t base = memory_live_mappings();
+
+    for (size_t i = 0; i < sizeof sizes / sizeof *sizes; ++i) {
+        const size_t n = sizes[i];
+
+        unsigned char *const p = page_alloc(n);
+        CHECK(p != nullptr, "page_alloc(%zu) returned a block", n);
+        if (p == nullptr)
+            continue;
+
+        CHECK(memory_live_mappings() == base + 1, "page_alloc(%zu) took one mapping, live %llu", n,
+              (unsigned long long) (memory_live_mappings() - base));
+        CHECK(((uintptr_t) p % page) == 0, "page_alloc(%zu) is large-page aligned", n);
+
+        // page_alloc's zero-fill IS its contract (memory.h), and nothing else asserts it.
+        CHECK(p[0] == 0 && p[n - 1] == 0, "page_alloc(%zu) arrives zeroed at both ends", n);
+
+        p[0] = 0x5A;
+        p[n - 1] = 0xA5;
+        CHECK(p[0] == 0x5A && p[n - 1] == 0xA5, "page_alloc(%zu) holds both end bytes", n);
+
+        page_free(p);
+        CHECK(memory_live_mappings() == base, "page_free(%zu) gave the mapping back, live %llu", n,
+              (unsigned long long) (memory_live_mappings() - base));
+    }
+
+    // The other surface memory.h advertises. Nothing in the engine calls it, which is
+    // precisely why it needs a test: it shares the mapping helper, and a caller arriving
+    // later must find it working rather than discover it rotted unused.
+    unsigned char *const q = aligned_large_pages_alloc(page + 1);
+    CHECK(q != nullptr, "aligned_large_pages_alloc returned a block");
+    if (q != nullptr) {
+        CHECK(memory_live_mappings() == base + 1, "aligned_large_pages_alloc took one mapping");
+        CHECK(((uintptr_t) q % page) == 0, "aligned_large_pages_alloc is large-page aligned");
+        // Rounded UP to a whole page, so the byte at `page * 2 - 1` is inside the block.
+        q[0] = 0x5A;
+        q[page * 2 - 1] = 0xA5;
+        CHECK(q[0] == 0x5A && q[page * 2 - 1] == 0xA5, "the rounded-up tail byte is writable");
+        aligned_large_pages_free(q);
+    }
+    CHECK(memory_live_mappings() == base, "every block taken here was given back");
+
+    // Both frees are documented no-ops on nullptr, and both are reached with one on the
+    // unwind paths in worker construction.
+    page_free(nullptr);
+    aligned_large_pages_free(nullptr);
+    CHECK(memory_live_mappings() == base, "freeing nullptr moves nothing");
+}
+
 // The LEB128 encoder against the decoder that reads it back, and against the eight
 // encodings the format's sign rule fixes.
 //
@@ -2121,6 +2192,7 @@ int main(void) {
     test_numa_from_string();
     test_numa_config_shape();
     test_thread_pool();
+    test_page_allocator();
 
     // Release what the search allocated on first use, so the leak checker sees the
     // teardown the process itself runs.
