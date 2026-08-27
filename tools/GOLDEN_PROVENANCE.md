@@ -66,6 +66,27 @@ in a resync is what put six self-photographs in this directory.
 `tb.golden` has its own regenerator, `./build.sh tb-update`, which runs the oracle
 and refuses without the full 3-man set — there is no mcfish-derived path to it.
 
+## `hashfail`: the oracle crashes where mcfish reports
+
+`hashfail` drives `setoption name Hash value 999999` — a 976 GB table no host here
+can back. mcfish prints upstream's own line on stderr and exits 1, which is what
+the golden records and what the oracle produced when the case was written
+(`cc16a92b`).
+
+Since upstream `7ab49b9b` the oracle **segfaults** on it, and the audit reports
+`hashfail` as differing with `exit=139`. That is an upstream defect, not drift
+here: `aligned_large_pages_alloc_with_hint` (upstream `src/memory.cpp:153`) now
+returns its new mmap helper's result directly, and a failed `mmap` returns
+`MAP_FAILED` — the pointer value -1, which is truthy. It is entered in the size
+registry, advised with `madvise` before any check, and reaches
+`TranspositionTable::resize`, whose null test sees a non-null pointer; the first
+write to the table faults. mcfish's `map_large_aligned` tests `MAP_FAILED` and
+returns `nullptr`, so the refusal path still runs.
+
+**Do not re-derive this golden from the oracle** while that holds: it would pin a
+crash. The golden stays as it is, and the audit's `hashfail` line is expected to
+read DIFFERS until upstream fixes the check.
+
 ## `handshake`: the one legitimate substitution
 
 `handshake` is derived from the oracle and then has exactly one line rewritten,
