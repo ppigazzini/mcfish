@@ -43,48 +43,11 @@ void std_aligned_free(void *ptr) { free(ptr); }
 
 size_t large_page_size(void) { return (size_t) LargePageSize; }
 
-void *aligned_large_pages_alloc(size_t alloc_size) {
-    const size_t alignment = (size_t) LargePageSize;
-    const size_t rounded_size =
-      alloc_size == 0 ? 0 : ((alloc_size + alignment - 1) / alignment) * alignment;
-
-    void *mem = std_aligned_alloc(alignment, rounded_size);
-    if (mem == nullptr)
-        return nullptr;
-
-    // Return the block UNINITIALISED, as upstream's aligned_large_pages_alloc does
-    // (memory.cpp:129 onward -- neither the mmap path nor the aligned_alloc fallback
-    // zeroes). Zeroing here would be a fifty-megabyte memset on every thread resize, and,
-    // worse, it would let a constructor that forgets a field read 0 and look correct: the
-    // field would then be right only because the allocator hid the omission. Every caller
-    // initialises what it reads -- worker_construct_full writes each Worker field it does
-    // not otherwise clear.
-    //
-    // Hint transparent huge pages. This is advisory: the kernel may ignore it, and the
-    // block is already 2 MiB-aligned, so it stays valid either way.
-    if (rounded_size != 0) {
-#if defined(MADV_HUGEPAGE)
-        (void) madvise(mem, rounded_size, MADV_HUGEPAGE);
-#endif
-    }
-
-    return mem;
-}
-
-void aligned_large_pages_free(void *ptr) { std_aligned_free(ptr); }
-
-bool has_large_pages(void) {
-#if defined(MADV_HUGEPAGE)
-    return true;
-#else
-    return false;
-#endif
-}
-
-// Back the default page allocator with an anonymous mapping rather than malloc: the
-// arenas here are tens of megabytes, the kernel hands them over pre-zeroed, and munmap
-// returns them to the OS instead of parking them in the heap's free lists.
-static void *page_alloc_default(size_t size) {
+// Back every large block with an anonymous mapping rather than with malloc, and serve
+// both surfaces below from here: the blocks are tens of megabytes, the kernel hands
+// them over pre-zeroed, and munmap returns them to the OS instead of parking them in
+// the heap's free lists where a later thread on another NUMA node can be handed one.
+static void *map_large_aligned(size_t size) {
     if (size == 0)
         return nullptr;
 
@@ -103,7 +66,7 @@ static void *page_alloc_default(size_t size) {
     unsigned char *const payload = (unsigned char *) addr;
 
     // Hint transparent huge pages once the mapping is large enough to hold at least one.
-    // The big arenas that ride this seam -- the 16 MiB transposition table, the per-node
+    // The big arenas that ride this helper -- the 16 MiB transposition table, the per-node
     // shared-history banks -- are exactly L3-sized, so at 4 KiB pages the search walks
     // thousands of TLB entries across them; a 2 MiB page is one entry for the same span.
     // The hint is advisory: the kernel may ignore it (WSL2 here backs none of it), and it
@@ -125,7 +88,7 @@ static void *page_alloc_default(size_t size) {
     return payload;
 }
 
-static void page_free_default(void *ptr) {
+static void unmap_large_aligned(void *ptr) {
     if (ptr == nullptr)
         return;
 
@@ -136,6 +99,47 @@ static void page_free_default(void *ptr) {
     void *const raw = ((void **) (void *) payload)[-2];
     (void) munmap(raw, total);
 }
+
+void *aligned_large_pages_alloc(size_t alloc_size) {
+    const size_t alignment = (size_t) LargePageSize;
+    const size_t rounded_size =
+      alloc_size == 0 ? 0 : ((alloc_size + alignment - 1) / alignment) * alignment;
+
+    if (rounded_size == 0)
+        return nullptr;
+
+    // MAP the block rather than taking it from a malloc arena, as upstream's
+    // aligned_large_pages_alloc_with_hint does since 7ab49b9b. A glibc arena outlives
+    // the thread that created it and can be handed to a thread bound to a DIFFERENT
+    // NUMA node later, so a block served from one is remote memory the engine cannot
+    // see or place -- which is what made a second `setoption name Threads` measurably
+    // slower than the first upstream. A mapping is placed by first touch, every time.
+    //
+    // Same helper the page_alloc seam below uses: the two words ahead of the payload
+    // carry the mapping's base and length, so the free needs no size from the caller
+    // and no registry keyed on the pointer.
+    //
+    // The block is still UNINITIALISED by contract, as upstream's is (memory.cpp:129
+    // onward -- neither the mmap path nor the aligned_alloc fallback promises zeroes).
+    // Anonymous pages happen to arrive zeroed; a caller that reads a field it never
+    // wrote is a bug, and an allocator that guaranteed zeroes would hide it behind a
+    // plausible value.
+    return map_large_aligned(rounded_size);
+}
+
+void aligned_large_pages_free(void *ptr) { unmap_large_aligned(ptr); }
+
+bool has_large_pages(void) {
+#if defined(MADV_HUGEPAGE)
+    return true;
+#else
+    return false;
+#endif
+}
+
+static void *page_alloc_default(size_t size) { return map_large_aligned(size); }
+
+static void page_free_default(void *ptr) { unmap_large_aligned(ptr); }
 
 static void *(*PageAllocHook)(size_t size) = page_alloc_default;
 static void (*PageFreeHook)(void *ptr) = page_free_default;
