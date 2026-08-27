@@ -64,16 +64,19 @@ static void state_arena_release(StateArena *a) {
 typedef struct {
     TimePoint start;
     int32_t move_overhead;
-    bool use_time_management;
+    int64_t multipv;
+    bool use_deadline;
 } Deadline;
 
-// Spend at most half of Move Overhead, and only when a clock is being managed.
-// Upstream measures in fractional milliseconds (search.cpp:2109); the seam here
-// is whole-millisecond, so the abort lands on the same side of the bound only up
-// to one millisecond of granularity.
+// Spend at most half of Move Overhead across the WHOLE report, and only when a
+// clock is being managed. Upstream measures in fractional milliseconds
+// (search.cpp:2109); the seam here is whole-millisecond, so the abort lands on the
+// same side of the bound only up to one millisecond of granularity. The comparison
+// is `>=` rather than `>`, as upstream's is since 19a02f44: at `Move Overhead 0`
+// under a clock there is no budget at all, and `>` spent one tick of it.
 static bool deadline_expired(void *ctx) {
     const Deadline *const d = ctx;
-    return d->use_time_management && 2 * (TimeNowMs() - d->start) > d->move_overhead;
+    return d->use_deadline && 2 * d->multipv * (TimeNowMs() - d->start) >= d->move_overhead;
 }
 
 static size_t collect_legal(const Position *pos, RankedRootMove *out) {
@@ -115,7 +118,7 @@ rank_by_opponent_mobility(Position *pos, StateInfo *scratch, RankedRootMove *ran
     }
 }
 
-void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int32_t *v) {
+void syzygy_extend_pv(Position *pos, bool use_deadline, size_t multipv, RootMove *rm, int32_t *v) {
     if (rm->pv.length == 0)
         return;
 
@@ -123,8 +126,16 @@ void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int
     Deadline deadline = {
         .start = TimeNowMs(),
         .move_overhead = OptionIntByName("Move Overhead"),
-        .use_time_management = use_time_management,
+        .multipv = (int64_t) (multipv != 0 ? multipv : 1),
+        .use_deadline = use_deadline,
     };
+
+    // Refuse before doing any work when the budget is already spent, as upstream
+    // does since 19a02f44. `Move Overhead 0` under a clock is the case: every check
+    // below would abort anyway, and this leaves the PV untouched rather than
+    // truncated to whatever the first ranking pass reached.
+    if (deadline_expired(&deadline))
+        return;
 
     StateArena arena = { .head = nullptr };
     RankedRootMove *const ranked = calloc(MAX_MOVES, sizeof *ranked);

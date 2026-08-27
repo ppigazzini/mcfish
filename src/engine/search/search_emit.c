@@ -121,7 +121,10 @@ void search_emit_pv(SearchCtx *ctx, int depth) {
         // touched, unless the score came from the tablebase and is exact anyway.
         if (value_is_decisive(v) && !is_mate_or_mated(v) && !use_prev
             && (!root_move_is_inexact(rm) || is_tb_score))
-            syzygy_extend_pv(ctx->root_pos, ctx->time_state.use_time_management, rm, &v);
+            syzygy_extend_pv(ctx->root_pos,
+                             ctx->time_state.use_time_management
+                               && !ctx->time_state.tm_use_nodes_time,
+                             multipv, rm, &v);
 
         // A score cannot be inexact in both directions at once, and the reporter
         // below picks `lowerbound` first: a move that somehow set both would be
