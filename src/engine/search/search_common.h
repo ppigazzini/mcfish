@@ -54,7 +54,7 @@ enum : uint64_t { ID_NODES_LIMIT_OUTPUT = 10000000 };
 // where the black pieces sit at 9..14.
 extern const int32_t PieceValueByPiece[PIECE_NB];
 
-// Divide the accumulated quiet history by depth bucket in Step 14.
+// Divide the accumulated quiet history by depth bucket in Step 15.
 extern const int32_t LmrDivisor[16];
 
 // ---- value model -------------------------------------------------------
@@ -80,7 +80,7 @@ Value search_value_from_tt(Value v, int ply, int r50c);
 // band, so a corrected eval can never masquerade as a proven win or loss.
 Value to_corrected_static_eval(Value v, int cv);
 
-// ---- Step 7 / 8 / 9 / 11: pre-loop pruning -----------------------------
+// ---- Step 8 / 9 / 10 / 12: pre-loop pruning -----------------------------
 
 int futility_margin(
   int depth, bool tt_hit, bool improving, bool opponent_worsening, int correction_value);
@@ -100,7 +100,7 @@ int nmp_min_ply_of(int ply, int depth, int r);
 int probcut_beta(int beta, bool improving);
 int probcut_beta_deep(int beta);
 
-// ---- Step 14: move-loop pruning ----------------------------------------
+// ---- Step 15: move-loop pruning ----------------------------------------
 
 int move_count_limit(int depth, bool improving);
 
@@ -111,7 +111,7 @@ int quiet_see_margin(int lmr_depth);
 int capture_futility_value(int static_eval, int lmr_depth, int piece_val, int capt_hist);
 int capture_see_margin(int depth, int capt_hist);
 
-// ---- Step 15: singular extension ---------------------------------------
+// ---- Step 16: singular extension ---------------------------------------
 
 int singular_beta(int tt_value, bool ttpv_and_not_pv, int depth);
 int singular_double_margin(
@@ -119,7 +119,7 @@ int singular_double_margin(
 int singular_triple_margin(
   bool pv_node, bool not_tt_capture, bool ttpv, int correction_value, bool ply_gt_root);
 
-// ---- Step 16 / 17: reductions ------------------------------------------
+// ---- Step 18: reductions ------------------------------------------
 
 // Fill REDUCTIONS[1, count) with int(2872/128 * ln i). Index 0 is left untouched,
 // matching upstream's clear().
@@ -233,7 +233,7 @@ search_set_cont_hist(SearchCtx *ctx, Stack *ss, bool in_check, bool capture, Pie
 // Bracket every make/unmake with the NNUE accumulator, so the child evaluates
 // against its own slot and pos_do_move writes its delta straight into it. The
 // bracket belongs on the make-move choke point and nowhere else: the null move
-// and the Step 4 TT verification touch no slot, because upstream pushes none for
+// and the Step 6 TT verification touch no slot, because upstream pushes none for
 // either (evaluate.h states the invariant from the accumulator's side).
 //
 // Defined inline so the move loop absorbs it, as upstream's search<NodeType>

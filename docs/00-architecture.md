@@ -151,7 +151,7 @@ ablation:
 
 - Grepping every per-node file (`search_main.c`, `search_qsearch.c`,
   `movepick.c`, `history.c`, `tt.c`) for a seam symbol finds exactly one call
-  site: `TbProbeWdlPos`, in `search_main.c`'s Step 6, gated on
+  site: `TbProbeWdlPos`, in `search_main.c`'s Step 7, gated on
   `tb_config.cardinality != 0`.
 - `TimeNowMs` and `PoolCounters` are reached from the per-node path only
   through `check_time` (`search_control.c`), which decrements a counter and
@@ -170,7 +170,7 @@ the search if a seam sat on the per-node path unthrottled.
 which requires a `SyzygyPath` — and `bench`, the signature anchor, and every
 golden run all run with **no** `SyzygyPath`, so `cardinality` is 0 by
 construction and the call never fires. The coverage is a property of the
-*workload*, not of the seam: with tablebases loaded, Step 6 becomes a live
+*workload*, not of the seam: with tablebases loaded, Step 7 becomes a live
 per-node indirect call where upstream makes a direct one, and nothing in
 this tree has measured that case. Treat "the seam layer is free" as unproven
 for a Syzygy-loaded search until an ablation says otherwise. It is also

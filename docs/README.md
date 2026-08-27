@@ -118,7 +118,7 @@ none of them sees a ported file that is not in the array.
 | Slider attacks | magic bitboards in [`../src/engine/board/attacks.c`](../src/engine/board/attacks.c), built at startup by `attacks_init` |
 | Evaluation | NNUE, under `src/engine/eval/nnue/`, with an incremental accumulator the search brackets. The net is a runtime input; a build with no net falls back to a classical material + PSQT term that is **scaffolding** |
 | Search | Lazy-SMP iterative-deepening alpha-beta with quiescence, a staged move picker, the history block and the time manager. The thread pool is driven: each worker's state lives in its own `SearchWorker` block, and `Threads` above 1 runs that many workers over one root |
-| Endgames | Syzygy WDL/DTZ probing, wired: the prober in `src/platform/syzygy/`, the root ranking and the Step 6 in-search probe. Tables are a runtime input — with no `SyzygyPath` the engine never probes |
+| Endgames | Syzygy WDL/DTZ probing, wired: the prober in `src/platform/syzygy/`, the root ranking and the Step 7 in-search probe. Tables are a runtime input — with no `SyzygyPath` the engine never probes |
 | Protocol | UCI |
 
 Any row marked unwired or absent is a known limitation, not a scoping decision. The

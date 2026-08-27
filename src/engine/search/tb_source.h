@@ -33,7 +33,7 @@ extern size_t (*TbMaxCardinality)(void);
 // Probe a FEN.
 extern TbProbeResult (*TbProbeFen)(const char *fen, size_t fen_len, bool chess960);
 
-// Probe the WDL in-search on the live position (Step 6). Do/undo on POS for the
+// Probe the WDL in-search on the live position (Step 7). Do/undo on POS for the
 // capture recursion and restore it exactly.
 extern TbProbeResult (*TbProbeWdlPos)(Position *pos);
 

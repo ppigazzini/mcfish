@@ -149,22 +149,26 @@ Node order:
 1. **Upcoming-repetition draw** (non-root) — the cuckoo test, then Step 1 node
    init, Step 2 the aborted-search / draw / `MAX_PLY` bail, Step 3 mate-distance
    pruning.
-2. **Step 4 TT probe**, with the `cut_node == (ttValue >= beta)` gate on the
-   cutoff, the deep-TT verification search, and the depth penalty on an entry that
-   could not justify its cutoff.
+2. **Step 4 TT probe**, then **Step 6** the non-PV early cutoff with the
+   `cut_node == (ttValue >= beta)` gate on it, the deep-TT verification search, and
+   the depth penalty on an entry that could not justify its cutoff.
 3. **Step 5 static eval** through the correction histories, plus `improving`,
    `opponent_worsening` and the hindsight reduction adjustments.
-4. **Step 6 tablebase probe**, gated on `tb_config.cardinality` — zero without a
+4. **Step 7 tablebase probe**, gated on `tb_config.cardinality` — zero without a
    `SyzygyPath`, so a default build never enters it.
-5. **Step 7 razoring, Step 8 futility, Step 9 null move** and its verification
-   search, **Step 10 internal iterative reductions**, **Step 11 ProbCut**, **Step 12
+5. **Step 8 razoring, Step 9 futility, Step 10 null move** and its verification
+   search, **Step 11 internal iterative reductions**, **Step 12 ProbCut**, **Step 13
    deep ProbCut**.
-6. **Step 13 move loop** with `follow_pv`, **Step 14** move-count / history /
-   futility / SEE pruning for quiets and captures, **Step 15 singular extensions**
-   with the double and triple margins, **Steps 16-18** the 1024-scaled LMR schedule
+6. **Step 14 move loop** with `follow_pv`, **Step 15** move-count / history /
+   futility / SEE pruning for quiets and captures, **Step 16 singular extensions**
+   with the double and triple margins, **Steps 18-20** the 1024-scaled LMR schedule
    and its re-searches.
-7. **Steps 20-21** best-move bookkeeping, the stat updates, the TT store and the
+7. **Steps 22-24** best-move bookkeeping, the stat updates, the TT store and the
    correction-history nudge.
+
+The numbering is upstream's, and steps 4 and 6 are not adjacent in it: the probe
+reads the entry, the static eval runs, and only then does the non-PV cutoff decide
+on it.
 
 `NodeType` is a tag, not two booleans: the body derives `pv_node` and `root_node`
 from it, so the two cannot drift apart the way two independent flags can.
@@ -215,7 +219,7 @@ that asymmetry is deliberate rather than an omission: a null move moves no piece
 the child must evaluate against this node's own accumulator slot. Pushing an empty
 diff would not be equivalent, because a pushed diff is applied rather than skipped.
 `pos_do_null_move`'s empty delta goes into the position's scratch records and is
-discarded. The Step 4 TT verification make/unmake is unbracketed for the same
+discarded. The Step 6 TT verification make/unmake is unbracketed for the same
 reason: it evaluates nothing between the two. See
 [03-engine-eval.md](03-engine-eval.md).
 
@@ -233,7 +237,7 @@ notice.
 
 ### What the singular search returns when it does not extend
 
-Step 15's search on the tt move excluded has three outcomes besides the extension.
+Step 16's search on the tt move excluded has three outcomes besides the extension.
 Two are worth stating because neither is about the tt move at all:
 
 - **Multi-cut.** The excluded search failed high over beta, so some *other* move

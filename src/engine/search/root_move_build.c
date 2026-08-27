@@ -65,7 +65,7 @@ static TbConfig load_tb_config(void) {
         config.probe_depth = 0;
     }
     // Upstream does NOT zero cardinality for positions larger than the TB: it
-    // keeps it so the in-search Step 6 probe still fires at smaller in-tree
+    // keeps it so the in-search Step 7 probe still fires at smaller in-tree
     // positions. Whether the ROOT is ranked is a separate gate below.
     return config;
 }
@@ -264,7 +264,7 @@ TbConfig tb_rank_moves(Position *pos,
 
     // Rank only when the position itself fits the tablebase and cannot castle.
     // Otherwise it is searched normally, with cardinality kept so the in-search
-    // Step 6 probe still fires at smaller in-tree positions.
+    // Step 7 probe still fires at smaller in-tree positions.
     if (config.cardinality >= count_pieces(pos) && pos->st->castling_rights == 0) {
         // Where DTZ ranks as DTM, the exact DTZ is the only ordering that puts the
         // fastest mate first; without this every certain win ties at MAX_DTZ and

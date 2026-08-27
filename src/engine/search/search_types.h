@@ -140,7 +140,7 @@ typedef struct {
 enum { STACK_PAD = 7, STACK_SIZE = STACK_PAD + MAX_PLY + 10 };
 
 // Carry the Syzygy settings the root ranking resolved. `cardinality` is 0 in a
-// build with no SyzygyPath, which is what keeps the in-search Step 6 probe out
+// build with no SyzygyPath, which is what keeps the in-search Step 7 probe out
 // of the default node count entirely.
 typedef struct {
     int32_t cardinality;

@@ -238,7 +238,7 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
     if (!value_is_decisive(best_value) && best_value > beta)
         best_value = qsearch_fail_high_blend(best_value, beta);
 
-    // Save to the transposition table.
+    // Step 10. Save to the transposition table.
     search_tt_save(writer, pos_key, search_value_to_tt(best_value, ss->ply), pv_hit,
                    best_value >= beta ? BOUND_LOWER : BOUND_UPPER, DEPTH_QS, best_move,
                    unadjusted_static_eval);
