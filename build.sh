@@ -1598,6 +1598,7 @@ LANE_EXCUSED=(
   "tb-update:re-derives the tb golden; tb is what asserts it"
   "tb-cursed:needs the 5-man tables (tb-fetch 5), too large for a lane"
   "tb-cursed-update:re-derives that golden"
+  "attribution-update:re-derives the AUTHORS copy from the golden; attribution is what asserts it"
 )
 
 do_lane_coverage() {
@@ -3177,6 +3178,80 @@ do_type_check() {
   fi
 }
 
+# --- attribution: the AUTHORS copy is still upstream's, verbatim ------------------
+#
+# AUTHORS is not documentation and not a courtesy: mcfish is a GPL derivative of
+# Stockfish, and the licence requires that attribution travel with the derivative.
+# The file says in its own header that the list below the rule is Stockfish's own,
+# "kept verbatim" -- and a claim like that is worth exactly what checks it.
+#
+# Nothing checked it. Six names had gone missing across four syncs, one of them
+# added by 22dfb404 in the very range the port that found this had just closed:
+# a resync reads `src/`, and a commit that touches AUTHORS and search.cpp together
+# gets ported by its diff and loses the half that is not code. That is invisible to
+# every other gate here by construction -- no node count, no golden and no lint
+# reads this file.
+#
+# NARROWS rather than fails without the golden checkout, the way `tb` and
+# `malformed` do: a bare CI clone of this repo has no ../Stockfish, and a gate that
+# went red for the absence would be turned off. `git show <pin>:AUTHORS` needs the
+# OBJECT only, so it does not care which branch is checked out or whether the
+# working tree is dirty.
+do_attribution() {
+  local pin
+  pin=$(tr -d '[:space:]' < tools/upstream/UPSTREAM_BASE)
+  info "attribution: AUTHORS vs upstream's own at $pin"
+
+  if [[ ! -d ../Stockfish/.git ]]; then
+    red "  no golden checkout at ../Stockfish -- the AUTHORS copy is UNCHECKED by this run."
+    red "  Clone the golden beside this repo to compare it."
+    return 0
+  fi
+
+  local upstream
+  if ! upstream=$(git -C ../Stockfish show "$pin:AUTHORS" 2>/dev/null); then
+    red "  ../Stockfish does not hold $pin -- the AUTHORS copy is UNCHECKED by this run."
+    red "  Fetch the golden's upstream remote so the pinned object is present."
+    return 0
+  fi
+
+  # The header is mcfish's own and stops at the horizontal rule; everything after it
+  # is upstream's file and must match byte for byte.
+  local rule
+  rule=$(grep -n '^-\{20,\}$' AUTHORS | head -1 | cut -d: -f1)
+  if [[ -z $rule ]]; then
+    red "  AUTHORS has no header rule -- cannot tell mcfish's preamble from the copy."
+    return 1
+  fi
+
+  if diff -u <(printf '%s\n' "$upstream") <(tail -n +$((rule + 1)) AUTHORS); then
+    green "attribution: AUTHORS matches upstream's at the pin, verbatim"
+  else
+    red "attribution: the AUTHORS copy has drifted from upstream's at $pin."
+    red "  This is a licence obligation, not a lint. Re-derive it:"
+    red "      ./build.sh attribution-update"
+    return 1
+  fi
+}
+
+# Rebuild the copy from the golden at the pin, keeping mcfish's own header.
+do_attribution_update() {
+  local pin
+  pin=$(tr -d '[:space:]' < tools/upstream/UPSTREAM_BASE)
+  [[ -d ../Stockfish/.git ]] || { red "no golden checkout at ../Stockfish"; return 2; }
+
+  local rule
+  rule=$(grep -n '^-\{20,\}$' AUTHORS | head -1 | cut -d: -f1)
+  [[ -n $rule ]] || { red "AUTHORS has no header rule"; return 2; }
+
+  local tmp
+  tmp=$(mktemp)
+  head -n "$rule" AUTHORS > "$tmp"
+  git -C ../Stockfish show "$pin:AUTHORS" >> "$tmp" || { rm -f "$tmp"; return 2; }
+  mv "$tmp" AUTHORS
+  green "AUTHORS re-derived from the golden at $pin"
+}
+
 # --- cite-check: a cited SHA still names a commit a reader can reach ---------------
 #
 # docs-lint checks paths and symbols; nothing checked the ~37 commit SHAs the pages
@@ -3564,6 +3639,7 @@ do_parity() {
   do_golden
   do_tb
   do_malformed
+  do_attribution
 
   if [[ ${#skipped[@]} -eq 0 ]]; then
     green "=== parity: all gates passed ==="
@@ -3640,6 +3716,8 @@ usage: ./build.sh <step> [args]
   docs-lint          check docs for dead links and stale paths
   shellcheck         lint every .sh in the tree (pinned shellcheck, severity style)
   cite-check         every commit SHA the docs cite still resolves (needs a full clone)
+  attribution        the AUTHORS copy is still upstream's at the pin, verbatim
+  attribution-update re-derive AUTHORS from the golden at the pin
   type-check         compile docs/09-type-design.md's claims: each mistake still refused
   sync-status        report drift between the pinned SHAs and the tracked repos
   upstream-map       LOCAL: audit the declared upstream map, ratchet uncovered surface
@@ -3716,6 +3794,8 @@ case "${1:-build}" in
   upstream-parity)  shift; do_upstream_parity "$@" ;;
   shellcheck)       do_shellcheck ;;
   cite-check)       do_cite_check ;;
+  attribution)      do_attribution ;;
+  attribution-update) do_attribution_update ;;
   type-check)       do_type_check ;;
   perf-decomp)      shift; do_perf_decomp "$@" ;;
   fmt)              do_fmt ;;
