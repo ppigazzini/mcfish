@@ -12,6 +12,7 @@
 #include "../board/score.h"
 #include "../board/uci_move.h"
 
+#include <assert.h>
 #include <string.h>
 
 // Report the POOL's totals, as upstream's output_pv does (search.cpp:2235, :2239). A
@@ -119,14 +120,21 @@ void search_emit_pv(SearchCtx *ctx, int depth) {
         // a bound flag means the search never proved this line — so neither is
         // touched, unless the score came from the tablebase and is exact anyway.
         if (value_is_decisive(v) && !is_mate_or_mated(v) && !use_prev
-            && (!root_move_score_is_bound(rm) || is_tb_score))
+            && (!root_move_is_inexact(rm) || is_tb_score))
             syzygy_extend_pv(ctx->root_pos, ctx->time_state.use_time_management, rm, &v);
+
+        // A score cannot be inexact in both directions at once, and the reporter
+        // below picks `lowerbound` first: a move that somehow set both would be
+        // announced as a lower bound rather than as anything true. Upstream added
+        // the same assertion in 22dfb404 (search.cpp:2313). It compiles out of the
+        // release binary; the sanitized `test` build is what runs it.
+        assert(!(rm->inexact_lower && rm->inexact_upper));
 
         const char *bound_text = "";
         if (!use_prev && !is_tb_score) {
-            if (rm->score_lowerbound)
+            if (rm->inexact_lower)
                 bound_text = "lowerbound";
-            else if (rm->score_upperbound)
+            else if (rm->inexact_upper)
                 bound_text = "upperbound";
         }
 
