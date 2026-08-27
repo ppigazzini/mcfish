@@ -351,9 +351,11 @@ forever, and resolves nowhere else. The test here is ancestry:
 two:**
 
 - an ancestor of HEAD;
-- off-branch but reachable from some ref — what
-  `tools/upstream/PORT_SOURCES.md`'s upstream Stockfish SHAs are, reachable from
-  the upstream remote and from tags but ancestors of nothing on this branch;
+- off-branch but reachable from some ref — what the commit this port started
+  from is, cited in `tools/upstream/PORT_SOURCES.md`: an object in this clone,
+  reachable from a ref, an ancestor of nothing on this branch. It is the tree's
+  only one, so the tier has exactly one live instance and `cite-check` prints the
+  count;
 - resolved in a sibling checkout — what AGENTS.md's rfish, zfish and refish
   citations are, which are not objects in this repository at all;
 - reachable from nothing, which is the finding.

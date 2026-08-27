@@ -26,10 +26,10 @@
 #     git merge-base --is-ancestor "$sha" HEAD
 #
 # THREE TIERS, because two would report the wrong thing here. Off-branch is not a
-# defect in this tree: `tools/upstream/PORT_SOURCES.md` cites upstream Stockfish
-# SHAs, which are reachable from the upstream remote and from tags but are
-# ancestors of nothing on this branch. Only a SHA reachable from NOTHING is a
-# finding -- that one is a single `git gc --prune` from unresolvable even here.
+# defect in this tree: `tools/upstream/PORT_SOURCES.md` cites the upstream commit
+# this port started from, which is reachable from a ref but is an ancestor of
+# nothing on this branch. Only a SHA reachable from NOTHING is a finding -- that
+# one is a single `git gc --prune` from unresolvable even here.
 #
 # AND A FOURTH TIER THIS TREE NEEDS AND REFISH DOES NOT. mcfish's pages cite the
 # SIBLING PORTS by SHA -- rfish, zfish and refish commits appear in AGENTS.md by
