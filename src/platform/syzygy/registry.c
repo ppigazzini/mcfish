@@ -335,7 +335,10 @@ static bool visit_map(const char *dir, size_t dir_len, void *ctx) {
     if (!join_path(full, sizeof full, dir, dir_len, c->stem, c->stem_len, c->ext)) {
         return false;
     }
-    const int fd = open(full, O_RDONLY);
+    // O_CLOEXEC, as upstream's TBFile::map does since 22dfb404. A table descriptor
+    // is opened once and held for the life of the process, so anything this engine
+    // ever execs would inherit the whole set of them.
+    const int fd = open(full, O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
         return false;  // absent here; keep looking down the path
     }
