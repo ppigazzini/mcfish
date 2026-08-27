@@ -299,7 +299,11 @@ nnue_scaled_value(const Position *pos, int32_t psqt, int32_t positional, int opt
     const int64_t material = 534 * (count_p(pos, WHITE, PAWN) + count_p(pos, BLACK, PAWN))
                            + pos_non_pawn_material(pos, WHITE) + pos_non_pawn_material(pos, BLACK);
 
-    int64_t v = (nnue * (91000 + material) + opt * 7675) / 91000;
+    // Add the un-scaled NNUE term OUTSIDE the divide rather than folding 91000 into
+    // the numerator. Not an algebraic rewrite: one truncation over the whole sum is
+    // not the same integer as an exact term plus one truncation over the remainder,
+    // and the bench moves accordingly (upstream 2edd935b).
+    int64_t v = nnue + (nnue * material + opt * 7675) / 91000;
 
     v -= v * pos->st->rule50 / 199;
 
