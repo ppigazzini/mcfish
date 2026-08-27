@@ -179,7 +179,7 @@
       static inline Type Pfx##_shr(Type a, int s) {                                      \
           Type r;                                                                        \
           for (size_t i = 0; i < (Width); i++)                                           \
-              r.l[i] = (Elem) (a.l[i] >> (s + 1));                                             \
+              r.l[i] = (Elem) (a.l[i] >> s);                                             \
           return r;                                                                      \
       }                                                                                  \
       static inline Type Pfx##_min(Type a, Type b) {                                     \

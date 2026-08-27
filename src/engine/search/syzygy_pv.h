@@ -26,8 +26,14 @@
 // case where a rounded DTZ counter mis-ranked a position reached with a
 // non-optimal fifty-move counter.
 //
-// USE_TIME_MANAGEMENT gates the deadline: with no clock to respect there is no
-// budget to exceed, and the extension always runs to completion.
-void syzygy_extend_pv(Position *pos, bool use_time_management, RootMove *rm, int32_t *v);
+// USE_DEADLINE gates the deadline: with no clock to respect there is no budget to
+// exceed, and the extension always runs to completion. Its two halves belong to
+// the caller -- a managed clock AND not `nodestime`, under which the do_move calls
+// this makes never reach the node counter the clock is (upstream 19a02f44).
+//
+// MULTIPV divides the budget. Every reported line is extended, so N lines each
+// granted half of Move Overhead would spend N/2 of it; the divisor keeps the whole
+// report inside the half a single line had.
+void syzygy_extend_pv(Position *pos, bool use_deadline, size_t multipv, RootMove *rm, int32_t *v);
 
 #endif  // MCFISH_SYZYGY_PV_H
