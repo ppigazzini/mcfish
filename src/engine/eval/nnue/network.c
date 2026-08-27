@@ -289,7 +289,10 @@ static NetFile open_net_file(const char *path) {
     NetFile f = { nullptr, 0, false };
 
 #if defined(NNUE_HAVE_MMAP)
-    const int fd = open(path, O_RDONLY);
+    // O_CLOEXEC, as upstream's map_embedded_nnue does since 22dfb404: the net's
+    // descriptor outlives this function only as far as the mmap below needs it, but
+    // the read-whole-file fallback holds it longer and both should be closed on exec.
+    const int fd = open(path, O_RDONLY | O_CLOEXEC);
     if (fd >= 0) {
         struct stat st;
         if (fstat(fd, &st) == 0 && st.st_size > 0) {
