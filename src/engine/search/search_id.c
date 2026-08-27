@@ -286,7 +286,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                 const bool prev_is_loss = value_is_loss(prev_line->score);
 
                 if ((prev_is_loss && root_less(cur, prev_line))
-                    || root_move_score_is_exact_loss(cur, value_is_loss(cur->score))) {
+                    || root_move_is_exact_loss(cur, value_is_loss(cur->score))) {
                     // An exact previous score worse than pvIdx - 1 is safe to use;
                     // if it is equal, make sure it cannot overtake pvIdx - 1.
                     if (cur->previous_score != -VALUE_INFINITE && cur->previous_score_exact
@@ -295,28 +295,28 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                         cur->uci_score = cur->previous_score;
                         cur->previous_score = -VALUE_INFINITE;
                         root_pv_copy(&cur->pv, &cur->previous_pv);
-                        root_move_unset_bound_flags(cur);
+                        root_move_unset_inexact(cur);
                     } else {
                         // Otherwise cap the score to the best possible and mark it
-                        // as a bound, which also excuses the incomplete PV.
+                        // inexact, which also excuses the incomplete PV.
                         if (prev_is_loss) {
                             cur->score = prev_line->score;
                             cur->uci_score = prev_line->score;
                             cur->previous_score = -VALUE_INFINITE;
                             root_pv_truncate(&cur->pv, 1);
-                            cur->score_upperbound = true;
+                            cur->inexact_upper = true;
                         } else {
-                            cur->score_upperbound = false;
+                            cur->inexact_upper = false;
                         }
-                        cur->score_lowerbound = !cur->score_upperbound;
+                        cur->inexact_lower = !cur->inexact_upper;
                     }
                 }
 
-                // Mark every loss score from a partially searched move as a bound.
+                // Mark every loss score from a partially searched move inexact.
                 for (size_t li = ctx->pv_idx + 1; li < multi_pv; ++li) {
                     RootMove *const rm = &ctx->root_moves[li];
-                    if (root_move_score_is_exact_loss(rm, value_is_loss(rm->score)))
-                        rm->score_lowerbound = true;
+                    if (root_move_is_exact_loss(rm, value_is_loss(rm->score)))
+                        rm->inexact_lower = true;
                 }
             }
 
@@ -343,7 +343,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
         const bool forgotten_mate =
           last_best_move_score != -VALUE_INFINITE
           && (value_is_mate(last_best_move_score) || value_is_mated(last_best_move_score))
-          && (abs_rm0 < abs_last || root_move_score_is_bound(&ctx->root_moves[0]));
+          && (abs_rm0 < abs_last || root_move_is_inexact(&ctx->root_moves[0]));
 
         if (!stopped) {
             if (last_best_move_pv.length == 0
@@ -359,8 +359,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
 
         const bool aborted_loss_search =
           stopped && ctx->pv_idx == 0
-          && root_move_score_is_exact_loss(&ctx->root_moves[0],
-                                           value_is_loss(ctx->root_moves[0].score));
+          && root_move_is_exact_loss(&ctx->root_moves[0], value_is_loss(ctx->root_moves[0].score));
 
         // An exact mated-in / TB-loss score from an aborted search cannot be
         // trusted: the loss could be delayed or refuted by the unsearched root
@@ -373,12 +372,12 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                 ctx->root_moves[0].score = last_best_move_score;
                 ctx->root_moves[0].uci_score = last_best_move_score;
                 root_pv_copy(&ctx->root_moves[0].pv, &last_best_move_pv);
-                root_move_unset_bound_flags(&ctx->root_moves[0]);
+                root_move_unset_inexact(&ctx->root_moves[0]);
                 if (main_thread)
                     uci_pv_sent = false;
             } else if (aborted_loss_search) {
-                // For an aborted depth-1 search label the loss score a lower bound.
-                ctx->root_moves[0].score_lowerbound = true;
+                // For an aborted depth-1 search label the loss score inexact.
+                ctx->root_moves[0].inexact_lower = true;
             }
         }
 

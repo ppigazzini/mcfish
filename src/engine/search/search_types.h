@@ -74,9 +74,13 @@ typedef struct {
     int32_t average_score;
     int32_t mean_squared_score;
     int32_t uci_score;
-    bool score_lowerbound;
-    bool score_upperbound;
-    // Group with the two bound flags, as upstream does (search.h:147-149): a
+    // By default a root score is exact; these flag it as a one-sided bound the
+    // search could not pin down. "Bound" alone is the TT's word for a stored
+    // entry's kind (`enum Bound` in value.h), so a root move spelled
+    // score_lowerbound read as an entry kind rather than as the claim it makes.
+    bool inexact_lower;
+    bool inexact_upper;
+    // Group with the two inexact flags, as upstream does (search.h:147-149): a
     // trailing bool after the two PVMoves would cost 8 bytes of tail padding per
     // RootMove for no reason. Position is a layout choice, never a behaviour one.
     bool previous_score_exact;
@@ -92,20 +96,20 @@ typedef struct {
     RootPVMoves previous_pv;
 } RootMove;
 
-static inline bool root_move_score_is_bound(const RootMove *rm) {
-    return rm->score_lowerbound || rm->score_upperbound;
+static inline bool root_move_is_inexact(const RootMove *rm) {
+    return rm->inexact_lower || rm->inexact_upper;
 }
 
-static inline void root_move_unset_bound_flags(RootMove *rm) {
-    rm->score_lowerbound = false;
-    rm->score_upperbound = false;
+static inline void root_move_unset_inexact(RootMove *rm) {
+    rm->inexact_lower = false;
+    rm->inexact_upper = false;
 }
 
-// Report an exact (non-bound) proven loss. Take IS_LOSS as an argument: the loss
+// Report an exact (not inexact) proven loss. Take IS_LOSS as an argument: the loss
 // threshold belongs to the value model, and this type stays free of it
 // (upstream search.h:131).
-static inline bool root_move_score_is_exact_loss(const RootMove *rm, bool is_loss) {
-    return rm->score != -VALUE_INFINITE && is_loss && !root_move_score_is_bound(rm);
+static inline bool root_move_is_exact_loss(const RootMove *rm, bool is_loss) {
+    return rm->score != -VALUE_INFINITE && is_loss && !root_move_is_inexact(rm);
 }
 
 // Mirror upstream's per-ply Search::Stack. `pv` is null on every frame that did
