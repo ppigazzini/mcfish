@@ -56,6 +56,18 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         return pv_node ? qsearch_node_pv(ctx, pos, ss, alpha_in, beta_in)
                        : qsearch_node_nonpv(ctx, pos, ss, alpha_in, beta_in);
 
+    // Is the ROOT already hunting a mate? Upstream 598ae2c4 asks this once per node
+    // and lets two readers below stand down on it: the futility cutoff drops from 19
+    // to 6, and the singular extension is skipped entirely, so the tree collapses
+    // onto the mating line instead of re-proving the moves around it.
+    //
+    // Read it here rather than beside the node-kind constants where upstream declares
+    // it (search.cpp:726): a leaf returns at the dive above before either reader, and
+    // this is two loads through ctx.
+    const int32_t pv_line_score = ctx->root_moves[ctx->pv_idx].score;
+    const bool seek_mate =
+      ctx->root_depth >= 16 && (pv_line_score < 0 ? -pv_line_score : pv_line_score) >= 2000;
+
     Histories *const h = ctx->hist;
     Stack *const ss1 = ss - 1;
     Stack *const ss2 = ss - 2;
@@ -282,8 +294,9 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
 
         // Step 9. Prune by futility.
         // The depth condition is important for mate finding. It shouldn't be tuned.
-        if (!ss->tt_pv && eval >= beta && (tt_move == MOVE_NONE || tt_capture)
-            && !value_is_loss(beta) && !value_is_win(eval) && depth < futility_depth(eval, beta)) {
+        if (!ss->tt_pv && depth < (seek_mate ? 6 : 19) && eval >= beta
+            && (tt_move == MOVE_NONE || tt_capture) && !value_is_loss(beta)
+            && !value_is_win(eval)) {
             const int fm =
               futility_margin(depth, ss->tt_hit, improving, opponent_worsening, correction_value);
             if (eval - fm >= beta)
@@ -473,7 +486,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         if (!root_node && move == tt_move && excluded_move == MOVE_NONE
             && depth >= 6 + (int) ss->tt_pv && value_is_valid(tt_value)
             && !value_is_decisive(tt_value) && (tt_bound_v & BOUND_LOWER) != 0
-            && tt_depth >= depth - 3 && !is_shuffling(pos, ss, move)) {
+            && tt_depth >= depth - 3 && !is_shuffling(pos, ss, move) && !seek_mate) {
             const int sb = singular_beta(tt_value, ss->tt_pv && !pv_node, depth);
             const int singular_depth = new_depth / 2;
             ss->excluded_move = move;

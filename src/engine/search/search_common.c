@@ -161,19 +161,6 @@ int futility_margin(
 
 int futility_return(int beta, int eval) { return (661 * beta + 363 * eval) / 1024; }
 
-// Look up the futility pruning cutoff depth. This function is important for mate finding.
-int futility_depth(int eval, int beta) {
-    // LUT values obtained from:
-    //      depth = 13 + int(0.5 + 6 / int(1 + pow(abs(eval) + abs(beta), 3) / 50'000'000'000))
-    static const int lut[] = { 1657, 2555, 3294, 4122, 5314, 8194, VALUE_INFINITE * 2 };
-    const int prob = (eval < 0 ? -eval : eval) + (beta < 0 ? -beta : beta);
-    int depth = 0;
-    while (lut[depth] < prob)
-        ++depth;
-
-    return 19 - depth;
-}
-
 int razor_margin(int depth) { return 482 * depth * depth; }
 
 int null_move_threshold(int beta, int depth, bool improving) {
