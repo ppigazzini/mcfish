@@ -467,7 +467,7 @@ option readers in `option_source.h`, and it runs before the options are register
 so a value set here reaches a prober that is already bound.
 
 What still gates the whole path is the PATH: with no `SyzygyPath` the cardinality
-stays 0, the root ranker never probes and the in-search Step 6 never fires. That is
+stays 0, the root ranker never probes and the in-search Step 7 never fires. That is
 the state `bench` runs in, which is why the anchor is blind to this block. See
 [05-tablebases.md](05-tablebases.md).
 

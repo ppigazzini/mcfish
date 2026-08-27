@@ -201,7 +201,7 @@ static SearchZoneLimits to_zone_limits(const SearchLimits *limits, TimePoint sta
 // engine is under time pressure.
 //
 // The make/unmake here is deliberately NOT bracketed with eval_acc_push: nothing
-// evaluates between them, which is the same reason the Step 4 TT verification is
+// evaluates between them, which is the same reason the Step 6 TT verification is
 // unbracketed. Upstream's own call passes rootPos and evaluates nothing either.
 //
 // `is_draw(1)` guards the probe because a drawn child has no useful stored move, and

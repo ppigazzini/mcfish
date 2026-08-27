@@ -165,7 +165,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     if (prior_reduction >= 2 && depth >= 2 && ss->static_eval + ss1->static_eval > 166)
         depth -= 1;
 
-    // Cut off early on the TT (non-PV).
+    // Step 6. Cut off early on the TT (non-PV).
     if (!pv_node && excluded_move == MOVE_NONE && tt_depth > depth - (int) (tt_value <= beta)
         && value_is_valid(tt_value)
         && (tt_bound_v & (tt_value >= beta ? BOUND_LOWER : BOUND_UPPER)) != 0
@@ -210,7 +210,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         search_tt_penalize(writer, 1);
     }
 
-    // Step 6. Probe the tablebases. Probe the WDL of the current (non-root,
+    // Step 7. Probe the tablebases. Probe the WDL of the current (non-root,
     // non-excluded) position when it is small enough, has a zeroed rule50 counter
     // and no castling rights; on success score it into the VALUE_TB..VALUE_TB_WIN
     // range and cut or adjust. Gated on tb_config.cardinality, which is 0 without
@@ -276,11 +276,11 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             }
         }
 
-        // Step 7. Apply razoring.
+        // Step 8. Apply razoring.
         if (!pv_node && eval < alpha - razor_margin(depth))
             return qsearch_node_nonpv(ctx, pos, ss, alpha, beta);
 
-        // Step 8. Prune by futility.
+        // Step 9. Prune by futility.
         // The depth condition is important for mate finding. It shouldn't be tuned.
         if (!ss->tt_pv && eval >= beta && (tt_move == MOVE_NONE || tt_capture)
             && !value_is_loss(beta) && !value_is_win(eval) && depth < futility_depth(eval, beta)) {
@@ -290,7 +290,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 return (Value) futility_return(beta, eval);
         }
 
-        // Step 9. Search the null move.
+        // Step 10. Search the null move.
         if (cut_node && ss->static_eval >= null_move_threshold(beta, depth, improving)
             && excluded_move == MOVE_NONE && pos_non_pawn_material(pos, us) != 0
             && ss->ply >= ctx->nmp_min_ply && beta >= -2000) {
@@ -317,12 +317,12 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         if (ss->static_eval >= beta)
             improving = true;
 
-        // Step 10. Apply internal iterative reductions.
+        // Step 11. Apply internal iterative reductions.
         // upstream b1053e60b: drop the priorReduction <= 3 term.
         if (!ss->follow_pv && !all_node && depth >= 6 && tt_move == MOVE_NONE)
             depth -= 1;
 
-        // Step 11. Run ProbCut.
+        // Step 12. Run ProbCut.
         const int pc_beta = probcut_beta(beta, improving);
         if (depth >= 3 && !value_is_decisive(beta)
             && !(value_is_valid(tt_value) && tt_value < pc_beta)) {
@@ -354,7 +354,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     }
 
     // moves_loop:
-    // Step 12. Apply the deep-ProbCut TT idea.
+    // Step 13. Apply the deep-ProbCut TT idea.
     const int pc_beta_deep = probcut_beta_deep(beta);
     if ((tt_bound_v & BOUND_LOWER) != 0 && tt_depth >= depth - 4 && tt_value >= pc_beta_deep
         && !value_is_decisive(beta) && value_is_valid(tt_value) && !value_is_decisive(tt_value))
@@ -391,7 +391,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     Move captures_searched[32];
     size_t n_captures = 0;
 
-    // Step 13. Loop over moves.
+    // Step 14. Loop over moves.
     Move move;
     while ((move = movepick_next(&mp)) != MOVE_NONE) {
         if (move == excluded_move)
@@ -424,7 +424,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         if (ss->tt_pv)
             r += 929;
 
-        // Step 14. Prune at shallow depth.
+        // Step 15. Prune at shallow depth.
         if (!root_node && pos_non_pawn_material(pos, us) != 0 && !value_is_loss(best_value)) {
             if (move_count >= move_count_limit(depth, improving))
                 movepick_skip_quiets(&mp);
@@ -469,7 +469,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             }
         }
 
-        // Step 15. Extend (singular).
+        // Step 16. Extend (singular).
         if (!root_node && move == tt_move && excluded_move == MOVE_NONE
             && depth >= 6 + (int) ss->tt_pv && value_is_valid(tt_value)
             && !value_is_decisive(tt_value) && (tt_bound_v & BOUND_LOWER) != 0
@@ -508,7 +508,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
 
         const uint64_t node_count = root_node ? ctx_nodes(ctx) : 0;
 
-        // Step 16. Make the move.
+        // Step 17. Make the move.
         search_do_move(ctx, pos, move, &st, gc, ss);
         new_depth += extension;
 
@@ -548,7 +548,9 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         if (all_node)
             r += lmr_all_node_scale(r, depth);
 
-        // Step 17/18. Run the LMR + full-depth search.
+        // Step 18. Compute and apply the late-move reduction (or extension).
+        // Steps 19 and 20 are the two branches below it: the full-depth search
+        // when LMR is skipped, and the PV window on the first move or a fail-high.
         if (depth >= 2 && move_count > 1) {
             const int reduced = new_depth - r / 1024;
             const int capped = reduced < new_depth + 2 ? reduced : new_depth + 2;
@@ -584,10 +586,10 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             value = (Value) -search_node_pv(ctx, pos, ss + 1, -beta, -alpha, new_depth, false);
         }
 
-        // Step 19. Undo move.
+        // Step 21. Undo move.
         search_undo_move(ctx, pos, move);
 
-        // Step 20. Check for a new best move.
+        // Step 22. Check for a new best move.
         if (search_stopped(ctx))
             return VALUE_DRAW;
 
@@ -631,7 +633,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         }
     }
 
-    // Step 21. Adjust for mate / stalemate / fail-high.
+    // Step 23. Adjust for mate / stalemate / fail-high.
     if (best_value >= beta && !value_is_decisive(best_value) && !value_is_decisive(alpha))
         best_value = (Value) ((best_value * depth + beta) / (depth + 1));
 
@@ -674,6 +676,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     if (best_value <= alpha)
         ss->tt_pv = ss->tt_pv || ss1->tt_pv;
 
+    // Step 24. Write the gathered information to the transposition table. The
+    // static evaluation is stored as it was BEFORE correction history.
     if (excluded_move == MOVE_NONE && !(root_node && ctx->pv_idx != 0)) {
         const Bound bound = best_value >= beta                  ? BOUND_LOWER
                           : (pv_node && best_move != MOVE_NONE) ? BOUND_EXACT
