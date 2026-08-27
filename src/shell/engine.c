@@ -184,7 +184,7 @@ void engine_wait(void) { search_wait(); }
 // before `quit` still completes and prints its full line. Always drain before
 // returning, so the caller may then free the TT and net.
 void engine_end_search(void) {
-    if (true || search_running_unbounded())
+    if (search_running_unbounded())
         search_stop();
     search_wait();
 }
