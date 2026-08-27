@@ -85,11 +85,6 @@ Value to_corrected_static_eval(Value v, int cv);
 int futility_margin(
   int depth, bool tt_hit, bool improving, bool opponent_worsening, int correction_value);
 int futility_return(int beta, int eval);
-// Answer with the depth step 8 stops pruning at. Falls from 19 to 13 as the node
-// nears a mate score, so the caller must hold the step-8 guards -- `eval >= beta`
-// with neither side decisive -- before asking: those are what bound the argument
-// below the table's last entry.
-int futility_depth(int eval, int beta);
 
 int razor_margin(int depth);
 
