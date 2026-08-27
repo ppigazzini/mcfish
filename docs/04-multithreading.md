@@ -248,7 +248,9 @@ a wider accumulator would move the ties and hand a different node to a thread.
   report before the fix that wired `numa_config_to_string`/
   `worker_pool_numa_config_string` in above. It is dead code now, superseded
   rather than merely unwired; nothing should come to call it.
-- **`memory.c` has no unit test**, including its `page_alloc_set` seam.
+- **`page_alloc_set` has no unit test.** `test_page_allocator` covers the two
+  allocator surfaces and the mapping count (06-platform.md), but not the hook
+  that replaces them.
 - **No test constructs a `SearchWorker`.** The pool churn test covers
   `thread.c` / `thread_pool.c` / `thread_runtime.c`; the worker set, the shared
   banks and the vote are covered only by `tsan-search` and by the multi-thread
