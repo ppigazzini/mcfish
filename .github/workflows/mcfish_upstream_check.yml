@@ -178,6 +178,15 @@ jobs:
       - name: Pin status, both directions
         run: ./build.sh sync-status || true
 
+      # DOES gate, unlike the step above: a stale AUTHORS is a licence defect rather
+      # than news about upstream. It runs in `parity` too, where it NARROWS to
+      # unchecked without the golden -- this lane already clones it, so here it is the
+      # real comparison. Six names had gone missing across four syncs before it
+      # existed, because a resync reads `src/` and a commit touching AUTHORS and
+      # search.cpp together loses the half that is not code.
+      - name: AUTHORS is still upstream's, verbatim
+        run: ./build.sh attribution
+
       # The ALGORITHM gate, and the only one here that is not about values. Every
       # other differential passes over a state divergence that happens not to move a
       # node count on the positions it drives; this one found two that all of them
