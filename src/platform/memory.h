@@ -20,6 +20,7 @@
 #define MCFISH_MEMORY_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 // Return SIZE bytes aligned to ALIGNMENT, or nullptr. ALIGNMENT must be a power of two
 // and a multiple of sizeof(void *). The block is uninitialised. This is upstream's
@@ -52,6 +53,16 @@ size_t large_page_size(void);
 
 // Release a block from page_alloc. Pointer only -- the size is the allocator's business.
 void page_free(void *ptr);
+
+// Report how many mappings the two surfaces above are currently holding: one per live
+// block, zero when every block has been released.
+//
+// This is a GATE, not a diagnostic. Neither leak checker here tracks an anonymous
+// mapping -- LeakSanitizer walks the malloc heap and memcheck intercepts allocators --
+// so a dropped free of a mapped block is invisible to both, and to every other gate in
+// `parity`. That was measured with a no-op `page_free`, not assumed. A caller that
+// allocates and frees in a bounded scope can assert this number came back.
+[[nodiscard]] uint64_t memory_live_mappings(void);
 
 // Install a replacement page allocator. Register the pair together or not at all: the
 // default free knows only the default alloc's block header. Pass nullptr for either to

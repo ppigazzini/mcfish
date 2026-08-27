@@ -7,6 +7,8 @@
 
 #include "memory.h"
 
+#include "../engine/state/atomic.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -42,6 +44,25 @@ void *std_aligned_alloc(size_t alignment, size_t size) {
 void std_aligned_free(void *ptr) { free(ptr); }
 
 size_t large_page_size(void) { return (size_t) LargePageSize; }
+
+// Count the mappings this file is holding: incremented on every successful map below,
+// decremented on every unmap. It exists because MOVING TO mmap TOOK A LEAK GATE AWAY,
+// and nothing replaced it.
+//
+// Neither leak checker in this tree tracks an anonymous mapping. LeakSanitizer walks the
+// malloc heap, and valgrind's memcheck reports a definite leak only for allocations it
+// intercepts -- so a `page_free` that does nothing is invisible to both. That is measured,
+// not assumed: with `page_free_default` reduced to `(void) ptr;`, `./build.sh test` and
+// `tools/valgrind.sh` both pass, and so does the whole of `./build.sh parity` -- twenty
+// gates green over a build that never releases an arena.
+//
+// The counter is the replacement, and `test_page_allocator` is what reads it. Relaxed is
+// the right order for a statistic: it is atomic so a concurrent resize cannot tear it,
+// and the test that reads it is single-threaded. Static storage zero-initialises it,
+// which is the value it must start at.
+static AtomicU64 LiveMappings;
+
+uint64_t memory_live_mappings(void) { return atomic_u64_load(&LiveMappings); }
 
 // Back every large block with an anonymous mapping rather than with malloc, and serve
 // both surfaces below from here: the blocks are tens of megabytes, the kernel hands
@@ -85,6 +106,7 @@ static void *map_large_aligned(size_t size) {
     // neither a size from the caller nor a fixed offset back to the mapping.
     ((size_t *) payload)[-1] = total;
     ((void **) payload)[-2] = raw;
+    (void) atomic_u64_fetch_add(&LiveMappings, 1);
     return payload;
 }
 
@@ -98,6 +120,7 @@ static void unmap_large_aligned(void *ptr) {
     const size_t total = ((size_t *) (void *) payload)[-1];
     void *const raw = ((void **) (void *) payload)[-2];
     (void) munmap(raw, total);
+    (void) atomic_u64_fetch_sub(&LiveMappings, 1);
 }
 
 void *aligned_large_pages_alloc(size_t alloc_size) {

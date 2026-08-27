@@ -86,6 +86,28 @@ header words (mapping base and length) immediately ahead of it, so `page_free` n
 neither a size from the caller nor a fixed offset back to the mapping. The `madvise`
 covers the aligned payload, which is the region the kernel can actually promote.
 
+**Both surfaces map their blocks, and that took a gate away.** `page_alloc` has
+always been mmap-backed; `aligned_large_pages_alloc` served its blocks from
+`posix_memalign` until upstream `7ab49b9b` moved off the malloc arena for the NUMA
+reason (an arena outlives the thread that made it and can be handed to a thread bound
+elsewhere), and this port followed. The cost is that **neither leak checker in this
+tree can see either surface**: LeakSanitizer walks the malloc heap and valgrind's
+memcheck reports a definite leak only for allocations it intercepts, so an anonymous
+mapping is outside both.
+
+That is measured rather than assumed. With `page_free_default` cut down to
+`(void) ptr;`, `./build.sh test`, `tools/valgrind.sh` and **all twenty gates in
+`./build.sh parity`** pass over a build that never releases an arena.
+
+`memory_live_mappings` is the replacement: one counter, incremented on every
+successful map and decremented on every unmap, read by `test_page_allocator` over
+three size classes — below one large page, exactly one, and one byte past — with the
+first and last byte of the requested span written each time. It is a **gate, not a
+diagnostic**, and `negative-control`'s "an arena is never given back" row is what
+keeps it one. The end-byte writes are the other half: they are what catches a payload
+starting inside the header or a mapping short of the rounded size, which the
+sanitizers do see once something touches the ends.
+
 **Everything hot goes through this seam — check `/proc/PID/maps` when adding an
 allocation.** The pinned oracle 2 MiB-aligns its 256 MB table; this port did not, and
 that comparison is how the bug was found. The NNUE arenas were a second instance:

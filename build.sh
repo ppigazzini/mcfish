@@ -1531,6 +1531,12 @@ NEGATIVE_CONTROL_ROWS=(
   "an unbounded search is never stopped%src/shell/engine.c%s#if (search_running_unbounded())#if (false \&\& search_running_unbounded())#%async-check%run"
   "every search is stopped, bounded or not%src/shell/engine.c%s#if (search_running_unbounded())#if (true \|\| search_running_unbounded())#%async-check%run"
   "hash_bytes sign-extends its tail%src/engine/eval/nnue/nnue_hash.c%s#k = (k << 8) | (uint64_t) data\[tail + i\];#k = (k << 8) | (uint64_t) (int64_t) (int8_t) data[tail + i];#%test%run"
+  # The mapping allocator is outside BOTH leak checkers -- LeakSanitizer walks the
+  # malloc heap, memcheck intercepts allocators, and neither sees an anonymous
+  # mapping. Before test_page_allocator existed this mutation passed all twenty
+  # gates in `parity`, which is why the counter it reads is a gate and not a
+  # diagnostic.
+  "an arena is never given back%src/platform/memory.c%s#(void) atomic_u64_fetch_sub(&LiveMappings, 1);#(void) LiveMappings;#%test%run"
 )
 
 # Bound each mutated gate run. 900s clears every row measured here with room to
