@@ -4,11 +4,14 @@
 // pages. The alignment is load-bearing: the NNUE accumulator reads it as a precondition.
 // The CONTENTS are not initialised, exactly as upstream leaves them -- a caller that
 // reads a field it never wrote is a bug in the caller, and an allocator that zeroes hides
-// it behind a plausible value. Degrade to a plain aligned allocation on a host without
-// huge pages; never fail an allocation malloc could serve.
-
-// The page_alloc seam below is the exception, and states its zero-fill explicitly: it is
-// backed by an anonymous mapping, which the kernel is required to hand over zeroed.
+// it behind a plausible value. Both surfaces below map their blocks directly rather than
+// taking them from a malloc arena, as upstream does since 7ab49b9b: an arena outlives the
+// thread that made it and can be reused by a thread bound elsewhere, which puts a block
+// on a NUMA node nobody chose. A large-page hint is advisory on top of that; a host
+// without one still gets a correct block, only without the TLB win.
+//
+// The page_alloc seam below states its zero-fill explicitly: it is backed by an anonymous
+// mapping, which the kernel is required to hand over zeroed.
 //
 // Upstream: memory.h:72 (the allocator surface), memory.cpp:71 (std_aligned_alloc), memory.cpp:151
 // (aligned_large_pages_alloc_with_hint), memory.cpp:182 (has_large_pages).
@@ -19,7 +22,9 @@
 #include <stddef.h>
 
 // Return SIZE bytes aligned to ALIGNMENT, or nullptr. ALIGNMENT must be a power of two
-// and a multiple of sizeof(void *). The block is uninitialised.
+// and a multiple of sizeof(void *). The block is uninitialised. This is upstream's
+// std_aligned_alloc, kept as the small-block surface; the large-block ones below no
+// longer route through it.
 [[nodiscard]] void *std_aligned_alloc(size_t alignment, size_t size);
 
 // Release a block from std_aligned_alloc. A nullptr is a no-op.
