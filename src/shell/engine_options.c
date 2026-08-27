@@ -92,11 +92,30 @@ static const char *thread_allocation_string(void) {
     return MessageBuf;
 }
 
+// A pool the host will not build leaves the engine on the PREVIOUS thread count while
+// the user believes the option took, which is the same disagreement on_hash above was
+// fixed for: upstream makes it fatal from inside the Thread constructor
+// (thread.cpp:59-64), printing one line and exiting 1. Before upstream 3512dea6 it did
+// not check pthread_create at all and hung forever on a `searching` flag no thread
+// would clear; mcfish never had that hang -- thread_spawn has always returned the
+// failure and the resize chain has always propagated it -- so what this takes from that
+// commit is the verdict, not the check.
+//
+// The line names the count rather than the cause. The resize returns one bool for two
+// distinct failures, a refused thread (RLIMIT_NPROC, a thread quota) and a refused
+// allocation, and telling them apart means a cause out of thread_pool_set through
+// pool_resize_impl -- more than this commit's change is, and the wording is at least
+// not wrong about either.
 static const char *on_threads(const UciOption *o) {
     const size_t n = (size_t) strtoul(o->current_value, nullptr, 10);
     if (!search_set_threads(n)) {
-        snprintf(MessageBuf, sizeof MessageBuf, "failed to build %zu search thread(s)", n);
-        return MessageBuf;
+        fprintf(stderr, "Failed to build %zu search thread(s).\n", n);
+        // Tear down exactly as on_hash does, and for its reason: the sanitized binary
+        // must leave this path leak-clean or the fuzz gate stops flagging real leaks.
+        search_stop();
+        search_shutdown();
+        eval_nnue_shutdown();
+        exit(EXIT_FAILURE);
     }
     return thread_allocation_string();
 }
