@@ -146,7 +146,7 @@ Value to_corrected_static_eval(Value v, int cv) {
     return (Value) (adjusted < lo ? lo : adjusted > hi ? hi : adjusted);
 }
 
-// ---- Step 7 / 8 / 9 / 11 -----------------------------------------------
+// ---- Step 8 / 9 / 10 / 12 -----------------------------------------------
 
 int futility_margin(
   int depth, bool tt_hit, bool improving, bool opponent_worsening, int correction_value) {
@@ -191,7 +191,7 @@ int probcut_beta(int beta, bool improving) { return beta + 241 - 64 * (int) impr
 
 int probcut_beta_deep(int beta) { return beta + 428; }
 
-// ---- Step 14 -----------------------------------------------------------
+// ---- Step 16 -----------------------------------------------------------
 
 int move_count_limit(int depth, bool improving) {
     return (3 + depth * depth) / (2 - (int) improving);
@@ -212,7 +212,7 @@ int capture_futility_value(int static_eval, int lmr_depth, int piece_val, int ca
 // upstream e4a635486: drop the max(.., 0) clamp.
 int capture_see_margin(int depth, int capt_hist) { return 177 * depth + capt_hist * 34 / 1024; }
 
-// ---- Step 15 -----------------------------------------------------------
+// ---- Step 16 -----------------------------------------------------------
 
 // Share abs(correctionValue)/198368 between both singular margins.
 static int corr_val_adj(int correction_value) {
@@ -236,7 +236,7 @@ int singular_triple_margin(
          - corr_val_adj(correction_value) - (int) ply_gt_root * 43;
 }
 
-// ---- Step 16 / 17 ------------------------------------------------------
+// ---- Step 18 ------------------------------------------------------
 
 // The entries are int(2872 / 128.0 * log(i)) -- a scaled logarithm, 0 through 124
 // across the whole table and never negative. u16 is what says so: as int32_t that is a

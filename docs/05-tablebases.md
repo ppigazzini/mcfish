@@ -151,7 +151,7 @@ It does and undoes moves on the position it is given and **restores it exactly**
 so the caller may hand it the live search position. Its `StateInfo` is a function
 local, as upstream's stack local at `tbprobe.cpp:1335` is — not shared state.
 
-### In-search: Step 6
+### In-search: Step 7
 
 [`search_main.c`](../src/engine/search/search_main.c) probes at a non-root,
 non-excluded node when the position is small enough, the rule50 counter is zero
@@ -170,7 +170,7 @@ that are upstream's and easy to get wrong:
 
 - the move is **undone before** the bail-out test (`tbprobe.cpp:1713`), not after;
 - on success the ranking sets `cardinality = 0` when DTZ was available or the
-  best score is not a win, which is what **disables the in-search Step 6 probe**
+  best score is not a win, which is what **disables the in-search Step 7 probe**
   once the root is already resolved.
 
 The root path reaches the tables by serialising the position to FEN and calling
@@ -214,7 +214,7 @@ Two things a tablebase result changes about what `go` prints, both in
   (`pool_tb_hits`, through the same `PoolCounters` seam
   [04-multithreading.md](04-multithreading.md) describes) **plus**
   `root_moves_count` whenever `root_in_tb` — the root-ranking probes count
-  too, not only the in-tree Step 6 ones.
+  too, not only the in-tree Step 7 ones.
 
 `d`'s `Tablebases WDL:`/`DTZ:` lines are the shell's, not this zone's — see
 [07-shell.md](07-shell.md).
