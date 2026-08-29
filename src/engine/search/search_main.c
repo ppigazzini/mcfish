@@ -157,8 +157,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             unadjusted_static_eval = search_evaluate(ctx, pos);
         ss->static_eval = to_corrected_static_eval(unadjusted_static_eval, correction_value);
         eval = ss->static_eval;
-        if (value_is_valid(tt_value)
-            && (tt_bound_v & (tt_value > eval ? BOUND_LOWER : BOUND_UPPER)) != 0)
+        if (value_is_valid(tt_value) && bound_covers(tt_bound_v, tt_value > eval))
             eval = tt_value;
     } else {
         unadjusted_static_eval = search_evaluate(ctx, pos);
@@ -179,8 +178,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
 
     // Step 6. Cut off early on the TT (non-PV).
     if (!pv_node && excluded_move == MOVE_NONE && tt_depth > depth - (int) (tt_value <= beta)
-        && value_is_valid(tt_value)
-        && (tt_bound_v & (tt_value >= beta ? BOUND_LOWER : BOUND_UPPER)) != 0
+        && value_is_valid(tt_value) && bound_covers(tt_bound_v, tt_value >= beta)
         && (cut_node == (tt_value >= beta) || depth > 4)) {
         if (tt_move != MOVE_NONE && tt_value >= beta) {
             if (!tt_capture)  // upstream 73826352d
@@ -218,7 +216,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     // only reason, penalize the now-useless entry (decrement its stored depth).
     else if (!pv_node && excluded_move == MOVE_NONE && tt_depth > depth - (int) (tt_value <= beta)
              && value_is_valid(tt_value) && tt_bound_v != (BOUND_LOWER | BOUND_UPPER)
-             && (tt_bound_v & (tt_value >= beta ? BOUND_UPPER : BOUND_LOWER)) != 0 && depth > 5) {
+             && bound_covers(tt_bound_v, !(tt_value >= beta)) && depth > 5) {
         search_tt_penalize(writer, 1);
     }
 
