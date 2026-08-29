@@ -225,6 +225,23 @@ The consequences an agent gets wrong before reading
   load/update narrowing, both already this tree's shape. Its warm-game axis
   (`ltcreplay.py`/`ltcab.sh`) is a named GAP here rather than a defect — it is what
   makes `perf-budget`'s cold bench a lower bound, and this tree has no counterpart.
+- **When a sibling's win rests on a primitive this tree spells differently, the
+  column cannot warn you.** The fifteenth sweep (2026-08-29) read every one of
+  refish's 17 perf commits and wrote code for four. Ten were refused BEFORE any
+  code, on clang cells of ±0.0000% — several are literally guarded on
+  `!defined(__clang__)`, so they are gcc barriers with no clang analogue by
+  construction. Two more of the four were then refused on measurements taken
+  here, and both failed for the same reason the sibling's column could not
+  express: the operation its change avoids is cheaper in this tree. Carrying a
+  node's slider attack sets from its capture list to its quiet list is worth
+  clang -0.10% there, where an attack set is a twenty-instruction hyperbola pass;
+  here `attacks_bb` is `_pext_u64` plus a table read (`attacks.c:142`), so the
+  cache read -0.002% at sse41 and **+0.013% at avx512icl**. Folding the
+  continuation weight into its consistency multiplier read -0.025% at sse41 and
+  **+0.043% at avx512icl** — a table load traded for an `imul` goes the wrong way
+  on the wider machine — and its other half, reading the shared counter once, was
+  flat at BOTH tiers because clang already collapses the two loads that gcc kept
+  apart. Ask what the sibling's change AVOIDS, then price that operation here.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
