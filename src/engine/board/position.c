@@ -765,8 +765,14 @@ void pos_do_move(Position *pos,
     // Snapshot the pawn placement for the pawn-pair delta. The PP_3Wide feature set is a
     // pure function of the two pawn bitboards, so the before/after pair IS the whole
     // diff; the after-snapshot is taken once every mutation has landed.
-    dts->pp_before[WHITE] = pos->by_color[WHITE] & pos->by_type[PAWN];
-    dts->pp_before[BLACK] = pos->by_color[BLACK] & pos->by_type[PAWN];
+    // Read both planes before storing either: `dts` is not provably disjoint from
+    // `pos`, so a store to the first would force `by_type[PAWN]` to be fetched again
+    // for the second.
+    const Bitboard pawns = pos->by_type[PAWN];
+    const Bitboard white_pawns = pos->by_color[WHITE] & pawns;
+    const Bitboard black_pawns = pos->by_color[BLACK] & pawns;
+    dts->pp_before[WHITE] = white_pawns;
+    dts->pp_before[BLACK] = black_pawns;
 
     if (mt == CASTLING) {
         Square rfrom, rto;
@@ -813,9 +819,12 @@ void pos_do_move(Position *pos,
     toggle_aux_keys(new_st, pc, from);
     toggle_aux_keys(new_st, pc, to);
 
-    // Clear the previous ep square unconditionally: it is a one-ply right.
-    if (pos->st->ep_square != SQ_NONE) {
-        key ^= Zobrist_enpassant[file_of(pos->st->ep_square)];
+    // Clear the previous ep square unconditionally: it is a one-ply right. Read it
+    // through NEW_ST, which is the same object `pos->st` now points at and whose
+    // address arrived in a register: the memcpy above copied ep_square forward, and
+    // every store since has been opaque enough that the member pointer is reloaded.
+    if (new_st->ep_square != SQ_NONE) {
+        key ^= Zobrist_enpassant[file_of(new_st->ep_square)];
         new_st->ep_square = SQ_NONE;
     }
 
@@ -956,8 +965,11 @@ void pos_do_move(Position *pos,
     // Close the threat delta with the post-move king square. The accumulator
     // compares it against prev_ksq to decide whether the block must be rebuilt.
     dts->ksq = king_square(pos, us);
-    dts->pp_after[WHITE] = pos->by_color[WHITE] & pos->by_type[PAWN];
-    dts->pp_after[BLACK] = pos->by_color[BLACK] & pos->by_type[PAWN];
+    const Bitboard end_pawns = pos->by_type[PAWN];
+    const Bitboard end_white_pawns = pos->by_color[WHITE] & end_pawns;
+    const Bitboard end_black_pawns = pos->by_color[BLACK] & end_pawns;
+    dts->pp_after[WHITE] = end_white_pawns;
+    dts->pp_after[BLACK] = end_black_pawns;
 }
 
 Key pos_prefetch_key(const Position *pos, Move m) {
@@ -1032,8 +1044,11 @@ void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThr
     dts->us = pos->side_to_move;
     dts->prev_ksq = dts->ksq = king_square(pos, pos->side_to_move);
     // A null move moves no pawn, so before == after and the pawn-pair delta is empty.
-    dts->pp_before[WHITE] = dts->pp_after[WHITE] = pos->by_color[WHITE] & pos->by_type[PAWN];
-    dts->pp_before[BLACK] = dts->pp_after[BLACK] = pos->by_color[BLACK] & pos->by_type[PAWN];
+    const Bitboard null_pawns = pos->by_type[PAWN];
+    const Bitboard null_white_pawns = pos->by_color[WHITE] & null_pawns;
+    const Bitboard null_black_pawns = pos->by_color[BLACK] & null_pawns;
+    dts->pp_before[WHITE] = dts->pp_after[WHITE] = null_white_pawns;
+    dts->pp_before[BLACK] = dts->pp_after[BLACK] = null_black_pawns;
 
     memcpy(new_st, pos->st, offsetof(StateInfo, key));
     new_st->previous = pos->st;
