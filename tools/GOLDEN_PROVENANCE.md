@@ -66,26 +66,32 @@ in a resync is what put six self-photographs in this directory.
 `tb.golden` has its own regenerator, `./build.sh tb-update`, which runs the oracle
 and refuses without the full 3-man set — there is no mcfish-derived path to it.
 
-## `hashfail`: the oracle crashes where mcfish reports
+## `hashfail`: an upstream defect the golden outlived
 
 `hashfail` drives `setoption name Hash value 999999` — a 976 GB table no host here
 can back. mcfish prints upstream's own line on stderr and exits 1, which is what
 the golden records and what the oracle produced when the case was written
 (`cc16a92b`).
 
-Since upstream `7ab49b9b` the oracle **segfaults** on it, and the audit reports
-`hashfail` as differing with `exit=139`. That is an upstream defect, not drift
-here: `aligned_large_pages_alloc_with_hint` (upstream `src/memory.cpp:153`) now
-returns its new mmap helper's result directly, and a failed `mmap` returns
-`MAP_FAILED` — the pointer value -1, which is truthy. It is entered in the size
-registry, advised with `madvise` before any check, and reaches
-`TranspositionTable::resize`, whose null test sees a non-null pointer; the first
-write to the table faults. mcfish's `map_large_aligned` tests `MAP_FAILED` and
-returns `nullptr`, so the refusal path still runs.
+Between upstream `7ab49b9b` and `5cae0fab` the oracle **segfaulted** on it and the
+audit read `hashfail` as differing with `exit=139`, because
+`aligned_large_pages_alloc_with_hint` returned its mmap helper's result directly
+and a failed `mmap` returns `MAP_FAILED` — the pointer value -1, which is truthy.
+It was entered in the size registry, advised with `madvise` before any check, and
+reached `TranspositionTable::resize`, whose null test saw a non-null pointer; the
+first write to the table faulted. `5cae0fab` maps `MAP_FAILED` to `nullptr` before
+the registry insert and moves the `madvise` behind the check, so the oracle prints
+and exits 1 again and the audit agrees. mcfish never reproduced it: its
+`map_large_aligned` has tested `MAP_FAILED` and returned `nullptr` throughout.
 
-**Do not re-derive this golden from the oracle** while that holds: it would pin a
-crash. The golden stays as it is, and the audit's `hashfail` line is expected to
-read DIFFERS until upstream fixes the check.
+The episode is the reason the rule at the top of this page is worth its space. For
+those eleven weeks the golden was **right and the oracle was wrong**, so the one
+correct action was to leave the golden alone: re-deriving it from the oracle would
+have pinned a crash, and `golden-update` — which drives mcfish — would have pinned
+mcfish's own answer as if nothing had been checked. Neither is adjudication. When
+the audit reports a case as DIFFERS, find out which side is wrong before touching
+either file; sometimes the answer is that upstream is, and the gate stays red until
+upstream fixes it.
 
 ## `handshake`: the one legitimate substitution
 
