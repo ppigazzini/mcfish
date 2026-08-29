@@ -32,6 +32,25 @@ typedef enum : uint8_t {
     BOUND_EXACT = 3,
 } Bound;
 
+// Ask whether B covers the direction the window was crossed in: a fail-high wants the
+// LOWER atom, a fail-low the UPPER one.
+//
+// Seven sites in the search ask exactly this question and each spelled it as a bare
+// `&` over a ternary picking between the two enumerators. Two of them TRANSPOSE the
+// pair deliberately -- the window-bound-mismatch penalty wants the entry whose bound
+// does NOT cover the crossing -- and nothing on those lines said so, leaving a real
+// transposition and a typo identical to read. The direction is an argument now, so the
+// two spellings differ in a named value rather than in the order of two names that
+// look alike.
+//
+// Spelled as the MASK rather than as `(b >> fail_high) & 1`, which would work only
+// because BOUND_LOWER happens to be BOUND_UPPER << 1: these are terms in an `&&` chain
+// the compiler already keeps in flags, and forcing the predicate into a register to
+// shift by costs more than the mask it replaces.
+static inline bool bound_covers(Bound b, bool fail_high) {
+    return (b & (fail_high ? BOUND_LOWER : BOUND_UPPER)) != 0;
+}
+
 // Bias every stored depth by this, so `depth8 == 0` means "unoccupied" rather
 // than "searched to depth 0" (tt.cpp:51). Upstream spells the constant DEPTH_NONE
 // (types.h:241); search_common.h owns that name alongside DEPTH_QS and
