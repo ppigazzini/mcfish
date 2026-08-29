@@ -28,5 +28,5 @@ position_set	^pos_set_reason$|Position::set\(
 do_move	^pos_do_move$|Position::do_move
 undo_move	^pos_undo_move$|Position::undo_move
 do_null_move	^pos_do_null_move$|Position::do_null_move
-threats	^threats_update_piece_(no_)?ray$|update_piece_threats
+threats	^threats_update_piece_(ray|no_ray_at)$|update_piece_threats
 acc_apply	^nnue_acc_apply_combined_delta$|namespace\)::apply_combined
