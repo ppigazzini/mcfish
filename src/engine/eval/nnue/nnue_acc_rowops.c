@@ -2,6 +2,8 @@
 
 #include "nnue_acc_rowops.h"
 
+#include <assert.h>
+
 #include "nnue_accumulator.h"  // NNUE_HALF_DIMENSIONS, NNUE_PSQT_BUCKETS
 #include "simd.h"
 
@@ -295,15 +297,29 @@ void nnue_acc_apply_combined_delta(int16_t *target,
                                    size_t thr_added_len,
                                    const int16_t *psq_weights,
                                    const int8_t *thr_weights) {
+    // Peel the HalfKA lists' first row and make the second conditional, as upstream's
+    // apply_psq_features<sign, Incremental> does. Both callers of this function are the
+    // incremental step, and psq_changed_indices routes at most four diff sites into the
+    // two lists -- `from` and `remove_sq` one way, `to` and `add_sq` the other -- so each
+    // list holds one row or two, never none and never three. A count the compiler cannot
+    // see costs a test and a taken branch per tile for a trip count that is always one or
+    // two; peeled, the first row's load issues with no control dependency ahead of it.
+    assert(psq_removed_len == 1 || psq_removed_len == 2);
+    assert(psq_added_len == 1 || psq_added_len == 2);
+
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
         RowVecU16 acc = row_load((const uint16_t *) (source + d));
-        for (size_t i = 0; i < psq_removed_len; i++) {
+        acc = row_sub(
+          acc, load_psq_row(psq_weights + (size_t) psq_removed[0] * NNUE_HALF_DIMENSIONS + d));
+        if (psq_removed_len > 1) {
             acc = row_sub(
-              acc, load_psq_row(psq_weights + (size_t) psq_removed[i] * NNUE_HALF_DIMENSIONS + d));
+              acc, load_psq_row(psq_weights + (size_t) psq_removed[1] * NNUE_HALF_DIMENSIONS + d));
         }
-        for (size_t i = 0; i < psq_added_len; i++) {
+        acc = row_add(acc,
+                      load_psq_row(psq_weights + (size_t) psq_added[0] * NNUE_HALF_DIMENSIONS + d));
+        if (psq_added_len > 1) {
             acc = row_add(
-              acc, load_psq_row(psq_weights + (size_t) psq_added[i] * NNUE_HALF_DIMENSIONS + d));
+              acc, load_psq_row(psq_weights + (size_t) psq_added[1] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < thr_removed_len; i++) {
             acc = row_sub(acc, load_threat_row(
