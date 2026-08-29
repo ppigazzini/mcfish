@@ -777,13 +777,21 @@ static void psq_changed_indices(uint8_t perspective,
 // FORWARD says which direction the step runs. Going forward, the diff belongs to the
 // target slot and its `from`/`remove_sq` indices are removals; going backward the diff
 // belongs to the computed slot and every role is inverted.
-static void apply_combined(NnueAccumulatorStack *stack,
-                           uint8_t perspective,
-                           const NnueFeatureTransformer *ft,
-                           uint8_t king_square,
-                           size_t target_index,
-                           size_t computed_index,
-                           bool forward) {
+//
+// PINNED INLINE, and the attribute is load-bearing rather than a hint. Left to the cost
+// model this stays an out-of-line symbol that evaluate_side calls, because folding the
+// index builders in makes the body big enough for clang to decline it -- and the body is
+// what the caller needs visible: with it inlined, the two index lists and their lengths
+// live in registers across the four kernels below instead of being written to a frame
+// evaluate_side cannot see through. The sibling reached the same pin from the other
+// compiler's side, where the decision was taken at LINK time and was bistable.
+__attribute__((always_inline)) static inline void apply_combined(NnueAccumulatorStack *stack,
+                                                                 uint8_t perspective,
+                                                                 const NnueFeatureTransformer *ft,
+                                                                 uint8_t king_square,
+                                                                 size_t target_index,
+                                                                 size_t computed_index,
+                                                                 bool forward) {
     assert(state_computed(stack, PSQ_FEATURE, computed_index, perspective));
     assert(!state_computed(stack, PSQ_FEATURE, target_index, perspective));
 
