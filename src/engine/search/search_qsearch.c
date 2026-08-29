@@ -99,7 +99,7 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
     TTEntry *const writer = probe.writer;
 
     if (!pv_node && tt_depth >= DEPTH_QS && value_is_valid(tt_value)
-        && (tt_bound_v & (tt_value >= beta ? BOUND_LOWER : BOUND_UPPER)) != 0)
+        && bound_covers(tt_bound_v, tt_value >= beta))
         return tt_value;
 
     // Step 4. Compute the static evaluation.
@@ -117,7 +117,7 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
             ss->static_eval = to_corrected_static_eval(unadjusted_static_eval, correction_value);
             best_value = ss->static_eval;
             if (value_is_valid(tt_value) && !value_is_decisive(tt_value)
-                && (tt_bound_v & (tt_value > best_value ? BOUND_LOWER : BOUND_UPPER)) != 0)
+                && bound_covers(tt_bound_v, tt_value > best_value))
                 best_value = tt_value;
         } else {
             unadjusted_static_eval = search_evaluate(ctx, pos);
