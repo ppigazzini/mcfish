@@ -63,8 +63,9 @@ TimemanOutput timeman_compute(TimemanInput input) {
     // Maximum move horizon
     int64_t mtg = input.movestogo != 0 ? i_min((int64_t) input.movestogo, 50) : 50;
 
-    // If less than one second, gradually reduce mtg
-    if (scaled_time < 1000)
+    // If less than one second, gradually reduce mtg.
+    // In cyclic time controls we keep the actual movestogo as horizon.
+    if (scaled_time < 1000 && input.movestogo == 0)
         mtg = (int64_t) ((double) scaled_time * 0.05);
 
     // Make sure time_left is > 0 since we may use it as a divisor
