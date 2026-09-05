@@ -58,7 +58,10 @@ TimemanOutput timeman_compute(TimemanInput input) {
     // These numbers are used where multiplications, divisions, or comparisons
     // with constants are involved. The division truncates toward zero.
     const int64_t scale_factor = output.use_nodes_time ? input.npmsec : 1;
-    const TimePoint scaled_time = output.time / scale_factor;
+    // Clamp from below: in `nodes as time` mode the budget can run out mid-game, and
+    // a zero here reaches log10 below as -inf, which propagates to an infinite
+    // opt_scale and then to an out-of-range conversion back to TimePoint.
+    const TimePoint scaled_time = i_max((int64_t) 1, output.time / scale_factor);
 
     // Maximum move horizon
     int64_t mtg = input.movestogo != 0 ? i_min((int64_t) input.movestogo, 50) : 50;
