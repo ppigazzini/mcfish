@@ -527,15 +527,16 @@ static constexpr int CmhcMultipliers[7] = { 94, 103, 110, 106, 119, 126, 121 };
 
 // Compute the per-entry continuation-history update delta.
 //
-// Upstream (search.cpp: `bonus * weight * multiplier / 131072`) computes this in
-// `int`, so the 3-way product overflows and WRAPS (2's complement on x86 — UB in
-// C++ but relied upon). Do the product in uint32_t so the wrap is defined, then
-// reinterpret; C23 fixes the signed representation, so the reinterpretation is
-// bit-identical to the wrap upstream gets.
+// The weights below and this divisor are halved together against the values
+// upstream carried before `47be34c5`, which is exact for both signs -- truncation
+// toward zero commutes with the exact halving of the product -- and it buys the
+// headroom that made the old form overflow `int` on a deep enough bonus. Leave
+// the arithmetic signed and unguarded, as upstream does: a future retune that
+// overflows it again is a UBSan failure in `./build.sh test` rather than a silent
+// wrap this port would then have to reproduce.
 static inline int conthist_delta(int bonus, int weight, int positive_count, int i) {
     const int multiplier = CmhcMultipliers[positive_count];
-    const uint32_t product = (uint32_t) bonus * (uint32_t) weight * (uint32_t) multiplier;
-    return (int32_t) product / 131072 + 73 * (int) (i < 2);
+    return bonus * weight * multiplier / 65536 + 73 * (int) (i < 2);
 }
 
 typedef struct {
@@ -544,7 +545,7 @@ typedef struct {
 } ConthistBonus;
 
 static constexpr ConthistBonus ConthistBonuses[6] = {
-    { 1, 1040 }, { 2, 780 }, { 3, 290 }, { 4, 502 }, { 5, 132 }, { 6, 418 },
+    { 1, 520 }, { 2, 390 }, { 3, 145 }, { 4, 251 }, { 5, 66 }, { 6, 209 },
 };
 
 void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, int bonus) {
