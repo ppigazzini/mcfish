@@ -242,6 +242,30 @@ The consequences an agent gets wrong before reading
   on the wider machine — and its other half, reading the shared counter once, was
   flat at BOTH tiers because clang already collapses the two loads that gcc kept
   apart. Ask what the sibling's change AVOIDS, then price that operation here.
+- **A COUNT of branches is not a count of MISPREDICTS, and only one of them is
+  the claim.** The sixteenth sweep (2026-09-13) read refish's 14 unswept perf
+  commits and landed three, worth **-0.35% at sse41** and -0.03% at avx512icl on
+  `perf-budget`, with the assembled stack reading Ir 0.99828, **Bcm 0.99118** and
+  **I1mr 0.99302** under callgrind. Its refusal is the lesson. Scanning the quiet
+  sort's limit a block at a time is sold as removing "the branch a predictor
+  cannot learn" — 34% taken, 24.4% miss — and it does remove the branches: 259,290
+  fewer conditional branches executed. It buys **zero** mispredicts, `Bcm` 1.00018,
+  while costing +0.14% of instructions and 1.4% more L1 instruction misses, because
+  at this tree's gated tiers the block is two lanes wide and the `while (hits)` walk
+  is exactly as unpredictable as the test it replaced. Take the prediction claim to
+  `perf-decomp`'s Bcm column before paying instructions for it.
+- **A sibling's perf commit can be half port and half re-refusal, and only the
+  source says which.** The same sweep's largest win (-0.24% sse41) is one half of
+  refish's nnz fold: this tree's AVX2 step already exploited the same [0, 127]
+  bound, and the comment `ae6c536b` left on it records that refish's exact
+  spelling — `vpackssdw + vpacksswb + vpshufd + vpmovmskb` — was measured here as
+  TWO OPS LONGER under clang. The sse41 step had never been given the bound and
+  took it. Read the comment on the code the sibling's commit touches before
+  deciding the commit is new. Three more were refused on this tree's binary rather
+  than on a column: `both_attacks_bb` is fully inlined at every tier here (zero
+  out-of-line copies, no symbol), the picker's generators already write `ExtMove`
+  slots with no staging buffer, and the stack-canary commits are inert because
+  clang emits no guard.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the
