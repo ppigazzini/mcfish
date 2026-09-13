@@ -45,7 +45,7 @@ src/nnue/nnue_misc.cpp	src/engine/eval/evaluate.c
 src/nnue/nnue_misc.h	src/engine/eval/evaluate.h
 src/nnue/nnz_helper.h	src/engine/eval/nnue/simd.h
 src/nnue/simd.h	src/engine/eval/nnue/simd.h
-src/numa.h	src/platform/numa.c,src/platform/numa.h,tests/test_main.c,src/platform/numa_replication.c,src/platform/thread_pool.h,src/platform/worker_pool.c
+src/numa.h	src/platform/numa.c,src/platform/numa.h,tests/test_main.c,src/platform/numa_replication.c,src/platform/thread_pool.h,src/platform/thread_pool.c,src/platform/worker_pool.c
 src/perft.h	src/engine/board/movegen.h
 src/position.cpp	src/engine/board/position.c,src/engine/board/position.h,src/engine/board/legality.c,src/engine/board/repetition.h,src/engine/board/fen.c,src/engine/board/legality.h,src/engine/board/threats.c,src/engine/board/zobrist.c,src/engine/search/search_common.h,tests/test_main.c,src/engine/board/fen.h,src/engine/board/threats.h,src/engine/board/zobrist.h,src/engine/search/movepick.h,src/engine/search/search_common.c,src/shell/engine.c,src/shell/uci.c
 src/position.h	src/engine/board/position.c,src/engine/board/position.h,src/engine/board/movegen.c
