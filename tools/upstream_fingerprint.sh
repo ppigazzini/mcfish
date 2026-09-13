@@ -92,13 +92,54 @@ out=$(python3 "$ROOT/tools/perf_fingerprint.py" compare "$WORK/mcfish.out" "$WOR
 printf '%s\n' "$out"
 
 # EXACT is the tool's own word for a group whose two counts are equal. Anything else
-# -- a differing count, or a regex that matched nothing on a side -- fails.
-bad=$(printf '%s\n' "$out" | grep -cE 'DIFFERS|no symbol matched' || true)
-if [[ $bad -ne 0 ]]; then
-  red "fingerprint: $bad group(s) diverge from upstream"
+# -- a differing count, or a regex that matched nothing on a side -- is a divergence.
+#
+# A group named in tools/fingerprint_known.txt is ACCEPTED, each with an argued
+# reason in that file. Anything else fails. Two rows are listed today and both are
+# older than any gate that could have caught them, so without this the step can
+# never pass and the lane reports nothing about the rows that CAN move.
+KNOWN_FILE=$ROOT/tools/fingerprint_known.txt
+known=()
+if [[ -f $KNOWN_FILE ]]; then
+  while read -r name _; do
+    [[ -z ${name// } || ${name:0:1} == "#" ]] && continue
+    known+=("$name")
+  done < "$KNOWN_FILE"
+fi
+is_known() { local g; for g in ${known+"${known[@]}"}; do [[ $g == "$1" ]] && return 0; done; return 1; }
+
+unexpected=0 accepted=0
+while read -r group rest; do
+  [[ -z ${group// } ]] && continue
+  case $rest in
+    *DIFFERS*|*"no symbol matched"*) ;;
+    *) continue ;;
+  esac
+  if is_known "$group"; then
+    accepted=$((accepted + 1))
+    printf '  accepted  %s -- argued in tools/fingerprint_known.txt\n' "$group"
+  else
+    unexpected=$((unexpected + 1))
+    printf '  UNKNOWN   %s\n' "$group"
+  fi
+done < <(printf '%s\n' "$out" | sed -n 's/^\([A-Za-z_][A-Za-z0-9_ ]*[A-Za-z0-9_]\)  */\1\t/p' \
+          | awk -F'\t' '{print $1, $2}')
+
+# A listed group that now reads EXACT is hiding nothing. Say so rather than accept it
+# silently: an entry that outlives its cause turns the gate into decoration.
+for g in ${known+"${known[@]}"}; do
+  if printf '%s\n' "$out" | grep -qE "^$g +.*EXACT"; then
+    printf '  RETIRABLE %s now reads EXACT -- delete its entry\n' "$g"
+  fi
+done
+
+if [[ $unexpected -ne 0 ]]; then
+  red "fingerprint: $unexpected group(s) diverge from upstream and are not argued"
   red "  A call-count divergence is an ALGORITHM difference and outranks any cost"
   red "  finding. Check the regex first -- an inlined-away symbol reads the same as a"
   red "  real divergence -- then attribute the count to its callers before concluding."
+  red "  If it is genuinely accepted, add it to tools/fingerprint_known.txt WITH a"
+  red "  reason and what would retire it."
   exit 1
 fi
-green "fingerprint: every group calls exactly as often as upstream"
+green "fingerprint: every group calls as often as upstream ($accepted argued exception(s))"

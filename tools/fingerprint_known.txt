@@ -1,0 +1,38 @@
+# Fingerprint groups whose count is ACCEPTED as differing from upstream, each with
+# its reason. One group NAME per line, matched against the first field of a row
+# `tools/upstream_fingerprint.sh` prints.
+#
+# A DIFFERS row whose group is NOT listed here fails the gate. That is the whole
+# point: this file must never grow to cover a divergence nobody has read.
+#
+# KEEP THIS LIST SHORT AND ARGUED. Every entry claims mcfish may call something a
+# different number of times than the golden, which is the opposite of what this
+# port is for. A row listed here is EXEMPT from the strongest check this tree has
+# on its own algorithm, so an entry needs a reason that survives being read aloud
+# and must name what would retire it.
+#
+# A listed group that comes back EXACT is reported as retirable rather than
+# accepted silently -- an entry that outlives its cause turns the gate into
+# decoration.
+
+# The symbol is INLINED AWAY, so the row measures the regex and not the engine.
+# `movepick_next` does not survive LTO in the mcfish binary and the group reads
+# A=0 against upstream's 231,768. It cannot be repaired with a regex: summing its
+# two surviving callees double-counts the generate_stage -> walk_lists calls
+# (387,964 summed against 359,913 real entries, upstream 383,977), and the
+# arithmetic is worked in `7ab86db3`'s body. RETIRE by finding a symbol that
+# survives inlining and names the same call, or by teaching the tool to attribute
+# an inlined callee to its callers.
+movepick
+
+# PRE-EXISTING and in the cheaper direction: mcfish asks for legality FEWER times
+# than upstream and answers the same. At `bench 16 1 8` the row reads 204,952
+# against 204,953; at `bench 16 1 1` it reads 3,934 against 4,016, and mcfish at
+# `47087052` against an oracle at `edb0d9db` -- both sides of this port's own work
+# -- reads 3,860 against 3,949. Same deficit, same direction, before any of it.
+# The searched tree is identical, which `upstream-parity` (BIT-EXACT) and
+# `upstream-nodes` (71/71 node-for-node) both say. The cause is the picker handing
+# the move loop a different number of moves that are then rejected as illegal, not
+# a different set of moves searched. RETIRE by attributing the deficit to a call
+# site and either matching upstream's order there or proving the row cannot match.
+legal
