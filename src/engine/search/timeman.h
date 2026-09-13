@@ -15,7 +15,8 @@
 //
 // available_nodes is -1 until the first init of a `nodes as time` game and is
 // carried across moves; timeman_clear resets it, and both budget bounds, at the
-// start of a new game.
+// start of a new game. cyclic_budget needs no reset of its own: it is re-derived
+// on the same first init that leaves available_nodes behind.
 //
 // Upstream: timeman.h:34 (TimeManagement).
 
@@ -50,8 +51,11 @@ typedef struct {
     TimePoint start_time;
     TimePoint optimum_time;
     TimePoint maximum_time;
-    int64_t available_nodes;  // -1 when no `nodes as time` game has started
-    bool use_nodes_time;      // true while in `nodes as time` mode
+    // Related to `nodes as time` mode:
+    int64_t available_nodes;     // -1 when no `nodes as time` game has started
+    int32_t previous_movestogo;  // the last `go`'s movestogo, 0 before the first
+    int64_t cyclic_budget;       // nodes one cycle of a cyclic control is worth
+    bool use_nodes_time;         // true while in `nodes as time` mode
 } TimeManagement;
 
 // Carry the UCI options the budget depends on. The caller reads them from the
@@ -81,6 +85,8 @@ typedef struct {
     TimePoint npmsec;
     TimePoint move_overhead;
     int64_t available_nodes;
+    int32_t previous_movestogo;
+    int64_t cyclic_budget;
     TimePoint current_optimum_time;
     TimePoint current_maximum_time;
     int32_t movestogo;
@@ -95,6 +101,8 @@ typedef struct {
     TimePoint start_time;
     TimePoint npmsec;
     int64_t available_nodes;
+    int32_t previous_movestogo;
+    int64_t cyclic_budget;
     TimePoint optimum_time;
     TimePoint maximum_time;
     double original_time_adjust;
