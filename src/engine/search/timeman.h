@@ -73,6 +73,9 @@ typedef struct {
 // Mirror the pure core of Stockfish's TimeManagement::init.
 typedef struct {
     TimePoint time;
+    // The OPPONENT's clock. Read only by the time-advantage scale below, which is
+    // the one term the budget takes from the other side.
+    TimePoint time_them;
     TimePoint inc;
     TimePoint start_time;
     TimePoint npmsec;
