@@ -39,15 +39,6 @@ uint64_t nnue_bb_shift(int8_t dir, uint64_t bitboard) {
     }
 }
 
-uint64_t nnue_bb_pawn_push_or_attacks(uint8_t color, unsigned square) {
-    const uint64_t one = nnue_bb_square(square);
-    return color == NNUE_BB_WHITE
-           ? nnue_bb_shift(NNUE_BB_NORTH, one) | nnue_bb_shift(NNUE_BB_NORTH_WEST, one)
-               | nnue_bb_shift(NNUE_BB_NORTH_EAST, one)
-           : nnue_bb_shift(NNUE_BB_SOUTH, one) | nnue_bb_shift(NNUE_BB_SOUTH_WEST, one)
-               | nnue_bb_shift(NNUE_BB_SOUTH_EAST, one);
-}
-
 uint64_t nnue_bb_pawn_attacks_only(uint8_t color, unsigned square) {
     const uint64_t one = nnue_bb_square(square);
     return color == NNUE_BB_WHITE
