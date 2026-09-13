@@ -26,7 +26,7 @@
 #include <string.h>
 
 #define ENGINE_NAME "mcfish"
-#define ENGINE_VERSION "19"
+#define ENGINE_VERSION "dev"
 #define ENGINE_AUTHORS "the Stockfish developers (see AUTHORS file)"
 
 // ---------------------------------------------------------------------------
