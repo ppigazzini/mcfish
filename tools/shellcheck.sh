@@ -103,5 +103,26 @@ if [[ -n $out ]]; then
 fi
 [[ $rc -eq 0 ]] || { printf '\033[31mshellcheck: exited %d with no output -- rig fault\033[0m\n' "$rc"; exit 2; }
 
-printf '\033[32mshell clean (shellcheck %s, %d files, severity %s)\033[0m\n' \
-  "$BIN_PIN" "${#FILES[@]}" "$SEVERITY"
+# A HOME-ROOTED ABSOLUTE PATH is silent on the machine that wrote it and fatal
+# everywhere else. shellcheck has no opinion on it, and no gate here can have one
+# either -- `build.sh` carried
+# `/home/<user>/_git/.mcfish-upstream-oracle/src/stockfish` at two steps, which
+# resolved on exactly one box, so both were green locally while the CI lane that
+# runs them exited 127 on every scheduled run for six days.
+#
+# The repo's own convention is a path derived from the script's root and
+# overridable by env (ORACLE_DIR, RESOURCES_DIR). Anything under /home/<user> or
+# /Users/<user> is a leak; a bare /home or /Users is not, so the pattern requires
+# the user component.
+mapfile -t ALL < <(git ls-files '*.sh' '*.py' '*.yml' '*.yaml')
+leaks=$(grep -nE '(/home/[A-Za-z0-9_.-]+|/Users/[A-Za-z0-9_.-]+)/' "${ALL[@]}" \
+          | grep -vE '^[^:]*:[0-9]+:\s*#' || true)
+if [[ -n $leaks ]]; then
+  printf '%s\n' "$leaks"
+  printf '\033[31mshellcheck: absolute path under a user home. Derive it from the\033[0m\n'
+  printf '\033[31mscript root and let an env var override it, as ORACLE_DIR does.\033[0m\n'
+  exit 1
+fi
+
+printf '\033[32mshell clean (shellcheck %s, %d files, severity %s; %d files carry no home-rooted path)\033[0m\n' \
+  "$BIN_PIN" "${#FILES[@]}" "$SEVERITY" "${#ALL[@]}"
