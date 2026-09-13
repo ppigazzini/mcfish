@@ -14,6 +14,18 @@ CC=${CC:-clang}
 # $BIN or case-file path would not survive that change of directory.
 ROOT=$PWD
 
+# Where tools/upstream/upstream_oracle.sh leaves the pristine upstream build.
+#
+# ONE owner, derived from $ROOT, and overridable the way every other tool that
+# reads it spells the same default (tools/upstream/upstream_oracle.sh:17,
+# tools/material_eval.sh:37, tools/upstream_nodes.py:49). The two steps below used
+# to hardcode this as an ABSOLUTE path under a developer's home. That resolves on
+# exactly one machine, so both gates were green there and `upstream-transcript`
+# exited 127 on every CI run for six days -- the failure mode a hardcoded path has
+# is silence on the box that wrote it.
+ORACLE_DIR=${ORACLE_DIR:-$ROOT/../.mcfish-upstream-oracle}
+ORACLE_BIN=$ORACLE_DIR/src/stockfish
+
 # The external runtime inputs: the NNUE net, the Syzygy tablebases under syzygy/,
 # and an opening book if one is ever added. Fetched, optional and gitignored --
 # the engine consumes them, which is the line between this directory and build/.
@@ -773,7 +785,7 @@ do_engine_standalone() {
 # measures the harness rather than the engines.
 do_upstream_transcript() {
   need_binary
-  local oracle=/home/usr00/_git/.mcfish-upstream-oracle/src/stockfish
+  local oracle=$ORACLE_BIN
   [[ -x $oracle ]] || { red "upstream-transcript: no oracle at $oracle"; return 127; }
   local known=tools/transcript_known.txt
   info "upstream-transcript: whole-transcript diff vs the oracle"
@@ -3593,7 +3605,7 @@ do_tb_update() {
   local f n=0
   for f in "$TB_DIR"/*.rtbw "$TB_DIR"/*.rtbz; do [[ -s $f ]] && n=$((n + 1)) || true; done
   [[ $n -eq 10 ]] || { red "need all 10 files in $TB_DIR; run './build.sh tb-fetch'"; return 1; }
-  local oracle=/home/usr00/_git/.mcfish-upstream-oracle/src/stockfish
+  local oracle=$ORACLE_BIN
   [[ -x $oracle ]] || { red "no oracle at $oracle"; return 1; }
   # Run the oracle from its own directory so it finds its net, and hand it
   # absolute paths for both the battery and the tables.
