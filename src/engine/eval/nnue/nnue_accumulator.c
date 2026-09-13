@@ -150,6 +150,7 @@ enum { TRANSFORM_VEC_WIDTH = 128 };
     #define tf_u8_store nnue_v128u8_store
     #define tf_u8_as_groups nnue_v128_u8_as_u32x32
     #define tf_movemask nnue_v32u32_movemask
+    #define tf_movemask_nonneg nnue_v32u32_movemask
 #else
 enum { TRANSFORM_VEC_WIDTH = 64 };
     #define TfI16 NnueV64i16
@@ -171,6 +172,7 @@ enum { TRANSFORM_VEC_WIDTH = 64 };
     #define tf_u8_store nnue_v64u8_store
     #define tf_u8_as_groups nnue_v64_u8_as_u32x16
     #define tf_movemask nnue_v16u32_movemask
+    #define tf_movemask_nonneg nnue_v16u32_movemask_nonneg
 #endif
 // Select the product step's native width — the register width whose vpackuswb the step
 // narrows with. Upstream reaches its packus body from the generic `#else` arm, which
@@ -1321,7 +1323,14 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
 
             // Build the non-zero-chunk mask with one horizontal movemask (compare-to-zero
             // + reduce-OR) rather than a per-lane extract+compare+shift+OR each group.
-            const uint64_t mask = tf_movemask(groups);
+            //
+            // The _nonneg form is the one that may be used here, and the step above is
+            // why: every byte is a clipped-ReLU product of operands clipped to 255,
+            // the first shifted left 7, so it is at most (255 << 7) * 255 >> 16 = 127
+            // and no group can have its i32 sign bit set. That lets the narrowing run
+            // on the VALUES and drops the four compare-to-zero ops. The avx2 step does
+            // not reach here at all -- it harvests its mask per pack, above.
+            const uint64_t mask = tf_movemask_nonneg(groups);
             const size_t bit = (offset + j) / 4;
     #if defined(__AVX512F__) || (MCFISH_SIMD_VECTOR && defined(__SSE2__))
                 // Store the step's mask directly at its own byte offset — upstream's
