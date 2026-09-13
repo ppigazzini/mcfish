@@ -133,6 +133,7 @@ typedef struct {
     bool follow_pv;
     int32_t cutoff_cnt;
     int32_t reduction;
+    int32_t prior_nmp_fail_high;
 } Stack;
 
 // Pad the stack with 7 frames below the root and 2 above MAX_PLY. `ss - 6` is
