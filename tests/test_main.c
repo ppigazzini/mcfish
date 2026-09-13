@@ -1775,6 +1775,55 @@ static void test_timeman_time_advantage(void) {
           "nodestime ignores the other clock");
 }
 
+// Hold the node budget a cyclic control tops up. In `nodes as time` mode the whole
+// game's clock is converted ONCE, at the first `go`, so a control that hands out a
+// fresh allowance every N moves used to get none of it -- the budget only ever went
+// down. A movestogo that ROSE since the previous `go` is what says a new cycle
+// started, and it is worth one cycle's nodes: the first clock less its increment.
+static void test_timeman_nodestime_cycle(void) {
+    banner("nodes-as-time budget across a cyclic control");
+
+    TimemanInput in = {
+        .time = 10000,
+        .time_them = 10000,
+        .inc = 100,
+        .start_time = 0,
+        .npmsec = 1000,
+        .move_overhead = 10,
+        .available_nodes = -1,
+        .previous_movestogo = 0,
+        .cyclic_budget = 0,
+        .movestogo = 40,
+        .ply = 0,
+        .original_time_adjust = 1.0,
+        .ponder = false,
+    };
+
+    TimemanOutput out = timeman_compute(in);
+    CHECK(out.available_nodes == 1000 * 10000, "the game start converts the whole clock, got %lld",
+          (long long) out.available_nodes);
+    CHECK(out.cyclic_budget == 1000 * (10000 - 100),
+          "one cycle is worth the clock less its increment, got %lld",
+          (long long) out.cyclic_budget);
+    CHECK(out.previous_movestogo == 40, "the horizon is remembered for the next `go`");
+
+    // Mid-cycle: movestogo counts DOWN, so nothing is added.
+    in.available_nodes = out.available_nodes - 500000;
+    in.previous_movestogo = out.previous_movestogo;
+    in.cyclic_budget = out.cyclic_budget;
+    in.movestogo = 39;
+    out = timeman_compute(in);
+    CHECK(out.available_nodes == 1000 * 10000 - 500000, "a move inside the cycle adds nothing");
+
+    // The horizon rose: a new cycle started and is worth one budget.
+    in.available_nodes = out.available_nodes;
+    in.previous_movestogo = out.previous_movestogo;
+    in.movestogo = 40;
+    out = timeman_compute(in);
+    CHECK(out.available_nodes == 1000 * 10000 - 500000 + 1000 * (10000 - 100),
+          "a new cycle tops the budget up, got %lld", (long long) out.available_nodes);
+}
+
 // ------------------------------------------------- syzygy WDL score domain
 
 // Pin the domain `wdl.h` promises for a WDL probe: a score in -2..2.
@@ -2236,6 +2285,7 @@ int main(void) {
     test_root_pv_capacity();
     test_timeman_zero_clock();
     test_timeman_time_advantage();
+    test_timeman_nodestime_cycle();
     test_movepick_poison();
     test_nnue_parse_poison();
     test_nnue_leb_roundtrip();

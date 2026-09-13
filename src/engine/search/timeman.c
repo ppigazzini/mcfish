@@ -24,6 +24,8 @@ TimemanOutput timeman_compute(TimemanInput input) {
         .start_time = input.start_time,
         .npmsec = input.npmsec,
         .available_nodes = input.available_nodes,
+        .previous_movestogo = input.previous_movestogo,
+        .cyclic_budget = input.cyclic_budget,
         .optimum_time = input.current_optimum_time,
         .maximum_time = input.current_maximum_time,
         .original_time_adjust = input.original_time_adjust,
@@ -47,9 +49,17 @@ TimemanOutput timeman_compute(TimemanInput input) {
     // WARNING: to avoid time losses, the given npmsec (nodes per millisecond)
     // must be much lower than the real engine speed.
     if (output.use_nodes_time) {
-        if (output.available_nodes == -1)                        // Only once at game start
-            output.available_nodes = input.npmsec * input.time;  // Time is in msec
+        if (output.available_nodes == -1) {  // Only once at game start
+            // First time limit includes increment (both are in milliseconds)
+            output.available_nodes = input.npmsec * input.time;
+            output.cyclic_budget = input.npmsec * (input.time - input.inc);
+        } else if (input.movestogo > 0 && input.movestogo > input.previous_movestogo
+                   && output.cyclic_budget > 0)
+            output.available_nodes += output.cyclic_budget;
 
+        output.previous_movestogo = input.movestogo;
+
+        // Convert from milliseconds to nodes
         output.time = output.available_nodes;
         output.inc *= input.npmsec;
         move_overhead *= input.npmsec;
@@ -152,6 +162,8 @@ TimemanLimits timeman_init(TimeManagement *tm,
         .npmsec = opts.npmsec,
         .move_overhead = opts.move_overhead,
         .available_nodes = tm->available_nodes,
+        .previous_movestogo = tm->previous_movestogo,
+        .cyclic_budget = tm->cyclic_budget,
         .current_optimum_time = tm->optimum_time,
         .current_maximum_time = tm->maximum_time,
         .movestogo = (int32_t) limits->moves_to_go,
@@ -166,6 +178,8 @@ TimemanLimits timeman_init(TimeManagement *tm,
     tm->optimum_time = out.optimum_time;
     tm->maximum_time = out.maximum_time;
     tm->available_nodes = out.available_nodes;
+    tm->previous_movestogo = out.previous_movestogo;
+    tm->cyclic_budget = out.cyclic_budget;
     tm->use_nodes_time = out.use_nodes_time;
     *original_time_adjust = out.original_time_adjust;
 
@@ -174,6 +188,7 @@ TimemanLimits timeman_init(TimeManagement *tm,
 
 void timeman_clear(TimeManagement *tm) {
     tm->available_nodes = -1;  // When in `nodes as time` mode
+    tm->previous_movestogo = 0;
     tm->optimum_time = TIMEMAN_NO_BOUND;
     tm->maximum_time = TIMEMAN_NO_BOUND;
 }
