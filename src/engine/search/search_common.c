@@ -161,7 +161,7 @@ int futility_margin(
 
 int futility_return(int beta, int eval) { return (661 * beta + 363 * eval) / 1024; }
 
-int razor_margin(int depth) { return 482 * depth * depth; }
+int razor_margin(int depth) { return 482 * depth; }
 
 int null_move_threshold(int beta, int depth, bool improving) {
     return beta - 13 * depth - 47 * (int) improving + 365;
