@@ -1724,6 +1724,57 @@ static void test_timeman_zero_clock(void) {
     CHECK(tm.available_nodes == -1, "and no node budget either");
 }
 
+// Hold the two conditions upstream's time-advantage scale is guarded by. The term
+// only ever SHRINKS the optimum -- a side that is ahead on the clock gets no bonus,
+// because the min is taken against zero -- and it is skipped in `nodes as time` mode
+// and on the last move of a cyclic control, where the opponent's clock says nothing
+// comparable. Upstream's comment ends "Warning: don't remove this conditions"; this
+// is what would notice.
+static void test_timeman_time_advantage(void) {
+    banner("time budget under a clock disadvantage");
+
+    const TimemanInput base = {
+        .time = 60000,
+        .time_them = 60000,
+        .inc = 0,
+        .start_time = 0,
+        .npmsec = 0,
+        .move_overhead = 10,
+        .available_nodes = -1,
+        .movestogo = 0,
+        .ply = 0,
+        .original_time_adjust = 1.0,
+        .ponder = false,
+    };
+    const TimePoint even = timeman_compute(base).optimum_time;
+
+    TimemanInput behind = base;
+    behind.time_them = 600000;
+    const TimePoint low = timeman_compute(behind).optimum_time;
+    CHECK(low < even, "a clock disadvantage shrinks the optimum: %lld vs %lld", (long long) low,
+          (long long) even);
+
+    TimemanInput ahead = base;
+    ahead.time_them = 600;
+    CHECK(timeman_compute(ahead).optimum_time == even, "a clock advantage does not grow it");
+
+    // movestogo == 1: the opponent may already carry the next cycle's increment.
+    TimemanInput last_of_cycle = behind;
+    last_of_cycle.movestogo = 1;
+    TimemanInput last_even = base;
+    last_even.movestogo = 1;
+    CHECK(timeman_compute(last_of_cycle).optimum_time == timeman_compute(last_even).optimum_time,
+          "the last move of a cyclic control ignores the other clock");
+
+    // `nodes as time`: the opponent's node budget is not derivable.
+    TimemanInput nodes_behind = behind;
+    nodes_behind.npmsec = 600;
+    TimemanInput nodes_even = base;
+    nodes_even.npmsec = 600;
+    CHECK(timeman_compute(nodes_behind).optimum_time == timeman_compute(nodes_even).optimum_time,
+          "nodestime ignores the other clock");
+}
+
 // ------------------------------------------------- syzygy WDL score domain
 
 // Pin the domain `wdl.h` promises for a WDL probe: a score in -2..2.
@@ -2184,6 +2235,7 @@ int main(void) {
     test_search_step_margins();
     test_root_pv_capacity();
     test_timeman_zero_clock();
+    test_timeman_time_advantage();
     test_movepick_poison();
     test_nnue_parse_poison();
     test_nnue_leb_roundtrip();

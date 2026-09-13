@@ -107,6 +107,22 @@ TimemanOutput timeman_compute(TimemanInput input) {
         max_scale = 1.3 + 0.11 * (double) mtg;
     }
 
+    // Decrease time usage if behind in time.
+    // This is skipped in two cases:
+    // - if the nodestime option is used we can't calculate the opponent nodes budget in
+    //   a deterministic way.
+    // - if we use a cyclic time management (like 40/10) calculating time advantage for
+    //   the last move (movestogo = 1) can be vastly off, because if the opponent had
+    //   done his last move before us his time budget includes already the next cycle
+    //   time increment but our not. This leads to a unnecessary big decrease in time
+    //   usage which favors blunders.
+    // Warning: don't remove this conditions.
+    if (!output.use_nodes_time && input.movestogo != 1) {
+        const double time_advantage = (double) (input.time - input.time_them)
+                                    / (1.0 + (double) input.time + (double) input.time_them);
+        opt_scale *= 1 + 0.9 * d_min(time_advantage, 0.0);
+    }
+
     // Limit the maximum possible time for this move. Both casts truncate toward
     // zero, and both arguments are positive here.
     output.optimum_time = (TimePoint) d_max(1.0, opt_scale * (double) time_left);
@@ -130,6 +146,7 @@ TimemanLimits timeman_init(TimeManagement *tm,
                            double *original_time_adjust) {
     const TimemanInput input = {
         .time = (TimePoint) limits->time_ms[us],
+        .time_them = (TimePoint) limits->time_ms[flip_color(us)],
         .inc = (TimePoint) limits->inc_ms[us],
         .start_time = start_time,
         .npmsec = opts.npmsec,
