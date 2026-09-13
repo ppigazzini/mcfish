@@ -32,9 +32,14 @@ typedef struct {
 
 static void bind_job(void *ctx) {
     const BindJob *job = (const BindJob *) ctx;
-    // Ignore the result: a host that refuses the binding leaves the thread on its
-    // inherited affinity, which is slower on a multi-node box and not incorrect.
-    (void) numa_config_bind_current_thread(numa_context_config(job->numa_ctx), job->node);
+    // END THE PROCESS on a refused binding, which is what upstream does
+    // (numa.h:838-860: every failure arm of bind_current_thread_to_numa_node is a
+    // std::exit(EXIT_FAILURE)). Treating it as advisory looks kinder and is not:
+    // a NumaPolicy naming processors the machine does not have then leaves the
+    // threads on their inherited affinity and the engine reports a binding it
+    // never made, so the operator is told the opposite of what happened.
+    if (!numa_config_bind_current_thread(numa_context_config(job->numa_ctx), job->node))
+        exit(EXIT_FAILURE);
 }
 
 // Carry one shared-history insert to whichever thread runs it, so the same call works
