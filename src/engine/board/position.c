@@ -719,8 +719,17 @@ static void do_castling(Position *pos,
         dp->add_sq = (uint8_t) rto;
     }
 
-    remove_piece(pos, undo ? kto : from, dts);
+    // THE ROOK LEAVES FIRST, and the order is the whole of it. Take the king out
+    // first and every slider whose line to the rook the king was blocking reports
+    // the rook as a newly discovered target; the rook's own removal one call later
+    // withdraws the same threat, and the accumulator sums its rows, so the pair
+    // nets to nothing after two rows of work. With the king still standing no
+    // slider is revealed to the rook's square at all and neither row is written.
+    //
+    // Both removals still precede both puts, which is what the Chess960 overlap
+    // needs: a king or rook destination may be the other's origin.
     remove_piece(pos, undo ? rto : rfrom, dts);
+    remove_piece(pos, undo ? kto : from, dts);
     put_piece(pos, make_piece(us, KING), undo ? from : kto, dts);
     put_piece(pos, make_piece(us, ROOK), undo ? rfrom : rto, dts);
 }
