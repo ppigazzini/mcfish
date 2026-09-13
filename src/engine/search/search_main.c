@@ -288,7 +288,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         }
 
         // Step 8. Apply razoring.
-        if (!pv_node && eval < alpha - razor_margin(depth))
+        if (!pv_node && eval < alpha - razor_margin(depth) && !seek_mate)
             return qsearch_node_nonpv(ctx, pos, ss, alpha, beta);
 
         // Step 9. Prune by futility.
