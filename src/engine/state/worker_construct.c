@@ -19,8 +19,8 @@ SearchWorker *worker_create(const WorkerCtorInputs *in) {
         return nullptr;
     }
 
-    // Only thread 0 carries a manager. A sibling reads `manager == nullptr` where
-    // upstream calls into a NullSearchManager whose one virtual does nothing.
+    // Only thread 0 carries a manager. A sibling reads `manager == nullptr`, which is
+    // what upstream's own pointer holds for every thread but the main one.
     if (in->thread_idx == 0) {
         w->manager = calloc(1, sizeof *w->manager);
         if (w->manager == nullptr) {

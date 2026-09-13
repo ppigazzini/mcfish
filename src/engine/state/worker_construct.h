@@ -32,7 +32,7 @@ typedef struct {
 } WorkerCtorInputs;
 
 // Allocate and build one worker, or return null. Thread 0 gets a SearchManager, the
-// siblings get none -- upstream's NullSearchManager with the virtual call removed.
+// siblings get a null pointer, as upstream's do.
 //
 // Call this ON the thread that will run the worker, so the block is first-touched on the
 // NUMA node that will read it.
