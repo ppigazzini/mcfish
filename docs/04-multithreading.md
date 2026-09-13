@@ -115,9 +115,9 @@ will run on.
 | `calls_cnt`, `stop_on_ponderhit`, `ponder` | statics in `search.c` | `w->manager` |
 
 **A sibling has no `SearchManager` and that is the whole of the difference.**
-Upstream gives it a `NullSearchManager` whose one virtual does nothing; here
-`w->manager` is null and the time-management block is behind
-`!main_thread -> continue`, so nothing reads it.
+Upstream hands it a null manager pointer and so does this tree: `w->manager` is
+null and the time-management block is behind `!main_thread -> continue`, so
+nothing reads it.
 
 `Histories` is split the way upstream splits it — see
 [02-engine-search.md](02-engine-search.md). The worker owns main, low-ply,
