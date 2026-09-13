@@ -145,7 +145,11 @@ typedef struct {
 
 static void *execute_on_node_entry(void *arg) {
     const ExecuteOnNodeJob *job = (const ExecuteOnNodeJob *) arg;
-    (void) numa_config_bind_current_thread(job->config, job->node);
+    // Upstream ends the process on a refused binding (numa.h:838-860); so does the
+    // pool's own bind_job. Replication runs the SAME bind, so it answers the same
+    // way rather than replicating weights onto a node the thread never reached.
+    if (!numa_config_bind_current_thread(job->config, job->node))
+        exit(EXIT_FAILURE);
     job->callback(job->callback_ctx);
     return nullptr;
 }
