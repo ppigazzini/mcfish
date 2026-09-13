@@ -123,6 +123,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     ss1->reduction = 0;
     ss->stat_score = 0;
     (ss + 2)->cutoff_cnt = 0;
+    (ss + 1)->prior_nmp_fail_high = 0;
 
     // Step 4. Look up the transposition table.
     const Move excluded_move = ss->excluded_move;
@@ -302,7 +303,9 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         }
 
         // Step 10. Search the null move.
-        if (cut_node && ss->static_eval >= null_move_threshold(beta, depth, improving)
+        if (cut_node
+            && ss->static_eval + 50 * ss->prior_nmp_fail_high
+                 >= null_move_threshold(beta, depth, improving)
             && excluded_move == MOVE_NONE && pos_non_pawn_material(pos, us) != 0
             && ss->ply >= ctx->nmp_min_ply && beta >= -2000) {
             const int r = null_move_reduction(depth, ss->static_eval, beta);
@@ -315,13 +318,17 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
               (Value) -search_node_nonpv(ctx, pos, ss + 1, -beta, -beta + 1, depth - r, false);
             pos_undo_null_move(pos);
             if (null_value >= beta && !value_is_win(null_value)) {
-                if (ctx->nmp_min_ply != 0 || depth < 16)
+                if (ctx->nmp_min_ply != 0 || depth < 16) {
+                    ++ss->prior_nmp_fail_high;
                     return null_value;
+                }
                 ctx->nmp_min_ply = nmp_min_ply_of(ss->ply, depth, r);
                 const Value v = search_node_nonpv(ctx, pos, ss, beta - 1, beta, depth - r, false);
                 ctx->nmp_min_ply = 0;
-                if (v >= beta)
+                if (v >= beta) {
+                    ++ss->prior_nmp_fail_high;
                     return null_value;
+                }
             }
         }
 
