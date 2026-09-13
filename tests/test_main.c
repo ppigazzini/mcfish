@@ -1824,6 +1824,18 @@ static void test_timeman_nodestime_cycle(void) {
           "a new cycle tops the budget up, got %lld", (long long) out.available_nodes);
 }
 
+// Hold the conthist scale table to the two arrays it was derived from.
+//
+// The table's 42 entries are written out because a `constexpr` initializer that
+// subscripts another `constexpr` object is an integer constant expression to clang
+// and not to gcc. That gives every weight and multiplier a second owner, and this
+// is what makes the duplication safe: a retune that moves a number in one place and
+// not the other fails here rather than quietly changing every history update.
+static void test_conthist_scale_table(void) {
+    banner("conthist scale table vs its two source arrays");
+    CHECK(conthist_scale_table_agrees(), "every ConthistScale entry is still weight * multiplier");
+}
+
 // ------------------------------------------------- syzygy WDL score domain
 
 // Pin the domain `wdl.h` promises for a WDL probe: a score in -2..2.
@@ -2286,6 +2298,7 @@ int main(void) {
     test_timeman_zero_clock();
     test_timeman_time_advantage();
     test_timeman_nodestime_cycle();
+    test_conthist_scale_table();
     test_movepick_poison();
     test_nnue_parse_poison();
     test_nnue_leb_roundtrip();

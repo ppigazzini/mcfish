@@ -12,7 +12,9 @@
 #include "../board/movegen.h"
 #include "../eval/evaluate.h"
 
+#include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -525,20 +527,6 @@ static inline int stat_malus(int depth) {
 // positive_count in search_update_continuation_histories.
 static constexpr int CmhcMultipliers[7] = { 94, 103, 110, 106, 119, 126, 121 };
 
-// Compute the per-entry continuation-history update delta.
-//
-// The weights below and this divisor are halved together against the values
-// upstream carried before `47be34c5`, which is exact for both signs -- truncation
-// toward zero commutes with the exact halving of the product -- and it buys the
-// headroom that made the old form overflow `int` on a deep enough bonus. Leave
-// the arithmetic signed and unguarded, as upstream does: a future retune that
-// overflows it again is a UBSan failure in `./build.sh test` rather than a silent
-// wrap this port would then have to reproduce.
-static inline int conthist_delta(int bonus, int weight, int positive_count, int i) {
-    const int multiplier = CmhcMultipliers[positive_count];
-    return bonus * weight * multiplier / 65536 + 73 * (int) (i < 2);
-}
-
 typedef struct {
     int i;  // plies back from the walk's base
     int w;
@@ -548,7 +536,90 @@ static constexpr ConthistBonus ConthistBonuses[6] = {
     { 1, 520 }, { 2, 390 }, { 3, 145 }, { 4, 251 }, { 5, 66 }, { 6, 209 },
 };
 
-void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, int bonus) {
+// Fold the weight and the consistency multiplier into ONE u16 scale.
+//
+// THE TYPE IS THE WHOLE POINT. `shared_stats_update` clamps its delta to
+// +-HIST_LIMIT_CONTINUATION, and until upstream's `47be34c5` no compiler emitted
+// that clamp here: the product was an `int`, signed overflow is undefined so its
+// range is INT_MAX, and the divisor of 131072 carried that down to 16383 -- under
+// the limit, so the comparison's ranges could not meet and the clamp folded away.
+// Halving the divisor to 65536 doubles the bound to 32767, which is ABOVE the
+// limit of 30000, and six unrolled copies of the clamp came back.
+//
+// A u16 scale restores the proof soundly. It bounds the multiplier at 65535 where
+// an `int` bounds it only at INT_MAX, so a caller that bounds the bonus bounds the
+// quotient: |bonus * scale / 65536| <= |bonus|. The widest entry is 520 * 126 =
+// 65520, so the fold costs no range.
+//
+// THE PRODUCTS ARE WRITTEN OUT, and that is a portability requirement rather than
+// a preference: building this table by subscripting the two arrays above is an
+// integer constant expression to clang and is NOT one to gcc, which refuses the
+// `constexpr` initializer outright. Folding at run time instead is portable and
+// was measured -- it costs 0.030% of instructions and, because the two-multiply
+// chain inflates the six unrolled steps, 2.6% of L1 instruction misses. A table
+// is worth keeping at the price of writing its entries down.
+//
+// The price is a SECOND OWNER for every weight and multiplier, and that is what
+// `test_conthist_scale_table` retires: it recomputes all 42 products from the two
+// arrays and compares. A retune that moves one number and forgets the other is a
+// test failure rather than a silently wrong history update.
+//
+// Do NOT restore the old divisor to get the old proof back -- that bound was never
+// sound. Upstream's own reproducer overflows the product under `-ftrapv`, which is
+// what `47be34c5` fixed; the speed it bought was undefined behaviour rather than
+// work avoided.
+static constexpr uint16_t ConthistScale[6][7] = {
+    { 48880, 53560, 57200, 55120, 61880, 65520, 62920 },  // 520
+    { 36660, 40170, 42900, 41340, 46410, 49140, 47190 },  // 390
+    { 13630, 14935, 15950, 15370, 17255, 18270, 17545 },  // 145
+    { 23594, 25853, 27610, 26606, 29869, 31626, 30371 },  // 251
+    { 6204, 6798, 7260, 6996, 7854, 8316, 7986 },         // 66
+    { 19646, 21527, 22990, 22154, 24871, 26334, 25289 },  // 209
+};
+
+// Report whether every entry above is still the product the two arrays name.
+// Exported for the unit suite alone; nothing in the engine calls it.
+bool conthist_scale_table_agrees(void) {
+    for (size_t b = 0; b < 6; ++b)
+        for (size_t m = 0; m < 7; ++m)
+            if ((int) ConthistScale[b][m] != ConthistBonuses[b].w * CmhcMultipliers[m])
+                return false;
+    return true;
+}
+
+// The tail the delta adds after the divide, at the two nearest frames.
+static constexpr int CONTHIST_NEAR_FRAME_BONUS = 73;
+
+// The largest bonus for which the delta provably cannot reach the clamp, derived
+// from the limit rather than written down: with a u16 scale the quotient is at
+// most the bonus itself, so the tail is all that has to be left over.
+static constexpr int CONTHIST_BONUS_BOUND = HIST_LIMIT_CONTINUATION.v - CONTHIST_NEAR_FRAME_BONUS;
+
+// Hold the derivation the fast arm below rests on, in the widest type, so a retune
+// of either constant is a compile error rather than a silently returning clamp.
+static_assert((int64_t) CONTHIST_BONUS_BOUND * UINT16_MAX / 65536 + CONTHIST_NEAR_FRAME_BONUS
+                <= HIST_LIMIT_CONTINUATION.v,
+              "a bounded conthist bonus must not reach the continuation limit");
+
+// Compute the per-entry continuation-history update delta.
+//
+// The weights and this divisor are halved together against the values upstream
+// carried before `47be34c5`, which is exact for both signs -- truncation toward
+// zero commutes with the exact halving of the product -- and it buys the headroom
+// that made the old form overflow `int` on a deep enough bonus. Leave the
+// arithmetic signed and unguarded, as upstream does: a future retune that
+// overflows it again is a UBSan failure in `./build.sh test` rather than a silent
+// wrap this port would then have to reproduce.
+static inline int conthist_delta(int bonus, size_t b, int positive_count, int i) {
+    return bonus * ConthistScale[b][positive_count] / 65536
+         + CONTHIST_NEAR_FRAME_BONUS * (int) (i < 2);
+}
+
+// Walk the six frames. Taken twice below, so it must inline at both call sites:
+// the whole point is that ONE of the two copies carries a proved bound on `bonus`
+// and the other does not.
+[[gnu::always_inline]] static inline void
+conthist_walk(const Stack *ss, Piece pc, Square to, int bonus, bool bounded) {
     int positive_count = 0;
 
     for (size_t b = 0; b < 6; ++b) {
@@ -563,10 +634,36 @@ void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, 
         if (shared_stat_load(entry) > 0)
             ++positive_count;
 
-        const int delta =
-          conthist_delta(bonus, ConthistBonuses[b].w, positive_count, ConthistBonuses[b].i);
-        shared_stats_update(entry, delta, HIST_LIMIT_CONTINUATION);
+        const int delta = conthist_delta(bonus, b, positive_count, ConthistBonuses[b].i);
+        // `bounded` is a constant at both call sites and the walk is always_inline,
+        // so this selects the entry point rather than branching on it.
+        if (bounded)
+            shared_stats_update_bounded(entry, delta, HIST_LIMIT_CONTINUATION);
+        else
+            shared_stats_update(entry, delta, HIST_LIMIT_CONTINUATION);
     }
+}
+
+// The same walk with the clamp kept, out of line because it is the arm the bonus
+// does not reach.
+[[gnu::noinline, gnu::cold]] static void
+conthist_walk_unbounded(const Stack *ss, Piece pc, Square to, int bonus) {
+    conthist_walk(ss, pc, to, bonus, false);
+}
+
+void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, int bonus) {
+    // Two arms running the same walk. The bonus reaching here is far below the
+    // bound -- the whole default bench peaks at 17276 -- so the second arm is the
+    // one that is never taken, and the branch buys the first arm a range the clamp
+    // in `shared_stats_update` cannot meet.
+    //
+    // A clamp on the bonus would NOT do: the six scales differ, so clamping would
+    // change the frames whose scale is small and whose delta never approached the
+    // limit. The bound has to be proved, not imposed.
+    if (bonus >= -CONTHIST_BONUS_BOUND && bonus <= CONTHIST_BONUS_BOUND)
+        conthist_walk(ss, pc, to, bonus, true);
+    else
+        conthist_walk_unbounded(ss, pc, to, bonus);
 }
 
 void search_update_quiet_histories(

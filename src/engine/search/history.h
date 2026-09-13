@@ -25,6 +25,7 @@
 #include "../board/position.h"
 #include "../board/types.h"
 
+#include <assert.h>
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -160,6 +161,27 @@ static inline void shared_stat_store(SharedStat *entry, int16_t value) {
     atomic_store_explicit(entry, value, memory_order_relaxed);
 }
 
+// Apply the same gravity for a bonus the CALLER has already proved is inside
+// [-D, D], so the clamp above is a comparison whose arms can never be taken.
+//
+// This exists because the proof is not one a compiler reliably rediscovers. A
+// caller that bounds its bonus gives clang the range at -O3 on some tiers and not
+// on others -- the bound reaches this code through inlining and branch-range
+// propagation, and whether it survives depends on pass order, so the SAME source
+// folded the clamp at sse41 and kept all six copies at avx512icl. Stating the
+// precondition removes it at every tier instead of at the ones that happened to
+// infer it.
+//
+// The assert is the gate on the precondition: it is live in `./build.sh test` and
+// `./build.sh debug`, which drive real searches, and compiled out of the release
+// the anchor measures.
+static inline void shared_stats_update_bounded(SharedStat *entry, int bonus, HistLimit d) {
+    assert(bonus >= -d.v && bonus <= d.v);
+    const int val = shared_stat_load(entry);
+    const int abs_bonus = bonus < 0 ? -bonus : bonus;
+    shared_stat_store(entry, (int16_t) (val + bonus - val * abs_bonus / d.v));
+}
+
 // Update ENTRY by gravity toward [-D, D], as `stats_update` does, through relaxed atomic
 // accesses. This is NOT an atomic read-modify-write, and upstream's `operator<<` on a
 // RelaxedAtomic is not one either: two workers updating one entry can lose one of the two
@@ -168,9 +190,7 @@ static inline void shared_stat_store(SharedStat *entry, int16_t value) {
 static inline void shared_stats_update(SharedStat *entry, int bonus, HistLimit d) {
     const int lim = d.v;
     const int clamped = bonus < -lim ? -lim : (bonus > lim ? lim : bonus);
-    const int val = shared_stat_load(entry);
-    const int abs_clamped = clamped < 0 ? -clamped : clamped;
-    shared_stat_store(entry, (int16_t) (val + clamped - val * abs_clamped / lim));
+    shared_stats_update_bounded(entry, clamped, d);
 }
 
 // Bundle the four correction entries stored per (key, color) slot.

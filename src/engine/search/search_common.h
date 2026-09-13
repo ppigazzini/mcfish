@@ -88,6 +88,13 @@ int futility_return(int beta, int eval);
 
 int razor_margin(int depth);
 
+// Report whether the folded continuation-history scale table still equals the
+// product of the weight and multiplier arrays it was written down from. The table
+// has to be spelled out because gcc refuses a `constexpr` initializer that
+// subscripts another `constexpr` object; this is what keeps the two spellings from
+// drifting apart. For the unit suite -- the engine never calls it.
+bool conthist_scale_table_agrees(void);
+
 int null_move_threshold(int beta, int depth, bool improving);
 int null_move_reduction(int depth, int static_eval, int beta);
 int nmp_min_ply_of(int ply, int depth, int r);
