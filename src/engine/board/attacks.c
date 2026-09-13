@@ -299,9 +299,13 @@ DualAttacks both_attacks_bb(Square s, Bitboard occupied) {
     const Bitboard rank_attacks =
       (Bitboard) m->rank_attacks_lookup[(occupied >> (m->shift + 1)) & 0x3f] << m->shift;
 
+    // Take the rook's file rays from lane 0 of `result` rather than from the OR: the
+    // rank lane is ZERO at this tier, so the OR contributes nothing to the low half and
+    // reading past it takes the file rays off the subtract-xor directly. The bishop
+    // still needs the fold, but it no longer stands between the file rays and the add.
     return (DualAttacks) {
         .bishop = (Bitboard) _mm_extract_epi64(rook_bishop, 1),
-        .rook = (Bitboard) _mm_cvtsi128_si64(rook_bishop) + rank_attacks,
+        .rook = (Bitboard) _mm_cvtsi128_si64(_mm256_castsi256_si128(result)) + rank_attacks,
     };
     #endif
 #else
