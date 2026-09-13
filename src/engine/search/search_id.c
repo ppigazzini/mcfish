@@ -188,6 +188,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
     history_age_main(ctx->hist);
 
     int search_again_counter = 0;
+    int fail_high_recovery = 0;
     bool uci_pv_sent = false;
 
     while (ctx->root_depth + 1 < MAX_PLY && !id_stopped(ctx)
@@ -241,9 +242,11 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
             ctx->optimism[flip_color(us)] = -ctx->optimism[us];
 
             int failed_high_cnt = 0;
+            if (ctx->pv_idx == 0)
+                fail_high_recovery = fail_high_recovery - 2 > 0 ? fail_high_recovery - 2 : 0;
             for (;;) {
-                const int raw_depth =
-                  ctx->root_depth - failed_high_cnt - 3 * (search_again_counter + 1) / 4;
+                const int raw_depth = ctx->root_depth - failed_high_cnt - fail_high_recovery
+                                    - 3 * (search_again_counter + 1) / 4;
                 const int adjusted_depth = raw_depth > 1 ? raw_depth : 1;
                 ctx->root_delta = beta - alpha;
                 best_value =
@@ -276,6 +279,10 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
 
                 delta = aspiration_delta_grow(delta);
             }
+
+            // Gradually increase depth after reduced depth search
+            if (failed_high_cnt > 0 && ctx->pv_idx == 0)
+                fail_high_recovery = (failed_high_cnt + 1) / 2 + 2;
 
             // In MultiPV analysis, do not let an aborted line spoil a proven loss
             // from a completed earlier line, and do not trust an exact loss score
