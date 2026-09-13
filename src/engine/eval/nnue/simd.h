@@ -304,6 +304,42 @@ static inline uint32_t nnue_v16u32_movemask(NnueV16u32 v) {
     return mask;
 #endif
 }
+// The same 16-bit mask for a vector whose every lane is a NON-NEGATIVE i32.
+//
+// The premise buys the four compares. Where the generic form above must ask each
+// dword "are you zero?" before it can narrow 0/-1 masks down to bytes, a lane that
+// cannot have its sign bit set narrows as a VALUE: signed saturation carries
+// non-zero without carrying a sign, because it can only move a positive lane to a
+// smaller positive one and leaves zero at zero. So the two 32->16 packs and the
+// 16->8 pack run on the data itself, and ONE byte-width compare at the end turns
+// what survived into sign bits for pmovmskb. Five ops against nine.
+//
+// THE CALLER OWNS THE PREMISE and it is not checkable here. Its one caller is the
+// transform's sse41 step, where each lane is four clipped-ReLU product bytes: the
+// operands are clipped to 255, the first is shifted left 7, so the mulhi is at most
+// (255 << 7) * 255 >> 16 = 127 and the top byte of the group cannot reach 128.
+// Anything else must use nnue_v16u32_movemask.
+static inline uint32_t nnue_v16u32_movemask_nonneg(NnueV16u32 v) {
+#if MCFISH_SIMD_VECTOR && defined(__SSE2__) && !defined(__AVX2__)
+    typedef uint32_t NnueV4u32Chunk __attribute__((vector_size(16)));
+    const NnueV4u32Chunk c0 = __builtin_shufflevector(v, v, 0, 1, 2, 3);
+    const NnueV4u32Chunk c1 = __builtin_shufflevector(v, v, 4, 5, 6, 7);
+    const NnueV4u32Chunk c2 = __builtin_shufflevector(v, v, 8, 9, 10, 11);
+    const NnueV4u32Chunk c3 = __builtin_shufflevector(v, v, 12, 13, 14, 15);
+    // packs_epi32 concatenates its operands in order and so does packs_epi16, so the
+    // sixteen bytes leave in group order and bit g of the mask is group g -- the same
+    // bit assignment the generic form produces.
+    const __m128i w01 = _mm_packs_epi32((__m128i) c0, (__m128i) c1);
+    const __m128i w23 = _mm_packs_epi32((__m128i) c2, (__m128i) c3);
+    const __m128i bytes = _mm_packs_epi16(w01, w23);
+    return (uint32_t) _mm_movemask_epi8(_mm_cmpgt_epi8(bytes, _mm_setzero_si128()));
+#else
+    // Every other target already has a shorter form, or none of its own: AVX2 harvests
+    // sign bits per dword with vmovmskps and needs no narrowing at all.
+    return nnue_v16u32_movemask(v);
+#endif
+}
+
 
 // Affine post-activation tile: 16 int32_t lanes for the clipped-ReLU sweep, plus an
 // 8-lane tile the psqt refresh path pins to NNUE_PSQT_BUCKETS.
