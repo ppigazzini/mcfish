@@ -183,8 +183,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         && (cut_node == (tt_value >= beta) || depth > 4)) {
         if (tt_move != MOVE_NONE && tt_value >= beta) {
             if (!tt_capture)  // upstream 73826352d
-                search_update_quiet_histories(ctx, pos, ss, tt_move,
-                                              112 * depth < 695 ? 112 * depth : 695);
+                search_update_quiet_histories(ctx, pos, ss, tt_move, 131 * depth);
             if (prev_sq != (int) SQ_NONE && ss1->move_count < 5 && !prior_capture)
                 search_update_continuation_histories(ss1, piece_on(pos, (Square) prev_sq),
                                                      (Square) prev_sq, -2210);
