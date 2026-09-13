@@ -161,7 +161,7 @@ void search_id_state_init(SearchIdState *id,
     // A sibling has no SearchManager, so TM is null and every field derived from it stays
     // zero. That is safe rather than lucky: the whole time-management block is behind
     // `!main_thread -> continue`, so a worker with no manager never reads one of them.
-    // Upstream says the same with a NullSearchManager whose one virtual does nothing.
+    // Upstream's siblings carry the same null manager pointer.
     if (tm != nullptr) {
         id->tm_optimum = tm->optimum_time;
         id->tm_maximum = tm->maximum_time;

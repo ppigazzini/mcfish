@@ -288,7 +288,8 @@ static void sibling_search(void *ctx) {
 
     SearchIdState id;
     // Pass no manager: a sibling has none, so check_time returns before touching any of
-    // its fields and the emit path stays silent. That is upstream's NullSearchManager.
+    // its fields and the emit path stays silent. Upstream's siblings carry the same
+    // null manager pointer.
     search_id_state_init(&id, &w->ctx, nullptr, nullptr, nullptr, pool_increase_depth());
     id.thread_idx = w->thread_idx;
     id.is_main = false;

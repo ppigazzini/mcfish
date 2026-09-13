@@ -38,10 +38,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Hold the bookkeeping ONLY thread 0 has. Upstream gives the siblings a
-// NullSearchManager whose one virtual does nothing; here a null `manager` says the same
-// with no call. Every field is per-game or per-search state of the MANAGER, not of the
-// tree, which is why a sibling needs none of it.
+// Hold the bookkeeping ONLY thread 0 has. Upstream hands the siblings a null manager
+// pointer and this tree does the same. Every field is per-game or per-search state of
+// the MANAGER, not of the tree, which is why a sibling needs none of it.
 //
 // `ponder` is polled by the search while the input thread writes it, so the two accesses
 // to the one location are both atomic.
