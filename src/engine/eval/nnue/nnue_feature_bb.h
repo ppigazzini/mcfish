@@ -79,9 +79,6 @@ static inline unsigned nnue_bb_pop_lsb(uint64_t *bitboard) {
 // Shift the whole set one step in DIR, dropping the bits that wrap off the board.
 uint64_t nnue_bb_shift(int8_t dir, uint64_t bitboard);
 
-// Return COLOR's single push together with its two attacks from SQUARE.
-uint64_t nnue_bb_pawn_push_or_attacks(uint8_t color, unsigned square);
-
 // Return COLOR's two diagonal attacks from SQUARE, without the push square. This is
 // what the SFNNv16 threat feature set enumerates a pawn's targets over: the
 // pawn-in-front (pusher) input went away when pawn-pawn relationships moved to the
