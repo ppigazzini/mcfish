@@ -34,13 +34,17 @@ a little and by a different amount each run, which is why its node check is a ba
 
 [`worker_pool.c`](../src/platform/worker_pool.c) is the driver: it owns
 the pool, one `SearchWorker` per thread, one shared history bank per occupied NUMA
-node, the summed counters and the thread vote.
+node, the summed counters, and the worker set the vote scans.
 [`search.c`](../src/engine/search/search.c) sets every worker up on the root,
-starts the siblings, searches thread 0 on the calling thread, joins, and votes.
+starts the siblings, searches thread 0 on worker 0's OS thread, joins, and votes
+through `search_worker_best` in
+[`worker_set.c`](../src/engine/search/worker_set.c).
 
-**Thread 0 runs on the calling thread.** Its OS thread is spawned and left parked.
-`search_go` blocks, so the caller has a thread to spare; upstream hands thread 0 a
-job only because its `go` returns immediately. The tree is the same either way.
+**Thread 0 runs on worker 0's own OS thread.** `search_go_start` dispatches onto
+it and returns, so the UCI thread stays free to read `stop`, `quit` or
+`ponderhit`; `search_go` is `search_go_start` plus `search_wait`, for the
+synchronous callers. This is upstream's shape for upstream's reason: its `go`
+returns immediately too.
 
 ## Modules
 
@@ -49,10 +53,12 @@ job only because its `go` returns immediately. The tree is the same either way.
 | [`thread_runtime.c`](../src/platform/thread_runtime.c) | the mutex / condition-variable / atomic primitives |
 | [`thread.c`](../src/platform/thread.c) | one OS thread and its idle-loop handshake |
 | [`thread_pool.c`](../src/platform/thread_pool.c) | the worker pool, the shared stop flag, the NUMA binding plan |
-| [`numa.c`](../src/platform/numa.c) | the topology model, thread distribution, the replication registry |
+| [`numa.c`](../src/platform/numa.c) | the topology model and thread distribution |
+| [`numa_replication.c`](../src/platform/numa_replication.c) | the `NumaReplicationContext`: the config it installs, the replication registry, and `numa_execute_on_node` |
 | [`memory.c`](../src/platform/memory.c) | large-page aligned allocation and the page-allocator seam |
 | [`../src/engine/state/`](../src/engine/state) | the per-worker `SearchWorker` block and its construction |
-| [`worker_pool.c`](../src/platform/worker_pool.c) | the worker set, the shared banks, the counter sums, the vote |
+| [`worker_pool.c`](../src/platform/worker_pool.c) | the worker set, the shared banks, the counter sums |
+| [`worker_set.c`](../src/engine/search/worker_set.c) | the engine-side view of the set, and `search_worker_best` — the vote |
 | [`pool_source.h`](../src/engine/search/pool_source.h) | the seam through which the search reads the pool's totals |
 
 Goldens: upstream `thread.cpp` / `thread.h` for the pool and the idle loop,
@@ -130,13 +136,17 @@ Clearing the shared tables is **striped**: each worker takes
 table, which is why the single-threaded clear matches upstream whether or not the
 stripe is honoured — and why it must still be honoured, or two workers race and a
 third range is never cleared at all. The continuation block is deliberately *not*
-striped: upstream has every worker fill all of it.
+striped either: every entry takes the same value, so thread 0 of each NUMA node
+fills the whole block alone with plain, vectorizable stores. That is equivalent
+to upstream's every-worker fill, and race-free because `thread_pool_set` joins
+every worker build before a search begins.
 
 ### Reading the pool's totals
 
-Upstream reads `threads.nodes_searched()` / `tb_hits()` at exactly five places —
-`check_time`, `Worker::elapsed`, `output_pv`, the `nodes as time` settle, and the
-best-move-change collection — and the worker's own counter everywhere else. The
+Upstream draws a POOL TOTAL at five places — `check_time`, `Worker::elapsed`,
+`output_pv` and the `nodes as time` settle read `threads.nodes_searched()` /
+`tb_hits()`, and the best-move-change collection sums every worker's own counter
+directly — and reads the worker's own counter everywhere else. The
 distinction is not cosmetic: a value drawn from the pool sum depends on when the
 siblings were scheduled, so **no search decision may be taken on one**.
 
@@ -171,8 +181,9 @@ whole engine opt out, the in-tree abort checks that spell `memory_order_relaxed`
 explicitly. Making every access relaxed is not a free optimisation — `stop` is
 raised by one thread and must be seen by every other worker's depth loop, and
 under relaxed ordering the compiler may hoist the load out of that loop
-entirely. `atomic_bool_load_relaxed` exists for the two sites upstream names and
-nowhere else.
+entirely. The pool's own accessors are seq_cst; the engine reads the flags
+through the raw `atomic_bool *` the pool hands it, relaxed, at exactly those
+abort checks and at the ID loop's ponder and increase-depth reads.
 
 The per-worker counters go the other way: `nodes`, `tb_hits` and
 `best_move_changes` are relaxed, because upstream wraps them in `RelaxedAtomic`
@@ -215,7 +226,7 @@ whole box.
 `numa_config_to_string` in `numa.c`) renders the installed topology, and
 `worker_pool_thread_binding_string` renders the `"placed/cpus"`-per-node split
 joined by `:`, returning `nullptr` when nothing is bound. `src/shell/engine.c`'s
-`engine_report_threads` prints both before every `go` (skipped for `go perft`),
+`engine_report_threads` prints both before every `go`, `go perft` included — upstream emits them on the `go` line before it parses an argument — and only `bench`'s internal `go` suppresses them;
 and `engine_options.c`'s `on_numa_policy`/`thread_allocation_string` print the
 same pair from the `NumaPolicy`/`Threads` `setoption` callbacks — see
 [07-shell.md](07-shell.md). An invalid `NumaPolicy` value is refused with
@@ -277,7 +288,7 @@ For the record, in the order the dependencies forced:
 
 **`bench` is single-threaded, so every gate that reads a node count stays green
 while a data race is live and while contention is getting worse.** These are the
-ones that do not — and two of the four report on a thread count rather than on a
+ones that do not — and one of the four reports on a thread count rather than on a
 value, because that is the only thing a one-threaded gate cannot fake.
 
 | step | what it proves here | owned by |
