@@ -569,9 +569,15 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         // Steps 19 and 20 are the two branches below it: the full-depth search
         // when LMR is skipped, and the PV window on the first move or a fail-high.
         if (depth >= 2 && move_count > 1) {
-            const int reduced = new_depth - r / 1024;
-            const int capped = reduced < new_depth + 2 ? reduced : new_depth + 2;
-            const int d = (capped > 1 ? capped : 1) + (int) pv_node;
+            // Cap the reduced depth at new_depth, but let a negative reduction
+            // extend a limited distance past the first move's depth. Withdraw
+            // that allowance deep relative to root_depth, or a chain of
+            // extensions runs to MAX_PLY.
+            const int deepen_cap = ss->ply < 2 * ctx->root_depth ? 2 : 0;
+            const int deepen = -r / 1024;
+            const int allowed = deepen < deepen_cap ? deepen : deepen_cap;
+            const int reached = new_depth + allowed;
+            const int d = (reached > 1 ? reached : 1) + (int) pv_node;
             ss->reduction = new_depth - d;
             value =
               (Value) -search_node_nonpv(ctx, pos, ss + 1, (Value) - (alpha + 1), -alpha, d, true);
