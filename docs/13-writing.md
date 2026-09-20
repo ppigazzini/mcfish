@@ -108,7 +108,8 @@ thinks to grep the docs for a number.
 **State the limit.** A doc that omits its own boundary invites over-trust. Say
 what the thing does *not* cover: `zone-check` cannot see the engine→platform
 edge; a 127 is a skipped gate; the golden-diff's
-`normalize()` elides four fields that no golden then guards.
+`normalize()` replaces ten volatile values, so their LINES are still compared but
+nothing guards what they contained.
 
 **Show the command.** "It is faster" is not a claim; `./build.sh bench 8` output
 before and after is. A performance or behaviour claim ships with what produced it.
@@ -306,7 +307,10 @@ worktrees carry no claims it owns — and fails on:
 - **A backticked `snake_case` symbol absent from the whole tree.**
 - **A `build.sh` step no tracked page mentions**, and its reverse: a shipped file
   that says `./build.sh <step>` for a step `build.sh` does not dispatch.
-- **A page under `docs/` with no `## The gates` section**, a step in no page's
+- **A page under `docs/` with no `## The gates` section** — unless it is on the
+  two-entry gateless list (`12-references.md`, `14-glossary.md`), an exemption
+  that expires in its own direction, since a listed page that grows a section is
+  reported as a stale exemption. Also: a step in no page's
   gates table, or a row routing a step to a page whose own table does not name
   it. Mentioning a step somewhere in the prose is not the same as being routed
   to, which is what the check above settles for and this one does not.
