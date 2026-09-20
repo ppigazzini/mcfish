@@ -63,6 +63,9 @@ stream, which is the entanglement the split exists to remove.
 - [`ucioption.c`](../src/shell/ucioption.c) — the typed option-table container.
 - [`benchmark.c`](../src/shell/benchmark.c) and its data
   [`bench_positions.c`](../src/shell/bench_positions.c) — the fixed bench.
+- [`speedtest.c`](../src/shell/speedtest.c) and its data
+  [`speedtest_positions.c`](../src/shell/speedtest_positions.c) — the throughput
+  replay: five games, the movetime fit, and the three clamped arguments.
 - [`syzygy_option.c`](../src/shell/syzygy_option.c) — the Syzygy option delegate.
 
 `engine.h` is a facade: `uci.c` drives one seam (`engine_*`), and `engine.c` forwards
@@ -201,7 +204,7 @@ installs those two sinks on the session with `engine_set_output`.
   `./build/mcfish "go depth 5"` both work, which is what
   [`../build.sh`](../build.sh) relies on for the `bench` and `signature` steps.
 - **Interactive mode.** `getline` reads a whole line however long, until `quit` or
-  EOF — upstream's unbounded `std::getline` (uci.cpp:106), so a `position ... moves`
+  EOF — upstream's unbounded `std::getline` (uci.cpp:104), so a `position ... moves`
   line past any fixed bound is not split across reads and run as fragments.
 
 `execute` skips leading whitespace, splits the first word off as the command, and
@@ -223,7 +226,7 @@ is why `strtok` is usable at all.
 | `flip` | Mirror the position color-flipped, via `engine_flip`. |
 | `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`, then the `Tablebases WDL:`/`DTZ:` lines when the position is small enough and has no castling rights. The key printed is the **rule50-adjusted** one (`pos_adjust_key50_of`), which is what upstream's `Position::key()` returns; below a halfmove clock of 14 the adjustment is the identity, which is why every bench position and every golden case saw the raw key agree. See [05-tablebases.md](05-tablebases.md). |
 | `bench` | `bench <tt> <threads> <limit> <fen file> <limit type>`, each field defaulting when the line runs dry. The limit type is upstream's own set — `depth`, `nodes`, `movetime`, `perft`, `eval` — and becomes the command run per position, so `perft` and `eval` are not searches at all. |
-| `speedtest [threads] [ttSize] [seconds]` | Replay five real games — 258 positions, [`../src/shell/speedtest_positions.c`](../src/shell/speedtest_positions.c) — at a per-ply movetime scaled so the whole run lasts the requested time (default: the host's core count, 128 MiB per thread, 150 s), then report throughput. Not `bench`: that one fixes a **depth** and its node total is the anchor; this one fixes a **time** and reports nodes per second, which no golden can pin. Every line goes to **stderr**, and the search is silenced for the duration (option messages are not, as upstream leaves them). Gated for shape by `./build.sh speedtest-check`. **Each of the three arguments is clamped to the range the thing it feeds accepts, and the clamp is reported**: `desiredTimeS * 1000` and `TT_SIZE_PER_THREAD * threads` are both `int` multiplications on a number a user typed, and both overflowed — the first making the scale factor negative so every `go movetime` got a negative argument, the second emitting `setoption name Hash value -84901888`, which the option table refused while the run measured whatever `Hash` was already set. The `User invocation` echo still shows what was typed; `Filled invocation` shows what ran. |
+| `speedtest [threads] [ttSize] [seconds]` | Replay five real games — 258 positions, [`../src/shell/speedtest_positions.c`](../src/shell/speedtest_positions.c) — at a per-ply movetime scaled so the whole run lasts the requested time (default: the host's core count, 128 MiB per thread, 150 s), then report throughput. Not `bench`: that one fixes a **depth** and its node total is the anchor; this one fixes a **time** and reports nodes per second, which no golden can pin. The REPORT goes to **stderr**, and the search is silenced for the duration; the clamp notices and the option messages go to stdout, as upstream leaves them. Gated for shape by `./build.sh speedtest-check`. **Each of the three arguments is clamped to the range the thing it feeds accepts, and the clamp is reported**: `desiredTimeS * 1000` and `TT_SIZE_PER_THREAD * threads` are both `int` multiplications on a number a user typed, and both overflowed — the first making the scale factor negative so every `go movetime` got a negative argument, the second emitting `setoption name Hash value -84901888`, which the option table refused while the run measured whatever `Hash` was already set. The `User invocation` echo still shows what was typed; `Filled invocation` shows what ran. |
 | `eval` | Print the evaluation trace via `evaluate_trace`. |
 | `compiler` | Print the clang or gcc version and `__STDC_VERSION__` the binary was built with. |
 | `ponderhit` | Clear the ponder flag, so a `go ponder` search begins enforcing its time limits. |
@@ -357,7 +360,7 @@ search, and a divergence from the moment the search moved onto worker 0.
 FIELD's type and upstream turns that failbit into a critical error on the next line,
 so the width is observable from a GUI: `int` for `depth`/`perft`, and for
 `mate`/`movestogo` a width check followed by a BOUND (below),
-`TimePoint` (int64) for the four clocks, `u64` for `nodes` — read the way a C++
+`TimePoint` (int64) for the five clocks — `movetime` and the four game clocks — `u64` for `nodes` — read the way a C++
 stream reads one, where a leading minus is accepted and the magnitude wraps, so `go
 nodes -1` is a budget of `UINT64_MAX`. `go depth 3000000000` is `Invalid argument for
 'depth'` and terminates; `go nodes 18446744073709551615` searches.
@@ -523,8 +526,9 @@ Stockfish's bench positions, kept verbatim, at a fixed depth, and returns the no
 total. The transposition table, the history block and the per-game manager scalars
 are cleared **once**, by a single `ucinewgame` before the first position, and then
 CARRY across every position in the run — clearing per position would be a
-different search and a different number. Golden: `Stockfish/src/benchmark.cpp:430`
-(`setup_bench`) and `Stockfish/src/uci.cpp:243` (`UCIEngine::bench`).
+different search and a different number. Golden: `Stockfish/src/benchmark.cpp:435`
+(the single `ucinewgame` in `setup_bench`, which opens at `:395`) and
+`Stockfish/src/uci.cpp:248` (`UCIEngine::bench`).
 
 That single clear is still what makes the total a property of the engine rather
 than of the run: it is the same script every time, so the same TT/history state
@@ -566,8 +570,10 @@ private one that could drift from it.
 ## The gates
 
 The shell is the only zone with an observable surface, so most of what holds it
-compares BYTES. Four of the six are differentials against the oracle or against a
-committed transcript; the other two hold the corpus those differentials read.
+compares BYTES. Seven are this page's own: three are differentials against the
+oracle or against a committed transcript, two hold the corpus those differentials
+read, and two — `speedtest-check` and `async-check` — assert invariants over
+output no golden can pin.
 
 | step | what it proves here | owned by |
 |---|---|---|
@@ -588,8 +594,11 @@ committed transcript; the other two hold the corpus those differentials read.
 and stderr, pipes the result through `normalize()`, and diffs against
 `tools/<name>.golden`.
 
-The cases cover the board dump, malformed input, the eval trace, the UCI
-handshake, perft output, and a search transcript.
+The twenty cases in `tools/cases/` cover the board dump, the handshake, malformed
+input and FEN boundaries, the position parser, the `go` grammar and its argument
+widths, the eval trace, perft output, search transcripts, Chess960, `compiler`,
+net swap, hash failure, `ucinewgame` and the rule50 key. `golden-coverage` holds
+the set in both directions.
 
 #### normalize(), and what it costs
 
@@ -605,9 +614,14 @@ sed -E 's/ nps [0-9]+//; s/ time [0-9]+//;
         s/^Nodes\/second *: [0-9]+$/Nodes\/second    : <elided>/'
 ```
 
-Four fields, all wall-clock derived, all elided. A golden must pin **behaviour**,
-not the speed of the machine that produced it; without this, every golden fails on
-a runner faster or slower than the developer's.
+That is the first of eight stages, and ten substitutions in all. These four are
+wall-clock derived; the rest replace what the MACHINE or the TOOLCHAIN decides —
+the identity banner, the two `compiler` identity lines, the processor list, the
+NUMA binding suffix — plus one declared GAP, the `Network replica N` backing
+word, which `do_golden` expires by asserting the raw line still says
+`Local memory.`. A golden must pin **behaviour**, not the speed or the make of
+the machine that produced it; read the whole file as the list of what no golden
+guards.
 
 **`nodes` is deliberately not normalized.** The node count is a deterministic
 function of the search, so it is exactly the field a golden should hold — eliding
