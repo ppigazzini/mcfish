@@ -25,7 +25,7 @@ Every module is in the build.
 | [`thread.c`](../src/platform/thread.c) | **yes** | **yes** | one OS thread and its idle-loop handshake |
 | [`thread_pool.c`](../src/platform/thread_pool.c) | **yes** | **yes** | the Lazy-SMP worker pool, the shared stop flag, the NUMA binding plan |
 | [`numa.c`](../src/platform/numa.c) | **yes** | **yes** | the NUMA topology model: `NumaConfig`, `from_system`, the L3-aware partition |
-| [`numa_replication.c`](../src/platform/numa_replication.c) | **yes** | **yes** | the `NumaReplicationContext` registry: `numa_context_init/attach/detach/set_config/execute_on_node/distribute_threads_among_nodes` |
+| [`numa_replication.c`](../src/platform/numa_replication.c) | **yes** | **yes** | the `NumaReplicationContext` registry: `numa_context_init`, `numa_context_attach`, `numa_context_detach`, `numa_context_set_config`, plus `numa_execute_on_node` and `numa_distribute_threads_among_nodes` |
 | [`worker_pool.c`](../src/platform/worker_pool.c) | **yes** | **yes** | constructs the pool; `Threads` above 1 runs that many workers over one root |
 | [`tablebase.c`](../src/platform/tablebase.c) | **yes** | **yes** | the Syzygy facade the engine and shell call |
 | [`syzygy/`](../src/platform/syzygy) | **yes** | **yes** | the prober: `tables.c`, `encode.c`, `decode.c`, `registry.c`, `wdl.c`, `probe.c` |
@@ -55,7 +55,7 @@ state moved to is [`src/engine/state/`](../src/engine/state).
 Hands back blocks that are 2 MiB-aligned and rounded up to whole large pages. The
 alignment is load-bearing: the NNUE accumulator reads it as a precondition. The
 contents are **not** initialised, exactly as upstream leaves them
-(`memory.cpp:129`). An allocator that zeroes looks harmless and is not — it lets a
+(`memory.cpp:153`). An allocator that zeroes looks harmless and is not — it lets a
 constructor that forgets a field read 0 and look correct, so the field is right only
 because the allocator hid the omission. `worker_create`
 ([`src/engine/state/worker_construct.c`](../src/engine/state/worker_construct.c))
@@ -96,7 +96,7 @@ memcheck reports a definite leak only for allocations it intercepts, so an anony
 mapping is outside both.
 
 That is measured rather than assumed. With `page_free_default` cut down to
-`(void) ptr;`, `./build.sh test`, `tools/valgrind.sh` and **all twenty gates in
+`(void) ptr;`, `./build.sh test`, `tools/valgrind.sh` and **every gate in
 `./build.sh parity`** pass over a build that never releases an arena.
 
 `memory_live_mappings` is the replacement: one counter, incremented on every
@@ -151,12 +151,14 @@ search zone.
 
 `stop` and `increase_depth` are **sequentially consistent**, and that is deliberate.
 Upstream's are plain `std::atomic_bool` assignments and reads (`thread.h:157`); only
-two sites in the whole engine opt out, the in-tree abort checks at `search.cpp:770`
-and `search.cpp:1403`, which spell `memory_order_relaxed` explicitly. Making every
+two sites in the whole engine opt out, the in-tree abort checks at `search.cpp:800`
+and `search.cpp:1457`, which spell `memory_order_relaxed` explicitly. Making every
 access relaxed is not a free optimisation — `stop` is raised by one thread and must be
 seen by every other worker's depth loop, and under relaxed ordering the compiler may
-hoist the load out of that loop entirely. `atomic_bool_load_relaxed` exists for the two
-sites upstream names and nowhere else. The per-worker counters go the other way:
+hoist the load out of that loop entirely. The pool's own `stop`/`increase_depth`
+accessors are seq_cst; the engine reads the flags through the raw `atomic_bool *`
+the pool hands it, relaxed, at the abort checks and at the ID loop's ponder and
+increase-depth reads. The per-worker counters go the other way:
 upstream wraps them in `RelaxedAtomic` (`misc.h:337`), so `AtomicU64` is relaxed.
 
 Driving the pool also fixes the shell's `stop` gap: nothing reads stdin while
@@ -174,18 +176,27 @@ answer arbitrary.
 A `NumaReplicationContext`, implemented whole in
 [`numa_replication.c`](../src/platform/numa_replication.c) (a separate
 translation unit from `numa.c`, which owns the topology model only), holds one
-config and a registry of replicated objects — the NNUE network is the live one.
-**Replacing the config notifies every registered object to re-replicate**, and
-that notification is the whole point of the registry; skipping it is how a
-`NumaPolicy` change becomes a silent no-op.
+config and a registry of replicated objects. **Replacing the config notifies
+every registered object to re-replicate**, and that notification is the whole
+point of the registry; skipping it is how a `NumaPolicy` change becomes a silent
+no-op. Nothing calls `numa_context_attach` today, though, so the registry is
+empty and the notification reaches nobody — the NNUE network is the object that
+should be in it. See [04-multithreading.md](04-multithreading.md) for what that
+costs.
 
 The topology is read from `/sys` rather than by linking libnuma, so the build keeps
 its no-dependencies property. It fails soft everywhere: no `/sys`, no nodes or a
 restricted affinity mask all degrade to one node holding every allowed CPU, which is a
-correct single-node run. An unparseable `NumaPolicy` string is the one case that does
-**not** degrade — it is refused, and the caller keeps the previous topology, because
-installing a config with zero nodes makes `distribute_threads` and
-`suggests_binding_threads` divide by a node count of zero.
+correct single-node run. Two cases do not degrade. A `NumaPolicy` string naming no node, or one that
+parses only in part, is refused and the caller keeps the previous topology,
+because installing a config with zero nodes makes `distribute_threads` and
+`suggests_binding_threads` divide by a node count of zero. And a binding the
+kernel REFUSES — a policy naming processors the machine does not have — ends the
+process with `EXIT_FAILURE`, in `thread_pool.c`'s `bind_job` and
+`numa_replication.c`'s `execute_on_node_entry`, because upstream's
+`bind_current_thread_to_numa_node` exits on every failure arm and an engine that
+reports a binding it never made tells the operator the opposite of what
+happened.
 
 **A string that parses only in PART is refused on the same ground**, and that is a
 deliberate divergence from the golden. Upstream's `indices_from_shortened_string`
@@ -200,8 +211,8 @@ keep the lenient reading, spelled at their call sites: a kernel file this reader
 cannot follow is not a reason to stop reading the ones it can.
 
 **The partition is L3-aware first.** Upstream's default policy is
-`BundledL3Policy{32}` (`engine.cpp:58`), and `from_system` tries the L3-aware config
-before falling back to the raw `/sys/devices/system/node` read (`numa.h:583`). This is
+`BundledL3Policy{32}` (`engine.cpp:57`), and `from_system` tries the L3-aware config
+before falling back to the raw `/sys/devices/system/node` read (`numa.h:593`). This is
 not a refinement: on a chiplet CPU one system NUMA node spans several L3 domains, so
 the raw partition reports **one** node where upstream reports one per bundle — a
 different thread distribution, a different number of shared-history banks, and a
@@ -211,17 +222,16 @@ on, merges them pairwise while a pair still fits in 32 CPUs, and emits one confi
 per surviving domain. `auto`, `system` and `hardware` all resolve to it; only the raw
 partition the L3 pass itself reads uses `SystemNumaPolicy`.
 
-**The policy-string grammar is upstream's, including what it forgives.**
-`indices_from_shortened_string` (`numa.h:1033`) never fails: an element it cannot read
-contributes nothing and the walk continues, so `0-1,7-3` is the node `{0,1}` rather
-than a rejected string. What *is* refused is a string naming no node at all
-(`numa.h:686`) and any CPU claimed twice — `add_cpu_to_node` opens with `if
-(is_cpu_assigned(c)) return false` (`numa.h:995`), which rejects a re-add even into the
-node that already holds the CPU. Matching both halves matters: a policy the two engines
-read differently is a topology they run differently.
+**What this tree refuses on upstream's own ground** is a string naming no node at
+all (`numa.h:688`) and any CPU claimed twice — `numa_config_add_cpu_to_node` opens
+with the same `is_cpu_assigned` test `add_cpu_to_node` does (`numa.h:1002`),
+rejecting a re-add even into the node that already holds the CPU. Matching those
+matters: a policy the two engines read differently is a topology they run
+differently. The partial-parse refusal above is the one place they diverge, and
+`indices_from_shortened_string` (`numa.h:1041`) is upstream's forgiving half.
 
 `numa_execute_on_node` runs its callback on a **throwaway thread** and joins it, as
-upstream's `execute_on_numa_node` does (`numa.h:957`). The binding is the point of the
+upstream's `execute_on_numa_node` does (`numa.h:960`). The binding is the point of the
 call and must not survive it — binding the caller instead confines whoever asked (the
 UCI thread, during a pool rebuild) to one node for the rest of the process, and every
 later allocation it makes first-touches that node. The same reasoning is why the
@@ -280,10 +290,10 @@ against no library and needs only the `-D_POSIX_C_SOURCE=200809L` that
 `CFLAGS_COMMON` already sets. The shell half is
 [`syzygy_option.c`](../src/shell/syzygy_option.c), which holds the four option
 values and binds `TbMaxCardinality` / `TbProbeFen` / `TbProbeWdlPos` and the three
-`OptionSyzygy*` readers; `uci.c` only dispatches to it.
+`OptionSyzygy*` readers; `engine_options.c` registers the four options and dispatches every set to it.
 
 `registry.c` **deviates from upstream on a corrupt file**: upstream
-(`syzygy/tbprobe.cpp:267`) prints `Corrupt tablebase file` and `exit()`s, while
+(`syzygy/tbprobe.cpp:283`) prints `Corrupt tablebase file` and `exit()`s, while
 mcfish prints the same diagnostic and reports the file unavailable, so one bad
 file does not take a GUI's engine down mid-game. Keep the diagnostic — without it
 a corrupt table is indistinguishable from an absent one.
@@ -384,7 +394,8 @@ symbol in the engine's link line: a function-pointer seam in the engine zone
 `output_sink.h`); **every** reader in the zone going through it, `timeman.c`
 included, since one direct call keeps the dependency whole; and the host owning
 registration — `search_set_time_source`, called from `engine_init` beside
-`search_set_output`.
+`search_set_arena_source`. (`search_set_output` is not among them: the shell
+routes it through `engine_set_output`, which a host calls BEFORE `engine_init`.)
 
 ## Do not land a stub whose functions return constants
 
@@ -419,7 +430,7 @@ here, and each is described on the page that owns the question it answers.
 | `tsan` | that the pool's spawn, dispatch, wait and join carry the happens-before edges `thread.c` claims | [04-multithreading.md](04-multithreading.md) |
 | `tb`, `malformed`, `fuzz-tb` | the Syzygy subsystem: discovery, the probe path, and the parse against untrusted bytes | [05-tablebases.md](05-tablebases.md) |
 | `test` | the memory and clock modules, and the arena the accumulator is built on | [10-tooling-ci.md](10-tooling-ci.md) |
-| `tools-smoke` | that `tools/valgrind.sh` still prints the interface its callers read — the one tool pointed at this zone that no other lane invokes | [10-tooling-ci.md](10-tooling-ci.md) |
+| `tools-smoke` | that `tools/nps_threads.sh` still prints the `r(T)/r(1)` interface its callers read — the thread-measuring tool no gate invokes. `tools/valgrind.sh` needs no smoke: the blocking lane's `valgrind` job drives it | [10-tooling-ci.md](10-tooling-ci.md) |
 
 Two of this zone's claims are held by no gate and must be checked by reading. The
 monotonic clock's choice of `CLOCK_MONOTONIC` over `CLOCK_REALTIME` is invisible to
