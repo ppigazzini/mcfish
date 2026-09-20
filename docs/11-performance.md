@@ -1,6 +1,6 @@
 # Performance measurement
 
-The nine local-only instruments, what each one proves and what it cannot see, the
+The ten local-only instruments, what each one proves and what it cannot see, the
 order to reach for them in, the two corrections without which the instruction axis
 lies, and where this port stands against the golden on the spine.
 
@@ -10,10 +10,12 @@ decides a COST, which no gate here blocks a merge on.
 
 ## The instruments, and the order to reach for them
 
-Nine tools in `tools/` that are **not** `./build.sh` steps and **not** gates.
-They measure the host they run on, and a shared, thermally-uncontrolled CI runner
+Ten tools in `tools/` that measure a HOST rather than gating a value. They
+measure the host they run on, and a shared, thermally-uncontrolled CI runner
 cannot carry a performance verdict — so they are deliberately kept out of
-`parity` and out of the workflows.
+`parity` and out of the workflows. Only one has a `build.sh` step at all:
+`counter-validate` drives `perf_counter_validate.c`, and it is LOCAL for the
+same reason.
 
 | Tool | Answers |
 | --- | --- |
@@ -25,6 +27,7 @@ cannot carry a performance verdict — so they are deliberately kept out of
 | [`../tools/perf_delta.py`](../tools/perf_delta.py) | startup-subtracted WORK counts (instructions, macro-ops) from `perf_counters` absolutes. Not for speed — see below |
 | [`../tools/perf_callgrind_delta.py`](../tools/perf_callgrind_delta.py) | startup-subtracted **cache and branch** table from four `perf_callgrind.sh` profiles. Deterministic, so it is the one instrument that can attribute an IPC gap on a loaded box |
 | [`../tools/perf_counter_validate.c`](../tools/perf_counter_validate.c) | whether a counter counts what its name says, against two known bottlenecks |
+| [`../tools/nps_threads.sh`](../tools/nps_threads.sh) | whether a change SCALES — `r(T)/r(1)` over a node-budgeted threaded bench. The only axis here that runs more than one thread |
 | [`../tools/valgrind.sh`](../tools/valgrind.sh) | memcheck: invalid access, bad free, definite leak |
 
 **Order of use, and the first three before any hypothesis.**
@@ -625,7 +628,7 @@ a gate.
 | `perf-decomp` | where the cost is, per component, deterministically — callgrind over both binaries, SELF cost per symbol | this page |
 | `counter-validate` | that a counter means what its name says on *this* host | this page |
 | `material-eval` | nothing — it is the ablation that isolates the spine from the network | this page |
-| `fingerprint` | the ALGORITHM: that each group is CALLED as often here as upstream. **A call-count divergence outranks every cost finding.** | this page |
+| `fingerprint` | the ALGORITHM: that each group is CALLED as often here as upstream, bar the argued exceptions. **A call-count divergence outranks every cost finding.** | this page |
 | `signature` | that both sides searched the same tree, without which every figure above is void | [10-tooling-ci.md](10-tooling-ci.md) |
 | `arch-determinism` | that a number taken at one tier is a number about that tier and not about a divergence between them | [08-idiomatic-c.md](08-idiomatic-c.md) |
 
@@ -661,6 +664,14 @@ block count scales with table size.
 engines under callgrind on one tree and asserts each group in
 [`../tools/fingerprint_groups.tsv`](../tools/fingerprint_groups.tsv) is CALLED as
 often here as upstream.
+
+**Except the groups argued in
+[`../tools/fingerprint_known.txt`](../tools/fingerprint_known.txt)**, each of which
+states what it would take to retire the entry. A listed group that comes back EXACT
+is reported as RETIRABLE rather than passed in silence, so the list expires in its
+own direction the way a held `negative-control` row does. Two groups are listed:
+`movepick`, whose symbols are fully inlined so the row measures its own regex, and
+`legal`, a standing one-call deficit in the cheaper direction.
 
 It holds the ALGORITHM, which every other differential is blind to. The anchor, the
 goldens and the node differential all compare VALUES, so each passes over a state

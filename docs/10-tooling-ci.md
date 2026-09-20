@@ -51,7 +51,7 @@ this tree:
 
 | | wall | CPU |
 | --- | ---: | ---: |
-| one `clang -flto` invocation over all 69 sources | **6.7 s** | 5.3 s |
+| one `clang -flto` invocation over the whole `SOURCES` array | **6.7 s** | 5.3 s |
 | a comparable codebase built per-TU with `make -j8` | 16.2 s | 64.7 s |
 
 A single invocation is **2.4x faster in wall clock and 12x cheaper in CPU** than
@@ -61,7 +61,7 @@ advantage — incremental, parallel builds — is *negative* here, and increment
 little against a 7-second full build that must relink the whole program under LTO
 anyway.
 
-The rest of this file is 36 workflow steps: golden diffs, tablebase fetches, a
+The rest of this file is fifty-odd workflow steps: golden diffs, tablebase fetches, a
 three-phase PGO build, per-tier determinism sweeps. Make is a poor workflow runner
 (the recipes are shell regardless), so a Makefile would wrap this script rather than
 replace it.
@@ -83,7 +83,7 @@ per-tier comparison. Hashing the flags closes it.
 
 ### One file, and no size gate — a standing decision, not an oversight
 
-`build.sh` is 1983 lines and 57 functions, and it stays one file. The property
+`build.sh` is a few thousand lines of shell in one file, and it stays one file. The property
 being bought is that the build and every gate are a single self-contained script:
 no source-path bootstrap, no half-installed fragment directory, and a copy of this
 one file plus the tree builds and gates the engine.
@@ -94,8 +94,8 @@ that may fall and never rise — and when its `build.zig` reached 2595 lines it 
 into a `build/` package rather than raising the baseline (zfish `eeb52780`,
 `5ffd1bca`). That works there because the build file is Zig, checked by the same
 lint as the program. Here the equivalent policy is absent entirely: **there is no
-file-size gate in this tree at all**, and 11 files under `src/` are already over
-500 lines (`nnue_accumulator.c` at 1365 is the largest), so importing the rule
+file-size gate in this tree at all**, and thirteen files under `src/` are already over
+500 lines (`nnue_accumulator.c`, the largest, is past 1400), so importing the rule
 would be a refactor campaign rather than a gate.
 
 What the decision costs, and what to watch instead:
@@ -158,9 +158,9 @@ does not carry the step, are both findings.
 | `shellcheck` | [`../tools/shellcheck.sh`](../tools/shellcheck.sh) over every `.sh` the index tracks, at severity `style` | the defect classes shellcheck knows, in the language the gates themselves are written in. Held at **zero findings with no baseline** — a suppression is a `# shellcheck disable=` at the site with its reason beside it, because the findings here are cheap enough to fix that a register would be the only debt list that could never expire. The version is pinned in **two fields** (`tools/shellcheck.version`): the `shellcheck-py` package version and the binary version it ships, which are not the same number. Resolved through `uvx`, as `ruff` and `ty` already are; exits **127** when neither a matching binary nor `uvx` is reachable | this page |
 | `upstream-parity` | [`../tools/upstream/upstream_parity.sh`](../tools/upstream/upstream_parity.sh) | mcfish's bench against a pristine upstream build — see below | this page |
 | `golden-audit` | drives every `tools/cases/*.uci` script through a PRISTINE upstream build and diffs against the committed golden | that each golden is upstream's bytes rather than a photograph of mcfish. **LOCAL**. | [07-shell.md](07-shell.md) |
-| `fingerprint` | profiles both engines under callgrind on one tree and asserts each group in [`../tools/fingerprint_groups.tsv`](../tools/fingerprint_groups.tsv) is CALLED as often here as upstream | the ALGORITHM, which every other differential is blind to. **LOCAL**, ~50x slow, not in `parity`. | [11-performance.md](11-performance.md) |
+| `fingerprint` | profiles both engines under callgrind on one tree and asserts each group in [`../tools/fingerprint_groups.tsv`](../tools/fingerprint_groups.tsv) is CALLED as often here as upstream, except the groups argued in [`../tools/fingerprint_known.txt`](../tools/fingerprint_known.txt) | the ALGORITHM, which every other differential is blind to. **LOCAL**, ~50x slow, not in `parity`. | [11-performance.md](11-performance.md) |
 | `upstream-transcript` | drives both engines over [`../tools/cases/transcript/`](../tools/cases/transcript) and diffs the whole output | the UCI surface against the ORACLE, which `golden` structurally cannot do. **LOCAL**. | [07-shell.md](07-shell.md) |
-| `parity` | the aggregate | the ten gates listed below it — every in-repo gate, but not `upstream-parity` | this page |
+| `parity` | the aggregate | the twenty-one gates listed below it — every gate that runs on a bare toolchain, but not the differentials (`upstream-parity`, `golden-audit`, `fingerprint`) and not the LOCAL lanes | this page |
 | `net` / `net-fetch` | name the `.nnue` this build expects and report whether it is present; fetch it into `resources/` and **sha256-verify** it | nothing — one reports and one fetches. The split is what keeps `build` off the network. | [03-engine-eval.md](03-engine-eval.md) |
 | `simd-scalar` | rebuilds with `MCFISH_SIMD_SCALAR` — every vector type and intrinsic compiled out — and re-asserts the anchor | that `simd.h`'s two implementations are value-identical. In `parity`. | [03-engine-eval.md](03-engine-eval.md) |
 | `lane-coverage` | every step `build.sh` dispatches must appear in a workflow, in `parity`, or in an excused list with a reason | that **a lane in no gate is not a lane** — a rule that was enforced by somebody remembering it until four differentials quietly stopped being lanes, `upstream-parity` (the finish line) among them. The excused list is the hole, so it expires in its own direction: a step excused that *does* run is reported as a stale excuse. In `parity` | this page |
@@ -221,7 +221,7 @@ mutant can only reach one half of what they claim:
 |---|---|
 | `malformed` | delete the refusal diagnostic; unbound the decoded symbol. The first reaches the crafted-header family, the second the mutated-table family — and only the second proves those fixtures reach the DECODE loop rather than the load. **The second is HELD**: the family that detects it needs the 3-man corpus, and on a machine without it the gate narrows and stays green, which this rig would credit as "passed a mutated engine" — a verdict about the machine, not the code. Run it with `./build.sh tb-fetch && ./build.sh negative-control malformed` |
 | `async-check` | the two OPPOSITE edits of one line: never stop an unbounded search (the wedge), and stop every search including bounded ones (the truncation that the obvious fix for the wedge causes). A gate that pins only one of those licenses the other |
-| `test` | sign-extend `hash_bytes`' tail again |
+| `test` | sign-extend `hash_bytes`' tail again; drop an arena's `LiveMappings` decrement. The second is the row the mapping allocator's counter exists for — neither LeakSanitizer nor memcheck sees an anonymous mapping, so without it that leak passes every gate in `parity` |
 
 A gate whose claim has two directions needs a mutant in each. The `async-check` pair
 is the clearest case: both mutations are one-line edits of the same condition, both
@@ -261,7 +261,8 @@ do not remove the bound.**
 `parity` runs, in this order: `build`, `zone-check`, `fmt`, `docs-lint`, `shellcheck`,
 `cite-check`, `type-check`, `fixture-coverage`, `lane-coverage`, `golden-coverage`,
 `tools-smoke`, `test`,
-`signature`, `net-roundtrip`, `speedtest-check`, `simd-scalar`, `perft`, `golden`, `tb`.
+`signature`, `net-roundtrip`, `speedtest-check`, `simd-scalar`, `perft`, `golden`, `tb`,
+`malformed`, `attribution`.
 
 `tools/tb.golden` is **oracle-derived**: `./build.sh tb-update` regenerates it by
 running the pristine upstream binary over the same battery, never mcfish. It pins
@@ -273,11 +274,12 @@ would be fake parity. See [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROV
 
 ### A skipped gate is not a passing gate
 
-`fmt` exits 127 when `clang-format` is absent, and `signature`, `net-roundtrip` and
+`fmt` exits 127 when `clang-format` is absent and `shellcheck` when neither a
+pinned binary nor `uvx` is reachable; `signature`, `net-roundtrip` and
 `simd-scalar` do the same when no NNUE net is reachable. `parity` treats each as *skipped*, keeps
 going, and then **names every skipped gate in its summary line** — because
 "parity passed" printed over a silently absent linter, or over an anchor nobody
-actually checked, is exactly how a gate rots into decoration. Those three are the
+actually checked, is exactly how a gate rots into decoration. Those five are the
 gates here that can be skipped; every other one runs on a bare toolchain with no
 net.
 
@@ -498,7 +500,7 @@ a bug in the workflow file.
 
 ### `mcfish_parity.yml` — the blocking lane
 
-Runs on every push and PR, with four jobs:
+Runs on every push and PR, with six jobs:
 
 - **`fmt`** — split out and run first because it is the cheapest signal. It
   duplicates the `fmt` inside `parity` on purpose: whitespace drift caught in a
@@ -549,6 +551,14 @@ Runs on every push and PR, with four jobs:
   correct behaviour, and also a way for the lane to become advisory with nothing
   going red. `fail-fast` is off, because a failure on one toolchain is a fact
   about that toolchain and says nothing about the other.
+
+- **`tsan-race`** — the suite under ThreadSanitizer, then `tsan-search 12 8`: a
+  real multi-threaded search over the pool, the shared TT and the histories,
+  plus the `ucinewgame` path that drives the parallel TT clear. `parity` cannot
+  see any of it, because `bench` is single-threaded.
+- **`valgrind`** — memcheck over a shallow bench. ASan overlaps memcheck on
+  bounds and lifetime but **not** on uninitialised reads, which is the class this
+  lane is here for; definite leaks and uninitialised branches fail it.
 
 ### `mcfish_perft.yml` — nightly deep perft
 
@@ -633,7 +643,7 @@ not a reason to fail a build.
 
 All three scheduled daily, 04:31 UTC.
 
-### `mcfish_upstream_check.yml` — weekly upstream-sync detection, three jobs
+### `mcfish_upstream_check.yml` — weekly upstream-sync detection, two jobs
 
 **`upstream-check`**, two halves. The **gating** half clones the golden at the
 pinned SHA and runs `./build.sh upstream-map` — the declared-vs-derived
@@ -676,5 +686,10 @@ Each class is reported with its own count, and a class that produced **no**
 positions exits 2 rather than being summed into a passing total — an empty class
 reads as coverage and compared nothing. `--classes` selects a subset; an unknown
 name is refused rather than silently narrowing the run.
+
+**The rest of the oracle battery rides in this same job**, because building the
+pristine oracle is the expensive part and every one of these needs it:
+`golden-audit`, `upstream-parity`, `upstream-transcript`, `sync-status`
+(reporting, not gating), `attribution` and `fingerprint`.
 
 Every job in this file runs weekly.
