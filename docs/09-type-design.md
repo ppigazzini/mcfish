@@ -395,8 +395,9 @@ rejecting, rather than a thing done once by hand.
 **The claims do not rest on the types alone**, which is the reason the gate exists.
 They rest on the `-Werror=` promotions `detect_enum_flags` probes for, because both
 compilers diagnose a domain confusion as a *warning* by default. Compiled without
-them, four of the seven refusals below **compile silently** — the enum crossing, the
-Syzygy transposition, the `[[nodiscard]]` discard and the narrowing integer. If a
+them, five of the seven refusals below **compile silently** — the enum crossing,
+the Syzygy transposition, the root ranking's two flags, the `[[nodiscard]]`
+discard and the narrowing integer. If a
 probe ever stops matching, the tree still builds clean and this page quietly becomes
 false; that is the failure the gate is pointed at, one level up from the flag list
 itself.
@@ -568,7 +569,7 @@ with the legal spelling it is meant to leave alone.
 
 **It is the gate on the flag list, not on the headers.** The claims rest on the
 `-Werror=` promotions `detect_enum_flags` probes, not on the types alone: without
-them, four of the seven refusals compile silently. That is why the step uses the
+them, five of the seven refusals compile silently. That is why the step uses the
 build's own array directly rather than re-spelling it — a second copy could pass
 while the real build had lost a promotion.
 

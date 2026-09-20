@@ -186,7 +186,9 @@ only thing standing between a wrap and a silent out-of-bounds table index.
 
 ```
 -Wall -Wextra -Wshadow -Wconversion -Wsign-conversion
--Wstrict-prototypes -Wmissing-prototypes -Wno-unused-parameter
+-Wstrict-prototypes -Wmissing-prototypes
+-Werror=enum-conversion -Werror=implicit-enum-enum-cast
+-Werror=implicit-int-conversion -Werror=unused-result -Werror=unused-parameter
 ```
 
 Set once in `CFLAGS_COMMON` in [`../build.sh`](../build.sh) and applied to every
@@ -198,11 +200,12 @@ in a configuration nobody builds.
 | `-Wconversion` / `-Wsign-conversion` | The load-bearing pair. The engine mixes `uint8_t` enums, `int` scores, `uint64_t` bitboards and `int16_t` history entries; an implicit narrowing between them is a wrong number, not a crash. This is also the flag that makes `sq_add` necessary. |
 | `-Wshadow` | The recursion nests `alphabeta` frames with near-identical local names; a shadowed `depth` or `alpha` reads correctly and searches the wrong tree. |
 | `-Wstrict-prototypes` / `-Wmissing-prototypes` | `()` is not `(void)` in a pre-C23 reading, and a function with no prototype in a header is a function nothing checks the arguments of. Together they force every non-`static` symbol to be declared in a header the caller includes. |
-| `-Wno-unused-parameter` | The one suppression. Seam signatures carry parameters a given implementation ignores; the alternative is a `(void)x;` line per function, which is noise that hides the real cases. |
+| the five `-Werror=` promotions | What the type design in [09-type-design.md](09-type-design.md) actually rests on: a domain confusion is a *warning* by default in both compilers. `detect_enum_flags` probes each one per compiler, because an unrecognised `-Werror=` spelling is itself a hard error rather than a no-op. There is no suppression in the set — `-Wno-unused-parameter` was removed once `unused-parameter` became a promotion, and `[[maybe_unused]]` is the per-parameter escape where a seam signature fixes the shape. |
 
-Warnings are not errors in `build.sh`. The gate is the human and the review, plus
-the gcc lane, whose `-Wconversion` and `-Wshadow` findings differ from clang's and
-therefore surface sloppiness clang happens not to diagnose.
+The five promotions above ARE errors; everything else is a warning, and the gate
+for those is the human, the review, plus the gcc lane, whose `-Wconversion` and
+`-Wshadow` findings differ from clang's and therefore surface sloppiness clang
+happens not to diagnose.
 
 ## Why there is no build system
 
@@ -513,10 +516,12 @@ picks the instruction — `>>` on a signed lane is arithmetic (`_mm_srai_epi16`)
 on an unsigned lane logical (`_mm_srli_epi16`). That is the whole distinction;
 there is no separate spelling, so the lane type is load-bearing.
 
-**Scalar bit operations** keep upstream's builtins: `__builtin_popcountll` for
-`popcount`, `__builtin_ctzll` for `_tzcnt_u64`. Both need the ISA flags
-`build.sh` already sets — without `-mpopcnt`, `__builtin_popcountll` lowers to a
-library call.
+**Scalar bit operations** split. `popcount_bb` takes C23's `stdc_count_ones`,
+which emits the same lone `popcnt` at every tier; `lsb`/`msb` keep
+`__builtin_ctzll`/`__builtin_clzll` rather than the standard spellings, because
+`stdc_trailing_zeros` is defined at zero and pays an instruction for it at sse41.
+Both need the ISA flags `build.sh` already sets — without `-mpopcnt`, a popcount
+lowers to a library call.
 
 ## clang auto-vectorizes integer hot loops — so hand-write vectors for a reason
 
@@ -881,8 +886,8 @@ hand-rolled parser prints a plausible lie.
 ## The gates
 
 Five steps have the build itself as their subject: what compiles, under which
-warnings, at which ISA tier, and in which formatting. None of them reads a node
-count except the last, and the last reads five of them.
+warnings, at which ISA tier, and in which formatting. Only one of them reads a
+node count — `arch-determinism`, which reads one per tier the host can execute.
 
 | step | what it proves here | owned by |
 |---|---|---|
