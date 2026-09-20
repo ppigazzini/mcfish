@@ -33,6 +33,8 @@ contract rather than an optimisation.
 [`timeman.c`](../src/engine/search/timeman.c),
 [`tt.c`](../src/engine/search/tt.c),
 [`worker_set.c`](../src/engine/search/worker_set.c),
+[`pool_source.c`](../src/engine/search/pool_source.c),
+[`root_pv.c`](../src/engine/search/root_pv.c),
 [`syzygy_pv.c`](../src/engine/search/syzygy_pv.c) (the PV extension; see
 [05-tablebases.md](05-tablebases.md)), plus the injection seams
 [`pool_source.h`](../src/engine/search/pool_source.h),
@@ -42,8 +44,10 @@ contract rather than an optimisation.
 [`tb_source.h`](../src/engine/search/tb_source.h).
 
 **`search.c` is a facade, not the search.** It owns the public surface
-[`search.h`](../src/engine/search/search.h) declares — `search_go`,
-`search_set_output`, `search_stop`, `perft` — and nothing else: it maps the shell's
+[`search.h`](../src/engine/search/search.h) declares — the synchronous and async
+`go` pair, `search_wait` / `search_stop` / `search_ponderhit`, the four seam
+registrations, `search_clear` / `search_shutdown` and `perft` — and no search
+logic: it maps the shell's
 `SearchLimits` onto the zone's `SearchZoneLimits`, registers the four seams, builds
 the root move list, and hands the search to `iterative_deepening`. It must never
 re-derive a margin, a reduction or an info line; a facade that computes is a second
@@ -75,14 +79,19 @@ interleaved.
 
 ## Iterative deepening
 
-`search_go(pos, limits)` in [`search.c`](../src/engine/search/search.c) is the
-per-`go` prologue and nothing more. It:
+`search_go_start(pos, limits)` in [`search.c`](../src/engine/search/search.c) is
+the per-`go` prologue, run on the caller's thread; `search_go` is the synchronous
+wrapper that adds `search_wait`. It:
 
-1. Registers the four seams, clears the stop / ponder flags, and resets the
-   per-game manager scalars upstream resets in `ThreadPool::clear`.
-2. Calls `eval_acc_reset()` — **once per `go`, not once per iteration** — so the
-   first evaluation refreshes from this board rather than from the previous
-   search's diffs, then clears the history block.
+1. Registers the four seams and clears the stop / ponder flags, and deliberately
+   does **not** touch the per-game manager scalars — the time-check counter and
+   the previous-score terms carry ACROSS `go` within a game, because upstream
+   resets them only in `ThreadPool::clear`. Resetting them per `go` is the
+   divergence this tree had and fixed.
+2. Re-seeds every worker through `worker_root_setup`, which calls
+   `eval_acc_reset()` — **once per `go` per worker, not once per iteration** — so
+   the first evaluation refreshes from this board rather than from the previous
+   search's diffs.
 3. Generates the legal root moves. With none, it emits the mate / stalemate info
    line plus `bestmove (none)` and returns `mated_in(0)` or `VALUE_DRAW`.
 4. Builds the ranked root move list through
@@ -92,8 +101,11 @@ per-`go` prologue and nothing more. It:
 5. Fills the `SearchCtx` and the time budget through
    [`search_setup.c`](../src/engine/search/search_setup.c) — **once**, before the
    first node, so the recursion never re-derives any of it.
-6. Runs `iterative_deepening`, then emits the final PV (if the depth loop did not
-   already) and `bestmove`.
+`run_main_search`, dispatched onto worker 0's own OS thread once the prologue has
+returned, then starts the siblings, runs `iterative_deepening`, joins, votes the
+best worker, and emits the final PV (if the depth loop did not already) and
+`bestmove`. The dispatch is what leaves the UCI thread free to read a mid-search
+`stop`, `quit` or `ponderhit`.
 
 The depth loop itself is [`search_id.c`](../src/engine/search/search_id.c): the
 `root_depth` walk, the aspiration window, the MultiPV lines, the skill handicap,
@@ -103,17 +115,19 @@ the forgotten-mate rollback and the per-iteration time decision.
 
 `STACK_PAD` is 7, and `ss` is offset by it so `stack[i].ply == i - STACK_PAD`. That
 padding is not slack: the continuation-history walk reads six frames back and the
-correction read reaches `(ss - 4)`, so a root node at `stack[0]` would index before
-the array. `search_stack_init` gives every sentinel a valid base continuation page
+correction read reaches `(ss - 6)` too, so a root node at `stack[0]` would index
+before the array. `search_stack_init` gives every sentinel a valid base continuation page
 and a valid base correction page — **not** null pointers, because the history code
-dereferences those slots unconditionally. Two frames above `MAX_PLY` are padding
-too, for the `(ss + 2)` cutoff-count reset.
+dereferences those slots unconditionally. The `(ss + 2)` cutoff-count reset needs
+two frames above `MAX_PLY`; `STACK_SIZE` reserves ten.
 
 ### The aspiration window
 
 Each MultiPV line re-searches around the previous iteration's average score. On a
-fail low the window drops its lower edge and **resets** the fail-high counter; on a
-fail high it raises the upper edge and keeps counting, and that counter is what
+fail low the window collapses its upper edge onto the old lower one, re-opens
+below the returned score and **resets** the fail-high counter; on a fail high it
+raises the upper edge past the score, pulls the lower edge up behind it, and keeps
+counting, and that counter is what
 shortens the re-searched depth. Both edges grow by the same factor per re-search.
 Reorder those updates and the node count moves without the move changing.
 
@@ -132,10 +146,13 @@ independently of the node count. The `pv` field carries the whole variation, and
 
 ## Alpha-beta
 
-`search_node` ([`search_main.c`](../src/engine/search/search_main.c)) is the whole
-node — Steps 1-21, node init through the TT store — in **one function body**, the
-way upstream's `search<NodeType>` is one function body. It recurses into itself for
-every child.
+`search_node_impl` ([`search_main.c`](../src/engine/search/search_main.c)) is the
+whole node — Steps 1-24, node init through the TT store — in **one function
+body**, the way upstream's `search<NodeType>` is one function body. It is
+`always_inline` and cloned per NodeType into `search_node_nonpv`,
+`search_node_pv` and `search_node_root`, and the move loop recurses through those
+clones rather than through the body, for the same reason quiescence does;
+`search_node` is the tag dispatcher for callers whose NodeType is not a literal.
 
 That shape is load-bearing rather than incidental. The body was once split across
 two files joined by a 30-field state struct, and the struct had to be built at
@@ -149,11 +166,13 @@ Node order:
 1. **Upcoming-repetition draw** (non-root) — the cuckoo test, then Step 1 node
    init, Step 2 the aborted-search / draw / `MAX_PLY` bail, Step 3 mate-distance
    pruning.
-2. **Step 4 TT probe**, then **Step 6** the non-PV early cutoff with the
-   `cut_node == (ttValue >= beta)` gate on it, the deep-TT verification search, and
-   the depth penalty on an entry that could not justify its cutoff.
-3. **Step 5 static eval** through the correction histories, plus `improving`,
-   `opponent_worsening` and the hindsight reduction adjustments.
+2. **Step 4 TT probe**, then **Step 5 static eval** through the correction
+   histories, plus `improving`, `opponent_worsening` and the hindsight reduction
+   adjustments.
+3. **Step 6** the non-PV early cutoff with the `cut_node == (ttValue >= beta)`
+   gate on it, the deep-TT verification search, and the depth penalty on an entry
+   that could not justify its cutoff. Cutoff and penalty share one outer `if`:
+   non-PV, no excluded move, a valid value, a depth that can answer this window.
 4. **Step 7 tablebase probe**, gated on `tb_config.cardinality` — zero without a
    `SyzygyPath`, so a default build never enters it.
 5. **Step 8 razoring, Step 9 futility, Step 10 null move** and its verification
@@ -182,8 +201,10 @@ reach the picker. Deleting the guard buys nothing and makes the failure a wild
 memory read on some future position.
 
 `search_pseudo_legal` and `search_gives_check` are board-zone predicates the search
-zone still carries; `src/engine/board/legality.c` holds the canonical
-`pos_pseudo_legal`, and both copies go when that module enters the build.
+zone still carries. [`../src/engine/board/legality.c`](../src/engine/board/legality.c)
+is in `SOURCES` and `ENGINE_SOURCES` already and holds the canonical
+`pos_pseudo_legal`, so the search-zone copies are a live duplicate awaiting
+deletion, not a module waiting to land.
 `search_gives_check` additionally recomputes upstream's `StateInfo::checkSquares` on
 every call, because mcfish's `StateInfo` does not cache it.
 
@@ -229,7 +250,7 @@ null move — see [03-engine-eval.md](03-engine-eval.md).
 ### The continuation index is the piece that LEFT `from`
 
 `search_do_move` reads the moved piece **before** the make, because upstream indexes
-the continuation pages by `DirtyPiece::pc`, which `Stockfish/src/position.cpp:848`
+the continuation pages by `DirtyPiece::pc`, which `Stockfish/src/position.cpp:856`
 fills from `piece_on(from)` ahead of the move. For a promotion that is the pawn, not
 the piece standing on `to` afterwards. Reading it post-move is a divergence that
 only shows up in promotion-heavy positions, which is exactly where it is hardest to
@@ -282,14 +303,14 @@ never into `search_node`, so the search zone's only import cycle is `search_node
 own recursion.
 
 **Two clones, one per NodeType, as upstream instantiates `qsearch<PV>` and
-`qsearch<NonPV>`** (`search.cpp:1621`). Quiescence is where most of the tree's nodes
+`qsearch<NonPV>`** (`search.cpp:743`). Quiescence is where most of the tree's nodes
 are, so a runtime `pv_node` flag costs four tests at every one of them.
 
 The specialization has to be written a particular way to exist at all: marking the
 body `always_inline` and calling it from two wrappers does nothing while the body
 recurses into *itself*, because a recursive function cannot be flattened — clang
 emits one shared copy and the flag stays live. **The recursion must go through the
-clone**, exactly as upstream's `qsearch<nodeType>` (`search.cpp:1797`) resolves to one
+clone**, exactly as upstream's `qsearch<nodeType>` (`search.cpp:1849`) resolves to one
 instantiation. Written that way the ternary folds to a direct call and the two bodies
 appear; written the other way the first attempt produced a single 4238-byte
 `qsearch_node_impl` and folded nothing.
@@ -318,13 +339,13 @@ of the pair with no dependency on the other.
 
 **The picker borrows the caller's continuation array; it does not own one.**
 `movepick_init` takes the six-entry `contHist` the node already built before its move
-loop (upstream `search.cpp:1093`, and the picker's own constructor takes it at
+loop (upstream `search.cpp:1130`, and the picker's own constructor takes it at
 `movepick.cpp:160`). Quiescence hands over a **one**-element array, because its only
-scorer is the evasion one, which reads slot 0 alone (`search.cpp:1732`) — the size
+scorer is the evasion one, which reads slot 0 alone (`search.cpp:1785`) — the size
 difference between the two call sites is part of the shape. The array is borrowed, so
 it must outlive the picker; ASan catches a caller that builds it in an inner scope.
 
-**At vnni512 and above the leading run is sorted in vector registers**, as upstream's
+**At avx512 and above the leading run is sorted in vector registers** — the arm is gated on `__AVX512F__` — as upstream's
 `MoveSorter` does (`movepick.cpp:66`, gated on `USE_AVX512`). Values and moves live in
 *separate* 512-bit registers so an insertion is one masked expand each, and the
 reassembly permutes across the pair to rebuild the 8-byte `ExtMove`s; up to sixteen
@@ -369,7 +390,7 @@ upstream splits them. `Histories` is what ONE worker owns and writes without
 synchronisation — butterfly (main), low-ply, capture, continuation-correction and the
 tt-move counter — plus a pointer to the `SharedHistories` bank its NUMA node shares:
 the two key-indexed tables (pawn, correction) and the continuation block
-(upstream `history.h:202`, `search.h:341`).
+(upstream `history.h:202`, `search.h:332`).
 
 The bank's key-indexed tables are **sized by the node's thread count**, as upstream's
 `DynStats` sizes them, so the index masks a one-thread run takes are upstream's
@@ -378,7 +399,9 @@ together — binding one without the other turns a wrapped index into an out-of-
 read.
 
 `history_clear` is upstream's `Worker::clear`: it fills this worker's own tables, fills
-the whole shared continuation block (upstream has every worker fill all of it), and
+the whole shared continuation block **on thread 0 of each NUMA node only** —
+upstream has every worker fill all of it, and the single-writer plain-store form
+here is what lets that fill vectorize — and
 clears only **its stripe** `[i * n / total, (i + 1) * n / total)` of the two
 key-indexed tables. With one worker the stripe is the whole table, which is why the
 single-threaded clear is unchanged by the split. The fill constants
@@ -410,16 +433,20 @@ live in the search zone, as upstream keeps them in `search.cpp`. That is what st
 `history.c` depending on `search.c`'s `Stack` layout. The walk offsets are the part
 to get right — the update at `ss` credits a different ply from the one at `ss - 1`.
 
-The block is cleared per `go`. Upstream clears it on `ucinewgame` instead; the live
-UCI layer has no hook for that, which is a shell gap — see
-[07-shell.md](07-shell.md).
+The block is cleared on `ucinewgame`, as upstream clears it: `engine_new_game` in
+[`../src/shell/engine.c`](../src/shell/engine.c) calls `search_clear`, which
+reaches every worker's `worker_clear`. Clearing it per `go` would search a
+different tree — the bench drives its whole position list behind one
+`ucinewgame`.
 
 ## The transposition table
 
-[`tt.h`](../src/engine/search/tt.h) / [`tt.c`](../src/engine/search/tt.c), with the
-storage types split into
-[`../src/engine/state/tt_types.h`](../src/engine/state/tt_types.h) so the state zone
-can type a worker's `tt` reference without pulling in the probe path.
+[`tt.h`](../src/engine/search/tt.h) / [`tt.c`](../src/engine/search/tt.c). `tt.h`
+owns the storage types as well as the probe, because the probe must inline into
+the node bodies and splitting the two would cycle the headers;
+[`../src/engine/state/tt_types.h`](../src/engine/state/tt_types.h) survives only as
+a forwarding include, so a state-zone file can name its `tt` reference without
+reaching across zones itself.
 
 This is upstream's table, ported faithfully. The layout:
 
@@ -428,14 +455,16 @@ This is upstream's table, ported faithfully. The layout:
 - **An entry is ten bytes**: `key16`, `depth8`, `gen_bound8`, `move16`, `value16`,
   `eval16` — in the order `tt_probe` reads them, because memory is fastest
   sequentially.
-- **Indexing is `mul_hi64(key, cluster_count)`**: the high 64 bits of the 128-bit
+- **Indexing is `tt_mul_hi64(key, cluster_count)`**: the high 64 bits of the 128-bit
   product, which maps a key onto the cluster range with no modulo and no
   power-of-two constraint on the size. The **low** 16 bits of the same key become
   `key16`, the in-cluster verification tag. The two ranges do not overlap, so the
   tag carries real information rather than re-confirming the index.
-- `tt_resize` allocates 64-byte aligned through `aligned_alloc`, rounding the byte
-  count up to a whole number of cache lines because `aligned_alloc` requires a size
-  that is a multiple of its alignment.
+- `tt_resize` takes the table from the page-allocator seam `ArenaAlloc`, which
+  hands back a zeroed 64-byte-aligned block: a cluster is half a cache line, so
+  that alignment keeps every cluster line-contained. Being a whole-megabyte
+  anonymous mapping, it also carries the transparent-huge-page hint a heap
+  `aligned_alloc` does not.
 
 **The table is lossy on purpose.** A probe may miss a stored position, a store may
 be declined, and a store may evict a deeper entry. Nothing in the search may depend
@@ -466,14 +495,14 @@ were made atomic.
 That is why every stored depth is biased:
 
 ```c
-enum : int32_t { DEPTH_ENTRY_OFFSET = -3 };
+static constexpr int32_t DEPTH_ENTRY_OFFSET = -3;
 
-writer->depth8 = (uint8_t) (d - DEPTH_ENTRY_OFFSET);   // store
-.depth = DEPTH_ENTRY_OFFSET + (int32_t) entry->depth8; // read back
+TT_STORE(writer->depth8, (uint8_t) (d - DEPTH_ENTRY_OFFSET));  // store
+.depth = DEPTH_ENTRY_OFFSET + (int32_t) depth8;                // read back
 ```
 
 The offset is negative, so the bias is an addition of 3 and an empty entry reads
-back as depth `DEPTH_ENTRY_OFFSET`. `empty_data()` returns exactly that, so a miss
+back as depth `DEPTH_ENTRY_OFFSET`. `tt_empty_data()` returns exactly that, so a miss
 and an occupied depth-`DEPTH_ENTRY_OFFSET` entry are indistinguishable to a caller
 by design.
 
@@ -492,7 +521,7 @@ bits 4..0  : generation
 ```
 
 The generation takes the **low** bits so a wrapping increment never disturbs the two
-above it, and `tt_new_search()` masks with `GENERATION_MASK` for the same reason.
+above it, and `tt_new_search()` masks with `TT_GENERATION_MASK` for the same reason.
 
 `tt_entry_relative_age` counts generations the way clocks count hours — `0 - 1 == 31` —
 and the subtraction is **unsigned** so it borrows correctly regardless of the pv and
@@ -511,7 +540,7 @@ depth: that ratio is what stops the table filling with deep entries from an earl
 ```c
 if (b == BOUND_EXACT || key16 != writer->key16
     || d - DEPTH_ENTRY_OFFSET + 2 * (int32_t) pv > (int32_t) writer->depth8 - 4
-    || entry_relative_age(writer, TT.generation8) != 0) { ...overwrite... }
+    || tt_entry_relative_age(writer, TT.generation8) != 0) { ...overwrite... }
 ```
 
 An exact bound always wins, a different position always wins, a stale entry always

@@ -96,8 +96,9 @@ shipped binary at all, and why the status line matters:
 const char *eval_nnue_status(void);
 ```
 
-`uci.c` prints it through `info string` at the four sites upstream prints it, so a
-user can always tell which evaluation produced a number. **A silent fallback would
+`uci.c` prints it through `info string` at the three sites upstream prints it —
+`go`, `perft` and `eval` — so a user can always tell which evaluation produced a
+number. **A silent fallback would
 be the worse bug**: a bench run on a machine with no net would look like a
 strength regression rather than a missing file.
 
@@ -119,17 +120,24 @@ remaining king moves fall back to a full refresh.
 That imposes a contract on every caller that moves a piece:
 
 ```c
-eval_acc_push(&dp, &dts);              // hands back the arena's own slots
-pos_do_move(pos, m, &st, false, dp, dts);
+DirtyPiece   *dp;
+DirtyThreats *dts;
+eval_acc_push(arena, &dp, &dts);       // hands back the arena's own slots
+pos_do_move(pos, m, &st, gives_check, dp, dts, hist);
 ...
 pos_undo_move(pos, m);
-eval_acc_pop();
+eval_acc_pop(arena);
 ```
 
-[`../src/engine/search/search.c`](../src/engine/search/search.c) brackets both of
-its move-making sites this way — the main move loop and the qsearch loop — and calls
-`eval_acc_reset()` once per `go`, not once per iteration, so the first evaluation of
-a search refreshes from the board rather than from the previous search's diffs.
+`search_do_move` / `search_undo_move` in
+[`../src/engine/search/search_common.h`](../src/engine/search/search_common.h) are
+the bracket, and both node bodies — the main move loop in `search_main.c` and the
+qsearch loop in `search_qsearch.c` — make every move through them.
+`worker_root_setup` in
+[`../src/engine/search/search.c`](../src/engine/search/search.c) calls
+`eval_acc_reset()` once per `go` per worker, not once per iteration, so the first
+evaluation of a search refreshes from the board rather than from the previous
+search's diffs.
 
 `perft` is deliberately **not** bracketed. It makes and unmakes moves but never
 evaluates, so pushing a slot per node would be pure work; it keeps writing its
