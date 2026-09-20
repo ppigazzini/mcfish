@@ -37,9 +37,9 @@ runs in, and it is why wiring the prober left the signature untouched.
 | [`../src/shell/syzygy_option.c`](../src/shell/syzygy_option.c) | the four options, and the install that binds every seam |
 
 Goldens are named in each file's header. The core is upstream
-`syzygy/tbprobe.cpp`: `do_probe_table` at `:772`, `probe_table` at `:1305`,
-`search` at `:1332`, `probe_dtz` at `:1601`, `rank_root_moves` at `:1780`,
-`Tablebases::init` at `:1397`.
+`syzygy/tbprobe.cpp`: `do_probe_table` at `:800`, `probe_table` at `:1429`,
+`search` at `:1456`, `probe_dtz` at `:1725`, `rank_root_moves` at `:1904`,
+`Tablebases::init` at `:1521`.
 
 ## What the files are
 
@@ -75,7 +75,7 @@ counted but does not decide existence. Files are **not** read at discovery time 
 only their presence is checked.
 
 **A corrupt file does not kill the process.** Upstream prints `Corrupt tablebase
-file` and `exit()`s (`syzygy/tbprobe.cpp:267-271`); mcfish prints the same
+file` and `exit()`s (`syzygy/tbprobe.cpp:283` and `:314`); mcfish prints the same
 diagnostic and reports that file unavailable, so one bad table does not take a
 GUI's engine down mid-game — the same fail-soft choice mcfish makes for a net
 that will not load. **Keep the diagnostic:** without it a corrupt table is
@@ -99,7 +99,7 @@ from `syzygy_option.c`. Nothing in the code enforces that no search is running
 when it fires; the contract is documented, not checked.
 
 The two lazy maps **are** thread-safe, because every probing thread reaches them
-— upstream says so at `tbprobe.cpp:1266`. `registry_map_wdl` and
+— upstream says so at `tbprobe.cpp:1384`. `registry_map_wdl` and
 `registry_map_dtz` are double-checked locking: a lock-free `atomic_bool_load` of
 `ready`, then a mutex, then a recheck, then the map and parse, and only then the
 store that publishes the flag.
@@ -124,13 +124,13 @@ fills is exactly the layers [`decode.c`](../src/platform/syzygy/decode.c) and
 | Layer | What the code does |
 | --- | --- |
 | Symbols / btree | `LR` (`tables.h`) is a 3-byte entry packing two 12-bit symbols — `lr_left`/`lr_right` unpack them. `lr_right(e) == 0xFFF` marks a leaf, whose `lr_left(e)` is the stored value. Golden: upstream `SparseEntry` `tbprobe.cpp:192`, `LR` `:201`. |
-| Symbol lengths | `set_sym_len`, called from `decode_set_sizes` for every unvisited symbol, fills `d->symlen` by recursive descent over the btree: a leaf is 0, an internal symbol is `symlen[left] + symlen[right] + 1` — the count of values that symbol represents, minus one. Golden: `set_symlen` `tbprobe.cpp:1061`. |
-| Canonical Huffman | `decode_set_sizes` builds `d->base64` from `d->lowest_sym`, right-padded so `base64[i] >= base64[i+1]`, and records `min_sym_len`/`max_sym_len`. Golden: `set_sizes` `tbprobe.cpp:1080-1137`, the `base64` comment at `:366`. |
+| Symbol lengths | `set_sym_len`, called from `decode_set_sizes` for every unvisited symbol, fills `d->symlen` by recursive descent over the btree: a leaf is 0, an internal symbol is `symlen[left] + symlen[right] + 1` — the count of values that symbol represents, minus one. Golden: `set_symlen` `tbprobe.cpp:1095`. |
+| Canonical Huffman | `decode_set_sizes` builds `d->base64` from `d->lowest_sym`, right-padded so `base64[i] >= base64[i+1]`, and records `min_sym_len`/`max_sym_len`. Golden: `set_sizes` `tbprobe.cpp:1125`, the `base64` comment at `:383`. |
 | Per-length tables | Three of the values `decode_pairs` formed per SYMBOL depend only on the symbol's LENGTH, of which a table has at most 63: the right-padding shift, the lowest symbol of that length, and the real bit length consumed. `decode_set_sizes` fills `len_shift`/`len_offset`/`len_real` once per table, turning five arithmetic operations and a read out of the mapping into three loads, and the subtraction folds in exactly — `base64[len]`'s low `shift` bits are zero and the scan only stops where `buf64 >= base64[len]`, so there is no borrow to lose. The per-symbol shift RANGE test went with them: the refusal above bounds it to `[1, 63]` for every length the scan can return, so it could not fire. |
 | Length in one load | The scan those tables are indexed BY is itself a table now. A code no longer than K bits owns a whole number of buckets of the stream word's top K bits, because `base64[]` is right-padded to 64, so `len_tab[buf64 >> len_tab_shift]` answers exactly what the walk searched for. `SYZYGY_LEN_TAB_MAX_BITS` is 12 and sits near a coverage knee rather than on a round number — the constant's own comment carries the three measurements and the three refused alternatives. A bucket the fill cannot decide says `SYZYGY_NO_FAST_LEN` and reaches the walk, which resumes at `d->escape_len` rather than at zero: a length under the cap owns whole buckets, so an undecided bucket holds no word of any length below `len_tab_bits - min_sym_len + 1`. **−7.09% and −4.00%** on the probing lane. |
 | Alphabet proved at load | `decode_pairs` no longer tests each decoded symbol against `symlen[]`'s domain. The scan stops at the FIRST `len` with `buf64 >= base64[len]`, so `buf64 <= base64[len - 1] - 1` for every length it can reach, which makes the largest symbol each length can name known in `decode_set_sizes` — where a table whose largest lies outside the domain is REFUSED, beside the non-canonical `base64[]` refusal. The proof is taken in 64 bits where the loop's sum truncates to a `Sym`, so proving the untruncated value in range is what proves the truncation never happened. **−1.13%**, and the per-symbol test is gone rather than moved. |
 | Indices | `SparseEntry` (`tables.h`) is 6 bytes (`block[4]`, `offset[2]`). `sparse_index_size` and `block_length_size` are computed in the registry parse from the table's `span`/`blocks_num` (`registry.c`). |
-| Pairs data | `decode_pairs` locates the block through the sparse index, walks `block_length[]` to the exact block, reads that block's bitstream in **big-endian** 64-bit windows, resolves the symbol's length through `len_tab`, then descends the `LR` btree to the leaf value. Golden: `decompress_pairs` `tbprobe.cpp:602`. |
+| Pairs data | `decode_pairs` locates the block through the sparse index, walks `block_length[]` to the exact block, reads that block's bitstream in **big-endian** 64-bit windows, resolves the symbol's length through `len_tab`, then descends the `LR` btree to the leaf value. Golden: `decompress_pairs` `tbprobe.cpp:620`. |
 | Single value | When `TB_FLAG_SINGLE_VALUE` is set, the table stores one value and `decode_pairs` returns it for every index without touching the bitstream at all. |
 
 The six [`decode.h`](../src/platform/syzygy/decode.h) flags —
@@ -149,7 +149,7 @@ position whose every legal move zeroes the fifty-move counter, so the probe
 recurses over captures (and, under `check_zeroing`, pawn moves) and compares.
 It does and undoes moves on the position it is given and **restores it exactly**,
 so the caller may hand it the live search position. Its `StateInfo` is a function
-local, as upstream's stack local at `tbprobe.cpp:1335` is — not shared state.
+local, as upstream's stack local at `tbprobe.cpp:1459` is — not shared state.
 
 ### In-search: Step 7
 
@@ -168,7 +168,7 @@ value without cutting.
 list to `tb_rank_moves`, which ranks by DTZ and falls back to WDL. Two details
 that are upstream's and easy to get wrong:
 
-- the move is **undone before** the bail-out test (`tbprobe.cpp:1713`), not after;
+- the move is **undone before** the bail-out test (`tbprobe.cpp:1836-1838`), not after;
 - on success the ranking sets `cardinality = 0` when DTZ was available or the
   best score is not a win, which is what **disables the in-search Step 7 probe**
   once the root is already resolved.
@@ -233,7 +233,7 @@ until one is reordered.
 
 ## The options
 
-Four, all live, defaults from upstream `engine.cpp:125-134`:
+Four, all live, defaults from upstream `engine.cpp:123-133`:
 
 | Option | Default | Range |
 | --- | --- | --- |
@@ -243,8 +243,9 @@ Four, all live, defaults from upstream `engine.cpp:125-134`:
 | `SyzygyProbeLimit` | 7 | 0..7 |
 
 [`syzygy_option.c`](../src/shell/syzygy_option.c) owns the authoritative values;
-`uci.c` registers them in the option map for the handshake and dispatches every
-set through one callback. A spin outside its range is **refused, not clamped** —
+[`engine_options.c`](../src/shell/engine_options.c) registers them in the option
+map for the handshake and dispatches every set through one callback, `on_syzygy`;
+`uci.c` never names Syzygy at all. A spin outside its range is **refused, not clamped** —
 clamping would silently turn a typo into a different search.
 
 ## Extending the reported PV
@@ -255,7 +256,7 @@ A tablebase score with a one-move PV is useless to a user, so
 1. **Truncate** to what is still validated — follow the existing PV while each
    move keeps the top tablebase rank, and stop where it does not.
 2. **Extend** toward mate by repeatedly taking the top-ranked move, ranking ties
-   by opponent mobility as upstream does at `search.cpp:2174`.
+   by opponent mobility as upstream does at `search.cpp:2240`.
 
 **The PV length and the number of moves made are the same counter.** Let them
 drift and the undo walk either leaves a move on the board or unmakes one that was
@@ -264,7 +265,7 @@ the break, keeping both in step.
 
 The deadline is half of `Move Overhead`, and only under time management. The
 warning is taken from **one final reading of the clock, after the undo walk**, as
-upstream does at `search.cpp:2223` — not from the loop breaks. A walk that never
+upstream does at `search.cpp:2290` — not from the loop breaks. A walk that never
 trips a break can still finish over budget, and upstream warns there too: the
 condition is "the extension ran out of time", not "a loop stopped because of
 time".
@@ -424,12 +425,11 @@ the absorbed family reaches the decoder: remove the load-time alphabet proof —
 ASan heap-buffer-overflow.
 
 That row names the load-time proof because the check MOVED there, and the row did
-not follow it for two commits. A held row is not run, so nothing noticed: two full
-`parity` runs reported `9 of 9` while one of the ten rows could no longer apply at
-all, and the rot surfaced only on an explicit `./build.sh negative-control
-malformed`, as a rig fault rather than a verdict. The default run now greps each
-held row's search text and fails if the tree no longer carries it — a held row that
-cannot apply asserts nothing.
+not follow it for two commits. A held row is not run, so nothing noticed, and the
+rot surfaced only on an explicit `./build.sh negative-control malformed`, as a rig
+fault rather than a verdict. The default run now greps each held row's search text
+and fails if the tree no longer carries it — a held row that cannot apply asserts
+nothing.
 
 **Without the corpus the gate NARROWS rather than fails**, the way `tb` does: the
 crafted-header family and an empty-path control still run — that control is what
