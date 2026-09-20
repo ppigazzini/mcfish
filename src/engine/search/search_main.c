@@ -177,47 +177,53 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     if (prior_reduction >= 2 && depth >= 2 && ss->static_eval + ss1->static_eval > 166)
         depth -= 1;
 
-    // Step 6. Cut off early on the TT (non-PV).
-    if (!pv_node && excluded_move == MOVE_NONE && tt_depth > depth - (int) (tt_value <= beta)
-        && value_is_valid(tt_value) && bound_covers(tt_bound_v, tt_value >= beta)
-        && (cut_node == (tt_value >= beta) || depth > 4)) {
-        if (tt_move != MOVE_NONE && tt_value >= beta) {
-            if (!tt_capture)  // upstream 73826352d
-                search_update_quiet_histories(ctx, pos, ss, tt_move, 131 * depth);
-            if (prev_sq != (int) SQ_NONE && ss1->move_count < 5 && !prior_capture)
-                search_update_continuation_histories(ss1, piece_on(pos, (Square) prev_sq),
-                                                     (Square) prev_sq, -2210);
-        }
-        if (pos->st->rule50 < 96) {
-            if (depth >= 7 && tt_move != MOVE_NONE && search_pseudo_legal(pos, tt_move)
-                && pos_legal(pos, tt_move) && !value_is_decisive(tt_value)) {
-                pos_do_move(pos, tt_move, &st, search_gives_check(pos, tt_move), &pos->scratch_dp,
-                            &pos->scratch_dts, nullptr);
-                const Key next_key = adjust_key50(pos);
-                const TTProbe probe_next = search_tt_probe(next_key);
-                pos_undo_move(pos, tt_move);
-                // Read the entry's value WITHOUT gating on `found`, as upstream
-                // does (search.cpp:882-887). `found` is the occupancy test
-                // (depth8 != 0), not a key test: a probe that matched key16 on a
-                // penalised entry whose depth walked down to zero still carries a
-                // real value16. Substituting VALUE_NONE there takes the cutoff in
-                // a case upstream declines, and changes what gets stored below.
-                const Value next_value = probe_next.value;
-                if (!value_is_valid(next_value))
+    // Step 6. Cut off early on the TT (non-PV). The outer test is what the
+    // cutoff and the penalty BOTH require -- a non-PV node with no excluded
+    // move, holding a valid entry deep enough to answer this window. The two
+    // branches inside it differ only on the bound.
+    if (!pv_node && excluded_move == MOVE_NONE && value_is_valid(tt_value)
+        && tt_depth > depth - (int) (tt_value <= beta)) {
+        // The bound covers the side the window is asking about: cut off.
+        if (bound_covers(tt_bound_v, tt_value >= beta)
+            && (cut_node == (tt_value >= beta) || depth > 4)) {
+            if (tt_move != MOVE_NONE && tt_value >= beta) {
+                if (!tt_capture)  // upstream 73826352d
+                    search_update_quiet_histories(ctx, pos, ss, tt_move, 131 * depth);
+                if (prev_sq != (int) SQ_NONE && ss1->move_count < 5 && !prior_capture)
+                    search_update_continuation_histories(ss1, piece_on(pos, (Square) prev_sq),
+                                                         (Square) prev_sq, -2210);
+            }
+            if (pos->st->rule50 < 96) {
+                if (depth >= 7 && tt_move != MOVE_NONE && search_pseudo_legal(pos, tt_move)
+                    && pos_legal(pos, tt_move) && !value_is_decisive(tt_value)) {
+                    pos_do_move(pos, tt_move, &st, search_gives_check(pos, tt_move),
+                                &pos->scratch_dp, &pos->scratch_dts, nullptr);
+                    const Key next_key = adjust_key50(pos);
+                    const TTProbe probe_next = search_tt_probe(next_key);
+                    pos_undo_move(pos, tt_move);
+                    // Read the entry's value WITHOUT gating on `found`, as upstream
+                    // does (search.cpp:913-918). `found` is the occupancy test
+                    // (depth8 != 0), not a key test: a probe that matched key16 on a
+                    // penalised entry whose depth walked down to zero still carries a
+                    // real value16. Substituting VALUE_NONE there takes the cutoff in
+                    // a case upstream declines, and changes what gets stored below.
+                    const Value next_value = probe_next.value;
+                    if (!value_is_valid(next_value))
+                        return tt_value;
+                    if ((tt_value >= beta) == (-next_value >= beta))
+                        return tt_value;
+                } else {
                     return tt_value;
-                if ((tt_value >= beta) == (-next_value >= beta))
-                    return tt_value;
-            } else {
-                return tt_value;
+                }
             }
         }
-    }
-    // upstream 319d61eff: take no cutoff, but if a window-bound mismatch is the
-    // only reason, penalize the now-useless entry (decrement its stored depth).
-    else if (!pv_node && excluded_move == MOVE_NONE && tt_depth > depth - (int) (tt_value <= beta)
-             && value_is_valid(tt_value) && tt_bound_v != (BOUND_LOWER | BOUND_UPPER)
-             && bound_covers(tt_bound_v, !(tt_value >= beta)) && depth > 5) {
-        search_tt_penalize(writer, 1);
+        // upstream 319d61eff: the depth was sufficient and the bound is the only
+        // reason no cutoff was taken, which makes the entry useless -- penalize
+        // it (decrement its stored depth).
+        else if (tt_bound_v != (BOUND_LOWER | BOUND_UPPER)
+                 && bound_covers(tt_bound_v, !(tt_value >= beta)) && depth > 5) {
+            search_tt_penalize(writer, 1);
+        }
     }
 
     // Step 7. Probe the tablebases. Probe the WDL of the current (non-root,
