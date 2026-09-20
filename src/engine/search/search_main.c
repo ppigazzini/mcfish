@@ -461,8 +461,6 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                     && !see_ge(pos, move, -margin))
                     continue;
             } else if (!ss->follow_pv || !pv_node) {
-                const int capped = depth < 16 ? depth : 16;
-                const size_t d_index = (size_t) (capped - 1);
                 int history =
                   cont_val(cont_hist[0], moved_piece, to) + cont_val(cont_hist[1], moved_piece, to)
                   + shared_stat_load(&pawn_history_row(
@@ -471,7 +469,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                     continue;
                 history +=
                   69 * (int) h->main_history[(size_t) us * HIST_UINT16 + (size_t) move] / 32;
-                lmr_depth += history / LmrDivisor[d_index];
+                lmr_depth += history / lmr_divisor(depth);
                 const int fv =
                   quiet_futility_value(ss->static_eval, lmr_depth, ss->static_eval > alpha);
                 if (!ss->in_check && lmr_depth < 12 && fv <= alpha) {
