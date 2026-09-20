@@ -163,6 +163,7 @@ void history_update_correction(Histories *h,
                                Move prev_move,
                                int16_t *cont_corr2,
                                int16_t *cont_corr4,
+                               int16_t *cont_corr6,
                                int bonus) {
     const StateInfo *const st = pos->st;
 
@@ -178,5 +179,6 @@ void history_update_correction(Histories *h,
         const size_t idx = (size_t) piece_on(pos, to) * SQUARE_NB + (size_t) to;
         stats_update(&cont_corr2[idx], bonus * 130 / 128, HIST_LIMIT_CORRECTION);
         stats_update(&cont_corr4[idx], bonus * 70 / 128, HIST_LIMIT_CORRECTION);
+        stats_update(&cont_corr6[idx], bonus * 35 / 128, HIST_LIMIT_CORRECTION);
     }
 }
