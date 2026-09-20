@@ -97,9 +97,6 @@ TbProbeResult (*TbProbeWdlPos)(Position *pos) = tb_unavailable_pos;
 const int32_t PieceValueByPiece[PIECE_NB] = { 0, 208, 781, 825, 1276, 2538, 0, 0,
                                               0, 208, 781, 825, 1276, 2538, 0, 0 };
 
-const int32_t LmrDivisor[16] = { 3637, 2787, 2761, 2939, 3171, 3347, 3147, 2762,
-                                 2772, 3106, 3107, 3060, 3112, 2991, 3090, 3542 };
-
 // ---- value model -------------------------------------------------------
 
 Value search_value_draw(uint64_t nodes) {
@@ -187,6 +184,11 @@ int move_count_limit(int depth, bool improving) {
 }
 
 int history_prune_threshold(int depth) { return -4136 * depth; }
+
+int lmr_divisor(int depth) {
+    const int d = depth < 16 ? depth : 16;
+    return 3000 + 7 * (d - 8) * (d - 8);
+}
 
 int quiet_futility_value(int static_eval, int lmr_depth, bool eval_gt_alpha) {
     return static_eval + 119 * lmr_depth + 90 * (int) eval_gt_alpha + 164;

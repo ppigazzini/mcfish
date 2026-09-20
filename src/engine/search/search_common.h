@@ -54,9 +54,6 @@ enum : uint64_t { ID_NODES_LIMIT_OUTPUT = 10000000 };
 // where the black pieces sit at 9..14.
 extern const int32_t PieceValueByPiece[PIECE_NB];
 
-// Divide the accumulated quiet history by depth bucket in Step 15.
-extern const int32_t LmrDivisor[16];
-
 // ---- value model -------------------------------------------------------
 
 static inline bool value_is_valid(Value v) { return v != VALUE_NONE; }
@@ -107,6 +104,9 @@ int probcut_beta_deep(int beta);
 int move_count_limit(int depth, bool improving);
 
 int history_prune_threshold(int depth);
+// Divide the accumulated quiet history in Step 15. A parabola in depth, capped
+// at 16 -- the sixteen-entry tuned table it replaces read the same shape.
+int lmr_divisor(int depth);
 int quiet_futility_value(int static_eval, int lmr_depth, bool eval_gt_alpha);
 int quiet_see_margin(int lmr_depth);
 
