@@ -16,7 +16,7 @@ void search_stack_init(Stack *stack, size_t count, Histories *h, PVMoves *root_p
     int16_t *const corr_base = cont_corr_page(h, NO_PIECE, SQ_A1);
 
     // Every frame carries a live continuation page, sentinels included: the
-    // six-ply walk and the (ss-4) correction read dereference them unguarded.
+    // six-ply walk and the (ss-6) correction read dereference them unguarded.
     for (size_t i = 0; i < count; ++i) {
         stack[i].continuation_history = cont_base;
         stack[i].continuation_correction_history = corr_base;

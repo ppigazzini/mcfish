@@ -172,7 +172,8 @@ int multicut_correction_bonus(int eval_delta, int singular_depth);
 
 // Blend the six correction reads. The caller resolves the table lookups; only the
 // tuned weights live here.
-int correction_value_blend(int pcv, int micv, int wnpcv, int bnpcv, int cch2, int cch4, bool m_ok);
+int correction_value_blend(
+  int pcv, int micv, int wnpcv, int bnpcv, int cch2, int cch4, int cch6, bool m_ok);
 
 // Order quiets by static-eval difference: clamp the negated sum of the previous
 // and current static evals into [-189, 194] and bias by 60.
@@ -255,14 +256,15 @@ search_do_move(SearchCtx *ctx, Position *pos, Move m, StateInfo *st, bool gives_
     // the piece standing on `to` afterwards.
     const Piece moved_pc = piece_on(pos, move_from(m));
     const Square to = move_to(m);
-    // Preload the two continuation-correction pages the child reads while the make below
+    // Preload the three continuation-correction pages the child reads while the make below
     // runs (search.cpp:666). The child indexes them by the piece standing on `to` AFTER
     // the move, so for a castling or a promotion this hint lands on a line nobody reads;
-    // like the TT hint above it changes no value. Upstream guards the pair on a null
+    // like the TT hint above it changes no value. Upstream guards the three on a null
     // stack because its do_move takes one; all three callers here pass a live frame.
     const size_t corr_idx = (size_t) moved_pc * SQUARE_NB + (size_t) to;
     __builtin_prefetch(&(ss - 1)->continuation_correction_history[corr_idx], 0, 3);
     __builtin_prefetch(&(ss - 3)->continuation_correction_history[corr_idx], 0, 3);
+    __builtin_prefetch(&(ss - 5)->continuation_correction_history[corr_idx], 0, 3);
     ctx_add_nodes(ctx, 1);
     DirtyPiece *dp;
     DirtyThreats *dts;

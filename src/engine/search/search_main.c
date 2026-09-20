@@ -514,6 +514,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                       h, pos, pos->side_to_move, ss1->current_move,
                       (ss - 2)->continuation_correction_history,
                       (ss - 4)->continuation_correction_history,
+                      (ss - 6)->continuation_correction_history,
                       multicut_correction_bonus(value - ss->static_eval, singular_depth));
                 }
 
@@ -717,7 +718,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         && (best_value > ss->static_eval) == (best_move != MOVE_NONE)) {
         history_update_correction(
           h, pos, pos->side_to_move, ss1->current_move, (ss - 2)->continuation_correction_history,
-          (ss - 4)->continuation_correction_history,
+          (ss - 4)->continuation_correction_history, (ss - 6)->continuation_correction_history,
           correction_history_bonus(best_value - ss->static_eval, depth, best_move != MOVE_NONE));
     }
 

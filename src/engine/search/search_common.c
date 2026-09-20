@@ -332,9 +332,10 @@ int multicut_correction_bonus(int eval_delta, int singular_depth) {
     return raw < -limit ? -limit : raw > limit ? limit : raw;
 }
 
-int correction_value_blend(int pcv, int micv, int wnpcv, int bnpcv, int cch2, int cch4, bool m_ok) {
-    const int cntcv = m_ok ? 8761 * (cch2 + cch4) : 64049;
-    return 15341 * pcv + 10569 * micv + 12906 * (wnpcv + bnpcv) + cntcv;
+int correction_value_blend(
+  int pcv, int micv, int wnpcv, int bnpcv, int cch2, int cch4, int cch6, bool m_ok) {
+    const int cntcv = m_ok ? 7885 * (cch2 + cch4) + 6307 * cch6 : 80695;
+    return 13806 * pcv + 9512 * micv + 11615 * (wnpcv + bnpcv) + cntcv;
 }
 
 int eval_diff(int prev_static_eval, int static_eval) {

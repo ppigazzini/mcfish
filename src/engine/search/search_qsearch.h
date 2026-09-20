@@ -42,9 +42,9 @@ static inline bool pos_capture(const Position *pos, Move m) {
     return (piece_on(pos, move_to(m)) != NO_PIECE && t != CASTLING) || t == EN_PASSANT;
 }
 
-// Blend the six correction-history reads for the current node. Inline so both
+// Blend the seven correction-history reads for the current node. Inline so both
 // node bodies absorb it, as upstream's search/qsearch absorb correction_value
-// (search.cpp:85): it runs once per node and its six table reads then schedule
+// (search.cpp:85): it runs once per node and its seven table reads then schedule
 // inside the node's own window instead of behind a call boundary.
 static inline int search_correction_value(Histories *h, const Position *pos, const Stack *ss) {
     const Color us = pos->side_to_move;
@@ -58,15 +58,17 @@ static inline int search_correction_value(Histories *h, const Position *pos, con
     const Move m = (ss - 1)->current_move;
     int cch2 = 0;
     int cch4 = 0;
+    int cch6 = 0;
     const bool m_ok = m != MOVE_NONE && m != MOVE_NULL;
     if (m_ok) {
         const Square to = move_to(m);
         const size_t idx = (size_t) piece_on(pos, to) * SQUARE_NB + (size_t) to;
         cch2 = (ss - 2)->continuation_correction_history[idx];
         cch4 = (ss - 4)->continuation_correction_history[idx];
+        cch6 = (ss - 6)->continuation_correction_history[idx];
     }
 
-    return correction_value_blend(pcv, micv, wnpcv, bnpcv, cch2, cch4, m_ok);
+    return correction_value_blend(pcv, micv, wnpcv, bnpcv, cch2, cch4, cch6, m_ok);
 }
 
 // Hash the halfmove clock into the key past move 14, so a position reached with a
