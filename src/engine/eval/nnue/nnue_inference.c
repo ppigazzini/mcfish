@@ -81,10 +81,17 @@ static size_t piece_count_of(const Position *pos) {
     return (size_t) popcount_bb(pieces(pos));
 }
 
-static NnueEvalOutput evaluate_bucket_raw(const Position *pos,
-                                          NnueAccumulatorStack *stack,
-                                          NnueRefreshCache *cache,
-                                          size_t bucket) {
+// Hold one bucket's two terms before the output scaling: the PSQT (material) term
+// and the layer-stack (positional) term.
+typedef struct {
+    int32_t psqt;
+    int32_t positional;
+} BucketOutput;
+
+static BucketOutput evaluate_bucket_raw(const Position *pos,
+                                        NnueAccumulatorStack *stack,
+                                        NnueRefreshCache *cache,
+                                        size_t bucket) {
     alignas(CACHE_LINE_SIZE) uint8_t transformed[NNUE_TRANSFORMED_BYTES];
     NnueNnzBitset nnz;
 
@@ -92,20 +99,18 @@ static NnueEvalOutput evaluate_bucket_raw(const Position *pos,
       (const NnueFeatureTransformer *) (const void *) nnue_ft_ptr();
     const int32_t psqt = nnue_transform_bucket(stack, pos, ft, cache, bucket,
                                                (uint8_t) pos->side_to_move, transformed, &nnz);
-    return (NnueEvalOutput) {
+    return (BucketOutput) {
         .psqt = psqt,
         .positional = propagate_bucket(bucket, transformed, &nnz),
     };
 }
 
-NnueEvalOutput
-nnue_inference_evaluate(const Position *pos, NnueAccumulatorStack *stack, NnueRefreshCache *cache) {
+Value nnue_inference_evaluate(const Position *pos,
+                              NnueAccumulatorStack *stack,
+                              NnueRefreshCache *cache) {
     const size_t bucket = (piece_count_of(pos) - 1) / 4;
-    const NnueEvalOutput raw = evaluate_bucket_raw(pos, stack, cache, bucket);
-    return (NnueEvalOutput) {
-        .psqt = raw.psqt / OUTPUT_SCALE,
-        .positional = raw.positional / OUTPUT_SCALE,
-    };
+    const BucketOutput raw = evaluate_bucket_raw(pos, stack, cache, bucket);
+    return (Value) (raw.psqt / OUTPUT_SCALE + raw.positional / OUTPUT_SCALE);
 }
 
 NnueTraceOutput nnue_inference_trace_evaluate(const Position *pos,
@@ -115,7 +120,7 @@ NnueTraceOutput nnue_inference_trace_evaluate(const Position *pos,
     output.correct_bucket = (piece_count_of(pos) - 1) / 4;
 
     for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; bucket++) {
-        const NnueEvalOutput raw = evaluate_bucket_raw(pos, stack, cache, bucket);
+        const BucketOutput raw = evaluate_bucket_raw(pos, stack, cache, bucket);
         output.psqt[bucket] = raw.psqt / OUTPUT_SCALE;
         output.positional[bucket] = raw.positional / OUTPUT_SCALE;
     }

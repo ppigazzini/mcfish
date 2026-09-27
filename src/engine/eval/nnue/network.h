@@ -27,13 +27,6 @@
 // bump edits this one line.
 #define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-134a887f4c8f.nnue"
 
-// Report the two halves of an NNUE score before the output scaling the caller
-// applies: the PSQT (material) term and the layer-stack (positional) term.
-typedef struct {
-    int32_t psqt;
-    int32_t positional;
-} NnueEvalOutput;
-
 // Report every bucket's score for the UCI `eval` breakdown, plus the bucket the
 // position actually selects.
 typedef struct {
@@ -88,12 +81,11 @@ void network_free_message(char *message);
 // same pointers straight through. The two nnue_inference_* symbols below are the
 // contract the feature-transformer / accumulator port implements.
 
-NnueEvalOutput
-nnue_inference_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache);
+Value nnue_inference_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache);
 NnueTraceOutput
 nnue_inference_trace_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache);
 
-NnueEvalOutput network_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache);
+Value network_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache);
 NnueTraceOutput
 network_trace_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache);
 

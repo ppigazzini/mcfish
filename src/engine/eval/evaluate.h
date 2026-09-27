@@ -43,7 +43,7 @@ EvalArena *eval_default_arena(void);
 // stands better. Never returns a mate-range value.
 //
 // OPTIMISM is the search's per-colour aspiration bias, read for the side to move.
-// It scales against the network's own complexity and against material, so it is
+// It scales by the network's agreement with the material balance, so it is
 // part of the evaluation rather than a correction applied afterwards — pass the
 // search's value from inside a search. `evaluate` is the standalone form: it passes
 // zero, which is upstream's own value at `eval` and in the trace, and evaluates
