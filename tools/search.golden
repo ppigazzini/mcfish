@@ -3,14 +3,14 @@ info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-134a887f4c8f.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
-info depth 1 seldepth 2 multipv 1 score cp 35 nodes 20 hashfull 0 tbhits 0 pv d2d4
-info depth 2 seldepth 3 multipv 1 score cp 55 nodes 47 hashfull 0 tbhits 0 pv d2d4
-info depth 3 seldepth 2 multipv 1 score cp 55 nodes 68 hashfull 0 tbhits 0 pv d2d4
-info depth 4 seldepth 4 multipv 1 score cp 24 nodes 1086 hashfull 0 tbhits 0 pv d2d4 d7d5 g1f3
-info depth 5 seldepth 7 multipv 1 score cp 19 nodes 1958 hashfull 0 tbhits 0 pv e2e4 c7c5 c2c3 g8f6
-info depth 6 seldepth 10 multipv 1 score cp 22 nodes 2206 hashfull 0 tbhits 0 pv e2e4 e7e5 g1f3 b8c6 d2d4 e5d4 f3d4
-info depth 7 seldepth 9 multipv 1 score cp 21 nodes 2338 hashfull 0 tbhits 0 pv e2e4 c7c5 g1f3 b8c6 c2c3
-bestmove e2e4 ponder c7c5
+info depth 1 seldepth 2 multipv 1 score cp 38 nodes 20 hashfull 0 tbhits 0 pv d2d4
+info depth 2 seldepth 3 multipv 1 score cp 56 nodes 47 hashfull 0 tbhits 0 pv d2d4
+info depth 3 seldepth 2 multipv 1 score cp 56 nodes 68 hashfull 0 tbhits 0 pv d2d4
+info depth 4 seldepth 5 multipv 1 score cp 22 nodes 1127 hashfull 0 tbhits 0 pv d2d4 d7d5 g1f3
+info depth 5 seldepth 10 multipv 1 score cp 17 nodes 2592 hashfull 1 tbhits 0 pv e2e4
+info depth 6 seldepth 9 multipv 1 score cp 19 nodes 2666 hashfull 1 tbhits 0 pv e2e4 c7c5 g1f3 b8c6 d2d4 c5d4 f3d4
+info depth 7 seldepth 9 multipv 1 score cp 19 nodes 2810 hashfull 1 tbhits 0 pv g1f3 c7c5 e2e4 b8c6 d2d4 c5d4
+bestmove g1f3 ponder c7c5
 info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-134a887f4c8f.nnue (109MiB, (86896, 1024, 32, 32, 1))
@@ -25,12 +25,12 @@ info string Available processors: <cpus>
 info string Using 1 thread
 info string NNUE evaluation using nn-134a887f4c8f.nnue (109MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
-info depth 1 seldepth 5 multipv 1 score cp 29 nodes 17 hashfull 0 tbhits 0 pv e4g6 d5f7
-info depth 2 seldepth 5 multipv 1 score cp 9 nodes 165 hashfull 0 tbhits 0 pv e4d5 e8f8
-info depth 3 seldepth 4 multipv 1 score cp 9 nodes 256 hashfull 0 tbhits 0 pv e4d5 e8d7
-info depth 4 seldepth 6 multipv 1 score cp 1 nodes 1023 hashfull 0 tbhits 0 pv e4d5 e8e7
-info depth 5 seldepth 6 multipv 1 score cp -1 nodes 1334 hashfull 0 tbhits 0 pv e4d5 e8d7 d5a8 d7d6 a8e4
-info depth 6 seldepth 8 multipv 1 score cp 1 nodes 1793 hashfull 0 tbhits 0 pv e4d5 e8d7 e1d2 d7d6 d2e3 d6d5
+info depth 1 seldepth 5 multipv 1 score cp 78 nodes 17 hashfull 0 tbhits 0 pv e4g6 d5f7
+info depth 2 seldepth 6 multipv 1 score cp 3 nodes 194 hashfull 0 tbhits 0 pv e4d5 e8f8
+info depth 3 seldepth 4 multipv 1 score cp 5 nodes 360 hashfull 0 tbhits 0 pv e4d5 e8d7
+info depth 4 seldepth 8 multipv 1 score cp 2 nodes 726 hashfull 0 tbhits 0 pv e4d5 e8e7 d5e4 e7d6
+info depth 5 seldepth 7 multipv 1 score cp 3 nodes 1033 hashfull 0 tbhits 0 pv e4d5 e8e7 e1d2 e7d6
+info depth 6 seldepth 7 multipv 1 score cp 3 nodes 1120 hashfull 0 tbhits 0 pv e4d5 e8d7
 bestmove e4d5 ponder e8d7
 info string Available processors: <cpus>
 info string Using 1 thread
