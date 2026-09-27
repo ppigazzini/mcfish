@@ -98,6 +98,13 @@ static_assert(sizeof(ThreatIndexBlock) % 64 == 0,
 
 static alignas(64) ThreatIndexBlock ThreatIndexBlocks[16];
 
+// Fold PieceSquareIndex, KingBuckets and the king-side orientation into one u16 per
+// (perspective, king square, piece), so a HalfKAv2_hm index is one load and one xor.
+// Every addend but the orientation is a multiple of 64 and the orientation is below 64,
+// so adding it equals xoring it, and xoring the square into the sum gives the same
+// index the three-table form summed. Golden: `HalfKAv2_hm::make_index`'s `offsets`.
+static alignas(64) uint16_t HalfIndexOffsets[2 * SQUARE_NB][PIECE_NB];
+
 static void init_threat_offsets(void) {
     uint32_t cumulative_offset = 0;
     for (unsigned piece_index = 0; piece_index < 12; piece_index++) {
@@ -198,6 +205,23 @@ static void init_threat_blocks(void) {
     }
 }
 
+static void init_half_index_offsets(void) {
+    for (unsigned perspective = 0; perspective < 2; perspective++) {
+        const uint32_t flip = 56u * perspective;
+        for (unsigned king_square = 0; king_square < SQUARE_NB; king_square++) {
+            const uint32_t orient = OrientTblHalf[king_square] ^ flip;
+            for (unsigned piece = 0; piece < PIECE_NB; piece++) {
+                const uint32_t sum =
+                  PieceSquareIndex[perspective][piece] + KingBuckets[king_square ^ flip] + orient;
+                if (sum > UINT16_MAX) {
+                    __builtin_trap();
+                }
+                HalfIndexOffsets[perspective * SQUARE_NB + king_square][piece] = (uint16_t) sum;
+            }
+        }
+    }
+}
+
 static void init_pawn_pair_bb(void) {
     for (unsigned square = 0; square < 64; square++) {
         PawnPairBB[square] = nnue_bb_pawn_pair(square);
@@ -209,6 +233,7 @@ void nnue_feature_init(void) {
     init_index_luts();
     init_index_lut2();
     init_threat_blocks();
+    init_half_index_offsets();
     init_pawn_pair_bb();
 }
 
@@ -216,10 +241,7 @@ void nnue_feature_init(void) {
 
 uint32_t
 nnue_half_make_index(uint8_t perspective, uint8_t square, uint8_t piece, uint8_t king_square) {
-    const uint32_t flip = 56u * perspective;
-    return ((uint32_t) square ^ OrientTblHalf[king_square] ^ flip)
-         + PieceSquareIndex[perspective][piece]
-         + KingBuckets[king_square ^ (uint8_t) (perspective * 56)];
+    return (uint32_t) square ^ HalfIndexOffsets[perspective * SQUARE_NB + king_square][piece];
 }
 
 // --- full_threats -----------------------------------------------------------------
