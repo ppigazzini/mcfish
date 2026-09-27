@@ -25,11 +25,6 @@
 // NNUE_LAYER_STACKS / NNUE_LAYERS_PER_STACK come from nnue_architecture.h,
 // the single authority for the network dimensions.
 
-typedef struct NnueEvalOutput {
-    int32_t psqt;
-    int32_t positional;
-} NnueEvalOutput;
-
 typedef struct NnueTraceOutput {
     int32_t psqt[NNUE_LAYER_STACKS];
     int32_t positional[NNUE_LAYER_STACKS];
@@ -51,9 +46,11 @@ const int8_t *nnue_layer_weights(size_t bucket, size_t idx);
 
 // ----------------------------------------------------------------------------------
 
-// Evaluate POS through the bucket its piece count selects.
-NnueEvalOutput
-nnue_inference_evaluate(const Position *pos, NnueAccumulatorStack *stack, NnueRefreshCache *cache);
+// Evaluate POS through the bucket its piece count selects: the PSQT and positional
+// terms, each scaled down to internal units on its own, then summed.
+Value nnue_inference_evaluate(const Position *pos,
+                              NnueAccumulatorStack *stack,
+                              NnueRefreshCache *cache);
 
 // Evaluate POS through EVERY bucket, for the `eval` trace, and name the one the piece
 // count would have selected.

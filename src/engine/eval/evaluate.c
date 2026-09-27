@@ -280,38 +280,43 @@ void eval_acc_pop(EvalArena *arena) {
 // re-derived here from VALUE_MATE and MAX_PLY rather than pinned as a literal.
 enum { EVAL_TB_WIN_IN_MAX_PLY = VALUE_MATE_IN_MAX_PLY - MAX_PLY - 1 };
 
-static int64_t abs64(int64_t v) { return v < 0 ? -v : v; }
-
-// Blend the network's two terms with optimism and material, then damp for the
-// halfmove clock. Every divide is truncating, and every intermediate is widened to
-// int64 before the multiply — both are load-bearing for bit-exactness.
+// Return the material balance from the side to move's point of view.
 //
-// Golden: Stockfish/src/evaluate.cpp:48-67.
-static Value
-nnue_scaled_value(const Position *pos, int32_t psqt, int32_t positional, int optimism) {
-    int64_t nnue = (int64_t) psqt + (int64_t) positional;
+// Golden: Stockfish/src/evaluate.cpp simple_eval.
+static int simple_eval(const Position *pos) {
+    const Color c = pos->side_to_move;
+    const Color them = flip_color(c);
+    return PAWN_VALUE * (count_p(pos, c, PAWN) - count_p(pos, them, PAWN))
+         + pos_non_pawn_material(pos, c) - pos_non_pawn_material(pos, them);
+}
 
-    const int64_t complexity = abs64((int64_t) psqt - (int64_t) positional);
-    int64_t opt = (int64_t) optimism;
-    opt += opt * complexity / 476;
-    nnue -= nnue * complexity / 18236;
+// Scale the raw NNUE value by how far the network agrees with the material balance,
+// then by total material, then damp for the halfmove clock. Every divide truncates,
+// and each intermediate keeps upstream's width: `int` everywhere but the material
+// product, which upstream widens to i64. The FEN parser's 2**15 cap on rule50 is what
+// keeps the last product inside `int`.
+//
+// Golden: Stockfish/src/evaluate.cpp scale_evaluation.
+static Value nnue_scaled_value(const Position *pos, Value nnue, int optimism) {
+    const int se = simple_eval(pos);
 
-    const int64_t material = 534 * (count_p(pos, WHITE, PAWN) + count_p(pos, BLACK, PAWN))
-                           + pos_non_pawn_material(pos, WHITE) + pos_non_pawn_material(pos, BLACK);
+    // Normalize both evaluations to [-1024, 1024] to measure their correlation.
+    const int se_norm = (se * 1024) / (abs(se) + 1024);
+    const int nnue_norm = (nnue * 1024) / (abs(nnue) + 1024);
+    // Positive alignment -- network and material agree -- marks a straightforward
+    // position; negative marks compensation. When winning, favor the easy positions.
+    const int alignment = (se_norm * nnue_norm) / 512;
+    const int base_eval = nnue + (nnue * alignment) / 65536 + (optimism * alignment) / 16384;
 
-    // Add the un-scaled NNUE term OUTSIDE the divide rather than folding 91000 into
-    // the numerator. Not an algebraic rewrite: one truncation over the whole sum is
-    // not the same integer as an exact term plus one truncation over the remainder,
-    // and the bench moves accordingly (upstream 2edd935b).
-    int64_t v = nnue + (nnue * material + opt * 7675) / 91000;
+    const int material = 521 * (count_p(pos, WHITE, PAWN) + count_p(pos, BLACK, PAWN))
+                       + pos_non_pawn_material(pos, WHITE) + pos_non_pawn_material(pos, BLACK);
+    int v = (int) ((int64_t) base_eval * (int64_t) (90649 + material) / 90649);
 
-    v -= v * pos->st->rule50 / 199;
+    v -= v * pos->st->rule50 / 189;
 
-    const int64_t lo = -(int64_t) EVAL_TB_WIN_IN_MAX_PLY + 1;
-    const int64_t hi = (int64_t) EVAL_TB_WIN_IN_MAX_PLY - 1;
-    v = v < lo ? lo : v > hi ? hi : v;
-
-    return (Value) v;
+    const int lo = -EVAL_TB_WIN_IN_MAX_PLY + 1;
+    const int hi = EVAL_TB_WIN_IN_MAX_PLY - 1;
+    return (Value) (v < lo ? lo : v > hi ? hi : v);
 }
 
 // ---------------------------------------------------------------------------
@@ -425,14 +430,14 @@ static Value evaluate_classical(const Position *pos) {
 // ---------------------------------------------------------------------------
 
 Value evaluate_nnue_with_optimism(EvalArena *arena, const Position *pos, int optimism) {
-    const NnueEvalOutput out = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
-    return nnue_scaled_value(pos, out.psqt, out.positional, optimism);
+    const Value nnue = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
+    return nnue_scaled_value(pos, nnue, optimism);
 }
 
 Value evaluate_with_optimism(EvalArena *arena, const Position *pos, int optimism) {
-    // The classical placeholder produces neither network half, so there is nothing
-    // for optimism to scale against; it is scaffolding to be deleted and never
-    // grows a blend of its own.
+    // The classical placeholder produces no network value, so there is nothing for
+    // optimism to scale against; it is scaffolding to be deleted and never grows a
+    // blend of its own.
     if (!NetLoaded || arena == nullptr)
         return evaluate_classical(pos);
 
@@ -492,10 +497,9 @@ static void trace_nnue(EvalArena *arena, const Position *pos, char *buf, int buf
         return;
 
     eval_acc_reset(arena);
-    const NnueEvalOutput out = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
-    const Value internal = (Value) (out.psqt + out.positional);
+    const Value internal = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
     const Value white_internal = pos->side_to_move == WHITE ? internal : (Value) -internal;
-    const Value scaled = nnue_scaled_value(pos, out.psqt, out.positional, 0);
+    const Value scaled = nnue_scaled_value(pos, internal, 0);
     const Value white_scaled = pos->side_to_move == WHITE ? scaled : (Value) -scaled;
 
     // The trailing blank line is upstream's `sync_endl` after a string that already
