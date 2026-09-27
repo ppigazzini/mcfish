@@ -649,7 +649,7 @@ NetworkSaveResult network_save(const char *filename) {
 
 // ---- forward pass ------------------------------------------------------------
 
-NnueEvalOutput network_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache) {
+Value network_evaluate(const Position *pos, void *accumulator_stack, void *refresh_cache) {
     return nnue_inference_evaluate(pos, accumulator_stack, refresh_cache);
 }
 
