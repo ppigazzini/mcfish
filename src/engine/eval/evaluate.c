@@ -280,25 +280,27 @@ void eval_acc_pop(EvalArena *arena) {
 // re-derived here from VALUE_MATE and MAX_PLY rather than pinned as a literal.
 enum { EVAL_TB_WIN_IN_MAX_PLY = VALUE_MATE_IN_MAX_PLY - MAX_PLY - 1 };
 
-// Return the material balance from the side to move's point of view.
-//
-// Golden: Stockfish/src/evaluate.cpp simple_eval.
-static int simple_eval(const Position *pos) {
-    const Color c = pos->side_to_move;
-    const Color them = flip_color(c);
-    return PAWN_VALUE * (count_p(pos, c, PAWN) - count_p(pos, them, PAWN))
-         + pos_non_pawn_material(pos, c) - pos_non_pawn_material(pos, them);
-}
-
 // Scale the raw NNUE value by how far the network agrees with the material balance,
 // then by total material, then damp for the halfmove clock. Every divide truncates,
 // and each intermediate keeps upstream's width: `int` everywhere but the material
 // product, which upstream widens to i64. The FEN parser's 2**15 cap on rule50 is what
 // keeps the last product inside `int`.
 //
-// Golden: Stockfish/src/evaluate.cpp scale_evaluation.
+// Upstream's simple_eval reads the four material terms by side to move and its
+// material scale reads them again by colour. Read them once, by colour, and take the
+// balance from White's side, negated for Black: 208 * (Pb - Pw) + Nb - Nw is exactly
+// -(208 * (Pw - Pb) + Nw - Nb), so `se` is upstream's to the bit, and neither sum
+// needs the side-to-move index arithmetic.
+//
+// Golden: Stockfish/src/evaluate.cpp simple_eval and scale_evaluation.
 static Value nnue_scaled_value(const Position *pos, Value nnue, int optimism) {
-    const int se = simple_eval(pos);
+    const int pawns_w = count_p(pos, WHITE, PAWN);
+    const int pawns_b = count_p(pos, BLACK, PAWN);
+    const int npm_w = pos_non_pawn_material(pos, WHITE);
+    const int npm_b = pos_non_pawn_material(pos, BLACK);
+
+    const int se_white = PAWN_VALUE * (pawns_w - pawns_b) + npm_w - npm_b;
+    const int se = pos->side_to_move == WHITE ? se_white : -se_white;
 
     // Normalize both evaluations to [-1024, 1024] to measure their correlation.
     const int se_norm = (se * 1024) / (abs(se) + 1024);
@@ -308,8 +310,7 @@ static Value nnue_scaled_value(const Position *pos, Value nnue, int optimism) {
     const int alignment = (se_norm * nnue_norm) / 512;
     const int base_eval = nnue + (nnue * alignment) / 65536 + (optimism * alignment) / 16384;
 
-    const int material = 521 * (count_p(pos, WHITE, PAWN) + count_p(pos, BLACK, PAWN))
-                       + pos_non_pawn_material(pos, WHITE) + pos_non_pawn_material(pos, BLACK);
+    const int material = 521 * (pawns_w + pawns_b) + npm_w + npm_b;
     int v = (int) ((int64_t) base_eval * (int64_t) (90649 + material) / 90649);
 
     v -= v * pos->st->rule50 / 189;
