@@ -472,7 +472,7 @@ void uci_compiler_info(char *buf, size_t buf_len) {
 #if defined(__AVX512VBMI2__) && defined(__AVX512BITALG__)
     append(buf, buf_len, &pos, " AVX512ICL");
 #endif
-#if defined(__AVX512VNNI__)
+#if defined(__AVX512VNNI__) || defined(__AVXVNNI__)
     append(buf, buf_len, &pos, " VNNI");
 #endif
 #if defined(__AVX512F__)

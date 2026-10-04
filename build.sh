@@ -166,10 +166,10 @@ CFLAGS_COMMON=(
 #
 #   x86-64-sse41-popcnt  matches the oracle's ARCH, so an instruction or nps
 #                        differential against UPSTREAM compares code, not ISA.
-#   native               the widest tier this host can execute -- what the engine
-#                        should ship as here, and the only honest basis for comparing
-#                        against a natively-built port. It NAMES a tier below rather
-#                        than emitting host-specific code; see the ladder.
+#   native               the tier upstream's ARCH=native picks for this host -- what
+#                        the engine should ship as here, and the only honest basis for
+#                        comparing against a natively-built port. It NAMES a tier below
+#                        rather than emitting host-specific code; see the ladder.
 #
 # Getting this wrong is not a small error. A native build on this host selects
 # x86-64-avx512icl with VNNI -- a single vpdpbusd does the whole u8xi8 dot product
@@ -187,24 +187,86 @@ CFLAGS_COMMON=(
 # that ran the build -- clang resolves it to a -target-cpu (znver4 here) with tuning and
 # ISA extensions no tier name records, so two hosts sharing a label would ship different
 # binaries and every per-tier number would silently mean "whatever box took it". The
-# ladder is upstream's own ARCH set, so a tier name is a complete description of the
-# code, both engines can be built at the SAME named ISA, and a standing filed under one
-# is reproducible anywhere. ../zfish resolves native the same way, for the same reason.
+# ladder is upstream's own x86-64 ARCH set, so a tier name is a complete description of
+# the code, both engines can be built at the SAME named ISA, and a standing filed under
+# one is reproducible anywhere. ../zfish resolves native the same way, for the same reason.
 #
-# The floor is deliberate: a host with avx512f but no VNNI takes avx512, and one with
-# no avx512 at all takes avx2. That may leave an extension unused where `-march=native`
-# would have taken it. Reproducibility is worth more than the last extension here --
-# every gate, budget and Elo standing in this tree compares across builds.
-detect_arch_tier() {
-  local f=/proc/cpuinfo
-  if grep -qw avx512_vbmi2 $f 2>/dev/null && grep -qw avx512_bitalg $f 2>/dev/null \
-     && grep -qw avx512_vnni $f 2>/dev/null; then echo avx512icl
-  elif grep -qw avx512_vnni $f 2>/dev/null; then echo vnni512
-  elif grep -qw avx512f $f 2>/dev/null;     then echo avx512
-  elif grep -qw avx2 $f 2>/dev/null;        then echo avx2
-  else echo sse41; fi
+# The tiers, strongest first, each with the /proc/cpuinfo flags that admit it: upstream's
+# own selector table (scripts/get_native_properties.sh, set_arch_x86_64), row for row
+# and in its order, so `native` picks the tier upstream's `ARCH=native` picks. The flags
+# are compared the way upstream compares them -- lowercased, with every `_` and `.`
+# removed, so `avx512_vbmi2` reads `avx512vbmi2` and `sse4_1` reads `sse41`. Two rows are
+# more than a flag list, as upstream's are: sse3-popcnt takes `sse3` OR its cpuinfo
+# spelling `pni`, and bmi2 refuses AMD families 21 and 23 (Bulldozer through Excavator,
+# Zen 1 and Zen 2), whose pext is microcode -- seven macro-ops at a reciprocal
+# throughput of 18-19 cycles against one op and 3 cycles on Zen 3 and later. Those hosts
+# take avx2, which carries no BMI2 and so takes the magic multiply, as upstream's
+# x86-64-avx2 does.
+ARCH_TIERS=(
+  "avx512icl|avx512f avx512cd avx512vl avx512dq avx512bw avx512ifma avx512vbmi avx512vbmi2 avx512vpopcntdq avx512bitalg avx512vnni vpclmulqdq gfni vaes"
+  "vnni512|avx512vnni avx512dq avx512f avx512bw avx512vl"
+  "avx512|avx512f avx512bw"
+  "avxvnni|avxvnni"
+  "bmi2|bmi2"
+  "avx2|avx2"
+  "sse41|sse41 popcnt"
+  "ssse3|ssse3"
+  "sse3-popcnt|popcnt"
+  "x86-64|"
+)
+
+# MCFISH_CPUINFO points the selector at a cpuinfo-shaped file instead of the host's,
+# as upstream's GP_CPUINFO does, so its choice can be checked for a CPU this is not.
+# Read at every call, so `MCFISH_CPUINFO=<file> detect_arch_tier` works mid-script.
+host_cpu_flags() {
+  awk '/^flags[ \t]*:/ { gsub(/^flags[ \t]*:[ \t]*|[_.]/, ""); print " " tolower($0) " "; exit }' \
+    "${MCFISH_CPUINFO:-/proc/cpuinfo}" 2>/dev/null
 }
+
+host_has_slow_bmi2() {
+  local vendor family
+  vendor=$(awk '/^vendor_id/ { print $3; exit }' "${MCFISH_CPUINFO:-/proc/cpuinfo}" 2>/dev/null)
+  family=$(awk '/^cpu family/ { print $4; exit }' "${MCFISH_CPUINFO:-/proc/cpuinfo}" 2>/dev/null)
+  [[ $vendor == AuthenticAMD && ( $family == 21 || $family == 23 ) ]]
+}
+
+# Report whether the host can EXECUTE tier $1. This is the flag test alone: a slow-BMI2
+# host still runs the bmi2 tier correctly, so arch-determinism builds it there, and only
+# the selector below declines to choose it.
+tier_runs_on_host() {
+  local row tier want flags f
+  flags=$(host_cpu_flags)
+  for row in "${ARCH_TIERS[@]}"; do
+    tier=${row%%|*}
+    [[ $tier == "$1" ]] || continue
+    want=${row#*|}
+    if [[ $tier == sse3-popcnt ]]; then
+      [[ $flags == *" sse3 "* || $flags == *" pni "* ]] || return 1
+    fi
+    for f in $want; do
+      [[ $flags == *" $f "* ]] || return 1
+    done
+    return 0
+  done
+  return 1
+}
+
+detect_arch_tier() {
+  local row tier
+  for row in "${ARCH_TIERS[@]}"; do
+    tier=${row%%|*}
+    [[ $tier == bmi2 ]] && host_has_slow_bmi2 && continue
+    tier_runs_on_host "$tier" && { echo "$tier"; return 0; }
+  done
+}
+
 MCFISH_ARCH=${MCFISH_ARCH:-sse41}
+# Accept upstream's own ARCH spellings too: x86-64-<tier> names the same tier here, and
+# x86-64-sse41-popcnt is this tree's sse41.
+case "$MCFISH_ARCH" in
+  x86-64-sse41-popcnt) MCFISH_ARCH=sse41 ;;
+  x86-64-?*)           MCFISH_ARCH=${MCFISH_ARCH#x86-64-} ;;
+esac
 # Keep what the caller asked for: only the report distinguishes `native` from the tier
 # it chose, and every other consumer wants the concrete tier.
 MCFISH_ARCH_SELECTOR=$MCFISH_ARCH
@@ -213,25 +275,42 @@ MCFISH_ARCH_SELECTOR=$MCFISH_ARCH
 # Upstream's implication chain, mirrored: each tier is every flag the ones below it
 # carry, plus its own (Stockfish src/Makefile, the `findstring -<tier>` blocks and the
 # per-feature CXXFLAGS below them). Written out per tier rather than accumulated, so a
-# tier is readable in one line and cannot inherit a flag by accident.
+# tier is readable in one line and cannot inherit a flag by accident. -mavx2 implies
+# every SSE level under it in clang, so the AVX tiers do not spell those out.
+#
+# BMI2 is a tier of its own, as upstream's `pext = yes` is: avx2 stops at -mbmi, and
+# bmi2 is avx2 plus -mbmi2, which is what turns attacks.c's slider index from the magic
+# multiply into pext. Every tier above avx2 carries it, as every upstream tier above
+# x86-64-avx2 sets pext.
 case "$MCFISH_ARCH" in
-  sse41)   CFLAGS_ARCH=(-msse -msse2 -msse3 -mssse3 -msse4.1 -mpopcnt) ;;
-  avx2)    CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt) ;;
-  avx512)  CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
-                        -mavx512vl) ;;
+  x86-64)      CFLAGS_ARCH=(-msse -msse2) ;;
+  sse3-popcnt) CFLAGS_ARCH=(-msse -msse2 -msse3 -mpopcnt) ;;
+  ssse3)       CFLAGS_ARCH=(-msse -msse2 -mssse3) ;;
+  sse41)       CFLAGS_ARCH=(-msse -msse2 -msse3 -mssse3 -msse4.1 -mpopcnt) ;;
+  avx2)        CFLAGS_ARCH=(-mavx2 -mbmi -mpopcnt) ;;
+  bmi2)        CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt) ;;
+  # Upstream's x86-64-avxvnni: bmi2 plus the VEX-encoded 256-bit VNNI, which upstream
+  # gates as USE_VNNI and USE_AVXVNNI and spends on the 256-bit dot product.
+  avxvnni)     CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavxvnni) ;;
+  avx512)      CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
+                            -mavx512vl) ;;
   # Mirror upstream's x86-64-vnni512 tier so the two engines can be compared at the
-  # SAME named ISA: everything avx2 has, plus the avx512 foundation and VNNI.
-  vnni512) CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
-                        -mavx512vl -mavx512vnni) ;;
+  # SAME named ISA: everything avx512 has, plus VNNI.
+  vnni512)     CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
+                            -mavx512vl -mavx512vnni) ;;
   # Upstream's top x86-64 tier. vbmi2/bitalg/ifma/vpopcntdq are what the ICL-gated
   # threat and move-sorting paths compile against, so this is the tier that builds
   # them by NAME -- before this existed they were reachable only through -march=native
   # on a capable host, which is to say only by accident of the build machine.
-  avx512icl) CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
-                          -mavx512vl -mavx512vnni -mavx512cd -mavx512ifma -mavx512vbmi
-                          -mavx512vbmi2 -mavx512vpopcntdq -mavx512bitalg -mvpclmulqdq
-                          -mgfni -mvaes) ;;
-  *)       red "unknown MCFISH_ARCH: $MCFISH_ARCH (want sse41, avx2, avx512, vnni512, avx512icl or native)"; exit 2 ;;
+  avx512icl)   CFLAGS_ARCH=(-mavx2 -mbmi -mbmi2 -mpopcnt -mavx512f -mavx512bw -mavx512dq
+                            -mavx512vl -mavx512vnni -mavx512cd -mavx512ifma -mavx512vbmi
+                            -mavx512vbmi2 -mavx512vpopcntdq -mavx512bitalg -mvpclmulqdq
+                            -mgfni -mvaes) ;;
+  # Not `red`: it is defined further down, and before that the name resolves to
+  # /usr/bin/red, the restricted ed, which reads the message as a file to edit.
+  *) printf '\033[31munknown MCFISH_ARCH: %s (want one of: %s, native, or upstream'"'"'s x86-64-<tier>)\033[0m\n' \
+       "$MCFISH_ARCH" "${ARCH_TIERS[*]%%|*}" >&2
+     exit 2 ;;
 esac
 
 arch_report_label() {
@@ -246,11 +325,9 @@ arch_report_label() {
 # suffix any more: the selector resolved to a real tier above, and the label is that
 # tier's upstream name, which now fully describes the code.
 case "$MCFISH_ARCH" in
+  x86-64)    MCFISH_ARCH_STRING=x86-64 ;;
   sse41)     MCFISH_ARCH_STRING=x86-64-sse41-popcnt ;;
-  avx2)      MCFISH_ARCH_STRING=x86-64-avx2 ;;
-  avx512)    MCFISH_ARCH_STRING=x86-64-avx512 ;;
-  vnni512)   MCFISH_ARCH_STRING=x86-64-vnni512 ;;
-  avx512icl) MCFISH_ARCH_STRING=x86-64-avx512icl ;;
+  *)         MCFISH_ARCH_STRING=x86-64-$MCFISH_ARCH ;;
 esac
 CFLAGS_ARCH+=("-DMCFISH_ARCH_STRING=\"$MCFISH_ARCH_STRING\"")
 
@@ -2387,6 +2464,33 @@ do_simd_scalar() {
   fi
 }
 
+# The CPUs the selector half of arch-determinism holds `native` to upstream's choice
+# on: name|vendor|family|flags, one per row of upstream's table and per refusal in it.
+# The flags are /proc/cpuinfo's own spellings, so the normalisation is exercised too.
+ARCH_SELECT_BASE="fpu sse sse2 pni ssse3 sse4_1 sse4_2 popcnt"
+ARCH_SELECT_AVX2="$ARCH_SELECT_BASE avx avx2 bmi1 bmi2 fma"
+ARCH_SELECT_512="avx512f avx512dq avx512cd avx512bw avx512vl"
+ARCH_SELECT_ICL="$ARCH_SELECT_512 avx512ifma avx512vbmi avx512_vbmi2 avx512_vpopcntdq avx512_bitalg avx512_vnni vpclmulqdq gfni vaes"
+ARCH_SELECT_CPUS=(
+  "zen5|AuthenticAMD|26|$ARCH_SELECT_AVX2 $ARCH_SELECT_ICL avx_vnni"
+  "zen4|AuthenticAMD|25|$ARCH_SELECT_AVX2 $ARCH_SELECT_ICL"
+  "zen3|AuthenticAMD|25|$ARCH_SELECT_AVX2"
+  "zen2|AuthenticAMD|23|$ARCH_SELECT_AVX2"
+  "excavator|AuthenticAMD|21|$ARCH_SELECT_BASE avx avx2 bmi1 bmi2"
+  "k10|AuthenticAMD|16|fpu sse sse2 pni popcnt"
+  "k8|AuthenticAMD|15|fpu sse sse2"
+  "icelake|GenuineIntel|6|$ARCH_SELECT_AVX2 $ARCH_SELECT_ICL"
+  "cascadelake|GenuineIntel|6|$ARCH_SELECT_AVX2 $ARCH_SELECT_512 avx512_vnni"
+  "skylakex|GenuineIntel|6|$ARCH_SELECT_AVX2 $ARCH_SELECT_512"
+  "avx512f-no-bw|GenuineIntel|6|$ARCH_SELECT_AVX2 avx512f"
+  "alderlake|GenuineIntel|6|$ARCH_SELECT_AVX2 avx_vnni"
+  "skylake|GenuineIntel|6|$ARCH_SELECT_AVX2"
+  "avx2-no-bmi2|GenuineIntel|6|$ARCH_SELECT_BASE avx avx2"
+  "nehalem|GenuineIntel|6|$ARCH_SELECT_BASE"
+  "penryn-no-popcnt|GenuineIntel|6|fpu sse sse2 pni ssse3 sse4_1"
+  "core2|GenuineIntel|6|fpu sse sse2 pni ssse3"
+)
+
 do_arch_determinism() {
   # Every ISA tier the host can execute must bench the SAME node count.
   #
@@ -2396,21 +2500,21 @@ do_arch_determinism() {
   # bit-exactness break would hide, and no other gate here builds more than one tier.
   #
   # Gate each tier on host capability rather than assuming: a tier the CPU cannot
-  # execute would SIGILL and read as a failure of the port.
+  # execute would SIGILL and read as a failure of the port. The test is the selector's
+  # own flag table, so a tier is built here exactly when this host could run it.
   #
   # Name every tier. `native` used to sit at the end of this list as the only way to
   # reach the widest code the host could run; it is an ALIAS for one of these now, so
   # listing it would build a duplicate and test nothing the alias target does not.
-  local expected tiers=(sse41)
+  local expected tiers=() skipped=() row tier i
   expected=$(grep -v '^#' tools/signature.golden | tr -d '[:space:]')
-  grep -qw avx2 /proc/cpuinfo && tiers+=(avx2)
-  grep -qw avx512f /proc/cpuinfo && tiers+=(avx512)
-  grep -qw avx512_vnni /proc/cpuinfo && tiers+=(vnni512)
-  grep -qw avx512_vbmi2 /proc/cpuinfo && grep -qw avx512_bitalg /proc/cpuinfo \
-    && grep -qw avx512_vnni /proc/cpuinfo && tiers+=(avx512icl)
+  for (( i = ${#ARCH_TIERS[@]} - 1; i >= 0; i-- )); do
+    tier=${ARCH_TIERS[i]%%|*}
+    if tier_runs_on_host "$tier"; then tiers+=("$tier"); else skipped+=("$tier"); fi
+  done
 
   info "arch-determinism: ${tiers[*]} must all bench $expected"
-  local tier actual failed=0
+  local actual failed=0
   for tier in "${tiers[@]}"; do
     MCFISH_ARCH=$tier BIN=build/mcfish-$tier "$0" build > /dev/null || { red "$tier: build failed"; failed=1; continue; }
     actual=$(engine_at "build/mcfish-$tier" bench 2>&1 >/dev/null | grep 'Nodes searched' | awk '{print $NF}')
@@ -2421,7 +2525,51 @@ do_arch_determinism() {
       failed=1
     fi
   done
+  # A tier this host cannot execute still has to COMPILE, or the first host that can
+  # run it is the one that finds out it does not build.
+  for tier in "${skipped[@]}"; do
+    if MCFISH_ARCH=$tier BIN=build/mcfish-$tier "$0" build > /dev/null; then
+      info "  built $tier: this host cannot execute it, so its node count is UNTESTED here"
+    else
+      red "  FAIL $tier: build failed"
+      failed=1
+    fi
+  done
   [[ $failed -eq 0 ]] || { red "the evaluation is NOT arch-invariant -- suspect simd.h lowering"; return 1; }
+
+  # `native` must pick the tier upstream's ARCH=native picks, for every CPU class its
+  # table distinguishes. Upstream's selector is read from the golden AT THE PIN, never
+  # from the checkout's working tree, which is a fork branch.
+  local pin script dir cpu name vendor family flags ours theirs label
+  pin=$(cat tools/upstream/UPSTREAM_BASE)
+  script=$(git -C ../Stockfish show "$pin:scripts/get_native_properties.sh" 2>/dev/null) || {
+    info "arch-determinism: no upstream checkout at ../Stockfish -- the selector half is"
+    info "  NARROWED to nothing; the tier half above is the whole verdict"
+    green "arch-determinism passed (tiers only)"
+    return 0
+  }
+  dir=$(mktemp -d)
+  printf '%s\n' "$script" > "$dir/get_native_properties.sh"
+  for cpu in "${ARCH_SELECT_CPUS[@]}"; do
+    IFS='|' read -r name vendor family flags <<< "$cpu"
+    printf 'vendor_id\t: %s\ncpu family\t: %s\nflags\t\t: %s\n' "$vendor" "$family" "$flags" \
+      > "$dir/$name"
+    ours=$(MCFISH_CPUINFO=$dir/$name detect_arch_tier)
+    theirs=$(GP_UNAME_S=Linux GP_UNAME_M=x86_64 GP_CPUINFO=$dir/$name sh "$dir/get_native_properties.sh")
+    case $ours in
+      x86-64) label=x86-64 ;;
+      sse41)  label=x86-64-sse41-popcnt ;;
+      *)      label=x86-64-$ours ;;
+    esac
+    if [[ $label == "$theirs" ]]; then
+      green "  ok   native on $name: $label"
+    else
+      red "  FAIL native on $name: $label, upstream picks $theirs"
+      failed=1
+    fi
+  done
+  rm -rf "$dir"
+  [[ $failed -eq 0 ]] || { red "native does not pick upstream's tier -- follow get_native_properties.sh"; return 1; }
   green "arch-determinism passed"
 }
 

@@ -539,9 +539,16 @@ static inline void nnue_dot_store(int32_t *p, NnueDotAcc a) { _mm512_storeu_si51
 typedef __m256i NnueDotAcc;
 static inline NnueDotAcc nnue_dot_zero(void) { return _mm256_setzero_si256(); }
 static inline NnueDotAcc nnue_dot_step(NnueDotAcc acc, uint32_t packed, const int8_t *w) {
+    #if defined(__AVXVNNI__)
+    // The x86-64-avxvnni tier: upstream's m256_add_dpbusd_epi32 under USE_VNNI, the
+    // VEX-encoded vpdpbusd, which takes the u8 x i8 dot4 straight into int32.
+    return _mm256_dpbusd_epi32(acc, _mm256_set1_epi32((int) packed),
+                               _mm256_loadu_si256((const __m256i *) w));
+    #else
     const __m256i pairs = _mm256_maddubs_epi16(_mm256_set1_epi32((int) packed),
                                                _mm256_loadu_si256((const __m256i *) w));
     return _mm256_add_epi32(acc, _mm256_madd_epi16(pairs, _mm256_set1_epi16(1)));
+    #endif
 }
 static inline int32_t nnue_dot_lane(NnueDotAcc a, size_t i) {
     int32_t v[8];
@@ -654,12 +661,16 @@ static inline int32_t nnue_affine1_dot(const uint8_t *in, const int8_t *w, size_
 
 static inline int32_t nnue_affine1_dot(const uint8_t *in, const int8_t *w, size_t n) {
     __m256i acc = _mm256_setzero_si256();
-    const __m256i ones = _mm256_set1_epi16(1);
     size_t i = 0;
     for (; i + 32 <= n; i += 32) {
+    #if defined(__AVXVNNI__)
+        acc = _mm256_dpbusd_epi32(acc, _mm256_loadu_si256((const __m256i *) (in + i)),
+                                  _mm256_loadu_si256((const __m256i *) (w + i)));
+    #else
         const __m256i pairs = _mm256_maddubs_epi16(_mm256_loadu_si256((const __m256i *) (in + i)),
                                                    _mm256_loadu_si256((const __m256i *) (w + i)));
-        acc = _mm256_add_epi32(acc, _mm256_madd_epi16(pairs, ones));
+        acc = _mm256_add_epi32(acc, _mm256_madd_epi16(pairs, _mm256_set1_epi16(1)));
+    #endif
     }
     __m128i s = _mm_add_epi32(_mm256_castsi256_si128(acc), _mm256_extracti128_si256(acc, 1));
     s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0x4E));
