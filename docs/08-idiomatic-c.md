@@ -661,9 +661,9 @@ the point, its disassembly. Search the log before re-deriving one.
 EVEX encodings fold an unaligned memory operand, so above sse41 the aligned and
 the portable spelling compile to the same binary, byte for byte.
 
-`native` in the *measured* column is not a tier: it is whichever of the five the
+`native` in the *measured* column is not a tier: it is whichever tier the
 measuring host selected, so a cell reading `native` is a number about that box's
-widest tier and carries to another only if that host selects the same one. See
+tier and carries to another only if that host selects the same one. See
 [the arch ladder](#the-arch-ladder-and-why-native-is-a-selector),
 and re-measure rather than assume — a win at one tier can be flat or negative at
 another, which is why each row names the tier at all.
@@ -894,7 +894,7 @@ node count — `arch-determinism`, which reads one per tier the host can execute
 | `build` | that the files **in `SOURCES`** compile under the full warning set — not the tree | this page |
 | `debug` | nothing on its own; it is the ASan+UBSan binary the sanitizer lane drives | this page |
 | `fmt` / `fmt-fix` | formatting, via `clang-format --dry-run --Werror` over `src/` and `tests/`. Exits **127** when no `clang-format` is found | this page |
-| `arch-determinism` | that the five tiers, which run different ALGORITHMS, agree on one node count | this page |
+| `arch-determinism` | that every tier the host can execute, though they run different ALGORITHMS, agrees on one node count, and that `native` picks upstream's tier | this page |
 | `pgo` | nothing — it is a build mode, not a gate | this page |
 | `simd-scalar` | that `simd.h`'s two implementations are value-identical, which is the scalar half of the same question `arch-determinism` asks across tiers | [03-engine-eval.md](03-engine-eval.md) |
 | `type-check` | that the `-Werror=` promotions in `CFLAGS_COMMON` still refuse what the type design says they refuse | [09-type-design.md](09-type-design.md) |
@@ -911,21 +911,36 @@ unprofiled. The warning set they compile under is
 ### `./build.sh arch-determinism`
 
 Builds every ISA tier the host can execute and requires one node count from all of
-them. That is a claim about arch-invariance — **and, since the tiers now run
+them; a tier the host cannot execute is still compiled, and reported as untested.
+That is a claim about arch-invariance — **and, since the tiers now run
 different ALGORITHMS, a claim that those algorithms agree.** Upstream switches slider
 attacks at avx2, move sorting at avx512 and threat writing at ICL, and this port
 follows; that makes this step the gate for a whole class of change, because it
 compares the vector path against the scalar path *on the same tree*. `signature`
 alone tests one tier and would pass over a wrong attack set at another.
 
+Its second half holds `native` to upstream's choice: for each CPU class in its table
+it writes a cpuinfo file and requires `detect_arch_tier` to pick the tier upstream's
+`get_native_properties.sh` at the pin picks. Without the golden checkout beside the
+repository that half narrows away and says so.
+
 Run it on every ISA-gated commit. Not in `parity`: it is several full builds.
 
 ### The arch ladder, and why `native` is a selector
 
-`MCFISH_ARCH` picks one of five tiers, each a fixed `-m` flag list mirroring
-upstream's own `ARCH` set: `sse41`, `avx2`, `avx512`, `vnni512`, `avx512icl`. A
-sixth spelling, `native`, is **not** a sixth tier — it reads `/proc/cpuinfo` and
-selects the widest of the five this host can execute, then builds exactly that.
+`MCFISH_ARCH` picks one of upstream's ten x86-64 `ARCH` tiers, each a fixed `-m`
+flag list mirroring upstream's for the same name: `x86-64`, `sse3-popcnt`, `ssse3`,
+`sse41`, `avx2`, `bmi2`, `avxvnni`, `avx512`, `vnni512`, `avx512icl`. Upstream's own
+spelling works too — `x86-64-<tier>`, with `x86-64-sse41-popcnt` for `sse41`. **BMI2
+is a tier of its own, as upstream's `pext` is**: `avx2` stops at `-mbmi`, so the magic
+index multiplies, and `bmi2` adds `-mbmi2`, which turns it into `pext`. Every tier
+above `avx2` carries BMI2, as every upstream tier above `x86-64-avx2` does.
+
+`native` is **not** a tier — it reads `/proc/cpuinfo` and picks the tier upstream's
+`ARCH=native` picks, by upstream's own table (`get_native_properties.sh`) in its
+order and with its refusals: AMD families 21 and 23 (Excavator, Zen 1, Zen 2) never
+take `bmi2`, because their `pext` is microcode; they take `avx2`. Then it builds
+exactly that tier.
 
 It is deliberately not `-march=native`. Host-specific codegen makes the emitted code
 a property of the machine that ran the build: clang resolves `-march=native` to a
@@ -938,10 +953,10 @@ description of the code, which is what lets a standing be reproduced elsewhere a
 both engines be built at the SAME named ISA. `../zfish` resolves `native` the same
 way, through `detectArchFromCpu` into an enumerated `archConfigFor`.
 
-The floor is deliberate: a host with `avx512f` but no VNNI takes `avx512`, and one
-without AVX-512 takes `avx2`, even where `-march=native` would find one more
-extension. **That costs instructions wherever the host is tuned for more than its
-tier names**, and the size is a measurement, not a guess:
+The floor is deliberate: a host takes the strongest tier upstream's table admits it
+to, even where `-march=native` would find one more extension. **That costs
+instructions wherever the host is tuned for more than its tier names**, and the size
+is a measurement, not a guess:
 [`../tools/perf_counters.sh`](../tools/perf_counters.sh) against a `-march=native`
 build settles it for a given box. It is paid deliberately — every gate, budget and
 standing here is a comparison across builds, and none survive a binary that varies
@@ -949,4 +964,7 @@ with the machine that compiled it.
 
 `arch-determinism` builds every tier the host can execute and requires one node count
 from all of them, which is what keeps the widening honest. `native` is absent from
-that list: it is an alias for one of the five and would only build a duplicate.
+that list: it is an alias for one of the tiers and would only build a duplicate.
+`avxvnni` is the one tier a Zen 4 host cannot execute — it has the EVEX
+`avx512_vnni` and not the VEX-encoded AVX-VNNI — so on this box its node count is
+untested and only its build is held.
