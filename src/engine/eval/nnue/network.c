@@ -469,33 +469,25 @@ NetworkVerifyResult network_verify(const char *evalfile_path, size_t evalfile_pa
 enum { SAVE_SPAN_BYTES = 1u << 18 };
 
 // Copy N elements starting at FIRST out of a resident feature-transformer region,
-// undoing the load-time permutation on the builds that applied one. FIRST and N must
-// be multiples of the 64-element permutation chunk, which every region boundary and
-// every span below is.
-static void save_span(uint8_t *scratch,
-                      const uint8_t *region,
-                      size_t elem_bytes,
-                      size_t first,
-                      size_t n,
-                      [[maybe_unused]] bool permuted) {
+// undoing the load-time permutation on the builds that applied one. Every region the
+// transformer holds is permuted at load, so every span is unpermuted here. FIRST and N
+// must be multiples of the 64-element permutation chunk, which every region boundary
+// and every span below is.
+static void
+save_span(uint8_t *scratch, const uint8_t *region, size_t elem_bytes, size_t first, size_t n) {
     memcpy(scratch, region + first * elem_bytes, n * elem_bytes);
 #if MCFISH_SIMD_VECTOR && (defined(__AVX512BW__) || (defined(__AVX2__) && !defined(__AVX512F__)))
-    if (permuted)
-        unpermute_packus_order(scratch, elem_bytes, n);
+    unpermute_packus_order(scratch, elem_bytes, n);
 #endif
 }
 
 // Emit a raw int8 region: the threat and pp weight blocks, which the file stores as
 // plain bytes with no encoding and no byte order to apply.
-static void save_raw_i8(NnueWriter *w,
-                        const uint8_t *region,
-                        size_t first,
-                        size_t count,
-                        bool permuted,
-                        uint8_t *scratch) {
+static void
+save_raw_i8(NnueWriter *w, const uint8_t *region, size_t first, size_t count, uint8_t *scratch) {
     for (size_t done = 0; done < count && w->ok;) {
         const size_t n = count - done < SAVE_SPAN_BYTES ? count - done : (size_t) SAVE_SPAN_BYTES;
-        save_span(scratch, region, 1, first + done, n, permuted);
+        save_span(scratch, region, 1, first + done, n);
         nnue_write_bytes(w, scratch, n);
         done += n;
     }
@@ -503,63 +495,37 @@ static void save_raw_i8(NnueWriter *w,
 
 // Emit one LEB128 section over a region, in two passes: a section states its byte
 // count before its bytes, and the largest of these is 23 million values.
-static void
-save_leb_i16(NnueWriter *w, const uint8_t *region, size_t count, bool permuted, uint8_t *scratch) {
+static void save_leb_i16(NnueWriter *w, const uint8_t *region, size_t count, uint8_t *scratch) {
     const size_t span = SAVE_SPAN_BYTES / sizeof(int16_t);
     size_t bytes = 0;
     for (size_t done = 0; done < count; done += span) {
         const size_t n = count - done < span ? count - done : span;
-        save_span(scratch, region, sizeof(int16_t), done, n, permuted);
+        save_span(scratch, region, sizeof(int16_t), done, n);
         bytes += nnue_leb_bytes_i16((const int16_t *) (const void *) scratch, n);
     }
 
     nnue_write_leb_header(w, (uint32_t) bytes);
     for (size_t done = 0; done < count && w->ok; done += span) {
         const size_t n = count - done < span ? count - done : span;
-        save_span(scratch, region, sizeof(int16_t), done, n, permuted);
+        save_span(scratch, region, sizeof(int16_t), done, n);
         nnue_write_leb_i16(w, (const int16_t *) (const void *) scratch, n);
     }
 }
 
-static void
-save_leb_i32(NnueWriter *w, const uint8_t *region, size_t first, size_t count, uint8_t *scratch) {
-    const size_t span = SAVE_SPAN_BYTES / sizeof(int32_t);
-    size_t bytes = 0;
-    for (size_t done = 0; done < count; done += span) {
-        const size_t n = count - done < span ? count - done : span;
-        save_span(scratch, region, sizeof(int32_t), first + done, n, false);
-        bytes += nnue_leb_bytes_i32((const int32_t *) (const void *) scratch, n);
-    }
-
-    nnue_write_leb_header(w, (uint32_t) bytes);
-    for (size_t done = 0; done < count && w->ok; done += span) {
-        const size_t n = count - done < span ? count - done : span;
-        save_span(scratch, region, sizeof(int32_t), first + done, n, false);
-        nnue_write_leb_i32(w, (const int32_t *) (const void *) scratch, n);
-    }
-}
-
 // Write the feature transformer in the file's own order, which is
-// nnue_parse_feature_transformer's read order run backwards: the component hash, then
-// biases, the threat weight/psqt pair, the pp weight/psqt pair, and finally the psq
-// weights and their psqt block. The two concatenated regions are split at the same
-// boundary the parse joined them on.
+// nnue_parse_feature_transformer's read order: the component hash, then biases, the
+// threat weights, the pp weights, and finally the psq weights. The concatenated threat
+// region is split at the same boundary the parse joined it on.
 static void save_feature_transformer(NnueWriter *w, const uint8_t *ft, uint8_t *scratch) {
     nnue_write_u32_le(w, nnue_feature_transformer_hash_value());
 
-    save_leb_i16(w, ft + NNUE_FT_BIASES_OFF, NNUE_FT_BIASES_COUNT, true, scratch);
+    save_leb_i16(w, ft + NNUE_FT_BIASES_OFF, NNUE_FT_BIASES_COUNT, scratch);
 
-    save_raw_i8(w, ft + NNUE_FT_THREAT_WEIGHTS_OFF, 0, NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT, true,
-                scratch);
-    save_leb_i32(w, ft + NNUE_FT_THREAT_PSQT_WEIGHTS_OFF, 0, NNUE_FT_THREAT_ONLY_PSQT_COUNT,
-                 scratch);
+    save_raw_i8(w, ft + NNUE_FT_THREAT_WEIGHTS_OFF, 0, NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT, scratch);
     save_raw_i8(w, ft + NNUE_FT_THREAT_WEIGHTS_OFF, NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT,
-                NNUE_FT_PAIR_ONLY_WEIGHTS_COUNT, true, scratch);
-    save_leb_i32(w, ft + NNUE_FT_THREAT_PSQT_WEIGHTS_OFF, NNUE_FT_THREAT_ONLY_PSQT_COUNT,
-                 NNUE_FT_PAIR_ONLY_PSQT_COUNT, scratch);
+                NNUE_FT_PAIR_ONLY_WEIGHTS_COUNT, scratch);
 
-    save_leb_i16(w, ft + NNUE_FT_WEIGHTS_OFF, NNUE_FT_PSQ_WEIGHTS_COUNT, true, scratch);
-    save_leb_i32(w, ft + NNUE_FT_PSQT_WEIGHTS_OFF, 0, NNUE_FT_PSQT_WEIGHTS_COUNT, scratch);
+    save_leb_i16(w, ft + NNUE_FT_WEIGHTS_OFF, NNUE_FT_PSQ_WEIGHTS_COUNT, scratch);
 }
 
 // Write one bucket's three affine layers: the stack's component hash, then each

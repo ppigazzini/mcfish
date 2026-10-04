@@ -41,11 +41,11 @@ gate battery cover them.
 | [`nnue_ft.c`](../src/engine/eval/nnue/nnue_ft.c) | the feature-transformer blob layout and its typed accessors |
 | [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c), [`nnue_feature_bb.c`](../src/engine/eval/nnue/nnue_feature_bb.c) | the `HalfKAv2_hm`, `full_threats` and `pp_3wide` index producers |
 | [`nnue_accumulator.c`](../src/engine/eval/nnue/nnue_accumulator.c) | the per-ply accumulator stack, the refresh cache, the transform to the first layer's input |
-| [`nnue_acc_rowops.c`](../src/engine/eval/nnue/nnue_acc_rowops.c) | the weight-row add/sub SIMD kernels the accumulator's delta/refresh/PSQT paths call, split out because they carry no arena knowledge |
+| [`nnue_acc_rowops.c`](../src/engine/eval/nnue/nnue_acc_rowops.c) | the weight-row add/sub SIMD kernels the accumulator's delta, refresh and hybrid paths call, split out because they carry no arena knowledge |
 | [`nnue_affine.c`](../src/engine/eval/nnue/nnue_affine.c) | the affine kernel and the two activations |
 | [`nnue_inference.c`](../src/engine/eval/nnue/nnue_inference.c) | the per-bucket forward pass |
 | [`simd.h`](../src/engine/eval/nnue/simd.h) | the vector vocabulary, in two implementations |
-| [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv16 dimensions |
+| [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv17 dimensions |
 
 Upstream's `nnue/` sources are the golden.
 
@@ -501,9 +501,10 @@ into something that distorts play.
 
 `evaluate_trace` branches the same way `evaluate` does.
 
-`trace_nnue` prints the per-bucket material/positional split, marks the bucket this
-position actually selects, and follows with the three summary lines. It matches
-upstream byte for byte.
+`trace_nnue` prints each bucket's evaluation, marks the bucket this position
+actually selects, and follows with the three summary lines. It matches upstream byte
+for byte. The transform does not depend on the bucket, so the trace runs it once and
+propagates the layer stack eight times.
 
 Every figure in the table goes through `uci_wdl_to_cp` before it is printed. That
 is what the header's "(Normalized, ...)" means, and it is the whole of what the
