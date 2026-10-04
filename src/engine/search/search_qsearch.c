@@ -192,7 +192,7 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
             }
 
             // Step 7. Make and search the move.
-            search_do_move(ctx, pos, move, &st, gc, ss);
+            search_do_move(ctx, pos, move, &st, gc, capture, ss);
             // Recurse through the CLONE, not through this body: a self-call would
             // make the body recursive, which no always_inline can flatten, and clang
             // would emit one shared copy with `pv_node` live at run time -- which is
