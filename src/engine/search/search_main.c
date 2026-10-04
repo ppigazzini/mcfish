@@ -65,15 +65,16 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     //
     // The bar falls smoothly with the iteration, 750 + 220000 / d^2 (upstream
     // a35e229ec): 2950 at depth 10, 1609 at 16, approaching 750. Upstream says not to
-    // tune it; it serves mate finding, not playing strength. The ID loop increments
-    // root_depth before its first search, so the divisor is never zero.
+    // tune it; it serves mate finding, not playing strength. It depends on root_depth
+    // alone, so the ID loop computes it once per iteration (seek_mate_bar) and this
+    // node only compares.
     //
     // Read it here rather than beside the node-kind constants where upstream declares
-    // it (search.cpp:740): a leaf returns at the dive above before either reader.
+    // it (search.cpp:743): a leaf returns at the dive above before either reader.
     assert(ctx->root_depth > 0);
     const int32_t pv_line_score = ctx->root_moves[ctx->pv_idx].score;
-    const bool seek_mate = (pv_line_score < 0 ? -pv_line_score : pv_line_score)
-                        >= 750 + 220000 / (ctx->root_depth * ctx->root_depth);
+    const bool seek_mate =
+      (pv_line_score < 0 ? -pv_line_score : pv_line_score) >= ctx->seek_mate_bar;
 
     Histories *const h = ctx->hist;
     Stack *const ss1 = ss - 1;

@@ -237,6 +237,13 @@ typedef struct SearchCtx {
     // pointer on every call.
     bool eval_nnue_ready;
 
+    // The |root score| at which the root counts as hunting a mate, upstream's
+    // 750 + 220000 / (rootDepth * rootDepth) (search.cpp:743). It moves only with
+    // root_depth, so the ID loop computes it once per iteration and every node
+    // compares against it instead of dividing. It fills the padding the two bools
+    // above leave before pv_idx, so no hot field moves.
+    int32_t seek_mate_bar;
+
     size_t pv_idx;
     size_t pv_last;
     RootMove *root_moves;
