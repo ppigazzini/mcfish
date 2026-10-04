@@ -1,16 +1,16 @@
 <engine banner>
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-134a887f4c8f.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-252f33942263.nnue (107MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
-info depth 1 seldepth 2 multipv 1 score cp 38 nodes 2 hashfull 0 tbhits 0 pv d2d4
-info depth 2 seldepth 3 multipv 1 score cp 56 nodes 11 hashfull 0 tbhits 0 pv d2d4
+info depth 1 seldepth 2 multipv 1 score cp 32 nodes 2 hashfull 0 tbhits 0 pv d2d4
+info depth 2 seldepth 3 multipv 1 score cp 41 nodes 10 hashfull 0 tbhits 0 pv d2d4
 bestmove d2d4
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-134a887f4c8f.nnue (109MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-252f33942263.nnue (107MiB, (86896, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
-info depth 1 seldepth 2 multipv 1 score cp 56 nodes 20 hashfull 0 tbhits 0 pv d2d4
-info depth 2 seldepth 3 multipv 1 score cp 53 nodes 181 hashfull 0 tbhits 0 pv d2d4 d7d6
-bestmove d2d4 ponder d7d6
+info depth 1 seldepth 2 multipv 1 score cp 41 nodes 20 hashfull 0 tbhits 0 pv d2d4
+info depth 2 seldepth 3 multipv 1 score cp 34 nodes 381 hashfull 0 tbhits 0 pv d2d4 c7c6
+bestmove d2d4 ponder c7c6
 exit=0
