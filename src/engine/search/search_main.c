@@ -14,6 +14,8 @@
 #include "../board/repetition.h"
 #include "../board/score.h"
 
+#include <assert.h>
+
 // Enter the picker at the TT stage only when the TT move is usable, but keep
 // `tt_move` set either way so the generated list still filters it out.
 static void mp_set_main_stage(MovePicker *mp, const Position *pos, Move tt_move, int depth) {
@@ -61,12 +63,17 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     // to 6, and the singular extension is skipped entirely, so the tree collapses
     // onto the mating line instead of re-proving the moves around it.
     //
+    // The bar falls smoothly with the iteration, 750 + 220000 / d^2 (upstream
+    // a35e229ec): 2950 at depth 10, 1609 at 16, approaching 750. Upstream says not to
+    // tune it; it serves mate finding, not playing strength. The ID loop increments
+    // root_depth before its first search, so the divisor is never zero.
+    //
     // Read it here rather than beside the node-kind constants where upstream declares
-    // it (search.cpp:726): a leaf returns at the dive above before either reader, and
-    // this is two loads through ctx.
+    // it (search.cpp:740): a leaf returns at the dive above before either reader.
+    assert(ctx->root_depth > 0);
     const int32_t pv_line_score = ctx->root_moves[ctx->pv_idx].score;
-    const bool seek_mate =
-      ctx->root_depth >= 16 && (pv_line_score < 0 ? -pv_line_score : pv_line_score) >= 2000;
+    const bool seek_mate = (pv_line_score < 0 ? -pv_line_score : pv_line_score)
+                        >= 750 + 220000 / (ctx->root_depth * ctx->root_depth);
 
     Histories *const h = ctx->hist;
     Stack *const ss1 = ss - 1;
