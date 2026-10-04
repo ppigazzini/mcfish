@@ -1587,14 +1587,14 @@ static void test_search_step_margins(void) {
     // truncating division would otherwise contribute a negative reduction.
     CHECK(null_move_reduction(9, -5000, 0) == 10, "a static eval below beta never shortens R");
 
-    // clamp(delta * singularDepth * 177 / 1024, +/- CORRECTION_HISTORY_LIMIT / 4).
-    CHECK(multicut_correction_bonus(0, 8) == 0, "no delta, no bonus");
-    CHECK(multicut_correction_bonus(64, 4) == 64 * 4 * 177 / 1024, "the unclamped body, got %d",
-          multicut_correction_bonus(64, 4));
-    CHECK(multicut_correction_bonus(30000, 60) == CORRECTION_HISTORY_LIMIT / 4,
-          "clamped above at a quarter of the limit, got %d", multicut_correction_bonus(30000, 60));
-    CHECK(multicut_correction_bonus(-30000, 60) == -CORRECTION_HISTORY_LIMIT / 4,
-          "clamped below at a quarter of the limit, got %d", multicut_correction_bonus(-30000, 60));
+    // clamp(delta * 664 / 1024, +/- CORRECTION_HISTORY_LIMIT / 4).
+    CHECK(multicut_correction_bonus(0) == 0, "no delta, no bonus");
+    CHECK(multicut_correction_bonus(64) == 64 * 664 / 1024, "the unclamped body, got %d",
+          multicut_correction_bonus(64));
+    CHECK(multicut_correction_bonus(30000) == CORRECTION_HISTORY_LIMIT / 4,
+          "clamped above at a quarter of the limit, got %d", multicut_correction_bonus(30000));
+    CHECK(multicut_correction_bonus(-30000) == -CORRECTION_HISTORY_LIMIT / 4,
+          "clamped below at a quarter of the limit, got %d", multicut_correction_bonus(-30000));
 }
 
 // ------------------------------------------------- the root PV capacity contract

@@ -167,8 +167,9 @@ int correction_history_bonus(int eval_delta, int depth, bool has_best_move);
 
 // Return the correction bonus a multi-cut carries: the singular search already
 // proved the node fails high above beta, so the amount by which its value beat the
-// static eval is evidence the correction tables are reading the position low.
-int multicut_correction_bonus(int eval_delta, int singular_depth);
+// static eval is evidence the correction tables are reading the position low. The
+// bonus no longer scales with the singular search's depth (upstream 49ea5ded3).
+int multicut_correction_bonus(int eval_delta);
 
 // Blend the six correction reads. The caller resolves the table lookups; only the
 // tuned weights live here.
