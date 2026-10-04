@@ -39,6 +39,27 @@
     #define MCFISH_SIMD_VECTOR 0
 #endif
 
+// Select the transform's product-step width — the register width whose vpackuswb the
+// step narrows with. Upstream reaches its packus body from the generic `#else` arm, which
+// every x86 tier takes (feature_transformer.h); only NEON, LSX/LASX and wasm branch
+// away. Spell the choice once: the operand clamps, the step body and the nnz harvest in
+// nnue_accumulator.c all hang off it, and so does the load-time pack order in network.c,
+// which is wrong at any other width. Two separately written guards for the one width
+// would build at every tier and bench wrong at one -- the hazard upstream 7954475e0 pins
+// at compile time for its own chunk width.
+//
+// Gate the 512-bit arm on AVX512BW, the feature that owns vpmulhw and vpackuswb at zmm
+// width — not on AVX512F, which has neither.
+#if MCFISH_SIMD_VECTOR && defined(__AVX512BW__)
+    #define NNUE_TRANSFORM_PACKUS_BITS 512
+#elif MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
+    #define NNUE_TRANSFORM_PACKUS_BITS 256
+#elif MCFISH_SIMD_VECTOR && defined(__SSE2__) && !defined(__AVX512F__)
+    #define NNUE_TRANSFORM_PACKUS_BITS 128
+#else
+    #define NNUE_TRANSFORM_PACKUS_BITS 0
+#endif
+
 // Pull in the x86 intrinsic vocabulary once, so the nnz movemask can reach the native
 // mask-register path (vptestmd/kmov, vmovmskps, or the SSE2 pack+pmovmskb) on the tiers
 // that have it. The dot-product block below includes it again under its own guard; the
