@@ -368,7 +368,9 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             while ((move = movepick_next(&mp)) != MOVE_NONE) {
                 if (move == excluded_move || !pos_legal(pos, move))
                     continue;
-                search_do_move(ctx, pos, move, &st, search_gives_check(pos, move), ss);
+                const bool capture = search_capture_stage(pos, move);
+                assert(capture);
+                search_do_move(ctx, pos, move, &st, search_gives_check(pos, move), capture, ss);
                 Value value = (Value) -qsearch_node_nonpv(ctx, pos, ss + 1, -pc_beta, -pc_beta + 1);
                 if (value >= pc_beta && probcut_depth > 0)
                     value = (Value) -search_node_nonpv(ctx, pos, ss + 1, -pc_beta, -pc_beta + 1,
@@ -539,7 +541,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         const uint64_t node_count = root_node ? ctx_nodes(ctx) : 0;
 
         // Step 17. Make the move.
-        search_do_move(ctx, pos, move, &st, gc, ss);
+        search_do_move(ctx, pos, move, &st, gc, capture, ss);
         new_depth += extension;
 
         if (ss->tt_pv)

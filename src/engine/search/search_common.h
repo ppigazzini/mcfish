@@ -240,16 +240,19 @@ search_set_cont_hist(SearchCtx *ctx, Stack *ss, bool in_check, bool capture, Pie
 // either (evaluate.h states the invariant from the accumulator's side).
 //
 // Defined inline so the move loop absorbs it, as upstream's search<NodeType>
-// absorbs Worker::do_move (search.cpp:652): the make runs once per node, and the
+// absorbs Worker::do_move (search.cpp:650): the make runs once per node, and the
 // call boundary was spilling the loop's live state around every make.
-static inline void
-search_do_move(SearchCtx *ctx, Position *pos, Move m, StateInfo *st, bool gives_check, Stack *ss) {
+//
+// CAPTURE is the caller's search_capture_stage(pos, m), read before the make, as
+// upstream 1bf75bb3c passes it: every caller has already computed it, and the
+// inline body cannot reuse theirs across the recursion and the SEE calls between.
+static inline void search_do_move(
+  SearchCtx *ctx, Position *pos, Move m, StateInfo *st, bool gives_check, bool capture, Stack *ss) {
     // Preload the child position's TT cluster while the make below runs, so the line
-    // is resident by the probe at the next node (search.cpp:657). The key is
+    // is resident by the probe at the next node (search.cpp:659). The key is
     // approximate; the hint changes no value.
     tt_prefetch(pos_prefetch_key(pos, m));
 
-    const bool capture = search_capture_stage(pos, m);
     // Read the moved piece BEFORE the move: upstream indexes the continuation
     // pages by DirtyPiece::pc, which position.cpp:856 fills from `piece_on(from)`
     // ahead of the make. For a promotion that is the PAWN that left `from`, not
