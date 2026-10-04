@@ -266,8 +266,9 @@ Two are worth stating because neither is about the tt move at all:
   does, it feeds the correction histories: the excluded search proved the node is
   worth more than the static eval said, and by how much, which is exactly the signal
   those tables exist to absorb. The bonus is
-  `clamp(delta * singular_depth * 177 / 1024, ±CORRECTION_HISTORY_LIMIT / 4)` and it
-  runs only out of check and only when the value beat the static eval.
+  `clamp(delta * 664 / 1024, ±CORRECTION_HISTORY_LIMIT / 4)`, independent of the
+  singular search's depth, and it runs only out of check and only when the value beat
+  the static eval.
 - **Negative extension.** When the search neither proves the tt move singular nor
   multi-cuts, the tt move is reduced instead of extended — by 3, in the two cases
   where the tt move is assumed to fail high over beta and where the node is a cut

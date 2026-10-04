@@ -524,12 +524,11 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 tt_move_history_update(h, tt_move_history_depth_bonus(depth));
 
                 if (!ss->in_check && value > ss->static_eval) {
-                    history_update_correction(
-                      h, pos, pos->side_to_move, ss1->current_move,
-                      (ss - 2)->continuation_correction_history,
-                      (ss - 4)->continuation_correction_history,
-                      (ss - 6)->continuation_correction_history,
-                      multicut_correction_bonus(value - ss->static_eval, singular_depth));
+                    history_update_correction(h, pos, pos->side_to_move, ss1->current_move,
+                                              (ss - 2)->continuation_correction_history,
+                                              (ss - 4)->continuation_correction_history,
+                                              (ss - 6)->continuation_correction_history,
+                                              multicut_correction_bonus(value - ss->static_eval));
                 }
 
                 return value;

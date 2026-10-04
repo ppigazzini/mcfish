@@ -328,8 +328,8 @@ int correction_history_bonus(int eval_delta, int depth, bool has_best_move) {
     return 1061 * clamped / 1024;
 }
 
-int multicut_correction_bonus(int eval_delta, int singular_depth) {
-    const int raw = eval_delta * singular_depth * 177 / 1024;
+int multicut_correction_bonus(int eval_delta) {
+    const int raw = eval_delta * 664 / 1024;
     const int limit = CORRECTION_HISTORY_LIMIT / 4;
     return raw < -limit ? -limit : raw > limit ? limit : raw;
 }
