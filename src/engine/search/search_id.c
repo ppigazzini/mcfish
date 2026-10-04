@@ -194,6 +194,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
     while (ctx->root_depth + 1 < MAX_PLY && !id_stopped(ctx)
            && !(id->limits_depth != 0 && main_thread && ctx->root_depth >= id->limits_depth)) {
         ctx->root_depth += 1;
+        ctx->seek_mate_bar = 750 + 220000 / (ctx->root_depth * ctx->root_depth);
 
         if (main_thread) {
             tot_best_move_changes /= 2.0;
