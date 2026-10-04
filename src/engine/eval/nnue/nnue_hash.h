@@ -40,7 +40,7 @@ uint32_t nnue_network_hash_value(void);
 
 // Compute FeatureTransformer::get_content_hash over the resident weight image FT
 // (NNUE_FT_TOTAL_BYTES). The raw-data hashes run in member-value order: biases,
-// weights, psqtWeights, threatWeights, threatPsqtWeights.
+// weights, threatWeights.
 size_t nnue_feature_transformer_content_hash(const uint8_t *ft);
 
 // Compute NetworkArchitecture::get_content_hash for one layer stack.

@@ -16,13 +16,3 @@ const int8_t *nnue_ft_threat_weights(const NnueFeatureTransformer *ft) {
     const unsigned char *bytes = (const unsigned char *) ft;
     return (const int8_t *) (const void *) (bytes + NNUE_FT_THREAT_WEIGHTS_OFFSET);
 }
-
-const int32_t *nnue_ft_psq_psqt_weights(const NnueFeatureTransformer *ft) {
-    const unsigned char *bytes = (const unsigned char *) ft;
-    return (const int32_t *) (const void *) (bytes + NNUE_FT_PSQT_WEIGHTS_OFFSET);
-}
-
-const int32_t *nnue_ft_threat_psqt_weights(const NnueFeatureTransformer *ft) {
-    const unsigned char *bytes = (const unsigned char *) ft;
-    return (const int32_t *) (const void *) (bytes + NNUE_FT_THREAT_PSQT_WEIGHTS_OFFSET);
-}

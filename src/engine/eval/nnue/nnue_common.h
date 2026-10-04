@@ -19,7 +19,6 @@
 typedef int16_t BiasType;
 typedef int8_t ThreatWeightType;
 typedef int16_t WeightType;
-typedef int32_t PSQTWeightType;
 typedef uint32_t IndexType;
 
 // Type of input feature after conversion (nnue_common.h:99).

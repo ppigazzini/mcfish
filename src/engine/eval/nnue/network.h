@@ -25,12 +25,11 @@
 
 // Name the default net (EvalFileDefaultName, evaluate.h), a build constant. A net
 // bump edits this one line.
-#define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-134a887f4c8f.nnue"
+#define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-252f33942263.nnue"
 
 // Report every bucket's score for the UCI `eval` breakdown, plus the bucket the
 // position actually selects.
 typedef struct {
-    int32_t psqt[NNUE_LAYER_STACKS];
     int32_t positional[NNUE_LAYER_STACKS];
     size_t correct_bucket;
 } NnueTraceOutput;

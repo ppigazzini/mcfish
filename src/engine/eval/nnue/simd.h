@@ -88,7 +88,7 @@
     // never folds, costing a separate load per psubw/paddw in the row kernels (the
     // same mechanism the SSSE3 nnue_dot_step fixed). Callers pass pointers at
     // NNUE_ALIGN-multiple offsets off 64-byte-aligned storage — rows narrower than
-    // 64 bytes (the psqt's 32) claim only their own size.
+    // 64 bytes claim only their own size.
     #define NNUE_SIMD_ALIGN_CAP(Type) (sizeof(Type) < 64 ? sizeof(Type) : 64)
 
     // clang-format off
@@ -341,10 +341,7 @@ static inline uint32_t nnue_v16u32_movemask_nonneg(NnueV16u32 v) {
 }
 
 
-// Affine post-activation tile: 16 int32_t lanes for the clipped-ReLU sweep, plus an
-// 8-lane tile the psqt refresh path pins to NNUE_PSQT_BUCKETS.
-NNUE_SIMD_TYPE(NnueV8i32, int32_t, 8);
-NNUE_SIMD_FAMILY(nnue_v8i32, NnueV8i32, int32_t, 8);
+// Affine post-activation tile: 16 int32_t lanes for the clipped-ReLU sweep.
 NNUE_SIMD_TYPE(NnueV16i32, int32_t, 16);
 NNUE_SIMD_FAMILY(nnue_v16i32, NnueV16i32, int32_t, 16);
 

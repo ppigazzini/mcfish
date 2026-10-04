@@ -32,17 +32,14 @@ void nnue_acc_stats_reset(void) { AccStats = (NnueAccStats) { 0 }; }
 #endif
 
 enum : size_t {
-    ACC_BYTES = NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t)
-              + NNUE_COLOR_COUNT * NNUE_PSQT_BUCKETS * sizeof(int32_t)
-              + NNUE_COLOR_COUNT * sizeof(bool),
-    COMPUTED_OFFSET = NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t)
-                    + NNUE_COLOR_COUNT * NNUE_PSQT_BUCKETS * sizeof(int32_t),
-    PSQT_OFFSET = NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t),
+    ACC_BYTES =
+      NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t) + NNUE_COLOR_COUNT * sizeof(bool),
+    COMPUTED_OFFSET = NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t),
 
     ACC_STATE_BYTES = NNUE_CEIL_TO_MULTIPLE(ACC_BYTES, NNUE_ALIGN),
     PSQ_DIFF_OFFSET = ACC_BYTES,
     // The threat slot carries ONLY the per-ply DirtyThreats diff -- the combined
-    // accumulation and psqt live in the psq slot, never here (see PSQ_FEATURE below). So
+    // accumulation lives in the psq slot, never here (see PSQ_FEATURE below). So
     // the diff sits at the slot's front: reserving an accumulator-sized prefix here would
     // leave ~4 KiB dead per slot and stride consecutive plies' threat diffs a whole page
     // apart, which the incremental replay walk pays for as data-cache misses at depth.
@@ -64,8 +61,7 @@ enum : size_t {
 // `base + stride * index`, so each stride must carry the arena's 64-byte alignment
 // forward or the int16/int32 views below are unaligned — which x86 tolerates and aarch64
 // does not. These are arithmetic facts today; pin them so a change to
-// NNUE_HALF_DIMENSIONS, NNUE_PSQT_BUCKETS or NNUE_MAX_STACK_SIZE fails the build instead
-// of the target.
+// NNUE_HALF_DIMENSIONS or NNUE_MAX_STACK_SIZE fails the build instead of the target.
 static_assert(PSQ_STATE_STRIDE % NNUE_ALIGN == 0, "psq stride must keep the arena alignment");
 static_assert(THREAT_STATE_STRIDE % NNUE_ALIGN == 0, "threat stride must keep the arena alignment");
 static_assert(THREAT_ARRAY_OFFSET % NNUE_ALIGN == 0, "threat array must keep the arena alignment");
@@ -74,6 +70,11 @@ static_assert(THREAT_DIFF_OFFSET % alignof(NnueDirtyThreats) == 0,
 // PSQ_DIFF_OFFSET is deliberately NOT rounded: NnueDirtyPiece is all-uint8_t, so it needs
 // no alignment. Pin that, since rounding it would silently move every psq diff.
 static_assert(alignof(NnueDirtyPiece) == 1, "NnueDirtyPiece must stay alignment-free");
+// The psq diff rides in the slack ACC_STATE_BYTES rounds the accumulation up to, and the
+// stride does not count it. Pin that it fits, or a dimension change that leaves less than
+// a diff's worth of slack writes each ply's diff over the next slot's accumulation.
+static_assert(PSQ_DIFF_OFFSET + sizeof(NnueDirtyPiece) <= PSQ_STATE_STRIDE,
+              "the psq diff must fit the slot's round-up slack");
 // The threat refresh test reads us/prev_ksq/ksq at THREAT_REFRESH_DIFF_OFFSET + 0/1/2, so
 // that offset must land on the trailing scalars, not inside the list.
 static_assert(THREAT_REFRESH_DIFF_OFFSET - THREAT_DIFF_OFFSET == offsetof(NnueDirtyThreats, us),
@@ -99,24 +100,18 @@ size_t nnue_accumulator_stack_bytes(void) { return STACK_BYTES; }
 // --- refresh-cache layout ---------------------------------------------------------
 
 enum : size_t {
-    CACHE_ENTRY_PSQT_OFFSET = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
-    CACHE_ENTRY_PIECES_OFFSET = CACHE_ENTRY_PSQT_OFFSET + NNUE_PSQT_BUCKETS * sizeof(int32_t),
+    CACHE_ENTRY_PIECES_OFFSET = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
     // Cache the entry's occupancy bitboard beside the piece array — upstream's
-    // entry.pieceBB (nnue_accumulator.cpp:554,573). The refresh diff derives its
+    // entry.pieceBB (nnue_accumulator.cpp:774,793). The refresh diff derives its
     // removed list as `changedBB & entry.pieceBB` and its added list from the live
     // occupancy, so the byte-per-square "was a piece here" tests drop out of the
-    // changed-square walk. The 8 bytes sit inside the 64-byte round-up, so the
-    // entry size does not move.
+    // changed-square walk. Upstream's Entry holds the same three members in the same
+    // order under the same alignment, so the two entries round to the same size.
     CACHE_ENTRY_PIECE_BB_OFFSET = CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
     CACHE_ENTRY_BYTES =
       NNUE_CEIL_TO_MULTIPLE(CACHE_ENTRY_PIECE_BB_OFFSET + sizeof(uint64_t), NNUE_ALIGN),
     CACHE_BYTES = SQUARE_NB * NNUE_COLOR_COUNT * CACHE_ENTRY_BYTES,
 };
-// Pin the size claim above: adding the bitboard must not grow the rounded entry.
-static_assert(CACHE_ENTRY_BYTES
-                == NNUE_CEIL_TO_MULTIPLE(CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
-                                         NNUE_ALIGN),
-              "the piece bitboard must fit the entry's existing round-up slack");
 
 size_t nnue_refresh_cache_bytes(void) { return CACHE_BYTES; }
 
@@ -305,22 +300,6 @@ static const int16_t *state_accumulation_const(int feature_kind,
     return (const int16_t *) p;
 }
 
-static int32_t *
-state_psqt_mut(int feature_kind, size_t index, NnueAccumulatorStack *stack, uint8_t perspective) {
-    void *p = state_bytes_mut(feature_kind, index, stack) + PSQT_OFFSET
-            + perspective * NNUE_PSQT_BUCKETS * sizeof(int32_t);
-    return (int32_t *) p;
-}
-
-static const int32_t *state_psqt_const(int feature_kind,
-                                       size_t index,
-                                       const NnueAccumulatorStack *stack,
-                                       uint8_t perspective) {
-    const void *p = state_bytes_const(feature_kind, index, stack) + PSQT_OFFSET
-                  + perspective * NNUE_PSQT_BUCKETS * sizeof(int32_t);
-    return (const int32_t *) p;
-}
-
 static unsigned char *diff_bytes_mut(int feature_kind, size_t index, NnueAccumulatorStack *stack) {
     return state_bytes_mut(feature_kind, index, stack) + diff_offset(feature_kind);
 }
@@ -357,11 +336,6 @@ static int16_t *cache_entry_accumulation(unsigned char *entry) {
     return (int16_t *) p;
 }
 
-static int32_t *cache_entry_psqt(unsigned char *entry) {
-    void *p = entry + CACHE_ENTRY_PSQT_OFFSET;
-    return (int32_t *) p;
-}
-
 static uint8_t *cache_entry_pieces(unsigned char *entry) {
     return entry + CACHE_ENTRY_PIECES_OFFSET;
 }
@@ -371,7 +345,8 @@ void nnue_clear_refresh_cache(NnueRefreshCache *cache, const int16_t *biases) {
         for (unsigned p = 0; p < NNUE_COLOR_COUNT; p++) {
             unsigned char *entry = cache_entry(cache, (uint8_t) ks, (uint8_t) p);
             memcpy(entry, biases, NNUE_FT_BIASES_BYTES);
-            memset(entry + CACHE_ENTRY_PSQT_OFFSET, 0, CACHE_ENTRY_BYTES - CACHE_ENTRY_PSQT_OFFSET);
+            memset(entry + CACHE_ENTRY_PIECES_OFFSET, 0,
+                   CACHE_ENTRY_BYTES - CACHE_ENTRY_PIECES_OFFSET);
         }
     }
 }
@@ -511,14 +486,11 @@ static void refresh_latest_psq(uint8_t perspective,
 
     // Dual-store: write the refreshed row into BOTH the cache entry (in place, for next time)
     // and this ply's state slot in one tiled pass, so the cache→state copy is a register store
-    // rather than a trailing memcpy of the accumulation and psqt rows.
+    // rather than a trailing memcpy of the accumulation row.
     nnue_acc_apply_delta_i16_dual(
       cache_entry_accumulation(entry),
       state_accumulation_mut(PSQ_FEATURE, latest_index, stack, perspective), removed, removed_len,
       added, added_len, nnue_ft_psq_weights(ft));
-    nnue_acc_apply_psqt_delta_dual(
-      cache_entry_psqt(entry), state_psqt_mut(PSQ_FEATURE, latest_index, stack, perspective),
-      removed, removed_len, added, added_len, nnue_ft_psq_psqt_weights(ft));
 
     memcpy(entry_pieces, board, SQUARE_NB);
     // Keep the cached occupancy in step with the piece array: the next refresh's
@@ -565,8 +537,6 @@ __attribute__((noinline)) static void refresh_combined(uint8_t perspective,
     nnue_acc_accumulate_rows_i8(
       state_accumulation_mut(PSQ_FEATURE, latest_index, stack, perspective), active.indices,
       active.len, nnue_ft_threat_weights(ft));
-    nnue_acc_accumulate_psqt_rows(state_psqt_mut(PSQ_FEATURE, latest_index, stack, perspective),
-                                  active.indices, active.len, nnue_ft_threat_psqt_weights(ft));
 }
 
 // Build the threat AND pawn-pair changed-feature lists for one ply's diff, bucketed on
@@ -823,11 +793,6 @@ __attribute__((always_inline)) static inline void apply_combined(NnueAccumulator
       state_accumulation_const(PSQ_FEATURE, computed_index, stack, perspective), psq_removed,
       psq_removed_len, psq_added, psq_added_len, thr_removed, thr_removed_len, thr_added,
       thr_added_len, nnue_ft_psq_weights(ft), nnue_ft_threat_weights(ft));
-    nnue_acc_apply_combined_psqt_delta(
-      state_psqt_mut(PSQ_FEATURE, target_index, stack, perspective),
-      state_psqt_const(PSQ_FEATURE, computed_index, stack, perspective), psq_removed,
-      psq_removed_len, psq_added, psq_added_len, thr_removed, thr_removed_len, thr_added,
-      thr_added_len, nnue_ft_psq_psqt_weights(ft), nnue_ft_threat_psqt_weights(ft));
     state_bytes_mut(PSQ_FEATURE, target_index, stack)[COMPUTED_OFFSET + perspective] = 1;
 }
 
@@ -877,13 +842,6 @@ static void apply_combined_both(NnueAccumulatorStack *stack,
           psq_added_len[perspective], thr_removed[perspective], thr_removed_len[perspective],
           thr_added[perspective], thr_added_len[perspective], nnue_ft_psq_weights(ft),
           nnue_ft_threat_weights(ft));
-        nnue_acc_apply_combined_psqt_delta(
-          state_psqt_mut(PSQ_FEATURE, target_index, stack, perspective),
-          state_psqt_const(PSQ_FEATURE, computed_index, stack, perspective),
-          psq_removed[perspective], psq_removed_len[perspective], psq_added[perspective],
-          psq_added_len[perspective], thr_removed[perspective], thr_removed_len[perspective],
-          thr_added[perspective], thr_added_len[perspective], nnue_ft_psq_psqt_weights(ft),
-          nnue_ft_threat_psqt_weights(ft));
         state_bytes_mut(PSQ_FEATURE, target_index, stack)[COMPUTED_OFFSET + perspective] = 1;
     }
 }
@@ -980,13 +938,6 @@ static void update_accumulator_hybrid(uint8_t perspective,
       new_removed_len, new_added, new_added_len, old_removed, old_removed_len, old_added,
       old_added_len, thr_removed, thr_removed_len, thr_added, thr_added_len,
       nnue_ft_psq_weights(ft), nnue_ft_threat_weights(ft));
-    nnue_acc_apply_hybrid_psqt_delta(
-      state_psqt_mut(PSQ_FEATURE, target_index, stack, perspective),
-      state_psqt_const(PSQ_FEATURE, computed_index, stack, perspective),
-      cache_entry_psqt(new_entry), cache_entry_psqt(old_entry), new_removed, new_removed_len,
-      new_added, new_added_len, old_removed, old_removed_len, old_added, old_added_len, thr_removed,
-      thr_removed_len, thr_added, thr_added_len, nnue_ft_psq_psqt_weights(ft),
-      nnue_ft_threat_psqt_weights(ft));
 
     // The destination entry was refreshed in place above, so its cached board must
     // follow. The source entry is untouched.
@@ -1113,27 +1064,21 @@ void nnue_acc_evaluate(NnueAccumulatorStack *stack,
 // Transform
 // ---------------------------------------------------------------------------
 
-int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
-                              const Position *pos,
-                              const NnueFeatureTransformer *ft,
-                              NnueRefreshCache *cache,
-                              size_t bucket,
-                              uint8_t stm,
-                              uint8_t *output,
-                              NnueNnzBitset *nnz) {
+void nnue_transform(NnueAccumulatorStack *stack,
+                    const Position *pos,
+                    const NnueFeatureTransformer *ft,
+                    NnueRefreshCache *cache,
+                    uint8_t stm,
+                    uint8_t *output,
+                    NnueNnzBitset *nnz) {
     nnue_acc_evaluate(stack, pos, ft, cache);
 
     const size_t latest = stack_size(stack) - 1;
     const unsigned char *state = state_bytes_const(PSQ_FEATURE, latest, stack);
     const int16_t *comb_acc = (const int16_t *) (const void *) state;
-    const int32_t *comb_psqt = (const int32_t *) (const void *) (state + PSQT_OFFSET);
 
     const size_t p0 = stm;
     const size_t p1 = stm ^ 1u;
-
-    // (psq_diff + thr_diff)/2 == combined_diff/2, since combined = psq + threat.
-    const int32_t psqt =
-      (comb_psqt[p0 * NNUE_PSQT_BUCKETS + bucket] - comb_psqt[p1 * NNUE_PSQT_BUCKETS + bucket]) / 2;
 
     // Produce the pairwise squared-clipped-ReLU output (upstream FeatureTransformer::
     // transform). Per element: clip the accumulator into [0,255], multiply the two halves
@@ -1356,7 +1301,6 @@ int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
 #endif
         }
     }
-    return psqt;
 }
 
 // ---------------------------------------------------------------------------

@@ -131,18 +131,16 @@ const NnueAccStats *nnue_acc_stats(void);
 void nnue_acc_stats_reset(void);
 #endif
 
-// Bring the accumulator up to date, then write the layer-0 input.
+// Bring the accumulator up to date, then write the layer-0 input, STM's perspective first.
 //
 // OUTPUT receives NNUE_TRANSFORMED_BYTES bytes and must be NNUE_ALIGN aligned; NNZ
-// receives the non-zero-chunk bitset. Return the psqt term for BUCKET, from STM's point
-// of view.
-int32_t nnue_transform_bucket(NnueAccumulatorStack *stack,
-                              const Position *pos,
-                              const NnueFeatureTransformer *ft,
-                              NnueRefreshCache *cache,
-                              size_t bucket,
-                              uint8_t stm,
-                              uint8_t *output,
-                              NnueNnzBitset *nnz);
+// receives the non-zero-chunk bitset.
+void nnue_transform(NnueAccumulatorStack *stack,
+                    const Position *pos,
+                    const NnueFeatureTransformer *ft,
+                    NnueRefreshCache *cache,
+                    uint8_t stm,
+                    uint8_t *output,
+                    NnueNnzBitset *nnz);
 
 #endif  // MCFISH_NNUE_ACCUMULATOR_H
