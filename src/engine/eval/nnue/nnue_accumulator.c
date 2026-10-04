@@ -169,24 +169,10 @@ enum { TRANSFORM_VEC_WIDTH = 64 };
     #define tf_movemask nnue_v16u32_movemask
     #define tf_movemask_nonneg nnue_v16u32_movemask_nonneg
 #endif
-// Select the product step's native width — the register width whose vpackuswb the step
-// narrows with. Upstream reaches its packus body from the generic `#else` arm, which
-// every x86 tier takes (feature_transformer.h); only NEON, LSX/LASX and wasm branch
-// away. Spell the choice once: the operand clamps, the step body and the nnz harvest
-// all hang off it, and three independently written guards had already drifted into
-// leaving the 512-bit tiers on the portable widening path alone.
-//
-// Gate the 512-bit arm on AVX512BW, the feature that owns vpmulhw and vpackuswb at zmm
-// width — not on AVX512F, which has neither.
-#if MCFISH_SIMD_VECTOR && defined(__AVX512BW__)
-    #define TRANSFORM_PACKUS_BITS 512
-#elif MCFISH_SIMD_VECTOR && defined(__AVX2__) && !defined(__AVX512F__)
-    #define TRANSFORM_PACKUS_BITS 256
-#elif MCFISH_SIMD_VECTOR && defined(__SSE2__) && !defined(__AVX512F__)
-    #define TRANSFORM_PACKUS_BITS 128
-#else
-    #define TRANSFORM_PACKUS_BITS 0
-#endif
+// The product step's native width is NNUE_TRANSFORM_PACKUS_BITS (simd.h): the operand
+// clamps, the step body and the nnz harvest below all hang off it. Three independently
+// written guards had once drifted into leaving the 512-bit tiers on the portable
+// widening path alone, which is why it has one definition.
 static_assert((NNUE_HALF_DIMENSIONS / 2) % TRANSFORM_VEC_WIDTH == 0,
               "the transform half-output must be a multiple of TRANSFORM_VEC_WIDTH");
 // The transform stores each step's nnz mask bytes exactly once at their own offset,
@@ -1088,7 +1074,7 @@ void nnue_transform(NnueAccumulatorStack *stack,
     // product 128*c0*c1 is exact and >>16 is floor, so this is bit-identical to the
     // int32 clamp*mul>>9 path — integer throughout, no rounding.
     const size_t half = NNUE_HALF_DIMENSIONS / 2;
-#if TRANSFORM_PACKUS_BITS == 0
+#if NNUE_TRANSFORM_PACKUS_BITS == 0
     const TfI16 zero = tf_i16_splat(0);
     const TfI16 c255 = tf_i16_splat(255);
 #endif
@@ -1107,7 +1093,7 @@ void nnue_transform(NnueAccumulatorStack *stack,
         const size_t pp = p == 0 ? p0 : p1;
         const size_t offset = half * p;
         const size_t base = pp * NNUE_HALF_DIMENSIONS;
-#if TRANSFORM_PACKUS_BITS >= 256
+#if NNUE_TRANSFORM_PACKUS_BITS >= 256
         // Rebase the bitset cursor per perspective so the store below indexes it
         // with the loop counter alone; folding the perspective offset into the
         // index expression instead makes clang carry a second, or-adjusted cursor
@@ -1115,7 +1101,7 @@ void nnue_transform(NnueAccumulatorStack *stack,
         unsigned char *const nnz_bytes = (unsigned char *) *nnz + offset / 32;
 #endif
         for (size_t j = 0; j < half; j += TRANSFORM_VEC_WIDTH) {
-#if TRANSFORM_PACKUS_BITS == 512
+#if NNUE_TRANSFORM_PACKUS_BITS == 512
             // Native avx512bw product step, upstream's packus-clip shape at zmm width.
             // Same identity the avx2 branch below documents: clamp the FIRST operand
             // from above and below, the second from above only — when the second stays
@@ -1169,7 +1155,7 @@ void nnue_transform(NnueAccumulatorStack *stack,
                 const uint16_t mask16 = (uint16_t) _mm512_cmpgt_epi32_mask(packed, sgnzero);
                 __builtin_memcpy(nnz_bytes + j / 32 + 2 * k, &mask16, sizeof mask16);
             }
-#elif TRANSFORM_PACKUS_BITS == 256
+#elif NNUE_TRANSFORM_PACKUS_BITS == 256
             // Native avx2 product step, upstream's packus-clip shape (the
             // feature_transformer.h block comment): clamp the second operand from
             // above only — when it stays negative the SIGNED mulhi product is
@@ -1216,7 +1202,7 @@ void nnue_transform(NnueAccumulatorStack *stack,
                   (uint32_t) _mm256_movemask_ps((__m256) _mm256_cmpgt_epi32(packed, sgnzero));
                 nnz_bytes[j / 32 + k] = (uint8_t) mask8;
             }
-#elif TRANSFORM_PACKUS_BITS == 128
+#elif NNUE_TRANSFORM_PACKUS_BITS == 128
             // Native sse41 product step, the same packus-clip shape as the avx2 branch
             // above: clamp only the FIRST operand from below — when the second stays
             // negative the SIGNED pmulhw product is negative and packuswb's low-side
@@ -1255,12 +1241,12 @@ void nnue_transform(NnueAccumulatorStack *stack,
             const TfU16 q = tf_u32_to_u16(tf_u32_shr(tf_u32_mul(lhs, rhs), 16));
             const TfU8 bytes = tf_u16_to_u8(q);
 #endif
-#if TRANSFORM_PACKUS_BITS != 512
+#if NNUE_TRANSFORM_PACKUS_BITS != 512
             // The 512-bit step above already stored each pack at its own offset.
             tf_u8_store(output + offset + j, bytes);
 #endif
 
-#if TRANSFORM_PACKUS_BITS < 256
+#if NNUE_TRANSFORM_PACKUS_BITS < 256
             // Record which 4-byte chunks are non-zero while they are still in a register:
             // no reload of what was just stored. (The 512- and 256-bit branches above
             // already stored their per-pack mask bytes.)
