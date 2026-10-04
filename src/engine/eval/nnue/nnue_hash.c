@@ -102,9 +102,7 @@ size_t nnue_feature_transformer_content_hash(const uint8_t *ft) {
     size_t h = 0;
     raw_data_hash(&h, ft + NNUE_FT_BIASES_OFF, NNUE_FT_BIASES_COUNT * 2);
     raw_data_hash(&h, ft + NNUE_FT_WEIGHTS_OFF, NNUE_FT_PSQ_WEIGHTS_COUNT * 2);
-    raw_data_hash(&h, ft + NNUE_FT_PSQT_WEIGHTS_OFF, NNUE_FT_PSQT_WEIGHTS_COUNT * 4);
     raw_data_hash(&h, ft + NNUE_FT_THREAT_WEIGHTS_OFF, NNUE_FT_THREAT_WEIGHTS_COUNT);
-    raw_data_hash(&h, ft + NNUE_FT_THREAT_PSQT_WEIGHTS_OFF, NNUE_FT_THREAT_PSQT_WEIGHTS_COUNT * 4);
     nnue_hash_combine(&h, nnue_feature_transformer_hash_value());
     return h;
 }

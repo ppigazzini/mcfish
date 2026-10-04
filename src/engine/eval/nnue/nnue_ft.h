@@ -19,7 +19,7 @@
 #include "nnue_common.h"
 #include "nnue_feature.h"
 
-// NNUE_HALF_DIMENSIONS and NNUE_PSQT_BUCKETS are NOT redeclared here:
+// NNUE_HALF_DIMENSIONS is NOT redeclared here:
 // nnue_architecture.h is the single authority for every network dimension, and
 // two copies drift the day the architecture changes.
 enum : size_t {
@@ -33,26 +33,19 @@ enum : size_t {
     NNUE_FT_BIASES_BYTES = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
     NNUE_FT_PSQ_WEIGHTS_BYTES =
       NNUE_HALF_DIMENSIONS * NNUE_PSQ_FEATURE_DIMENSIONS * sizeof(int16_t),
-    // The threat regions span BOTH feature sets that index them: the full_threats rows
-    // followed by the pp_3wide rows, one contiguous array each (upstream's
-    // threatAndPpWeights / threatAndPpPsqtWeights). A pair index is >= the threat count,
-    // so it addresses the tail of the same region with no second base pointer.
+    // The threat region spans BOTH feature sets that index it: the full_threats rows
+    // followed by the pp_3wide rows, one contiguous array (upstream's
+    // threatAndPpWeights). A pair index is >= the threat count, so it addresses the
+    // tail of the same region with no second base pointer.
     NNUE_FT_THREAT_WEIGHTS_BYTES =
       NNUE_HALF_DIMENSIONS * (size_t) NNUE_THREAT_AND_PAIR_DIMENSIONS * sizeof(int8_t),
-    NNUE_FT_PSQT_WEIGHTS_BYTES = NNUE_PSQ_FEATURE_DIMENSIONS * NNUE_PSQT_BUCKETS * sizeof(int32_t),
-    NNUE_FT_THREAT_PSQT_WEIGHTS_BYTES =
-      (size_t) NNUE_THREAT_AND_PAIR_DIMENSIONS * NNUE_PSQT_BUCKETS * sizeof(int32_t),
 
     NNUE_FT_BIASES_OFFSET = 0,
     NNUE_FT_PSQ_WEIGHTS_OFFSET = NNUE_CEIL_TO_MULTIPLE(NNUE_FT_BIASES_BYTES, NNUE_ALIGN),
     NNUE_FT_THREAT_WEIGHTS_OFFSET =
       NNUE_CEIL_TO_MULTIPLE(NNUE_FT_PSQ_WEIGHTS_OFFSET + NNUE_FT_PSQ_WEIGHTS_BYTES, NNUE_ALIGN),
-    NNUE_FT_PSQT_WEIGHTS_OFFSET = NNUE_CEIL_TO_MULTIPLE(
-      NNUE_FT_THREAT_WEIGHTS_OFFSET + NNUE_FT_THREAT_WEIGHTS_BYTES, NNUE_ALIGN),
-    NNUE_FT_THREAT_PSQT_WEIGHTS_OFFSET =
-      NNUE_CEIL_TO_MULTIPLE(NNUE_FT_PSQT_WEIGHTS_OFFSET + NNUE_FT_PSQT_WEIGHTS_BYTES, NNUE_ALIGN),
     NNUE_FT_BLOB_BYTES = NNUE_CEIL_TO_MULTIPLE(
-      NNUE_FT_THREAT_PSQT_WEIGHTS_OFFSET + NNUE_FT_THREAT_PSQT_WEIGHTS_BYTES, NNUE_ALIGN),
+      NNUE_FT_THREAT_WEIGHTS_OFFSET + NNUE_FT_THREAT_WEIGHTS_BYTES, NNUE_ALIGN),
 };
 
 // Expose an opaque handle to the loaded weight blob. Never defined — only cast to.
@@ -61,8 +54,6 @@ typedef struct NnueFeatureTransformer NnueFeatureTransformer;
 const int16_t *nnue_ft_biases(const NnueFeatureTransformer *ft);
 const int16_t *nnue_ft_psq_weights(const NnueFeatureTransformer *ft);
 const int8_t *nnue_ft_threat_weights(const NnueFeatureTransformer *ft);
-const int32_t *nnue_ft_psq_psqt_weights(const NnueFeatureTransformer *ft);
-const int32_t *nnue_ft_threat_psqt_weights(const NnueFeatureTransformer *ft);
 
 static inline size_t nnue_ft_blob_bytes(void) { return NNUE_FT_BLOB_BYTES; }
 

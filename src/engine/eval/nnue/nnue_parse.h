@@ -7,8 +7,8 @@
 // never trapped on.
 //
 // The byte offsets below are the in-memory FeatureTransformer layout, member
-// order with each member alignas(64): biases, weights(psq), threatWeights,
-// psqtWeights, threatPsqtWeights. The parse writes through them and inference
+// order with each member alignas(64): biases, weights(psq), threatWeights. The
+// parse writes through them and inference
 // reads through them, so they are the shared contract, not an implementation
 // detail.
 //
@@ -25,23 +25,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Count the elements of the five feature-transformer arrays. The two threat regions hold
-// the full_threats rows followed by the pp_3wide rows, so they are sized for the
+// Count the elements of the three feature-transformer arrays. The threat region holds
+// the full_threats rows followed by the pp_3wide rows, so it is sized for the
 // concatenation of both feature sets.
 #define NNUE_FT_BIASES_COUNT ((size_t) NNUE_HALF_DIMENSIONS)
 #define NNUE_FT_PSQ_WEIGHTS_COUNT ((size_t) NNUE_HALF_DIMENSIONS * NNUE_PSQ_FEATURE_DIMENSIONS)
 #define NNUE_FT_THREAT_WEIGHTS_COUNT \
     ((size_t) NNUE_HALF_DIMENSIONS * NNUE_THREAT_AND_PAIR_DIMENSIONS)
-#define NNUE_FT_PSQT_WEIGHTS_COUNT ((size_t) NNUE_PSQ_FEATURE_DIMENSIONS * NNUE_PSQT_BUCKETS)
-#define NNUE_FT_THREAT_PSQT_WEIGHTS_COUNT \
-    ((size_t) NNUE_THREAT_AND_PAIR_DIMENSIONS * NNUE_PSQT_BUCKETS)
 
-// Split the two concatenated regions back into the per-feature-set sections the stream
+// Split the concatenated region back into the per-feature-set sections the stream
 // frames separately. The pp sub-region starts where the threat rows end.
 #define NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT ((size_t) NNUE_HALF_DIMENSIONS * NNUE_THREAT_DIMENSIONS)
 #define NNUE_FT_PAIR_ONLY_WEIGHTS_COUNT ((size_t) NNUE_HALF_DIMENSIONS * NNUE_PAIR_DIMENSIONS)
-#define NNUE_FT_THREAT_ONLY_PSQT_COUNT ((size_t) NNUE_THREAT_DIMENSIONS * NNUE_PSQT_BUCKETS)
-#define NNUE_FT_PAIR_ONLY_PSQT_COUNT ((size_t) NNUE_PAIR_DIMENSIONS * NNUE_PSQT_BUCKETS)
 
 // Lay out the in-memory byte offsets. Each is a multiple of the cache line, which
 // is what lets the typed views below be formed by casting the base pointer.
@@ -51,21 +46,13 @@
 #define NNUE_FT_THREAT_WEIGHTS_OFF \
     NNUE_CEIL_TO_MULTIPLE(NNUE_FT_WEIGHTS_OFF + NNUE_FT_PSQ_WEIGHTS_COUNT * 2, \
                           (size_t) NNUE_CACHE_LINE_SIZE)
-#define NNUE_FT_PSQT_WEIGHTS_OFF \
+#define NNUE_FT_TOTAL_BYTES \
     NNUE_CEIL_TO_MULTIPLE(NNUE_FT_THREAT_WEIGHTS_OFF + NNUE_FT_THREAT_WEIGHTS_COUNT * 1, \
                           (size_t) NNUE_CACHE_LINE_SIZE)
-#define NNUE_FT_THREAT_PSQT_WEIGHTS_OFF \
-    NNUE_CEIL_TO_MULTIPLE(NNUE_FT_PSQT_WEIGHTS_OFF + NNUE_FT_PSQT_WEIGHTS_COUNT * 4, \
-                          (size_t) NNUE_CACHE_LINE_SIZE)
-#define NNUE_FT_TOTAL_BYTES \
-    NNUE_CEIL_TO_MULTIPLE(NNUE_FT_THREAT_PSQT_WEIGHTS_OFF + NNUE_FT_THREAT_PSQT_WEIGHTS_COUNT * 4, \
-                          (size_t) NNUE_CACHE_LINE_SIZE)
 
-// Address the pp sub-regions inside the two concatenated threat regions.
+// Address the pp sub-region inside the concatenated threat region.
 #define NNUE_FT_PAIR_WEIGHTS_OFF \
     (NNUE_FT_THREAT_WEIGHTS_OFF + NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT * 1)
-#define NNUE_FT_PAIR_PSQT_WEIGHTS_OFF \
-    (NNUE_FT_THREAT_PSQT_WEIGHTS_OFF + NNUE_FT_THREAT_ONLY_PSQT_COUNT * 4)
 
 // Define the SSE4.1 PackusEpi16Order as the identity. Keep it explicit so the
 // assumption is visible and a future wide-SIMD target can swap it.
@@ -143,9 +130,6 @@ static_assert(NNUE_FT_BIASES_OFF == NNUE_FT_BIASES_OFFSET, "FT biases offset");
 static_assert(NNUE_FT_WEIGHTS_OFF == NNUE_FT_PSQ_WEIGHTS_OFFSET, "FT psq weights offset");
 static_assert(NNUE_FT_THREAT_WEIGHTS_OFF == NNUE_FT_THREAT_WEIGHTS_OFFSET,
               "FT threat weights offset");
-static_assert(NNUE_FT_PSQT_WEIGHTS_OFF == NNUE_FT_PSQT_WEIGHTS_OFFSET, "FT psqt weights offset");
-static_assert(NNUE_FT_THREAT_PSQT_WEIGHTS_OFF == NNUE_FT_THREAT_PSQT_WEIGHTS_OFFSET,
-              "FT threat psqt weights offset");
 static_assert(NNUE_FT_TOTAL_BYTES == NNUE_FT_BLOB_BYTES, "FT blob size");
 
 #endif  // MCFISH_NNUE_PARSE_H

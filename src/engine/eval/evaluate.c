@@ -460,12 +460,12 @@ static int format_cp_aligned_dot(Value v, int material, char *buf, size_t n) {
     return snprintf(buf, n, "%c%6.2f", sign, pawns);
 }
 
-// Render the NNUE breakdown: the per-bucket material/positional split with the
-// used bucket marked, then the three summary lines. Every figure is normalised
+// Render the NNUE breakdown: each bucket's evaluation with the used bucket marked,
+// then the three summary lines. Every figure is normalised
 // through `uci_wdl_to_cp` before it is printed -- the table header says
 // "(Normalized, ...)", and printing raw internal units under that header would
 // misreport every cell by the win-rate `a` factor for the position's material.
-// Port of upstream `nnue/nnue_misc.cpp:59` trace and `evaluate.cpp:75` Eval::trace.
+// Port of upstream `nnue/nnue_misc.cpp:59` trace and `evaluate.cpp:91` Eval::trace.
 static void trace_nnue(EvalArena *arena, const Position *pos, char *buf, int buf_len) {
     eval_acc_reset(arena);
     const NnueTraceOutput trace =
@@ -476,22 +476,16 @@ static void trace_nnue(EvalArena *arena, const Position *pos, char *buf, int buf
     // and `Eval::trace` opens with another.
     int n = snprintf(buf, (size_t) buf_len,
                      "\n\nNNUE network contributions (Normalized, %s to move)\n"
-                     "+------------+------------+------------+------------+\n"
-                     "|   Bucket   |  Material  | Positional |   Total    |\n"
-                     "|            |   (PSQT)   |  (Layers)  |            |\n"
-                     "+------------+------------+------------+------------+\n",
+                     "+------------+------------+\n"
+                     "|   Bucket   | Evaluation |\n"
+                     "+------------+------------+\n",
                      pos->side_to_move == WHITE ? "White" : "Black");
 
     for (size_t b = 0; b < NNUE_LAYER_STACKS && n > 0 && n < buf_len; ++b) {
-        const Value psqt = (Value) trace.psqt[b];
-        const Value positional = (Value) trace.positional[b];
-        char mat_cell[16], pos_cell[16], tot_cell[16];
-        format_cp_aligned_dot(psqt, material, mat_cell, sizeof mat_cell);
-        format_cp_aligned_dot(positional, material, pos_cell, sizeof pos_cell);
-        format_cp_aligned_dot((Value) (psqt + positional), material, tot_cell, sizeof tot_cell);
-        n += snprintf(buf + n, (size_t) (buf_len - n),
-                      "|  %zu         |  %s   |  %s   |  %s   |%s\n", b, mat_cell, pos_cell,
-                      tot_cell, b == trace.correct_bucket ? " <-- this bucket is used" : "");
+        char cell[16];
+        format_cp_aligned_dot((Value) trace.positional[b], material, cell, sizeof cell);
+        n += snprintf(buf + n, (size_t) (buf_len - n), "|  %zu         |  %s   |%s\n", b, cell,
+                      b == trace.correct_bucket ? " <-- this bucket is used" : "");
     }
 
     if (n <= 0 || n >= buf_len)
@@ -506,7 +500,7 @@ static void trace_nnue(EvalArena *arena, const Position *pos, char *buf, int buf
     // The trailing blank line is upstream's `sync_endl` after a string that already
     // ends in a newline; dropping it runs the next command's output into this one.
     snprintf(buf + n, (size_t) (buf_len - n),
-             "+------------+------------+------------+------------+\n"
+             "+------------+------------+\n"
              "\nNNUE evaluation          %+d (side to move, internal units)\n"
              "NNUE evaluation        %+.2f (white side)\n"
              "Final evaluation      %+.2f (white side) [with scaled NNUE, ...]\n\n",

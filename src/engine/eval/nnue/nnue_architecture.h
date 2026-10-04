@@ -22,7 +22,6 @@ enum {
     NNUE_L2 = 32,
     NNUE_L3 = 32,
 
-    NNUE_PSQT_BUCKETS = 8,
     NNUE_LAYER_STACKS = 8,
 
     // NetworkArchitecture's static shape (nnue_architecture.h:57-59).
