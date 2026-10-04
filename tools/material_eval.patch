@@ -31,10 +31,11 @@ which is the only thing that can catch the two formulas drifting apart.
 
 --- a/src/evaluate.cpp
 +++ b/src/evaluate.cpp
-@@ -46,6 +46,21 @@ Value Eval::evaluate(const Eval::NNUE::Network&     network,
+@@ -52,6 +52,22 @@ Value Eval::evaluate(const Eval::NNUE::Network&     network,
+                      int                            optimism) {
 
      assert(!pos.checkers());
-
++
 +    // SPINE ISOLATION (mcfish tools/material_eval.patch): material sum only.
 +    // Mirrors mcfish's material_only_eval exactly -- same weights, same point of
 +    // view, and none of the blending below it. Returning early leaves the rest of
@@ -50,6 +51,6 @@ which is the only thing that can catch the two formulas drifting apart.
 +        return Value(matV);
 +    }
 +
-     auto [psqt, positional] = network.evaluate(pos, accumulators, caches);
-
-     Value nnue = psqt + positional;
+     Value nnue = network.evaluate(pos, accumulators, caches);
+     return scale_evaluation(nnue, optimism, pos);
+ }
