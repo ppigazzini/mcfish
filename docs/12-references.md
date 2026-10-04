@@ -158,8 +158,18 @@ where this tree's own measurements live.
   models, and the `-Rpass` remarks that report both.
 - [LLVM atomics and optimisation][llvm-atomics] — which transforms an atomic
   access blocks.
-- [Agner Fog's optimisation manuals][agner] — instruction tables and
-  microarchitecture, per encoding: operand folding and alignment penalties.
+- [Agner Fog's optimisation resources][agner] — measured on the hardware rather
+  than taken from vendor documents, and kept current. How this tree reads them is
+  in [11-performance.md](11-performance.md#what-one-instruction-costs-which-no-column-here-weighs).
+  - [Instruction tables][agner-tables] — macro-ops, latency and reciprocal
+    throughput per instruction and operand width, AMD Zen 1–5 and Intel through
+    Tiger Lake.
+  - [Microarchitecture guide][agner-uarch] — a pipeline chapter per core: how
+    Zen 4 executes 512-bit vectors, its mispredict penalty, its store-forwarding
+    and misalignment stalls.
+  - [Optimizing subroutines in assembly][agner-asm] — why a legacy-SSE memory
+    operand folds only when it is 16-byte aligned, the reason for `simd.h`'s
+    aligned load forms.
 - [Intel intrinsics guide][intel-intrinsics] — the lookup for upstream's per-ISA
   kernels.
 - [What every programmer should know about memory][drepper] — cache lines,
@@ -172,6 +182,9 @@ where this tree's own measurements live.
   [`../Copying.txt`](../Copying.txt) and [`../AUTHORS`](../AUTHORS).
 
 [agner]:        https://www.agner.org/optimize/
+[agner-asm]:    https://www.agner.org/optimize/optimizing_assembly.pdf
+[agner-tables]: https://www.agner.org/optimize/instruction_tables.pdf
+[agner-uarch]:  https://www.agner.org/optimize/microarchitecture.pdf
 [c-structure]:  https://www.lucavallin.com/blog/how-to-structure-c-projects-my-experience-best-practices
 [clang-attr]:   https://clang.llvm.org/docs/AttributeReference.html
 [clang-diag]:   https://clang.llvm.org/docs/DiagnosticsReference.html

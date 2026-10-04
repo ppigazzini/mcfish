@@ -253,6 +253,35 @@ to an order of magnitude. **This tree has no warm-game axis**, so a change that
 reads near zero here is unmeasured at long time control rather than shown to be
 free.
 
+### What one instruction costs, which no column here weighs
+
+Every axis above counts instructions or macro-ops and weighs them equally: an
+`idiv` and an `add` are one instruction each. What one costs on a given core is a
+measured, published fact — Agner Fog's instruction tables
+([12-references.md](12-references.md)) give macro-ops, latency and reciprocal
+throughput per instruction and operand width for Zen 1–5, and their *Ops* column
+is the unit `perf_counters.sh` reports as macro-ops. Read them before writing a
+change, the way a sibling's perf commit is priced before it is ported; three
+readings already bear on this tree:
+
+- **A 512-bit op is one instruction and one macro-op on Zen 4, and it occupies
+  both 256-bit pipes.** The AVX-512 tiers retire fewer instructions for vector
+  work that takes the same pipe time, so an instruction ratio between a 256-bit
+  and a 512-bit tier is not a work ratio.
+- **A 32-bit divide is two macro-ops and 10–13 cycles of latency.** Taking one out
+  of every interior node (`3226ff82`) reads as a few instructions per node on
+  `perf-budget`, and a divide added per node is underpriced the same way.
+- **`pext` is one macro-op on this host and microcoded on Zen 1–2**, seven
+  macro-ops at a reciprocal throughput of 18–19 cycles. `magic_index` takes it at
+  every tier built with BMI2, so a measurement of that path taken here says
+  nothing about those cores.
+
+The figures are minimums for one instruction alone — no cache miss, no port
+contention — so they price and rank a candidate, and the whole-binary instruments
+above still decide. The same site's test programs time a snippet in isolation,
+which is the measurement this page refuses; read the tables rather than
+re-deriving them.
+
 ### Call counts, not costs, are the parity test
 
 `perf_fingerprint.py --calls` answers "do we run Stockfish's algorithm?" — call
