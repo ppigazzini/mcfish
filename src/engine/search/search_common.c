@@ -527,15 +527,15 @@ static inline int stat_malus(int depth) {
 
 // Index the continuation-history positive-consistency multipliers by the running
 // positive_count in search_update_continuation_histories.
-static constexpr int CmhcMultipliers[7] = { 94, 103, 110, 106, 119, 126, 121 };
+static constexpr int CmhcMultipliers[6] = { 94, 103, 110, 106, 119, 126 };
 
 typedef struct {
     int i;  // plies back from the walk's base
     int w;
 } ConthistBonus;
 
-static constexpr ConthistBonus ConthistBonuses[6] = {
-    { 1, 520 }, { 2, 390 }, { 3, 145 }, { 4, 251 }, { 5, 66 }, { 6, 209 },
+static constexpr ConthistBonus ConthistBonuses[5] = {
+    { 1, 520 }, { 2, 390 }, { 3, 145 }, { 4, 251 }, { 6, 209 },
 };
 
 // Fold the weight and the consistency multiplier into ONE u16 scale.
@@ -546,7 +546,7 @@ static constexpr ConthistBonus ConthistBonuses[6] = {
 // range is INT_MAX, and the divisor of 131072 carried that down to 16383 -- under
 // the limit, so the comparison's ranges could not meet and the clamp folded away.
 // Halving the divisor to 65536 doubles the bound to 32767, which is ABOVE the
-// limit of 30000, and six unrolled copies of the clamp came back.
+// limit of 30000, and the unrolled copies of the clamp came back.
 //
 // A u16 scale restores the proof soundly. It bounds the multiplier at 65535 where
 // an `int` bounds it only at INT_MAX, so a caller that bounds the bonus bounds the
@@ -558,11 +558,11 @@ static constexpr ConthistBonus ConthistBonuses[6] = {
 // integer constant expression to clang and is NOT one to gcc, which refuses the
 // `constexpr` initializer outright. Folding at run time instead is portable and
 // was measured -- it costs 0.030% of instructions and, because the two-multiply
-// chain inflates the six unrolled steps, 2.6% of L1 instruction misses. A table
+// chain inflates the unrolled steps, 2.6% of L1 instruction misses. A table
 // is worth keeping at the price of writing its entries down.
 //
 // The price is a SECOND OWNER for every weight and multiplier, and that is what
-// `test_conthist_scale_table` retires: it recomputes all 42 products from the two
+// `test_conthist_scale_table` retires: it recomputes every product from the two
 // arrays and compares. A retune that moves one number and forgets the other is a
 // test failure rather than a silently wrong history update.
 //
@@ -570,20 +570,19 @@ static constexpr ConthistBonus ConthistBonuses[6] = {
 // sound. Upstream's own reproducer overflows the product under `-ftrapv`, which is
 // what `47be34c5` fixed; the speed it bought was undefined behaviour rather than
 // work avoided.
-static constexpr uint16_t ConthistScale[6][7] = {
-    { 48880, 53560, 57200, 55120, 61880, 65520, 62920 },  // 520
-    { 36660, 40170, 42900, 41340, 46410, 49140, 47190 },  // 390
-    { 13630, 14935, 15950, 15370, 17255, 18270, 17545 },  // 145
-    { 23594, 25853, 27610, 26606, 29869, 31626, 30371 },  // 251
-    { 6204, 6798, 7260, 6996, 7854, 8316, 7986 },         // 66
-    { 19646, 21527, 22990, 22154, 24871, 26334, 25289 },  // 209
+static constexpr uint16_t ConthistScale[5][6] = {
+    { 48880, 53560, 57200, 55120, 61880, 65520 },  // 520
+    { 36660, 40170, 42900, 41340, 46410, 49140 },  // 390
+    { 13630, 14935, 15950, 15370, 17255, 18270 },  // 145
+    { 23594, 25853, 27610, 26606, 29869, 31626 },  // 251
+    { 19646, 21527, 22990, 22154, 24871, 26334 },  // 209
 };
 
 // Report whether every entry above is still the product the two arrays name.
 // Exported for the unit suite alone; nothing in the engine calls it.
 bool conthist_scale_table_agrees(void) {
-    for (size_t b = 0; b < 6; ++b)
-        for (size_t m = 0; m < 7; ++m)
+    for (size_t b = 0; b < 5; ++b)
+        for (size_t m = 0; m < 6; ++m)
             if ((int) ConthistScale[b][m] != ConthistBonuses[b].w * CmhcMultipliers[m])
                 return false;
     return true;
@@ -617,14 +616,14 @@ static inline int conthist_delta(int bonus, size_t b, int positive_count, int i)
          + CONTHIST_NEAR_FRAME_BONUS * (int) (i < 2);
 }
 
-// Walk the six frames. Taken twice below, so it must inline at both call sites:
+// Walk the five frames. Taken twice below, so it must inline at both call sites:
 // the whole point is that ONE of the two copies carries a proved bound on `bonus`
 // and the other does not.
 [[gnu::always_inline]] static inline void
 conthist_walk(const Stack *ss, Piece pc, Square to, int bonus, bool bounded) {
     int positive_count = 0;
 
-    for (size_t b = 0; b < 6; ++b) {
+    for (size_t b = 0; b < 5; ++b) {
         if (ss->in_check && ConthistBonuses[b].i > 2)
             break;
 
@@ -659,7 +658,7 @@ void search_update_continuation_histories(const Stack *ss, Piece pc, Square to, 
     // one that is never taken, and the branch buys the first arm a range the clamp
     // in `shared_stats_update` cannot meet.
     //
-    // A clamp on the bonus would NOT do: the six scales differ, so clamping would
+    // A clamp on the bonus would NOT do: the scales differ, so clamping would
     // change the frames whose scale is small and whose delta never approached the
     // limit. The bound has to be proved, not imposed.
     if (bonus >= -CONTHIST_BONUS_BOUND && bonus <= CONTHIST_BONUS_BOUND)
