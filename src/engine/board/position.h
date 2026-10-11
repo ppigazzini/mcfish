@@ -68,11 +68,13 @@ typedef struct StateInfo {
     // re-deriving the slider rings from magic lookups on every move.
     Bitboard check_squares[PIECE_TYPE_NB];
     // Squares the side NOT to move attacks, per piece type and in total at
-    // [ALL_PIECES], cached once per position by set_extra_bitboards (upstream
-    // StateInfo::threats). The sliders see THROUGH the mover's own king, so a king
-    // stepping back along a checking ray is still refused. Movegen reads the total
-    // to keep the king off attacked squares; quiet scoring reads the per-type sets.
+    // [ALL_PIECES] (upstream StateInfo::threats). The sliders see THROUGH the
+    // mover's own king, so a king stepping back along a checking ray is still
+    // refused. Movegen reads the total to keep the king off attacked squares; quiet
+    // scoring reads the per-type sets. Read them through threats_by only: they are
+    // filled on first read, and `threats_ready` says whether they have been.
     Bitboard threats[PIECE_TYPE_NB];
+    bool threats_ready;
     Piece captured_piece;
     // Distance in plies back to the previous occurrence of this position:
     // positive for the first repetition, NEGATIVE when that earlier occurrence
@@ -227,9 +229,21 @@ static inline Square king_square(const Position *pos, Color c) {
 
 static inline Bitboard checkers(const Position *pos) { return pos->st->checkers; }
 
+// Fill POS's threat sets and mark them ready. A cache fill, not a change of
+// position, which is why it takes the position const: it writes only through `st`.
+void pos_compute_threats(const Position *pos);
+
 // Return the squares the side not to move attacks with PT, or with every piece at
 // ALL_PIECES -- upstream Position::threats_by (position.h:310).
+//
+// Computed on FIRST READ, where upstream computes them in every make
+// (set_extra_bitboards). A node that never generates -- a TT cutoff, a stand-pat,
+// a pruned leaf -- never reads them, and those are most of the nodes a make
+// reaches, so the make pays for them only where a generator does.
+
 static inline Bitboard threats_by(const Position *pos, PieceType pt) {
+    if (!pos->st->threats_ready)
+        pos_compute_threats(pos);
     return pos->st->threats[pt];
 }
 static inline Key pos_key(const Position *pos) { return pos->st->key; }
