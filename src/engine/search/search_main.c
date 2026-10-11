@@ -58,23 +58,18 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         return pv_node ? qsearch_node_pv(ctx, pos, ss, alpha_in, beta_in)
                        : qsearch_node_nonpv(ctx, pos, ss, alpha_in, beta_in);
 
-    // Is the ROOT already hunting a mate? Upstream 598ae2c4 asks this once per node
-    // and lets two readers below stand down on it: the futility cutoff drops from 19
-    // to 6, and the singular extension is skipped entirely, so the tree collapses
-    // onto the mating line instead of re-proving the moves around it.
+    // Is the ROOT already hunting a mate? The ID loop decides once per PV line
+    // (search.cpp:395), and the readers below stand down on it so the tree collapses
+    // onto forcing lines instead of re-proving the moves around them: razoring and
+    // the singular extension are skipped, the futility cutoff drops from 19 to 6, the
+    // null move reduces half as far, the small ProbCut never fires, and LMR reduces
+    // checks less and everything else more.
     //
     // The bar falls smoothly with the iteration, 750 + 220000 / d^2 (upstream
     // a35e229ec): 2950 at depth 10, 1609 at 16, approaching 750. Upstream says not to
-    // tune it; it serves mate finding, not playing strength. It depends on root_depth
-    // alone, so the ID loop computes it once per iteration (seek_mate_bar) and this
-    // node only compares.
-    //
-    // Read it here rather than beside the node-kind constants where upstream declares
-    // it (search.cpp:743): a leaf returns at the dive above before either reader.
+    // tune it; it serves mate finding, not playing strength.
     assert(ctx->root_depth > 0);
-    const int32_t pv_line_score = ctx->root_moves[ctx->pv_idx].score;
-    const bool seek_mate =
-      (pv_line_score < 0 ? -pv_line_score : pv_line_score) >= ctx->seek_mate_bar;
+    const bool seek_mate = ctx->seek_mate;
 
     Histories *const h = ctx->hist;
     Stack *const ss1 = ss - 1;
@@ -323,7 +318,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                  >= null_move_threshold(beta, depth, improving)
             && excluded_move == MOVE_NONE && pos_non_pawn_material(pos, us) != 0
             && ss->ply >= ctx->nmp_min_ply && beta >= -2000) {
-            const int r = null_move_reduction(depth, ss->static_eval, beta);
+            int r = null_move_reduction(depth, ss->static_eval, beta);
+            r -= (int) seek_mate * r / 2;
             // Touch no accumulator for a null move: mark the stack move as null and
             // install the all-NO_PIECE continuation pages.
             pos_do_null_move(pos, &st, &pos->scratch_dp, &pos->scratch_dts);
@@ -392,7 +388,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     // Step 13. Apply the deep-ProbCut TT idea.
     const int pc_beta_deep = probcut_beta_deep(beta);
     if ((tt_bound_v & BOUND_LOWER) != 0 && tt_depth >= depth - 4 && tt_value >= pc_beta_deep
-        && !value_is_decisive(beta) && value_is_valid(tt_value) && !value_is_decisive(tt_value))
+        && !value_is_decisive(beta) && value_is_valid(tt_value) && !value_is_decisive(tt_value)
+        && !seek_mate)
         return (Value) pc_beta_deep;
 
     Move best_move = MOVE_NONE;
@@ -572,6 +569,10 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
 
         if (all_node)
             r += lmr_all_node_scale(r, depth);
+
+        // When seeking a mate, reduce non-checking moves more and checking moves less.
+        if (seek_mate && r > 0)
+            r += (gc ? -r : r) / 4;
 
         // Step 18. Compute and apply the late-move reduction (or extension).
         // Steps 19 and 20 are the two branches below it: the full-depth search
