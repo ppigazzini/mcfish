@@ -194,7 +194,6 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
     while (ctx->root_depth + 1 < MAX_PLY && !id_stopped(ctx)
            && !(id->limits_depth != 0 && main_thread && ctx->root_depth >= id->limits_depth)) {
         ctx->root_depth += 1;
-        ctx->seek_mate_bar = 750 + 220000 / (ctx->root_depth * ctx->root_depth);
 
         if (main_thread) {
             tot_best_move_changes /= 2.0;
@@ -239,6 +238,12 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
             const int32_t avg = ctx->root_moves[ctx->pv_idx].average_score;
             Value alpha = (Value) (avg - delta > -VALUE_INFINITE ? avg - delta : -VALUE_INFINITE);
             Value beta = (Value) (avg + delta < VALUE_INFINITE ? avg + delta : VALUE_INFINITE);
+
+            // Do not tune these values. They are not intended for playing strength.
+            const int32_t pv_line_score = ctx->root_moves[ctx->pv_idx].score;
+            ctx->seek_mate = (pv_line_score < 0 ? -pv_line_score : pv_line_score)
+                          >= 750 + 220000 / (ctx->root_depth * ctx->root_depth);
+
             ctx->optimism[us] = optimism_of(avg);
             ctx->optimism[flip_color(us)] = -ctx->optimism[us];
 
