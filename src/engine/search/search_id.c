@@ -249,7 +249,6 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                 const int raw_depth = ctx->root_depth - failed_high_cnt - fail_high_recovery
                                     - 3 * (search_again_counter + 1) / 4;
                 const int adjusted_depth = raw_depth > 1 ? raw_depth : 1;
-                ctx->root_delta = beta - alpha;
                 best_value =
                   search_node(ctx, ctx->root_pos, ss, alpha, beta, adjusted_depth, false, NT_ROOT);
 
