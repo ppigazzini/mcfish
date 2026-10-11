@@ -236,12 +236,12 @@ typedef struct SearchCtx {
     // pointer on every call.
     bool eval_nnue_ready;
 
-    // The |root score| at which the root counts as hunting a mate, upstream's
-    // 750 + 220000 / (rootDepth * rootDepth) (search.cpp:743). It moves only with
-    // root_depth, so the ID loop computes it once per iteration and every node
-    // compares against it instead of dividing. It fills the padding the two bools
+    // Whether the root is hunting a mate: |the current PV line's score| at or past
+    // 750 + 220000 / (rootDepth * rootDepth), upstream's Worker::seekMate
+    // (search.cpp:395). The ID loop sets it once per PV line, before the
+    // aspiration loop, and every node reads it. It fills the padding the two bools
     // above leave before pv_idx, so no hot field moves.
-    int32_t seek_mate_bar;
+    bool seek_mate;
 
     size_t pv_idx;
     size_t pv_last;
