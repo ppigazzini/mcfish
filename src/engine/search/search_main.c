@@ -20,16 +20,16 @@
 // `tt_move` set either way so the generated list still filters it out.
 static void mp_set_main_stage(MovePicker *mp, const Position *pos, Move tt_move, int depth) {
     const int base = checkers(pos) != 0 ? MP_EVASION_TT : depth > 0 ? MP_MAIN_TT : MP_QSEARCH_TT;
-    const bool usable = tt_move != MOVE_NONE && search_pseudo_legal(pos, tt_move);
+    const bool usable = tt_move != MOVE_NONE && pos_legal(pos, tt_move);
     mp->stage = base + (int) (!usable);
 }
 
 // Select the ProbCut picker's opening stage the way upstream does: enter at the
-// TT stage only when the TT move is a pseudo-legal capture, but keep `tt_move`
-// set either way so the generated list still filters it out.
+// TT stage only when the TT move is a legal capture, but keep `tt_move` set either
+// way so the generated list still filters it out.
 static void mp_set_probcut_stage(MovePicker *mp, const Position *pos, Move tt_move) {
-    const bool usable = tt_move != MOVE_NONE && search_capture_stage(pos, tt_move)
-                     && search_pseudo_legal(pos, tt_move);
+    const bool usable =
+      tt_move != MOVE_NONE && search_capture_stage(pos, tt_move) && pos_legal(pos, tt_move);
     mp->stage = MP_PROBCUT_TT + (int) (!usable);
 }
 
@@ -202,8 +202,8 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                                                          (Square) prev_sq, -2210);
             }
             if (pos->st->rule50 < 96) {
-                if (depth >= 7 && tt_move != MOVE_NONE && search_pseudo_legal(pos, tt_move)
-                    && pos_legal(pos, tt_move) && !value_is_decisive(tt_value)) {
+                if (depth >= 7 && tt_move != MOVE_NONE && pos_legal(pos, tt_move)
+                    && !value_is_decisive(tt_value)) {
                     pos_do_move(pos, tt_move, &st, search_gives_check(pos, tt_move),
                                 &pos->scratch_dp, &pos->scratch_dts, nullptr);
                     const Key next_key = adjust_key50(pos);
@@ -368,7 +368,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
             const int probcut_depth = depth - (improving ? 5 : 3);
             Move move;
             while ((move = movepick_next(&mp)) != MOVE_NONE) {
-                if (move == excluded_move || !pos_legal(pos, move))
+                if (move == excluded_move)
                     continue;
                 const bool capture = search_capture_stage(pos, move);
                 assert(capture);
@@ -421,8 +421,6 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     Move move;
     while ((move = movepick_next(&mp)) != MOVE_NONE) {
         if (move == excluded_move)
-            continue;
-        if (!pos_legal(pos, move))
             continue;
         if (root_node && !root_in_list(ctx, move))
             continue;

@@ -8,7 +8,7 @@
 // else, so the caller sees each move exactly once even though the TT move is
 // also produced by the generator.
 //
-// `tt_move` must already be known pseudo-legal for `pos` — the picker returns it
+// `tt_move` must already be known legal for `pos` — the picker returns it
 // unchecked. Pass MOVE_NONE when there is no usable TT move.
 //
 // The move buffer is reused across stages: quiets are scored on top of the
@@ -87,8 +87,8 @@ typedef struct {
 
 // Set up the main-search / qsearch picker. The caller must then select the
 // opening stage (its mp_set_*_stage helper) before the first movepick_next:
-// the stage choice reads the TT move's pseudo-legality, which is the search
-// zone's test, so the picker does not compute a stage of its own.
+// the stage choice reads the TT move's legality, which the search zone tests, so
+// the picker does not compute a stage of its own.
 // SS is the frame whose (ss-1)..(ss-6) continuation pages quiet/evasion scoring
 // reads; the picker gathers them only when such a stage runs.
 void movepick_init(MovePicker *mp,
@@ -105,8 +105,8 @@ void movepick_init(MovePicker *mp,
 void movepick_init_probcut(
   MovePicker *mp, const Position *pos, Histories *h, Move tt_move, int threshold);
 
-// Return the next move, or MOVE_NONE when the picker is exhausted. Moves are
-// PSEUDO-legal; the caller must still filter with pos_legal.
+// Return the next move, or MOVE_NONE when the picker is exhausted. Every move is
+// legal: the generators emit nothing else.
 Move movepick_next(MovePicker *mp);
 
 // Stop producing quiets from the next call on. Bad captures still follow.

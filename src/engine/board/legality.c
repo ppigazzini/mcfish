@@ -11,71 +11,6 @@ static inline Bitboard least_significant_bb(Bitboard b) { return b & (~b + 1); }
 
 bool pos_legal(const Position *pos, Move m) {
     const Color us = pos->side_to_move;
-    const Square from = move_from(m);
-    const Square to = move_to(m);
-
-    // Compute the opponent colour and the king square inside the branch that consumes
-    // each, as upstream Position::legal does: the dominant not-a-blocker exit needs
-    // neither, and the hoisted loads do not sink past the early returns on their own.
-    //
-    // No EN_PASSANT case, as upstream Position::legal (position.cpp:660) has none:
-    // `ep_square` is only ever set when a legal capture exists (the no-discovery +
-    // not-a-blocker gating in `pos_do_move` and the per-capturer probe in the FEN
-    // parser), so the pin-ray test below already rejects exactly the illegal
-    // capturers. Testing the move type once also keeps the hot path to upstream's
-    // single castling dispatch.
-
-    if (move_type(m) == CASTLING) {
-        // `to` encodes the ROOK square (king-captures-rook), so derive the king's
-        // real destination before walking the path.
-        const Color them = flip_color(us);
-        const bool king_side = to > from;
-        const Square kto = make_square(king_side ? 6 : 2, rank_of(from));
-
-        // Walk from the king's DESTINATION back to the king, as upstream does
-        // (position.cpp:678) -- the step is the sense of kto vs from, NOT the side the
-        // rook is on. In Chess960 they part: a king on b1 castling QUEEN-side moves
-        // RIGHT, to c1. Taking the step from the rook's side walked left off the board
-        // there and indexed `Magics[255]`.
-        const int step = kto > from ? -1 : 1;
-
-        for (Square s = kto; s != from; s = (Square) ((int) s + step))
-            if (pos_attackers_to_occ(pos, s, pieces(pos)) & pieces_c(pos, them))
-                return false;
-
-        // The castling rook can itself be the piece screening the king from an enemy
-        // slider (queen a1 behind the castling rook on b1): reject if moving it
-        // uncovers a check. `to` is the rook square. Golden:
-        // Stockfish/src/position.cpp:686.
-        //
-        // TEST THE GEOMETRY, NOT THE OPTION. Upstream short-circuits this on
-        // `chess960`, and the option is not evidence about the board: the FEN parser
-        // does not require the castling field to agree with the pieces, so for a
-        // `K`/`Q` token it walks inward from the corner and adopts the first rook it
-        // meets. `4k3/8/8/8/8/8/8/qR2K3 w Q - 0 1` therefore records a 960 geometry
-        // while the option still says standard, and the short-circuit declared e1c1
-        // legal with the enemy queen on a1 screened only by the castling rook.
-        //
-        // Dropping the gate is correct in standard geometry rather than merely
-        // harmless there: a corner rook lies on no line between its own king and any
-        // slider -- rank 1 has nothing beyond a1 or h1, and neither square shares a
-        // file or diagonal with e1 -- so it can never be one of that king's blockers,
-        // and the test now always run is one that was always going to pass.
-        return !(pos->st->blockers[us] & square_bb(to));
-    }
-
-    if (type_of_piece(piece_on(pos, from)) == KING)
-        // Step the king off the board before testing, or a slider checking it
-        // through the from-square looks blocked.
-        return !(pos_attackers_to_occ(pos, to, pieces(pos) ^ square_bb(from))
-                 & pieces_c(pos, flip_color(us)));
-
-    // A non-king mover is legal iff it is not a blocker, or it stays on the pin ray.
-    return !(pos->st->blockers[us] & square_bb(from)) || aligned(from, to, king_square(pos, us));
-}
-
-bool pos_pseudo_legal(const Position *pos, Move m) {
-    const Color us = pos->side_to_move;
     const Color them = flip_color(us);
     const Square from = move_from(m);
     const Square to = move_to(m);
@@ -83,11 +18,10 @@ bool pos_pseudo_legal(const Position *pos, Move m) {
     const Bitboard all = pieces(pos);
 
     // Take the slower but simpler path for non-NORMAL moves: membership in the
-    // generator, exactly as upstream does.
+    // legal list, exactly as upstream does (position.cpp:672).
     if (move_type(m) != NORMAL) {
         ExtMove list[MAX_MOVES];
-        const ExtMove *const end =
-          checkers(pos) != 0 ? generate_evasions(pos, list) : generate_non_evasions(pos, list);
+        const ExtMove *const end = generate_legal(pos, list);
         for (const ExtMove *it = list; it != end; ++it)
             if (it->move == m)
                 return true;
@@ -118,23 +52,26 @@ bool pos_pseudo_legal(const Position *pos, Move m) {
         return false;
     }
 
-    // Only NON-KING moves are constrained here, exactly as upstream constrains
-    // them (position.cpp: pseudo_legal). A king move that walks into an attacked
-    // square is rejected by `pos_legal`, not here: adding that test would make
-    // this function stricter than upstream's and put an attackers_to scan on a
-    // path upstream keeps cheap. Every caller pairs the two.
-    if (checkers(pos) && type_of_piece(pc) != KING) {
+    // A king move is legal iff it lands on a square the opponent does not attack.
+    // The threat set sees through our own king, so a king stepping back along a
+    // checking ray is refused here without a scan (position.cpp:726).
+    if (type_of_piece(pc) == KING)
+        return !(threats_by(pos, ALL_PIECES) & square_bb(to));
+
+    const Bitboard ck = checkers(pos);
+    if (ck != 0) {
         // Only a king move evades a double check.
-        if (bb_more_than_one(checkers(pos)))
+        if (bb_more_than_one(ck))
             return false;
 
         // Otherwise the move must block the checker or capture it -- BetweenBB
         // includes the checker's own square, so both are one test.
-        if (!(BetweenBB[king_square(pos, us)][lsb(checkers(pos))] & square_bb(to)))
+        if (!(BetweenBB[king_square(pos, us)][lsb(ck)] & square_bb(to)))
             return false;
     }
 
-    return true;
+    // A non-king mover is legal iff it is not a blocker, or it stays on the pin ray.
+    return !(pos->st->blockers[us] & square_bb(from)) || aligned(from, to, king_square(pos, us));
 }
 
 bool pos_gives_check(const Position *pos, Move m) {

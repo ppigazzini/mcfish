@@ -180,7 +180,21 @@ static void slider_blockers(const Position *pos, Color c, Bitboard *blockers, Bi
     }
 }
 
-static void set_check_info(Position *pos) {
+// Return the attacks of C's PT pieces through OCCUPIED -- upstream's xattacks_by
+// (position.h:295). Pawns resolve as a set in two shifts; the other types walk
+// piece by piece.
+static inline Bitboard xattacks_by(const Position *pos, PieceType pt, Color c, Bitboard occupied) {
+    if (pt == PAWN)
+        return pawn_attacks_bb(c, pieces_cp(pos, c, PAWN));
+
+    Bitboard threats = 0;
+    Bitboard attackers = pieces_cp(pos, c, pt);
+    while (attackers)
+        threats |= attacks_bb(pt, pop_lsb(&attackers), occupied);
+    return threats;
+}
+
+static void set_extra_bitboards(Position *pos) {
     slider_blockers(pos, WHITE, &pos->st->blockers[WHITE], &pos->st->pinners[BLACK]);
     slider_blockers(pos, BLACK, &pos->st->blockers[BLACK], &pos->st->pinners[WHITE]);
 
@@ -191,18 +205,31 @@ static void set_check_info(Position *pos) {
 
     // Cache the check squares for the enemy king once here, so movepick scoring and
     // search_gives_check read a bitboard per move instead of rebuilding the slider
-    // rings with magic lookups (upstream Position::set_check_info, position.cpp:479).
+    // rings with magic lookups (upstream Position::set_extra_bitboards, position.cpp:479).
     const Color them = flip_color(pos->side_to_move);
     const Square tksq = king_square(pos, them);
     const Bitboard occ = pieces(pos);
     pos->st->check_squares[PAWN] = PawnAttacksBB[them][tksq];
     pos->st->check_squares[KNIGHT] = attacks_bb(KNIGHT, tksq, occ);
-    // One pass for both, as upstream's set_check_info does (position.cpp:473).
+    // One pass for both, as upstream's set_extra_bitboards does (position.cpp:473).
     const DualAttacks king_slider_attacks = both_attacks_bb(tksq, occ);
     pos->st->check_squares[BISHOP] = king_slider_attacks.bishop;
     pos->st->check_squares[ROOK] = king_slider_attacks.rook;
     pos->st->check_squares[QUEEN] = pos->st->check_squares[BISHOP] | pos->st->check_squares[ROOK];
     pos->st->check_squares[KING] = 0;
+
+    // Cache what the side not to move attacks, seen through the mover's own king
+    // (upstream Position::set_extra_bitboards, position.cpp:482).
+    const Bitboard xocc = occ ^ pieces_cp(pos, pos->side_to_move, KING);
+    Bitboard *const threats = pos->st->threats;
+    threats[PAWN] = xattacks_by(pos, PAWN, them, xocc);
+    threats[KNIGHT] = xattacks_by(pos, KNIGHT, them, xocc);
+    threats[BISHOP] = xattacks_by(pos, BISHOP, them, xocc);
+    threats[ROOK] = xattacks_by(pos, ROOK, them, xocc);
+    threats[QUEEN] = xattacks_by(pos, QUEEN, them, xocc);
+    threats[KING] = xattacks_by(pos, KING, them, xocc);
+    threats[ALL_PIECES] = threats[PAWN] | threats[KNIGHT] | threats[BISHOP] | threats[ROOK]
+                        | threats[QUEEN] | threats[KING];
 }
 
 // Recompute every key from the board. do_move maintains them incrementally; this
@@ -566,11 +593,11 @@ bool pos_set_reason(
     si->key = compute_key(pos);
 
     // Compute the checkers from the board here, the one place with no move to
-    // derive them from — upstream set_state (position.cpp:493). set_check_info no
+    // derive them from — upstream set_state (position.cpp:493). set_extra_bitboards no
     // longer writes them.
     si->checkers = pos_attackers_to_occ(pos, king_square(pos, pos->side_to_move), pieces(pos))
                  & pieces_c(pos, flip_color(pos->side_to_move));
-    set_check_info(pos);
+    set_extra_bitboards(pos);
 
     // Refuse a position where the side NOT to move is in check. It could only be
     // reached by a move that left its own king en prise, so it is unreachable in a
@@ -749,7 +776,7 @@ void pos_do_move(Position *pos,
     const MoveType mt = move_type(m);
 
     // Copy only the incrementally-carried prefix forward (offsetof(key)); the tail
-    // from `key` on is recomputed below and by set_check_info, so copying it would
+    // from `key` on is recomputed below and by set_extra_bitboards, so copying it would
     // be wasted store traffic. Undo pops the chain, so anything the tail leaves
     // unwritten this move is never read (every tail field IS written here).
     Key key = pos->st->key ^ Zobrist_side;
@@ -849,7 +876,7 @@ void pos_do_move(Position *pos,
         new_st->rule50 = 0;
 
         // Set the ep square only when the capture is actually LEGAL, not merely
-        // pseudo-legal. A pawn that stands to take en passant can still be pinned
+        // geometrically available. A pawn that stands to take en passant can still be pinned
         // to its own king, and the double push itself can be the piece that
         // discovers the check; in either case no capture exists and upstream
         // leaves the square unset. Recording it anyway keys the position
@@ -930,7 +957,7 @@ void pos_do_move(Position *pos,
 
     // Preload the lines the child will read, now that every key it is indexed by
     // is final (upstream position.cpp:1006-1010). The make is not finished: the
-    // checkers scan, set_check_info and the repetition walk all still run below,
+    // checkers scan, set_extra_bitboards and the repetition walk all still run below,
     // and that is the lead time these hints are issued to buy.
     if (history != nullptr) {
         tt_prefetch(pos_adjust_key50_of(key, new_st->rule50));
@@ -952,7 +979,7 @@ void pos_do_move(Position *pos,
                                    : 0;
 
     pos->side_to_move = them;
-    set_check_info(pos);
+    set_extra_bitboards(pos);
 
     // Record the repetition distance. Walk back two plies at a time — only
     // same-side-to-move positions can repeat — bounded by the last irreversible
@@ -1089,7 +1116,7 @@ void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThr
     new_st->checkers = new_st->previous->checkers;
 
     pos->side_to_move = flip_color(pos->side_to_move);
-    set_check_info(pos);
+    set_extra_bitboards(pos);
 
     // A null move cannot repeat a position: it is not reachable by legal play.
     new_st->repetition = 0;

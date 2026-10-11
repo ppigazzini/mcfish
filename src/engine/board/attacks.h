@@ -42,6 +42,11 @@ extern Bitboard PseudoAttacks[PIECE_TYPE_NB][SQUARE_NB];
 extern Bitboard PawnAttacksBB[COLOR_NB][SQUARE_NB];
 extern Bitboard BetweenBB[SQUARE_NB][SQUARE_NB];  // exclusive of from, inclusive of to
 extern Bitboard LineBB[SQUARE_NB][SQUARE_NB];     // the full line through both, or 0
+// The full a1-h8-direction diagonal and the a8-h1-direction antidiagonal through a
+// square, the square included. A pawn pinned to its king may capture only along the
+// king's own diagonal or antidiagonal (upstream attacks.h:197, diag_bb/antidiag_bb).
+extern Bitboard DiagBB[SQUARE_NB];
+extern Bitboard AntiDiagBB[SQUARE_NB];
 
 // Return the attack set of PT from S given OCCUPIED. Sliders index their magic
 // table; leapers read PseudoAttacks and ignore OCCUPIED.

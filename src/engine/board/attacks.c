@@ -12,6 +12,8 @@ Bitboard PseudoAttacks[PIECE_TYPE_NB][SQUARE_NB];
 Bitboard PawnAttacksBB[COLOR_NB][SQUARE_NB];
 Bitboard BetweenBB[SQUARE_NB][SQUARE_NB];
 Bitboard LineBB[SQUARE_NB][SQUARE_NB];
+Bitboard DiagBB[SQUARE_NB];
+Bitboard AntiDiagBB[SQUARE_NB];
 
 // Size the flat tables to the exact totals the mask popcounts imply. These are
 // upstream's constants, not guesses: a rook needs 2^12 entries on the corner
@@ -145,7 +147,6 @@ static unsigned magic_index(const Magic *m, Bitboard occupied) {
 #endif
 }
 
-#ifdef __AVX2__
 // The ray through S along D1/D2, excluding S. Upstream's `line_mask`
 // (attacks.cpp:81).
 static Bitboard line_mask(Square sq, Direction d1, Direction d2) {
@@ -159,6 +160,7 @@ static Bitboard line_mask(Square sq, Direction d1, Direction d2) {
     return mask;
 }
 
+#ifdef __AVX2__
 static void init_dual_magics(void) {
     for (int file = 0; file < FILE_NB; ++file)
         for (int occ6 = 0; occ6 < 64; ++occ6)
@@ -342,6 +344,8 @@ void attacks_init(void) {
     for (Square s = SQ_A1; s <= SQ_H8; ++s) {
         PawnAttacksBB[WHITE][s] = pawn_attacks_bb(WHITE, square_bb(s));
         PawnAttacksBB[BLACK][s] = pawn_attacks_bb(BLACK, square_bb(s));
+        DiagBB[s] = line_mask(s, NORTH_EAST, SOUTH_WEST) | square_bb(s);
+        AntiDiagBB[s] = line_mask(s, NORTH_WEST, SOUTH_EAST) | square_bb(s);
 
         for (int i = 0; i < 8; ++i) {
             const Square k = safe_step(s, KnightSteps[i]);

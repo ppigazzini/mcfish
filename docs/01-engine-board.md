@@ -33,7 +33,7 @@ live code: `position_query.c` and `position_snapshot.c` duplicated queries
 [`board_props.c`](../src/engine/board/board_props.c) already owns, and
 `fen_parse.c` was a second FEN parser with no `pos_set_reason` — the entry the
 shell needs and whose reason string `tools/errors.golden` pins. `position.c`
-keeps the decode side until its shared helpers (`set_check_info`,
+keeps the decode side until its shared helpers (`set_extra_bitboards`,
 `slider_blockers`, `compute_key`, used by both `pos_set` and `pos_do_move`) get a
 header of their own.
 
@@ -41,7 +41,7 @@ header of their own.
 a second copy of `pos_fen`, `pos_pretty` or `pos_legal` — those live in `fen.c` and
 `legality.c` now — and it draws its Zobrist tables by calling `zobrist_init` rather
 than generating its own. `pos_set` stays in `position.c`, which keeps the decode
-helpers (`set_check_info`, `slider_blockers`, `compute_key`) it shares with
+helpers (`set_extra_bitboards`, `slider_blockers`, `compute_key`) it shares with
 `pos_do_move`. The split landed as one commit that deleted from `position.c` as it
 added to `SOURCES`, so the tree was buildable at every step.
 
@@ -174,7 +174,7 @@ The whole slider dataset is **3 KiB and L1-resident**. The magic path's is **841
 compile its magic tables in this configuration (`attacks.cpp:28`).
 
 Five sites want both sets and take the dual call, matching upstream exactly:
-`threats_update_piece` (`position.cpp:1203`), `set_check_info` (`:473`),
+`threats_update_piece` (`position.cpp:1203`), `set_extra_bitboards` (`:473`),
 `attackers_to` (`:645`), `gives_check`'s en-passant case (`:796`) and `see_ge`'s queen
 branch (`:1505`). `see_ge`'s pawn and bishop branches uncover diagonals alone and its
 rook branch files alone, so they stay single-ray — there too.
@@ -209,7 +209,7 @@ Three invariants hold this together, and each has a silent failure mode:
   `sizeof(Magic)` is 32, so `Magics[s][0..1]` — bishop then rook — is exactly 64
   bytes, and the `alignas(64)` is what puts that pair on a line boundary instead of
   straddling two. Every site that probes both sliders from one square depends on it
-  (`pos_attackers_to_occ`, `set_check_info`, `see_ge`, `threats_update_piece`), and
+  (`pos_attackers_to_occ`, `set_extra_bitboards`, `see_ge`, `threats_update_piece`), and
   it matters most on the non-BMI2 path, which reads `magic` and `shift` as well as
   `mask` and `attacks`. A `static_assert` pins the pair-fits-a-line half, because
   widening `Magic` would otherwise break it in silence.
@@ -540,63 +540,63 @@ so only the caller's declaration keeps the write in bounds. Declare the buffer
 the release build and is caught only if the `test` step's ASan run happens to
 reach the position.
 
-The four `GenType`s:
+The three `GenType`s:
 
 | Type | Emits |
 | --- | --- |
 | `GEN_CAPTURES` | captures and **queen** promotions |
-| `GEN_QUIETS` | everything else, including under-promotions |
-| `GEN_NON_EVASIONS` | both of the above; used when not in check |
-| `GEN_EVASIONS` | replies to a check, masked to the block-or-capture target |
+| `GEN_QUIETS` | everything else, including under-promotions and castling |
+| `GEN_EVASIONS` | every move when in check |
 
-Captures and quiets partition the non-evasion set exactly — `test_legality` asserts
-`cn + qn == pn` on three positions. The queen promotion sits in the capture set
-because it is the only promotion the quiescence search wants to see.
+`generate_legal` is upstream's `generate<ALL>`: the evasions in check, otherwise
+the captures followed by the quiets, in that order. That order is observable — the
+root move list is built from it, and root order drives the whole search — so the
+quiets must never be generated first.
 
-**Everything except `generate_legal` is pseudo-legal.** The generators may leave
-your own king in check, and every caller must filter with `pos_legal`. Only
-`generate_legal` — which generates into a local buffer and copies through the filter
-— is safe to iterate raw. It is the perft and root generator; the search filters
-inline so it can skip the copy.
+Captures and quiets partition the legal set exactly out of check — `test_legality`
+asserts `cn + qn == count`. The queen promotion sits in the capture set because it
+is the only promotion the quiescence search wants to see.
+
+**Every generator emits legal moves only**, as upstream's have since `400c23f97`.
+Nothing a generator returns needs `pos_legal`, and the search loops call it on
+nothing but TT moves. Legality is resolved inside the generator in four places:
+
+- **Pins.** A pinned piece moves only along `LineBB[ksq][from]`, after every free
+  piece of its type — the free pieces first, then the pinned ones, because
+  generation order is the tie order the picker's sort keeps. A pinned knight has
+  no second loop. A pinned pawn may push only when pinned along the king's file,
+  and capture toward one side only when pinned along the diagonal that side lies
+  on: `DiagBB[ksq]` for the a1-h8 direction, `AntiDiagBB[ksq]` for the a8-h1 one.
+- **The king.** Every king step is masked with `~threats_by(pos, ALL_PIECES)`, the
+  squares the opponent attacks. That set is computed through the mover's own king,
+  so stepping back along a checking ray is refused without any scan.
+- **Castling.** `generate_castling` rejects a right whose path is occupied, whose
+  crossed or landing squares are attacked, or whose rook is the piece screening
+  the king. `to` holds the rook square. Only `GEN_QUIETS` emits it, and only out
+  of check.
+- **En passant.** `ep_square` is stored only when some capturer is legal (see the
+  FEN section), which leaves only the diagonal pins for the generator to filter:
+  each capturer arrives along one diagonal and takes the matching mask. Under
+  evasions it is skipped when the check is discovered through the square the
+  double-pushed pawn left.
 
 Evasion generation short-circuits on double check: if `bb_more_than_one(checkers)`,
-it skips the pawn and piece generators entirely and emits only king steps, rather
-than generating moves that `pos_legal` would all reject.
-
-The en-passant case inside the evasion path is the subtle one: the captured pawn
-sits *behind* the ep square, so the target test is on that pawn's square, not on the
-landing square. Getting it backwards produces a legal-move count that is right
-almost everywhere and wrong in exactly the positions perft position 3 covers.
-
-Castling is emitted by `generate_castling`, which checks only that the path is
-clear — with both movers masked out of the path, because in Chess960 the king or
-rook may already stand on a destination square. Whether the king walks *through*
-attack is `pos_legal`'s job, not the generator's.
+it skips the pawn and piece generators entirely and emits only king steps.
 
 ## Legality
 
-`pos_legal(pos, m)` takes a move that is already pseudo-legal and answers whether it
-leaves our king safe. It has four cases, and three of them are special for a reason:
+`pos_legal(pos, m)` answers whether any 16-bit word is a legal move here. It is
+total: a TT hit hands back a move word that may belong to a different position
+entirely, and this is the test it must pass before the picker returns it. A word
+that is not `NORMAL` is answered by membership in `generate_legal`'s list, as
+upstream does. A `NORMAL` word is checked geometrically — our piece on `from`, not
+our piece on `to`, a pawn move that is a real push or capture — and then:
 
-**En passant** — two pieces leave the board in one move (the mover and the captured
-pawn, on different squares), so no precomputed pin set covers it. The test rebuilds
-the occupancy by hand and asks directly:
+**King moves** — legal iff the destination is not in `threats_by(pos, ALL_PIECES)`.
 
-```c
-const Bitboard occ = (pieces(pos) ^ square_bb(from) ^ square_bb(cap)) | square_bb(to);
-```
-
-then checks for a rook/queen or bishop/queen attack on the king through that
-occupancy. This is the classic "capturing en passant exposes the king along the
-rank" position, and it is why the double removal must be explicit.
-
-**Castling** — walks each square the king crosses and rejects if any is attacked.
-`to` holds the rook square, so the king's real destination is derived first
-(`make_square(king_side ? 6 : 2, rank_of(from))`).
-
-**King moves** — test the destination against an occupancy with the king's origin
-square cleared. Without that clear, a slider checking the king along a line looks
-blocked by the king itself, and the engine happily steps backwards along the check.
+**In check** — a non-king move must be the single-check block or capture
+(`BetweenBB[ksq][checker]`, which includes the checker's square); in double check
+none is.
 
 **Everything else** — one line:
 
@@ -606,7 +606,7 @@ return !(pos->st->blockers[us] & square_bb(from)) || aligned(from, to, ksq);
 
 A non-king mover is legal iff it is not a blocker, or it stays on the pin ray.
 `blockers[us]` is computed once per position by `slider_blockers` (called from
-`set_check_info` after every make/unmake), which finds each enemy slider that would
+`set_extra_bitboards` after every make), which finds each enemy slider that would
 see the king on an empty board and marks the single piece in the way — exactly one
 piece; two or more block each other and neither is pinned.
 
@@ -614,11 +614,9 @@ Note that `blockers[c]` may contain pieces of *either* colour: an enemy blocker 
 the piece that could discover a check by moving away. `pinners[c]` holds the sliders
 and is filled only for own-colour blockers.
 
-`pos_pseudo_legal` is the guard in front of `pos_legal`, not a convenience.
-`pos_legal` is **undefined** on a move that could not have been generated, so any
-move from an untrusted source — a TT hit, a killer, a UCI string — must pass
-`pos_pseudo_legal` first. The live search does exactly that with its TT move before
-handing it to the picker.
+`test_legality` holds `pos_legal` to the generator over every move word a TT entry
+can carry, on fixtures with a pin of each kind, a pinned en-passant capturer and a
+king in check along a ray.
 
 `pos_see_ge(pos, m, threshold)` answers whether a move's static exchange evaluation
 clears a threshold without generating the exchange sequence. The move picker prunes

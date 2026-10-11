@@ -11,7 +11,7 @@
 #   * a mate or stalemate root skipped the per-worker reset upstream runs
 #     unconditionally, leaving worker 0 on the previous `go`'s limits and counters.
 #
-# Both showed up as ONE call of difference in set_check_info.
+# Both showed up as ONE call of difference in set_check_info (now set_extra_bitboards).
 #
 # It is inlining-immune by construction: a call count does not care how the callee
 # was reached, only that it was. That is why it can compare a C23 tree against a C++

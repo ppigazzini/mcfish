@@ -45,7 +45,7 @@ history update	^search_update_continuation|^stat_|^shared_stat_
 # ---- board ----------------------------------------------------------------------
 do/undo move	^pos_do_move$|^pos_undo_move$|^pos_do_null|^pos_undo_null
 threats	^threats_update_piece
-check info	^set_check_info$|^pos_gives_check$
+check info	^set_extra_bitboards$|^pos_gives_check$
 legality	^pos_legal$|^see_ge$|^pos_is_draw$|^pos_is_repetition$
 movegen	^generate_|^pair_generate
 

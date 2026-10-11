@@ -192,21 +192,16 @@ on it.
 `NodeType` is a tag, not two booleans: the body derives `pv_node` and `root_node`
 from it, so the two cannot drift apart the way two independent flags can.
 
-### The TT move must pass `search_pseudo_legal` first
+### The TT move must pass `pos_legal` first
 
-`MovePicker` returns the TT move **unchecked** — its header says so — and
-`pos_legal` is *undefined* on a move that could not have been generated. A 16-bit
+`MovePicker` returns the TT move **unchecked** — its header says so — and a 16-bit
 key fragment collides eventually, so a stale move from an unrelated position will
-reach the picker. Deleting the guard buys nothing and makes the failure a wild
-memory read on some future position.
-
-`search_pseudo_legal` and `search_gives_check` are board-zone predicates the search
-zone still carries. [`../src/engine/board/legality.c`](../src/engine/board/legality.c)
-is in `SOURCES` and `ENGINE_SOURCES` already and holds the canonical
-`pos_pseudo_legal`, so the search-zone copies are a live duplicate awaiting
-deletion, not a module waiting to land.
-`search_gives_check` additionally recomputes upstream's `StateInfo::checkSquares` on
-every call, because mcfish's `StateInfo` does not cache it.
+reach the picker. `pos_legal` in
+[`../src/engine/board/legality.c`](../src/engine/board/legality.c) is total over
+every move word, so it is the whole guard, as upstream's `Position::legal` is since
+`400c23f97`. Every generated move is legal already, so the TT move is the only one
+the search tests. Deleting the guard buys nothing and makes the failure an illegal
+make on some future position.
 
 ### The TT cutoff
 
@@ -290,10 +285,11 @@ C. Those spots are marked.
 
 ### Terminal nodes
 
-`move_count == 0` after the loop means mate if in check, stalemate otherwise. This is
-why the legal counter cannot be replaced by "the generator returned nothing": the
-generators are pseudo-legal, so a position with pseudo-legal moves and no legal ones
-is exactly the mate/stalemate case.
+`move_count == 0` after the loop means mate if in check, stalemate otherwise —
+unless a singular search excluded the only move, which returns alpha. The counter
+is of the moves the loop reached after the excluded move and the root's
+`searchmoves` filter were skipped, which is why it cannot be replaced by asking the
+generator whether it returned anything.
 
 ## Quiescence
 
@@ -370,7 +366,7 @@ Two invariants a caller must respect:
 
 - **The TT move is returned first and skipped everywhere else**, so the caller sees
   each move exactly once even though the generator also produces it.
-- **`tt_move` must already be known pseudo-legal**; the picker does not check it.
+- **`tt_move` must already be known legal**; the picker does not check it.
   Pass `MOVE_NONE` when there is none.
 
 The move buffer is reused across stages: quiets are scored on top of the captures
