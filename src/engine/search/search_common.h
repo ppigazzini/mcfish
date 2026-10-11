@@ -124,12 +124,12 @@ int singular_triple_margin(
 // ---- Step 18: reductions ------------------------------------------
 
 // Fill REDUCTIONS[1, count) with int(2872/128 * ln i). Index 0 is left untouched,
-// matching upstream's clear().
+// matching upstream's initializer (search.cpp:79).
 void search_fill_reductions(uint16_t *reductions, size_t count);
 
 // Return the shared, read-only reductions table of MAX_MOVES entries. The values
 // depend only on the index, so they are identical for every worker and every
-// search; upstream fills its per-Worker copy once in clear(), never per search.
+// search; upstream keeps the same single table, built once at static init.
 // Compute the table on first use -- reached single-threaded during the main
 // thread's per-worker setup, before any sibling starts -- and hand every ctx the
 // same pointer, so no `go` pays the 256 log() calls or carries its own copy.
