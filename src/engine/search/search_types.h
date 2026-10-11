@@ -215,7 +215,6 @@ typedef struct SearchCtx {
     int32_t nmp_min_ply;
     int32_t sel_depth;
     int32_t root_depth;
-    int32_t root_delta;
 
     const uint16_t *reductions;
 

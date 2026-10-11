@@ -51,7 +51,6 @@ void search_ctx_init(SearchCtx *ctx,
     ctx->root_moves_count = rml->count;
     ctx->tb_config = rml->tb_config;
 
-    ctx->root_delta = 2 * VALUE_INFINITE;  // never zero: reduction_of divides by it
     ctx->reductions = search_reductions_table();
 }
 
