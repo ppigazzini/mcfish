@@ -66,7 +66,7 @@ holding that worker's history tables, its NNUE arena and, on thread 0 only, the
 
 **`SearchCtx`'s per-node fields are contiguous, and adding to it has a rule.**
 Everything a node reads — `hist`, `eval_arena`, the counters, `optimism`,
-`root_depth`, `root_delta`, `reductions`, `stop`, `is_main`, `eval_nnue_ready`,
+`root_depth`, `reductions`, `stop`, `is_main`, `eval_nnue_ready`,
 `time_state`, `tb_config` — sits inside the first 216 bytes (`offsetof(SearchCtx,
 limits)`; verify with `offsetof` rather than trusting this number after the next
 field is added). Anything read once per `go`, and the big arrays (`limits`,
