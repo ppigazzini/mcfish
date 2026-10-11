@@ -387,7 +387,8 @@ recomputed key with the incremental one.
 (attacker, attacked) pairs that appeared or disappeared. That list is what the NNUE
 `full_threats` feature set consumes; see [03-engine-eval.md](03-engine-eval.md).
 
-`threats_init` builds `RayPassBB`, the geometry the discovered-threat scan walks,
+`threats_init` builds `InverseRayPassBB`, the geometry the discovered-threat scan
+walks — stored `[s2][s1]`, as upstream's is, so the scan's fixed square picks one row,
 and it reads the attack tables — hence its place in the init order in
 [00-architecture.md](00-architecture.md).
 

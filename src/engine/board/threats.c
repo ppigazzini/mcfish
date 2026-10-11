@@ -8,10 +8,14 @@
 // Hold the ray-pass geometry, built once from the attack tables at startup and
 // read-only during search. Without it every slider in every threat update
 // re-ray-casts, and the threat update runs per piece touched per node.
-static Bitboard RayPassBB[SQUARE_NB][SQUARE_NB];
+//
+// Stored TRANSPOSED, [s2][s1], as upstream's inverse_RayPassBB is (attacks.cpp:29):
+// process_sliders reads it for one fixed square and every slider in turn, so that
+// walk stays inside one 512-byte row instead of touching a row per slider.
+static Bitboard InverseRayPassBB[SQUARE_NB][SQUARE_NB];
 
 void threats_init(void) {
-    memset(RayPassBB, 0, sizeof RayPassBB);
+    memset(InverseRayPassBB, 0, sizeof InverseRayPassBB);
 
     for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1) {
         const PieceType slider_types[2] = { BISHOP, ROOK };
@@ -21,14 +25,14 @@ void threats_init(void) {
             for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2) {
                 if ((from_empty & square_bb(s2)) == 0)
                     continue;
-                RayPassBB[s1][s2] =
+                InverseRayPassBB[s2][s1] =
                   from_empty & (attacks_bb(pt, s2, square_bb(s1)) | square_bb(s2));
             }
         }
     }
 }
 
-Bitboard ray_pass_bb(Square s1, Square s2) { return RayPassBB[s1][s2]; }
+Bitboard ray_pass_bb(Square s1, Square s2) { return InverseRayPassBB[s2][s1]; }
 
 #ifdef MCFISH_DIRTY_THREAT_VECTOR
 // Write every threat in MASK in one pass, as upstream's write_multiple_dirties does
@@ -116,7 +120,7 @@ static void process_sliders(const Position *pos,
         const Square slider_sq = pop_lsb(&sliders);
         const Piece slider = pos->board[slider_sq];
 
-        const Bitboard ray = RayPassBB[slider_sq][s];
+        const Bitboard ray = InverseRayPassBB[s][slider_sq];
         const Bitboard discovered = ray & (r_attacks | b_attacks) & occupied_no_k;
 
         if (discovered != 0 && (ray & no_rays) != no_rays) {

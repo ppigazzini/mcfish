@@ -31,10 +31,11 @@
 #include "position.h"
 #include "types.h"
 
-// Build RayPassBB. Call once, after attacks_init and before any position exists.
+// Build the ray-pass table. Call once, after attacks_init and before any position
+// exists.
 void threats_init(void);
 
-// Return RayPassBB[s1][s2]: from s1's empty-board attacks along the s1-s2 line,
+// Return the ray pass of S1 through S2: from s1's empty-board attacks along the line,
 // the squares at or beyond s2, with s1 removed from the occupancy. Zero when the
 // two squares are not aligned.
 Bitboard ray_pass_bb(Square s1, Square s2);
