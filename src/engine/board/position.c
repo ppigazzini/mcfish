@@ -194,6 +194,22 @@ static inline Bitboard xattacks_by(const Position *pos, PieceType pt, Color c, B
     return threats;
 }
 
+// Upstream computes these at the end of set_extra_bitboards (position.cpp:482).
+void pos_compute_threats(const Position *pos) {
+    const Color them = flip_color(pos->side_to_move);
+    const Bitboard xocc = pieces(pos) ^ pieces_cp(pos, pos->side_to_move, KING);
+    Bitboard *const threats = pos->st->threats;
+    threats[PAWN] = xattacks_by(pos, PAWN, them, xocc);
+    threats[KNIGHT] = xattacks_by(pos, KNIGHT, them, xocc);
+    threats[BISHOP] = xattacks_by(pos, BISHOP, them, xocc);
+    threats[ROOK] = xattacks_by(pos, ROOK, them, xocc);
+    threats[QUEEN] = xattacks_by(pos, QUEEN, them, xocc);
+    threats[KING] = xattacks_by(pos, KING, them, xocc);
+    threats[ALL_PIECES] = threats[PAWN] | threats[KNIGHT] | threats[BISHOP] | threats[ROOK]
+                        | threats[QUEEN] | threats[KING];
+    pos->st->threats_ready = true;
+}
+
 static void set_extra_bitboards(Position *pos) {
     slider_blockers(pos, WHITE, &pos->st->blockers[WHITE], &pos->st->pinners[BLACK]);
     slider_blockers(pos, BLACK, &pos->st->blockers[BLACK], &pos->st->pinners[WHITE]);
@@ -218,18 +234,8 @@ static void set_extra_bitboards(Position *pos) {
     pos->st->check_squares[QUEEN] = pos->st->check_squares[BISHOP] | pos->st->check_squares[ROOK];
     pos->st->check_squares[KING] = 0;
 
-    // Cache what the side not to move attacks, seen through the mover's own king
-    // (upstream Position::set_extra_bitboards, position.cpp:482).
-    const Bitboard xocc = occ ^ pieces_cp(pos, pos->side_to_move, KING);
-    Bitboard *const threats = pos->st->threats;
-    threats[PAWN] = xattacks_by(pos, PAWN, them, xocc);
-    threats[KNIGHT] = xattacks_by(pos, KNIGHT, them, xocc);
-    threats[BISHOP] = xattacks_by(pos, BISHOP, them, xocc);
-    threats[ROOK] = xattacks_by(pos, ROOK, them, xocc);
-    threats[QUEEN] = xattacks_by(pos, QUEEN, them, xocc);
-    threats[KING] = xattacks_by(pos, KING, them, xocc);
-    threats[ALL_PIECES] = threats[PAWN] | threats[KNIGHT] | threats[BISHOP] | threats[ROOK]
-                        | threats[QUEEN] | threats[KING];
+    // The threat sets are filled on first read; see threats_by.
+    pos->st->threats_ready = false;
 }
 
 // Recompute every key from the board. do_move maintains them incrementally; this
