@@ -129,7 +129,7 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
         // Stand pat.
         if (best_value >= beta) {
             // Never decisive here: it is the clamped static eval, or a TT value
-            // that passed the non-decisive test above (search.cpp:1778).
+            // that passed the non-decisive test above (search.cpp:1782).
             assert(!value_is_decisive(best_value));
             best_value = qsearch_stand_pat_blend(best_value, beta);
             if (!ss->tt_hit)

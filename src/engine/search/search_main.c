@@ -224,7 +224,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
         // wrong way and is the only reason no cutoff was taken, which makes the
         // entry useless -- penalize it (decrement its stored depth). Past depth 4
         // the cutoff's own cut-node clause holds, so reaching here means the bound
-        // failed to cover (search.cpp:934).
+        // failed to cover (search.cpp:939).
         else if (depth > 5) {
             assert(!bound_covers(tt_bound_v, tt_value >= beta));
             search_tt_penalize(writer, 1);
