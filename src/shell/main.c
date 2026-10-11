@@ -18,7 +18,7 @@
 int main(int argc, char **argv) {
     bitboards_init();
     attacks_init();
-    threats_init();  // build RayPassBB, which reads the attack tables
+    threats_init();  // build InverseRayPassBB, which reads the attack tables
     position_init();
 
     // eval_nnue_init() is NOT called here. It allocates the eval arena, and the

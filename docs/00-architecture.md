@@ -262,7 +262,7 @@ file that may include across every zone, and nothing includes it.
 int main(int argc, char **argv) {
     bitboards_init();
     attacks_init();
-    threats_init();  // build RayPassBB, which reads the attack tables
+    threats_init();  // build InverseRayPassBB, which reads the attack tables
     position_init();
 
     uci_loop(argc, argv);
@@ -284,7 +284,7 @@ int main(int argc, char **argv) {
    structs and the rank-attack table for hyperbola quintessence, below that it runs
    the magic search. Both are always initialised in this step; see
    [01-engine-board.md](01-engine-board.md).
-3. `threats_init()` builds `RayPassBB` in
+3. `threats_init()` builds `InverseRayPassBB` in
    [`src/engine/board/threats.c`](../src/engine/board/threats.c), which reads the
    attack tables step 2 just filled.
 4. `position_init()` fills the Zobrist tables in
