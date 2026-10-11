@@ -9,6 +9,7 @@
 #include "../board/repetition.h"
 #include "../board/score.h"
 
+#include <assert.h>
 #include <string.h>
 
 void pv_update(PVMoves *pv, Move move, const PVMoves *child) {
@@ -127,8 +128,10 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
 
         // Stand pat.
         if (best_value >= beta) {
-            if (!value_is_decisive(best_value))
-                best_value = qsearch_stand_pat_blend(best_value, beta);
+            // Never decisive here: it is the clamped static eval, or a TT value
+            // that passed the non-decisive test above (search.cpp:1778).
+            assert(!value_is_decisive(best_value));
+            best_value = qsearch_stand_pat_blend(best_value, beta);
             if (!ss->tt_hit)
                 search_tt_save(writer, pos_key, VALUE_NONE, false, BOUND_LOWER, DEPTH_UNSEARCHED,
                                MOVE_NONE, unadjusted_static_eval);
