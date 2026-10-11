@@ -216,19 +216,11 @@ static bool root_move_extract_ponder_from_tt(RootMove *rm, Position *pos) {
 
     if (!pos_is_draw(pos, 1)) {
         const TTProbeResult probe = tt_probe(pos_key(pos));
-        if (probe.found && probe.data.move != MOVE_NONE) {
-            // Legality is checked against the CHILD's own legal moves, as upstream's
-            // MoveList<LEGAL>(pos).contains does: a 16-bit key fragment collides, so a
-            // stored move can belong to an unrelated position entirely.
-            ExtMove list[MAX_MOVES];
-            const ExtMove *const end = generate_legal(pos, list);
-            for (const ExtMove *m = list; m != end; ++m) {
-                if (m->move == probe.data.move) {
-                    (void) root_pv_push(&rm->pv, probe.data.move);
-                    break;
-                }
-            }
-        }
+        // Legality is checked against the CHILD, as upstream does (search.cpp:2392): a
+        // 16-bit key fragment collides, so a stored move can belong to an unrelated
+        // position entirely, and pos_legal is total over any move word.
+        if (probe.found && probe.data.move != MOVE_NONE && pos_legal(pos, probe.data.move))
+            (void) root_pv_push(&rm->pv, probe.data.move);
     }
 
     pos_undo_move(pos, first);

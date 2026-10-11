@@ -43,7 +43,7 @@ void tt_move_history_update(Histories *h, int bonus) {
 // list still filters it out.
 static void mp_set_main_stage(MovePicker *mp, const Position *pos, Move tt_move, int depth) {
     const int base = checkers(pos) != 0 ? MP_EVASION_TT : depth > 0 ? MP_MAIN_TT : MP_QSEARCH_TT;
-    const bool usable = tt_move != MOVE_NONE && search_pseudo_legal(pos, tt_move);
+    const bool usable = tt_move != MOVE_NONE && pos_legal(pos, tt_move);
     mp->stage = base + (int) (!usable);
 }
 
@@ -161,9 +161,6 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
 
         Move move;
         while ((move = movepick_next(&mp)) != MOVE_NONE) {
-            if (!pos_legal(pos, move))
-                continue;
-
             const bool gc = search_gives_check(pos, move);
             const bool capture = search_capture_stage(pos, move);
             move_count += 1;

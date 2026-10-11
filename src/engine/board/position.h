@@ -48,7 +48,7 @@ typedef struct StateInfo {
     Square ep_square;  // SQ_NONE when no en-passant capture is available
     uint8_t castling_rights;
 
-    // RECOMPUTED by pos_do_move / set_check_info, NOT copied. `key` is the first of
+    // RECOMPUTED by pos_do_move / set_extra_bitboards, NOT copied. `key` is the first of
     // these, so offsetof(StateInfo, key) is the copy boundary above.
     // FIELD ORDER FROM HERE IS UPSTREAM'S, AND IT IS LOAD-BEARING. `key` and
     // `previous` must share a cache line: the repetition walk steps
@@ -63,10 +63,16 @@ typedef struct StateInfo {
     Bitboard blockers[COLOR_NB];  // own pieces whose move could expose our king
     Bitboard pinners[COLOR_NB];
     // Squares from which a piece of each type would check the enemy king, cached
-    // once per position by set_check_info (upstream StateInfo::checkSquares). Read
-    // per move by movepick scoring and search_gives_check instead of re-deriving
-    // the slider rings from magic lookups on every move.
+    // once per position by set_extra_bitboards (upstream StateInfo::checkSquares).
+    // Read per move by movepick scoring and search_gives_check instead of
+    // re-deriving the slider rings from magic lookups on every move.
     Bitboard check_squares[PIECE_TYPE_NB];
+    // Squares the side NOT to move attacks, per piece type and in total at
+    // [ALL_PIECES], cached once per position by set_extra_bitboards (upstream
+    // StateInfo::threats). The sliders see THROUGH the mover's own king, so a king
+    // stepping back along a checking ray is still refused. Movegen reads the total
+    // to keep the king off attacked squares; quiet scoring reads the per-type sets.
+    Bitboard threats[PIECE_TYPE_NB];
     Piece captured_piece;
     // Distance in plies back to the previous occurrence of this position:
     // positive for the first repetition, NEGATIVE when that earlier occurrence
@@ -152,7 +158,7 @@ void pos_pretty(const Position *pos, char *buf, int buf_len);
 // root builder, the tablebase PV walk -- passes null and pays nothing.
 //
 // Issuing them here rather than after the make is the whole point. Everything the
-// make still has to do afterwards -- the checkers scan, set_check_info, the
+// make still has to do afterwards -- the checkers scan, set_extra_bitboards, the
 // repetition walk -- is lead time the memory system gets for free, and a prefetch
 // issued after the make returns has none of it.
 //
@@ -194,7 +200,7 @@ Key pos_prefetch_key(const Position *pos, Move m);
 void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThreats *dts);
 void pos_undo_null_move(Position *pos);
 
-// Legality, pseudo-legality and the static exchange evaluation live in
+// Legality, the check test and the static exchange evaluation live in
 // legality.h: they are questions ABOUT a position rather than transitions of one,
 // and keeping them here is what made this header the whole board zone's surface.
 
@@ -220,6 +226,12 @@ static inline Square king_square(const Position *pos, Color c) {
 }
 
 static inline Bitboard checkers(const Position *pos) { return pos->st->checkers; }
+
+// Return the squares the side not to move attacks with PT, or with every piece at
+// ALL_PIECES -- upstream Position::threats_by (position.h:310).
+static inline Bitboard threats_by(const Position *pos, PieceType pt) {
+    return pos->st->threats[pt];
+}
 static inline Key pos_key(const Position *pos) { return pos->st->key; }
 static inline Key pos_material_key(const Position *pos) { return pos->st->material_key; }
 static inline Piece captured_piece(const Position *pos) { return pos->st->captured_piece; }

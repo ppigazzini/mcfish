@@ -290,7 +290,7 @@ int main(int argc, char **argv) {
 4. `position_init()` fills the Zobrist tables in
    [`src/engine/board/position.c`](../src/engine/board/position.c) from a
    fixed-seed generator. Only after this may any `Position` exist. `pos_set` calls
-   `set_check_info`, which reads `PseudoAttacks` and `BetweenBB`.
+   `set_extra_bitboards`, which reads `PseudoAttacks` and `BetweenBB`.
 
 `main` does **not** call `eval_nnue_init()`. It runs later, inside `engine_init`
 (called from `uci_loop`), immediately after `search_set_arena_source` registers
@@ -309,7 +309,7 @@ because the UCI layer owns the `EvalFile` option. See
 `uci_loop` returns.
 
 A `Position` built before step 2 does not crash. It reads zeroed attack sets, so
-`slider_blockers` finds no snipers, `set_check_info` finds no checkers, and
+`slider_blockers` finds no snipers, `set_extra_bitboards` finds no checkers, and
 `generate` emits no piece moves. The engine comes up, answers `uci`, accepts
 `position`, and searches a board on which nothing attacks anything — a failure that
 presents as a search bug, not a startup bug. That is why the order is stated in

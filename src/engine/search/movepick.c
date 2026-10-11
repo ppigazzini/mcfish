@@ -29,27 +29,13 @@ enum { KIND_CAPTURES = 0, KIND_QUIETS = 1, KIND_EVASIONS = 2 };
 enum { GOOD_QUIET_THRESHOLD = -14000 };
 
 // Return the squares from which PT gives check to the side not to move.
-// Read the check squares cached by set_check_info (position.c). check_squares[KING]
+// Read the check squares cached by set_extra_bitboards (position.c). check_squares[KING]
 // is 0, so a KING mover (castling is encoded king-captures-rook) reports no direct
 // check, as upstream's zero KING entry does.
 static Bitboard check_squares(const Position *pos, PieceType pt) {
     return pos->st->check_squares[pt];
 }
 
-
-// Return the union of the attacks of C's PT pieces. Pawns resolve as a set in two
-// shifts, as upstream's attacks_by<PAWN> does; the other types walk piece by piece.
-static Bitboard attacks_by(const Position *pos, Color c, PieceType pt) {
-    if (pt == PAWN)
-        return pawn_attacks_bb(c, pieces_cp(pos, c, PAWN));
-
-    Bitboard b = pieces_cp(pos, c, pt);
-    Bitboard result = 0;
-    while (b != 0)
-        result |= attacks_bb(pt, pop_lsb(&b), pieces(pos));
-
-    return result;
-}
 
 static inline bool capture_stage(const Position *pos, Move m) {
     return is_capture(pos, m) || move_promotion(m) == QUEEN;
@@ -80,6 +66,8 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
 
     // Collect, per moving piece type, the squares attacked by a strictly cheaper
     // enemy piece. Quiet scoring pays for stepping into one and rewards leaving one.
+    // The per-type sets are the position's cached threats, which see through our
+    // own king (movepick.cpp:205).
     Bitboard threat_by_lesser[PIECE_TYPE_NB] = { 0 };
     // Hoisted for the same reason as the pawn row below, but paid for by the ADDRESSING
     // rather than by the lookup. `pos->st->check_squares[pt]` is two dependent loads off
@@ -94,13 +82,12 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
     // scales the key. It was paid once per QUIET move.
     const SharedStat *pawn_row = nullptr;
     if (kind == KIND_QUIETS) {
-        const Color them = flip_color(us);
         threat_by_lesser[PAWN] = 0;
-        threat_by_lesser[KNIGHT] = attacks_by(pos, them, PAWN);
+        threat_by_lesser[KNIGHT] = threats_by(pos, PAWN);
         threat_by_lesser[BISHOP] = threat_by_lesser[KNIGHT];
         threat_by_lesser[ROOK] =
-          attacks_by(pos, them, KNIGHT) | attacks_by(pos, them, BISHOP) | threat_by_lesser[KNIGHT];
-        threat_by_lesser[QUEEN] = attacks_by(pos, them, ROOK) | threat_by_lesser[ROOK];
+          threats_by(pos, KNIGHT) | threats_by(pos, BISHOP) | threat_by_lesser[KNIGHT];
+        threat_by_lesser[QUEEN] = threats_by(pos, ROOK) | threat_by_lesser[ROOK];
         threat_by_lesser[KING] = 0;
 
         pawn_row = pawn_history_row(h, mp->pawn_key);
@@ -579,8 +566,7 @@ bad_quiet:
     }
 }
 
-// Emit one new pseudo-legal move per call, highest-scoring first, until the list runs
-// out.
+// Emit one new legal move per call, highest-scoring first, until the list runs out.
 //
 // Essentially every indirect mispredict this engine pays is the jump table in
 // generate_stage. Over a warm game the dispatch is entered several times a node, and
