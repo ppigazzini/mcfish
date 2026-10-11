@@ -24,15 +24,3 @@
 # survives inlining and names the same call, or by teaching the tool to attribute
 # an inlined callee to its callers.
 movepick
-
-# PRE-EXISTING and in the cheaper direction: mcfish asks for legality FEWER times
-# than upstream and answers the same. At `bench 16 1 8` the row reads 204,952
-# against 204,953; at `bench 16 1 1` it reads 3,934 against 4,016, and mcfish at
-# `47087052` against an oracle at `edb0d9db` -- both sides of this port's own work
-# -- reads 3,860 against 3,949. Same deficit, same direction, before any of it.
-# The searched tree is identical, which `upstream-parity` (BIT-EXACT) and
-# `upstream-nodes` (71/71 node-for-node) both say. The cause is the picker handing
-# the move loop a different number of moves that are then rejected as illegal, not
-# a different set of moves searched. RETIRE by attributing the deficit to a call
-# site and either matching upstream's order there or proving the row cannot match.
-legal
