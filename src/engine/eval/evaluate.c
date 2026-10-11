@@ -305,13 +305,16 @@ static Value nnue_scaled_value(const Position *pos, Value nnue, int optimism) {
     // Normalize both evaluations to [-1024, 1024] to measure their correlation.
     const int se_norm = (se * 1024) / (abs(se) + 1024);
     const int nnue_norm = (nnue * 1024) / (abs(nnue) + 1024);
-    // Positive alignment -- network and material agree -- marks a straightforward
-    // position; negative marks compensation. When winning, favor the easy positions.
-    const int alignment = (se_norm * nnue_norm) / 512;
-    const int base_eval = nnue + (nnue * alignment) / 65536 + (optimism * alignment) / 16384;
+    // Positive correlation -- network and material agree -- marks a straightforward
+    // position; negative marks compensation. When winning, boost the easy positions.
+    const int correl = (se_norm * nnue_norm) / 512;
+    int v = nnue + (nnue * correl) / 65536 + (optimism * correl) / 16384;
 
+    // Scale by total material. Adding the scaled term is exact against upstream's
+    // old v * (90649 + material) / 90649: material is non-negative, so the term has
+    // v's sign and the quotient truncates the same way (evaluate.cpp:76).
     const int material = 521 * (pawns_w + pawns_b) + npm_w + npm_b;
-    int v = (int) ((int64_t) base_eval * (int64_t) (90649 + material) / 90649);
+    v += (int) ((int64_t) material * v / 90649);
 
     v -= v * pos->st->rule50 / 189;
 
