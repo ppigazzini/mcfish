@@ -374,67 +374,6 @@ int optimism_of(int avg) {
 
 // ---- board predicates --------------------------------------------------
 
-bool search_pseudo_legal(const Position *pos, Move m) {
-    const Color us = pos->side_to_move;
-    const Color them = flip_color(us);
-    const Square from = move_from(m);
-    const Square to = move_to(m);
-    const Piece pc = piece_on(pos, from);
-    const Bitboard all = pieces(pos);
-
-    // Take the slower but simpler path for non-NORMAL moves: membership in the
-    // generator, exactly as upstream does.
-    if (move_type(m) != NORMAL) {
-        ExtMove list[MAX_MOVES];
-        const ExtMove *const end =
-          checkers(pos) != 0 ? generate_evasions(pos, list) : generate_non_evasions(pos, list);
-        for (const ExtMove *it = list; it != end; ++it)
-            if (it->move == m)
-                return true;
-        return false;
-    }
-
-    if (pc == NO_PIECE || color_of_piece(pc) != us)
-        return false;
-    if ((pieces_c(pos, us) & square_bb(to)) != 0)
-        return false;
-
-    if (type_of_piece(pc) == PAWN) {
-        // A NORMAL pawn move can never land on a back rank: that would have to be
-        // encoded as a PROMOTION.
-        if (((rank_bb(7) | rank_bb(0)) & square_bb(to)) != 0)
-            return false;
-
-        const int push = us == WHITE ? 8 : -8;
-        const bool cap =
-          (pawn_attacks_bb(us, square_bb(from)) & pieces_c(pos, them) & square_bb(to)) != 0;
-        const bool single = (int) from + push == (int) to && is_empty(pos, to);
-        const bool dbl = (int) from + 2 * push == (int) to && relative_rank(us, from) == 1
-                      && is_empty(pos, to) && is_empty(pos, (Square) ((int) to - push));
-
-        if (!cap && !single && !dbl)
-            return false;
-    } else if ((attacks_bb(type_of_piece(pc), from, all) & square_bb(to)) == 0) {
-        return false;
-    }
-
-    const Bitboard ck = checkers(pos);
-    if (ck != 0) {
-        if (type_of_piece(pc) != KING) {
-            if (bb_more_than_one(ck))  // double check: only the king may move
-                return false;
-            if ((BetweenBB[king_square(pos, us)][lsb(ck)] & square_bb(to)) == 0)
-                return false;
-        }
-        // No king-safety test here. Upstream's pseudo_legal (position.cpp:748)
-        // has no else branch: whether a king move walks into check is legal()'s
-        // job, and adding it here changes which MovePicker stage the caller
-        // enters for a TT king move.
-    }
-
-    return true;
-}
-
 bool search_gives_check(const Position *pos, Move m) {
     // The predicate lives in the board zone (legality.c): pos_do_move trusts its
     // gives_check argument to equal it, so every do_move caller — search or not —

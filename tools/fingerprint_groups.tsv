@@ -23,7 +23,7 @@ legal	^pos_legal$|Position::legal
 gives_check	^pos_gives_check$|Position::gives_check
 see_ge	^see_ge$|Position::see_ge
 is_draw	^pos_is_draw$|Position::is_draw
-set_check_info	^set_check_info$|Position::set_check_info
+set_extra_bitboards	^set_extra_bitboards$|Position::set_extra_bitboards
 position_set	^pos_set_reason$|Position::set\(
 do_move	^pos_do_move$|Position::do_move
 undo_move	^pos_undo_move$|Position::undo_move

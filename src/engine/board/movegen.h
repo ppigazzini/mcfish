@@ -1,8 +1,8 @@
 // Generate moves into a caller-owned buffer.
 //
-// The generators are PSEUDO-legal except `generate_legal`: they may leave our own
-// king in check, and the caller must filter with pos_legal. Only `generate_legal`
-// is safe to iterate without that filter.
+// Every generator emits LEGAL moves only, as upstream's do since 400c23f97: the
+// pins, the threat set and the castling path are all resolved here, so nothing a
+// generator returns needs pos_legal.
 //
 // Upstream: movegen.h:31 (GenType), movegen.cpp, and perft.h (the perft walk).
 
@@ -20,8 +20,7 @@ typedef struct {
 typedef enum {
     GEN_CAPTURES,  // captures and queen promotions
     GEN_QUIETS,    // everything else
-    GEN_NON_EVASIONS,
-    GEN_EVASIONS,  // legal-target subset when in check; still pseudo-legal
+    GEN_EVASIONS,  // every move when in check
 } GenType;
 
 // Append the generated moves at LIST and return the new end pointer. LIST must
@@ -35,9 +34,9 @@ ExtMove *generate(const Position *pos, ExtMove *list, GenType type);
 ExtMove *generate_captures(const Position *pos, ExtMove *list);
 ExtMove *generate_quiets(const Position *pos, ExtMove *list);
 ExtMove *generate_evasions(const Position *pos, ExtMove *list);
-ExtMove *generate_non_evasions(const Position *pos, ExtMove *list);
 
-// Append only the moves that pass pos_legal. This is the perft and root generator.
+// Append every legal move: the evasions in check, else the captures and then the
+// quiets (upstream generate<ALL>). This is the perft and root generator.
 ExtMove *generate_legal(const Position *pos, ExtMove *list);
 
 #endif  // MCFISH_MOVEGEN_H

@@ -638,33 +638,50 @@ static void test_legality(void) {
         CHECK(type_of_piece(piece_on(&pos, move_from(list[i].move))) == KING,
               "double check allowed a non-king move");
 
-    // Every generated legal move must survive pos_legal, and the legal set must
-    // be exactly the pseudo-legal set filtered by it.
+    // pos_legal is TOTAL: over every 16-bit word it must answer exactly "is this in
+    // the legal list". Words of NORMAL type with promotion bits set are skipped --
+    // no generator emits one, and upstream asserts they never reach legal() -- so
+    // the sweep covers every word a TT entry can carry. The fixtures hold a pin on
+    // every piece type, an en-passant capture, both castlings, a check and a pinned
+    // en-passant capturer, which is where the masks in movegen.c can disagree with
+    // the per-move test.
     static const char *const fens[] = {
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
         "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -",
         "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ -",
+        "4k3/8/8/2KPp2r/8/8/8/8 w - e6 0 1",
+        "8/8/1k6/8/1pPp4/8/8/6BK b - c3 0 1",
+        "4k3/8/8/8/1b5r/8/3B4/R3K2R w KQ - 0 1",
+        "r3k2r/8/8/8/4Q3/8/8/R3K2R b KQkq - 0 1",
+        "8/8/8/8/8/k7/8/R3K3 b - - 0 1",
     };
     for (size_t i = 0; i < sizeof fens / sizeof fens[0]; ++i) {
         CHECK(pos_set(&pos, fens[i], false, &st), "setup %zu", i);
 
-        ExtMove pseudo[MAX_MOVES];
-        const int pn =
-          (int) (generate(&pos, pseudo, checkers(&pos) ? GEN_EVASIONS : GEN_NON_EVASIONS) - pseudo);
-        int legal_from_pseudo = 0;
-        for (int j = 0; j < pn; ++j)
-            legal_from_pseudo += pos_legal(&pos, pseudo[j].move);
-
         count = (int) (generate_legal(&pos, list) - list);
-        CHECK(count == legal_from_pseudo, "legal set size %d != filtered pseudo %d [%s]", count,
-              legal_from_pseudo, fens[i]);
+        bool in_list[65536] = { false };
+        for (int j = 0; j < count; ++j)
+            in_list[list[j].move] = true;
 
-        // Captures + quiets must partition the non-evasion set exactly.
+        int mismatches = 0;
+        for (uint32_t w = 0; w < 65536; ++w) {
+            const Move m = (Move) w;
+            if (move_type(m) == NORMAL && (m >> 12) != 0)
+                continue;
+            if (pos_legal(&pos, m) != in_list[w] && mismatches++ < 4)
+                CHECK(false, "pos_legal(%04x) = %d but the legal list says %d [%s]", w,
+                      pos_legal(&pos, m), in_list[w], fens[i]);
+        }
+        CHECK(mismatches == 0, "%d move words disagree with the legal list [%s]", mismatches,
+              fens[i]);
+
+        // Captures + quiets must partition the legal set exactly out of check.
         if (!checkers(&pos)) {
             ExtMove caps[MAX_MOVES], quiets[MAX_MOVES];
             const int cn = (int) (generate(&pos, caps, GEN_CAPTURES) - caps);
             const int qn = (int) (generate(&pos, quiets, GEN_QUIETS) - quiets);
-            CHECK(cn + qn == pn, "captures %d + quiets %d != all %d [%s]", cn, qn, pn, fens[i]);
+            CHECK(cn + qn == count, "captures %d + quiets %d != all %d [%s]", cn, qn, count,
+                  fens[i]);
         }
     }
 }
@@ -1168,16 +1185,12 @@ static void test_movepick_poison(void) {
                           "poison changed move %zu: %04x / %04x vs %04x, fen %zu mode %zu", k, a[k],
                           b[k], c[k], i, mode);
 
-            // The full main/evasion drain must return every pseudo-legal move
-            // exactly once -- the picker invariant the stages exist to keep.
+            // The full main/evasion drain must return every legal move exactly
+            // once -- the picker invariant the stages exist to keep.
             if (!modes[mode].probcut && modes[mode].depth > 0 && modes[mode].skip_after < 0) {
                 ExtMove all[MAX_MOVES];
-                const size_t total =
-                  (size_t) (generate(&pos, all,
-                                     checkers(&pos) != 0 ? GEN_EVASIONS : GEN_NON_EVASIONS)
-                            - all);
-                CHECK(na == total, "picker drained %zu of %zu pseudo-legal moves, fen %zu", na,
-                      total, i);
+                const size_t total = (size_t) (generate_legal(&pos, all) - all);
+                CHECK(na == total, "picker drained %zu of %zu legal moves, fen %zu", na, total, i);
                 for (size_t g = 0; g < total && na == total; ++g) {
                     size_t seen = 0;
                     for (size_t k = 0; k < na; ++k)

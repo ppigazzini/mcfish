@@ -201,14 +201,8 @@ static inline bool search_capture_stage(const Position *pos, Move m) {
     return is_capture(pos, m) || move_promotion(m) == QUEEN;
 }
 
-// Test whether M is pseudo-legal for POS. Belongs in the board zone as
-// pos_pseudo_legal; carried here until that lands,
-// because MovePicker returns the TT move unchecked and pos_legal is only defined
-// on pseudo-legal input.
-bool search_pseudo_legal(const Position *pos, Move m);
-
-// Test whether M — pseudo-legal for POS — gives check. Belongs in the board zone
-// as pos_gives_check; carried here for the same reason.
+// Test whether M — legal for POS — gives check. Forwards to the board zone's
+// pos_gives_check, the one definition pos_do_move trusts.
 bool search_gives_check(const Position *pos, Move m);
 
 // ---- node-level primitives ---------------------------------------------
