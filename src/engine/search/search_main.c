@@ -225,11 +225,13 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 }
             }
         }
-        // upstream 319d61eff: the depth was sufficient and the bound is the only
-        // reason no cutoff was taken, which makes the entry useless -- penalize
-        // it (decrement its stored depth).
-        else if (tt_bound_v != (BOUND_LOWER | BOUND_UPPER)
-                 && bound_covers(tt_bound_v, !(tt_value >= beta)) && depth > 5) {
+        // upstream 319d61eff: the depth was sufficient, so the bound points the
+        // wrong way and is the only reason no cutoff was taken, which makes the
+        // entry useless -- penalize it (decrement its stored depth). Past depth 4
+        // the cutoff's own cut-node clause holds, so reaching here means the bound
+        // failed to cover (search.cpp:934).
+        else if (depth > 5) {
+            assert(!bound_covers(tt_bound_v, tt_value >= beta));
             search_tt_penalize(writer, 1);
         }
     }
@@ -695,6 +697,9 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                                 prior_pawnhist_scale(scaled_bonus), HIST_LIMIT_PAWN);
         }
     } else if (prior_capture && prev_sq != (int) SQ_NONE) {
+        // Upstream 04e081978 drops `prior_capture` here, as the branch above has
+        // already taken every quiet prior move. Keep it: the two spellings are the
+        // same function, and the shorter one costs the sse41 bench instructions.
         const Square psq = (Square) prev_sq;
         stats_update(capture_entry(h, piece_on(pos, psq), psq, type_of_piece(captured_piece(pos))),
                      892, HIST_LIMIT_CAPTURE);
