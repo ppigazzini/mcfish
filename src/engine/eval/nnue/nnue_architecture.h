@@ -1,4 +1,4 @@
-// Describe the network shape: the transformed feature width, the eight
+// Describe the network shape: the transformed feature width, the 32
 // layer stacks, and the three affine layers each stack holds.
 //
 // These dimensions are the architecture, not a tuning knob. The .nnue file
@@ -7,7 +7,7 @@
 // counts below are `sizeof` the upstream AffineTransform members and are what
 // the parse and the weight storage size themselves by.
 //
-// Mirrors src/nnue/nnue_architecture.h:36-72.
+// Mirrors src/nnue/nnue_architecture.h:39-62.
 
 #ifndef MCFISH_NNUE_ARCHITECTURE_H
 #define MCFISH_NNUE_ARCHITECTURE_H
@@ -17,14 +17,14 @@
 #include <stddef.h>
 
 enum {
-    // Number of input feature dimensions after conversion (nnue_architecture.h:43-45).
+    // Number of input feature dimensions after conversion (nnue_architecture.h:44-47).
     NNUE_L1 = 1024,
     NNUE_L2 = 32,
     NNUE_L3 = 32,
 
-    NNUE_LAYER_STACKS = 8,
+    NNUE_LAYER_STACKS = 32,
 
-    // NetworkArchitecture's static shape (nnue_architecture.h:57-59).
+    // NetworkArchitecture's static shape (nnue_architecture.h:52-54).
     NNUE_TRANSFORMED_FEATURE_DIMENSIONS = NNUE_L1,
     NNUE_FC_0_OUTPUTS = NNUE_L2,
     NNUE_FC_1_OUTPUTS = NNUE_L3,
@@ -34,10 +34,10 @@ enum {
     NNUE_LAYERS_PER_STACK = 3,
 
     // FeatureTransformer::HalfDimensions and the three feature sets it concatenates:
-    // PSQFeatureSet = half_ka_v2_hm, ThreatFeatureSet = full_threats,
+    // PSQFeatureSet = k32q2, ThreatFeatureSet = full_threats,
     // PairFeatureSet = pp_3wide.
     NNUE_HALF_DIMENSIONS = NNUE_L1,
-    NNUE_PSQ_FEATURE_DIMENSIONS = 22528,
+    NNUE_PSQ_FEATURE_DIMENSIONS = 45056,
     NNUE_THREAT_DIMENSIONS = 59808,
 
     // PP_3Wide: one feature per unordered pair of pawn ids, where a pawn id is

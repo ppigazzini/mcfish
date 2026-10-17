@@ -1,5 +1,5 @@
 // Own the NNUE forward pass: the accumulator transform followed by the per-bucket affine
-// stack, for SFNNv17.
+// stack, for SFNNv18.
 //
 // The INVARIANT is that this module is pure compute. It reads the loaded weights and the
 // position, writes nothing but the caller's accumulator stack and refresh cache, and has
@@ -45,14 +45,15 @@ const int8_t *nnue_layer_weights(size_t bucket, size_t idx);
 
 // ----------------------------------------------------------------------------------
 
-// Evaluate POS through the bucket its piece count selects: the layer stack's output,
-// scaled down to internal units. SFNNv17 carries no PSQT term beside it.
+// Evaluate POS through the bucket its piece count and queens select: the layer stack's
+// output, scaled down to internal units. The net carries no PSQT term beside it.
 Value nnue_inference_evaluate(const Position *pos,
                               NnueAccumulatorStack *stack,
                               NnueRefreshCache *cache);
 
 // Evaluate POS through EVERY bucket, for the `eval` trace, and name the one the piece
-// count would have selected. The transform does not depend on the bucket, so it runs once.
+// count and queens would have selected. The transform does not depend on the bucket, so
+// it runs once.
 NnueTraceOutput nnue_inference_trace_evaluate(const Position *pos,
                                               NnueAccumulatorStack *stack,
                                               NnueRefreshCache *cache);

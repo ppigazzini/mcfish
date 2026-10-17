@@ -2,9 +2,8 @@
 //
 // Parse the file into its already-permuted weight memory. Every routine here is
 // bounds-checked against the caller's slice because the file is user input: a
-// .nnue states its section length and its value count independently, so a corrupt
-// one can promise more values than it carries. A malformed input must be reported,
-// never trapped on.
+// truncated .nnue promises more values than it carries. A malformed input must be
+// reported, never trapped on.
 //
 // The byte offsets below are the in-memory FeatureTransformer layout, member
 // order with each member alignas(64): biases, weights(psq), threatWeights. The
@@ -14,7 +13,7 @@
 //
 // Golden: src/nnue/nnue_feature_transformer.h
 // (permute, read_parameters), src/nnue/layers/affine_transform.h
-// (get_weight_index_scrambled), src/nnue/nnue_common.h (read_leb_128_detail).
+// (get_weight_index_scrambled), src/nnue/nnue_common.h (read_little_endian).
 
 #ifndef MCFISH_NNUE_PARSE_H
 #define MCFISH_NNUE_PARSE_H
@@ -44,7 +43,7 @@
 #define NNUE_FT_WEIGHTS_OFF \
     NNUE_CEIL_TO_MULTIPLE(NNUE_FT_BIASES_COUNT * 2, (size_t) NNUE_CACHE_LINE_SIZE)
 #define NNUE_FT_THREAT_WEIGHTS_OFF \
-    NNUE_CEIL_TO_MULTIPLE(NNUE_FT_WEIGHTS_OFF + NNUE_FT_PSQ_WEIGHTS_COUNT * 2, \
+    NNUE_CEIL_TO_MULTIPLE(NNUE_FT_WEIGHTS_OFF + NNUE_FT_PSQ_WEIGHTS_COUNT * 1, \
                           (size_t) NNUE_CACHE_LINE_SIZE)
 #define NNUE_FT_TOTAL_BYTES \
     NNUE_CEIL_TO_MULTIPLE(NNUE_FT_THREAT_WEIGHTS_OFF + NNUE_FT_THREAT_WEIGHTS_COUNT * 1, \
@@ -57,19 +56,6 @@
 // Define the SSE4.1 PackusEpi16Order as the identity. Keep it explicit so the
 // assumption is visible and a future wide-SIMD target can swap it.
 extern const size_t NnuePackusEpi16OrderSse41[8];
-
-// Decode COUNT signed-LEB128 values from SRC into OUT, storing the number of
-// source bytes consumed in *CONSUMED. Return false when SRC runs out first.
-//
-// Mirrors read_leb_128_detail: 7 bits per byte, the shift masked to 32, and
-// sign-extension when the final shift is < 32 and bit 0x40 is set. The shift
-// counter itself is 6 bits wide and wraps, which is why it is masked to 64 here
-// before being reduced modulo 32 — a wider counter would stop aliasing and
-// change what a long malformed run decodes to.
-bool nnue_decode_leb_i16(
-  const uint8_t *src, size_t src_len, int16_t *out, size_t count, size_t *consumed);
-bool nnue_decode_leb_i32(
-  const uint8_t *src, size_t src_len, int32_t *out, size_t count, size_t *consumed);
 
 // Reorder blocks per permute<BlockSize>: ORDER_LEN blocks of BLOCK_SIZE bytes
 // within each (BLOCK_SIZE * ORDER_LEN)-byte chunk of DATA. SCRATCH must hold at

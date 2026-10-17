@@ -49,67 +49,40 @@ static_assert(NNUE_HALF_DIMENSIONS % ROW_TILE_WIDTH == 0,
 
 // Widen an int8 weight row tile to the int16 accumulator's lane width, carried as
 // uint16_t so the accumulation wraps rather than overflowing (see simd.h).
-static inline RowVecU16 load_threat_row(const int8_t *w) {
+static inline RowVecU16 load_row(const int8_t *w) {
     return row_i16_as_u16(row_i8_to_i16(row_i8_load(w)));
 }
-
-static inline RowVecU16 load_psq_row(const int16_t *w) { return row_load((const uint16_t *) w); }
 
 static void acc_rows_i8(
   bool add, int16_t *target, const uint32_t *rows, size_t row_count, const int8_t *weights) {
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
         RowVecU16 acc = row_load((const uint16_t *) (target + d));
         for (size_t r = 0; r < row_count; r++) {
-            const RowVecU16 w =
-              load_threat_row(weights + (size_t) rows[r] * NNUE_HALF_DIMENSIONS + d);
+            const RowVecU16 w = load_row(weights + (size_t) rows[r] * NNUE_HALF_DIMENSIONS + d);
             acc = add ? row_add(acc, w) : row_sub(acc, w);
         }
         row_store((uint16_t *) (target + d), acc);
     }
 }
 
-void nnue_acc_apply_delta_i16(int16_t *target,
-                              const uint32_t *removed,
-                              size_t removed_len,
-                              const uint32_t *added,
-                              size_t added_len,
-                              const int16_t *weights) {
-    // Fuse removed and added into ONE tile sweep. This is upstream's apply_combined shape
-    // (nnue_feature_transformer.h): hold the tile in a register, subtract every removed row
-    // and add every added row into it, store once. Bit-identical: (target - sum(removed)) +
-    // sum(added) is the same value however grouped, and uint16 wrap addition is associative
-    // and commutative, so no per-element order changes.
-    for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
-        RowVecU16 acc = row_load((const uint16_t *) (target + d));
-        for (size_t r = 0; r < removed_len; r++)
-            acc =
-              row_sub(acc, load_psq_row(weights + (size_t) removed[r] * NNUE_HALF_DIMENSIONS + d));
-        for (size_t r = 0; r < added_len; r++)
-            acc =
-              row_add(acc, load_psq_row(weights + (size_t) added[r] * NNUE_HALF_DIMENSIONS + d));
-        row_store((uint16_t *) (target + d), acc);
-    }
-}
-
-// Dual-store refresh of nnue_acc_apply_delta_i16: same per-tile arithmetic, but the refreshed
-// tile is stored to BOTH cache_dest (in place) and state_dest before moving on, so the value
-// reaches the ply's state slot as a register store rather than a trailing 2KB memcpy. The value
-// written to each destination is identical to the single-dest apply followed by a copy.
-void nnue_acc_apply_delta_i16_dual(int16_t *cache_dest,
-                                   int16_t *state_dest,
-                                   const uint32_t *removed,
-                                   size_t removed_len,
-                                   const uint32_t *added,
-                                   size_t added_len,
-                                   const int16_t *weights) {
+// Apply removed and added in ONE tile sweep -- upstream's apply_combined shape: hold the tile
+// in a register, subtract every removed row and add every added row into it, then store the
+// refreshed tile to BOTH cache_dest (in place) and state_dest before moving on, so the value
+// reaches the ply's state slot as a register store rather than a trailing 2KB memcpy.
+// Bit-identical however grouped: uint16 wrap addition is associative and commutative.
+void nnue_acc_apply_delta_dual(int16_t *cache_dest,
+                               int16_t *state_dest,
+                               const uint32_t *removed,
+                               size_t removed_len,
+                               const uint32_t *added,
+                               size_t added_len,
+                               const int8_t *weights) {
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
         RowVecU16 acc = row_load((const uint16_t *) (cache_dest + d));
         for (size_t r = 0; r < removed_len; r++)
-            acc =
-              row_sub(acc, load_psq_row(weights + (size_t) removed[r] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_sub(acc, load_row(weights + (size_t) removed[r] * NNUE_HALF_DIMENSIONS + d));
         for (size_t r = 0; r < added_len; r++)
-            acc =
-              row_add(acc, load_psq_row(weights + (size_t) added[r] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_add(acc, load_row(weights + (size_t) added[r] * NNUE_HALF_DIMENSIONS + d));
         row_store((uint16_t *) (cache_dest + d), acc);
         row_store((uint16_t *) (state_dest + d), acc);
     }
@@ -131,44 +104,44 @@ void nnue_acc_apply_hybrid_delta(int16_t *target,
                                  size_t thr_removed_len,
                                  const uint32_t *thr_added,
                                  size_t thr_added_len,
-                                 const int16_t *psq_weights,
+                                 const int8_t *psq_weights,
                                  const int8_t *thr_weights) {
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
         RowVecU16 acc = row_load((const uint16_t *) (new_entry + d));
         for (size_t i = 0; i < new_removed_len; i++) {
             acc = row_sub(
-              acc, load_psq_row(psq_weights + (size_t) new_removed[i] * NNUE_HALF_DIMENSIONS + d));
+              acc, load_row(psq_weights + (size_t) new_removed[i] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < new_added_len; i++) {
-            acc = row_add(
-              acc, load_psq_row(psq_weights + (size_t) new_added[i] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_add(acc,
+                          load_row(psq_weights + (size_t) new_added[i] * NNUE_HALF_DIMENSIONS + d));
         }
         // The destination king's cache entry now describes the live board: store it
         // before the tile picks up terms that belong to this ply alone.
         row_store((uint16_t *) (new_entry + d), acc);
 
         // The previous ply's combined accumulation carries the threat/pair rows this
-        // move mostly keeps, plus HalfKA rows bucketed on the SOURCE king square.
+        // move mostly keeps, plus PSQ rows bucketed on the SOURCE king square.
         // Subtracting that king's cache entry and re-applying its own diff removes
         // exactly those, leaving the destination bucket's rows already added above.
         acc = row_add(acc, row_load((const uint16_t *) (source + d)));
         acc = row_sub(acc, row_load((const uint16_t *) (old_entry + d)));
         for (size_t i = 0; i < old_removed_len; i++) {
             acc = row_add(
-              acc, load_psq_row(psq_weights + (size_t) old_removed[i] * NNUE_HALF_DIMENSIONS + d));
+              acc, load_row(psq_weights + (size_t) old_removed[i] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < old_added_len; i++) {
-            acc = row_sub(
-              acc, load_psq_row(psq_weights + (size_t) old_added[i] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_sub(acc,
+                          load_row(psq_weights + (size_t) old_added[i] * NNUE_HALF_DIMENSIONS + d));
         }
 
         for (size_t i = 0; i < thr_removed_len; i++) {
-            acc = row_sub(acc, load_threat_row(
-                                 thr_weights + (size_t) thr_removed[i] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_sub(
+              acc, load_row(thr_weights + (size_t) thr_removed[i] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < thr_added_len; i++) {
-            acc = row_add(
-              acc, load_threat_row(thr_weights + (size_t) thr_added[i] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_add(acc,
+                          load_row(thr_weights + (size_t) thr_added[i] * NNUE_HALF_DIMENSIONS + d));
         }
         row_store((uint16_t *) (target + d), acc);
     }
@@ -181,10 +154,10 @@ void nnue_acc_accumulate_rows_i8(int16_t *target,
     acc_rows_i8(true, target, rows, row_count, weights);
 }
 
-// Port upstream's `apply_combined` (nnue_accumulator.cpp): ONE combined accumulator (HalfKA +
+// Port upstream's `apply_combined` (nnue_accumulator.cpp): ONE combined accumulator (PSQ +
 // Threats), loaded per tile once into a register, with both feature sets' removed/added weight
-// rows applied in-register (psq int16 rows directly, threat int8 rows widened), then stored
-// once. Integer add/sub commute under two's-complement wrap, so the final tile value equals
+// rows applied in-register, then stored once. Integer add/sub commute under two's-complement
+// wrap, so the final tile value equals
 // source + Σpsq_added − Σpsq_removed + Σthr_added − Σthr_removed regardless of order.
 void nnue_acc_apply_combined_delta(int16_t *target,
                                    const int16_t *source,
@@ -196,9 +169,9 @@ void nnue_acc_apply_combined_delta(int16_t *target,
                                    size_t thr_removed_len,
                                    const uint32_t *thr_added,
                                    size_t thr_added_len,
-                                   const int16_t *psq_weights,
+                                   const int8_t *psq_weights,
                                    const int8_t *thr_weights) {
-    // Peel the HalfKA lists' first row and make the second conditional, as upstream's
+    // Peel the PSQ lists' first row and make the second conditional, as upstream's
     // apply_psq_features<sign, Incremental> does. Both callers of this function are the
     // incremental step, and psq_changed_indices routes at most four diff sites into the
     // two lists -- `from` and `remove_sq` one way, `to` and `add_sq` the other -- so each
@@ -210,25 +183,25 @@ void nnue_acc_apply_combined_delta(int16_t *target,
 
     for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
         RowVecU16 acc = row_load((const uint16_t *) (source + d));
-        acc = row_sub(
-          acc, load_psq_row(psq_weights + (size_t) psq_removed[0] * NNUE_HALF_DIMENSIONS + d));
+        acc =
+          row_sub(acc, load_row(psq_weights + (size_t) psq_removed[0] * NNUE_HALF_DIMENSIONS + d));
         if (psq_removed_len > 1) {
             acc = row_sub(
-              acc, load_psq_row(psq_weights + (size_t) psq_removed[1] * NNUE_HALF_DIMENSIONS + d));
+              acc, load_row(psq_weights + (size_t) psq_removed[1] * NNUE_HALF_DIMENSIONS + d));
         }
-        acc = row_add(acc,
-                      load_psq_row(psq_weights + (size_t) psq_added[0] * NNUE_HALF_DIMENSIONS + d));
+        acc =
+          row_add(acc, load_row(psq_weights + (size_t) psq_added[0] * NNUE_HALF_DIMENSIONS + d));
         if (psq_added_len > 1) {
-            acc = row_add(
-              acc, load_psq_row(psq_weights + (size_t) psq_added[1] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_add(acc,
+                          load_row(psq_weights + (size_t) psq_added[1] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < thr_removed_len; i++) {
-            acc = row_sub(acc, load_threat_row(
-                                 thr_weights + (size_t) thr_removed[i] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_sub(
+              acc, load_row(thr_weights + (size_t) thr_removed[i] * NNUE_HALF_DIMENSIONS + d));
         }
         for (size_t i = 0; i < thr_added_len; i++) {
-            acc = row_add(
-              acc, load_threat_row(thr_weights + (size_t) thr_added[i] * NNUE_HALF_DIMENSIONS + d));
+            acc = row_add(acc,
+                          load_row(thr_weights + (size_t) thr_added[i] * NNUE_HALF_DIMENSIONS + d));
         }
         row_store((uint16_t *) (target + d), acc);
     }

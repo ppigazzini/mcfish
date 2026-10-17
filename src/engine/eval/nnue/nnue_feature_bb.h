@@ -12,7 +12,7 @@
 // (`color << 3 | type`, squares A1..H8), because the feature indexer's tables are indexed
 // by the raw value and never by the board zone's enums.
 //
-// Golden: the upstream `nnue/features/half_ka_v2_hm.cpp` and
+// Golden: the upstream `nnue/features/k32q2.cpp` and
 // `nnue/features/full_threats.cpp`.
 
 #ifndef MCFISH_NNUE_FEATURE_BB_H

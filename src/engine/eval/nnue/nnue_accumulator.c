@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 // Name the two feature sets by their storage slot. The single COMBINED accumulator
-// (HalfKA + Threats) lives in the psq slot; the threat slot carries only that feature
+// (PSQ + Threats) lives in the psq slot; the threat slot carries only that feature
 // set's per-ply diff. This is upstream's apply_combined shape, not two accumulators.
 enum { PSQ_FEATURE = 0, THREAT_FEATURE = 1 };
 
@@ -32,9 +32,8 @@ void nnue_acc_stats_reset(void) { AccStats = (NnueAccStats) { 0 }; }
 #endif
 
 enum : size_t {
-    ACC_BYTES =
-      NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t) + NNUE_COLOR_COUNT * sizeof(bool),
     COMPUTED_OFFSET = NNUE_COLOR_COUNT * NNUE_HALF_DIMENSIONS * sizeof(int16_t),
+    ACC_BYTES = COMPUTED_OFFSET + NNUE_COLOR_COUNT * sizeof(bool),
 
     ACC_STATE_BYTES = NNUE_CEIL_TO_MULTIPLE(ACC_BYTES, NNUE_ALIGN),
     PSQ_DIFF_OFFSET = ACC_BYTES,
@@ -110,7 +109,9 @@ enum : size_t {
     CACHE_ENTRY_PIECE_BB_OFFSET = CACHE_ENTRY_PIECES_OFFSET + SQUARE_NB * sizeof(uint8_t),
     CACHE_ENTRY_BYTES =
       NNUE_CEIL_TO_MULTIPLE(CACHE_ENTRY_PIECE_BB_OFFSET + sizeof(uint64_t), NNUE_ALIGN),
-    CACHE_BYTES = SQUARE_NB * NNUE_COLOR_COUNT * CACHE_ENTRY_BYTES,
+    // One entry per (opponent-queen state, king square, perspective), upstream's
+    // entries[2][SQUARE_NB][COLOR_NB]: a K32Q2 accumulation is bucketed on both.
+    CACHE_BYTES = 2 * SQUARE_NB * NNUE_COLOR_COUNT * CACHE_ENTRY_BYTES,
 };
 
 size_t nnue_refresh_cache_bytes(void) { return CACHE_BYTES; }
@@ -232,11 +233,12 @@ static void clear_computed(unsigned char *bytes, int feature_kind, size_t index)
     memset(bytes + state_offset(feature_kind, index) + COMPUTED_OFFSET, 0, NNUE_COLOR_COUNT);
 }
 
-// Report whether the ply at INDEX moved PERSPECTIVE's own king. Reads the diff's first
-// byte, which is NnueDirtyPiece.pc — see the alignment assert above.
+// Report whether the ply at INDEX forces PERSPECTIVE's PSQ half into a refresh: its own
+// king moved, or an opponent queen came or went (nnue_k32q2_requires_refresh).
 static bool psq_requires_refresh(const unsigned char *bytes, size_t index, uint8_t perspective) {
-    const size_t offset = state_offset(PSQ_FEATURE, index) + PSQ_DIFF_OFFSET;
-    return bytes[offset] == (uint8_t) (6 + 8 * perspective);
+    NnueDirtyPiece diff;
+    memcpy(&diff, bytes + state_offset(PSQ_FEATURE, index) + PSQ_DIFF_OFFSET, sizeof diff);
+    return nnue_k32q2_requires_refresh(diff, perspective);
 }
 
 static bool threat_requires_refresh(const unsigned char *bytes, size_t index, uint8_t perspective) {
@@ -307,14 +309,23 @@ static uint8_t nnue_king_square(const Position *pos, uint8_t color) {
     return (uint8_t) __builtin_ctzll(pos->by_color[color] & pos->by_type[KING]);
 }
 
+// Report whether PERSPECTIVE's opponent holds a queen, the second thing a K32Q2 index
+// is bucketed on: upstream's `bool(pos.pieces(~perspective, QUEEN))`.
+static bool nnue_opponent_has_queen(const Position *pos, uint8_t perspective) {
+    return (pos->by_color[perspective ^ 1] & pos->by_type[QUEEN]) != 0;
+}
+
 // ---------------------------------------------------------------------------
 // Refresh cache
 // ---------------------------------------------------------------------------
 
-static unsigned char *
-cache_entry(NnueRefreshCache *cache, uint8_t king_square, uint8_t perspective) {
-    return (unsigned char *) cache
-         + (((size_t) king_square * NNUE_COLOR_COUNT + perspective) * CACHE_ENTRY_BYTES);
+static unsigned char *cache_entry(NnueRefreshCache *cache,
+                                  bool opponent_has_queen,
+                                  uint8_t king_square,
+                                  uint8_t perspective) {
+    const size_t queen = opponent_has_queen ? 1 : 0;
+    const size_t index = (queen * SQUARE_NB + king_square) * NNUE_COLOR_COUNT + perspective;
+    return (unsigned char *) cache + index * CACHE_ENTRY_BYTES;
 }
 
 static int16_t *cache_entry_accumulation(unsigned char *entry) {
@@ -327,12 +338,14 @@ static uint8_t *cache_entry_pieces(unsigned char *entry) {
 }
 
 void nnue_clear_refresh_cache(NnueRefreshCache *cache, const int16_t *biases) {
-    for (unsigned ks = 0; ks < SQUARE_NB; ks++) {
-        for (unsigned p = 0; p < NNUE_COLOR_COUNT; p++) {
-            unsigned char *entry = cache_entry(cache, (uint8_t) ks, (uint8_t) p);
-            memcpy(entry, biases, NNUE_FT_BIASES_BYTES);
-            memset(entry + CACHE_ENTRY_PIECES_OFFSET, 0,
-                   CACHE_ENTRY_BYTES - CACHE_ENTRY_PIECES_OFFSET);
+    for (unsigned queen = 0; queen < 2; queen++) {
+        for (unsigned ks = 0; ks < SQUARE_NB; ks++) {
+            for (unsigned p = 0; p < NNUE_COLOR_COUNT; p++) {
+                unsigned char *entry = cache_entry(cache, queen != 0, (uint8_t) ks, (uint8_t) p);
+                memcpy(entry, biases, NNUE_FT_BIASES_BYTES);
+                memset(entry + CACHE_ENTRY_PIECES_OFFSET, 0,
+                       CACHE_ENTRY_BYTES - CACHE_ENTRY_PIECES_OFFSET);
+            }
         }
     }
 }
@@ -342,8 +355,8 @@ void nnue_clear_refresh_cache(NnueRefreshCache *cache, const int16_t *biases) {
 // ---------------------------------------------------------------------------
 
 // Diff a cache entry's cached board against BOARD/OCCUPANCY and split the changed
-// squares into the HalfKA index lists that turn the entry's accumulation into the one
-// BOARD wants, bucketed on KING_SQUARE.
+// squares into the PSQ index lists that turn the entry's accumulation into the one
+// BOARD wants, bucketed on KING_SQUARE and OPPONENT_HAS_QUEEN.
 //
 // The finny refresh calls this with the live board; the hybrid king-move step calls it
 // twice more, once per king square, and the second board it passes is a reconstruction
@@ -357,6 +370,7 @@ void nnue_clear_refresh_cache(NnueRefreshCache *cache, const int16_t *biases) {
 // signature instead would fork it per configuration.
 static void entry_diff_indices(uint8_t perspective,
                                uint8_t king_square,
+                               bool opponent_has_queen,
                                const uint8_t *entry_pieces,
                                [[maybe_unused]] uint64_t entry_piece_bb,
                                const uint8_t *board,
@@ -406,14 +420,14 @@ static void entry_diff_indices(uint8_t perspective,
     while (removed_bb != 0) {
         const unsigned square = (unsigned) __builtin_ctzll(removed_bb);
         removed_bb &= removed_bb - 1;
-        removed[removed_len++] =
-          nnue_half_make_index(perspective, (uint8_t) square, entry_pieces[square], king_square);
+        removed[removed_len++] = nnue_k32q2_make_index(
+          perspective, (uint8_t) square, entry_pieces[square], king_square, opponent_has_queen);
     }
     while (added_bb != 0) {
         const unsigned square = (unsigned) __builtin_ctzll(added_bb);
         added_bb &= added_bb - 1;
-        added[added_len++] =
-          nnue_half_make_index(perspective, (uint8_t) square, board[square], king_square);
+        added[added_len++] = nnue_k32q2_make_index(perspective, (uint8_t) square, board[square],
+                                                   king_square, opponent_has_queen);
     }
 #else
     // Diff the cached board against the live one eight squares at a time: XOR an 8-byte
@@ -434,11 +448,11 @@ static void entry_diff_indices(uint8_t perspective,
             const uint8_t old_piece = (uint8_t) (old_eight >> (byte * 8));
             const uint8_t new_piece = (uint8_t) (new_eight >> (byte * 8));
             if (old_piece != NO_PIECE)
-                removed[removed_len++] =
-                  nnue_half_make_index(perspective, (uint8_t) square, old_piece, king_square);
+                removed[removed_len++] = nnue_k32q2_make_index(
+                  perspective, (uint8_t) square, old_piece, king_square, opponent_has_queen);
             if (new_piece != NO_PIECE)
-                added[added_len++] =
-                  nnue_half_make_index(perspective, (uint8_t) square, new_piece, king_square);
+                added[added_len++] = nnue_k32q2_make_index(perspective, (uint8_t) square, new_piece,
+                                                           king_square, opponent_has_queen);
         }
     }
 #endif
@@ -447,16 +461,17 @@ static void entry_diff_indices(uint8_t perspective,
     *added_len_out = added_len;
 }
 
-// Refresh the HalfKA half through the finny table: diff the cached board against the
+// Refresh the PSQ half through the finny table: diff the cached board against the
 // live one, apply that delta to the cached accumulation, then copy it into the slot.
 static void refresh_latest_psq(uint8_t perspective,
                                uint8_t king_square,
+                               bool opponent_has_queen,
                                NnueAccumulatorStack *stack,
                                const Position *pos,
                                const NnueFeatureTransformer *ft,
                                NnueRefreshCache *cache) {
     const size_t latest_index = stack_size(stack) - 1;
-    unsigned char *entry = cache_entry(cache, king_square, perspective);
+    unsigned char *entry = cache_entry(cache, opponent_has_queen, king_square, perspective);
     uint8_t *entry_pieces = cache_entry_pieces(entry);
     const uint8_t *board = (const uint8_t *) pos->board;
 
@@ -467,16 +482,15 @@ static void refresh_latest_psq(uint8_t perspective,
 
     uint64_t entry_piece_bb;
     memcpy(&entry_piece_bb, entry + CACHE_ENTRY_PIECE_BB_OFFSET, sizeof entry_piece_bb);
-    entry_diff_indices(perspective, king_square, entry_pieces, entry_piece_bb, board,
-                       pos->by_type[ALL_PIECES], removed, &removed_len, added, &added_len);
+    entry_diff_indices(perspective, king_square, opponent_has_queen, entry_pieces, entry_piece_bb,
+                       board, pos->by_type[ALL_PIECES], removed, &removed_len, added, &added_len);
 
     // Dual-store: write the refreshed row into BOTH the cache entry (in place, for next time)
     // and this ply's state slot in one tiled pass, so the cache→state copy is a register store
     // rather than a trailing memcpy of the accumulation row.
-    nnue_acc_apply_delta_i16_dual(
-      cache_entry_accumulation(entry),
-      state_accumulation_mut(PSQ_FEATURE, latest_index, stack, perspective), removed, removed_len,
-      added, added_len, nnue_ft_psq_weights(ft));
+    nnue_acc_apply_delta_dual(cache_entry_accumulation(entry),
+                              state_accumulation_mut(PSQ_FEATURE, latest_index, stack, perspective),
+                              removed, removed_len, added, added_len, nnue_ft_psq_weights(ft));
 
     memcpy(entry_pieces, board, SQUARE_NB);
     // Keep the cached occupancy in step with the piece array: the next refresh's
@@ -487,7 +501,7 @@ static void refresh_latest_psq(uint8_t perspective,
     state_bytes_mut(PSQ_FEATURE, latest_index, stack)[COMPUTED_OFFSET + perspective] = 1;
 }
 
-// Perform the fused refresh: the HalfKA half through the finny cache fills the combined
+// Perform the fused refresh: the PSQ half through the finny cache fills the combined
 // accumulation and sets computed; the threat features are then ADDED on top (additive, no
 // zeroing), so combined = psq + threat — the refresh half of apply_combined.
 //
@@ -503,11 +517,12 @@ static void refresh_latest_psq(uint8_t perspective,
 // has no notion of how rarely a king moves.
 __attribute__((noinline)) static void refresh_combined(uint8_t perspective,
                                                        uint8_t king_square,
+                                                       bool opponent_has_queen,
                                                        NnueAccumulatorStack *stack,
                                                        const Position *pos,
                                                        const NnueFeatureTransformer *ft,
                                                        NnueRefreshCache *cache) {
-    refresh_latest_psq(perspective, king_square, stack, pos, ft, cache);
+    refresh_latest_psq(perspective, king_square, opponent_has_queen, stack, pos, ft, cache);
 
     const size_t latest_index = stack_size(stack) - 1;
     NnueFullAppendResult active;
@@ -673,12 +688,12 @@ static void threat_changed_indices_both(uint8_t white_ksq,
     *black_added_len_out = black_added_len;
 }
 
-static void append_half_change(uint32_t *removed,
-                               size_t *removed_len,
-                               uint32_t *added,
-                               size_t *added_len,
-                               uint32_t index,
-                               bool is_removed) {
+static void append_psq_change(uint32_t *removed,
+                              size_t *removed_len,
+                              uint32_t *added,
+                              size_t *added_len,
+                              uint32_t index,
+                              bool is_removed) {
     if (is_removed) {
         removed[(*removed_len)++] = index;
     } else {
@@ -686,13 +701,14 @@ static void append_half_change(uint32_t *removed,
     }
 }
 
-// Route each HalfKA index at its diff site, upstream append_changed_indices' shape
-// (half_ka_v2_hm.cpp): every diff condition is tested once and the computed index goes
+// Route each PSQ index at its diff site, upstream append_changed_indices' shape
+// (k32q2.cpp): every diff condition is tested once and the computed index goes
 // straight into its list -- no intermediate buffer, no second routing pass. Same
 // conditions in the same order as the buffered form, so both lists keep their per-list
 // order.
 static void psq_changed_indices(uint8_t perspective,
                                 uint8_t king_square,
+                                bool opponent_has_queen,
                                 NnueDirtyPiece psq_diff,
                                 bool forward,
                                 uint32_t *removed,
@@ -702,25 +718,27 @@ static void psq_changed_indices(uint8_t perspective,
     size_t removed_len = 0;
     size_t added_len = 0;
 
-    append_half_change(removed, &removed_len, added, &added_len,
-                       nnue_half_make_index(perspective, psq_diff.from, psq_diff.pc, king_square),
-                       forward);
+    append_psq_change(removed, &removed_len, added, &added_len,
+                      nnue_k32q2_make_index(perspective, psq_diff.from, psq_diff.pc, king_square,
+                                            opponent_has_queen),
+                      forward);
     if (psq_diff.to != NNUE_SQ_NONE) {
-        append_half_change(removed, &removed_len, added, &added_len,
-                           nnue_half_make_index(perspective, psq_diff.to, psq_diff.pc, king_square),
-                           !forward);
+        append_psq_change(removed, &removed_len, added, &added_len,
+                          nnue_k32q2_make_index(perspective, psq_diff.to, psq_diff.pc, king_square,
+                                                opponent_has_queen),
+                          !forward);
     }
     if (psq_diff.remove_sq != NNUE_SQ_NONE) {
-        append_half_change(
-          removed, &removed_len, added, &added_len,
-          nnue_half_make_index(perspective, psq_diff.remove_sq, psq_diff.remove_pc, king_square),
-          forward);
+        append_psq_change(removed, &removed_len, added, &added_len,
+                          nnue_k32q2_make_index(perspective, psq_diff.remove_sq, psq_diff.remove_pc,
+                                                king_square, opponent_has_queen),
+                          forward);
     }
     if (psq_diff.add_sq != NNUE_SQ_NONE) {
-        append_half_change(
-          removed, &removed_len, added, &added_len,
-          nnue_half_make_index(perspective, psq_diff.add_sq, psq_diff.add_pc, king_square),
-          !forward);
+        append_psq_change(removed, &removed_len, added, &added_len,
+                          nnue_k32q2_make_index(perspective, psq_diff.add_sq, psq_diff.add_pc,
+                                                king_square, opponent_has_queen),
+                          !forward);
     }
 
     *removed_len_out = removed_len;
@@ -728,7 +746,7 @@ static void psq_changed_indices(uint8_t perspective,
 }
 
 // Take one fused incremental step onto the combined accumulator — a port of upstream's
-// update_accumulator_incremental + apply_combined. Compute the HalfKA and threat
+// update_accumulator_incremental + apply_combined. Compute the PSQ and threat
 // changed-feature index lists for this ply, then apply both to the single combined
 // accumulation in one load/store per tile.
 //
@@ -747,6 +765,7 @@ __attribute__((always_inline)) static inline void apply_combined(NnueAccumulator
                                                                  uint8_t perspective,
                                                                  const NnueFeatureTransformer *ft,
                                                                  uint8_t king_square,
+                                                                 bool opponent_has_queen,
                                                                  size_t target_index,
                                                                  size_t computed_index,
                                                                  bool forward) {
@@ -760,8 +779,8 @@ __attribute__((always_inline)) static inline void apply_combined(NnueAccumulator
     uint32_t psq_added[NNUE_PSQ_INDEX_CAPACITY];
     size_t psq_removed_len;
     size_t psq_added_len;
-    psq_changed_indices(perspective, king_square, psq_diff, forward, psq_removed, &psq_removed_len,
-                        psq_added, &psq_added_len);
+    psq_changed_indices(perspective, king_square, opponent_has_queen, psq_diff, forward,
+                        psq_removed, &psq_removed_len, psq_added, &psq_added_len);
 
     const NnueDirtyThreats *thr_diff = threat_diff_at(
       state_bytes_const(THREAT_FEATURE, forward ? target_index : computed_index, stack));
@@ -784,13 +803,15 @@ __attribute__((always_inline)) static inline void apply_combined(NnueAccumulator
 
 // Take one forward incremental step for BOTH perspectives — a port of upstream's
 // update_accumulator_incremental_both. The ply's diff is read once, the threat and
-// pawn-pair lists come from one shared walk, and only the HalfKA indices and the
+// pawn-pair lists come from one shared walk, and only the PSQ indices and the
 // accumulator arithmetic stay per-perspective. Every list holds exactly what two
 // separate steps would have produced, in the same order.
 static void apply_combined_both(NnueAccumulatorStack *stack,
                                 const NnueFeatureTransformer *ft,
                                 uint8_t white_ksq,
                                 uint8_t black_ksq,
+                                bool white_opponent_has_queen,
+                                bool black_opponent_has_queen,
                                 size_t target_index,
                                 size_t computed_index) {
     assert(state_computed(stack, PSQ_FEATURE, computed_index, WHITE));
@@ -805,10 +826,12 @@ static void apply_combined_both(NnueAccumulatorStack *stack,
     uint32_t psq_added[NNUE_COLOR_COUNT][NNUE_PSQ_INDEX_CAPACITY];
     size_t psq_removed_len[NNUE_COLOR_COUNT];
     size_t psq_added_len[NNUE_COLOR_COUNT];
-    psq_changed_indices(WHITE, white_ksq, psq_diff, true, psq_removed[WHITE],
-                        &psq_removed_len[WHITE], psq_added[WHITE], &psq_added_len[WHITE]);
-    psq_changed_indices(BLACK, black_ksq, psq_diff, true, psq_removed[BLACK],
-                        &psq_removed_len[BLACK], psq_added[BLACK], &psq_added_len[BLACK]);
+    psq_changed_indices(WHITE, white_ksq, white_opponent_has_queen, psq_diff, true,
+                        psq_removed[WHITE], &psq_removed_len[WHITE], psq_added[WHITE],
+                        &psq_added_len[WHITE]);
+    psq_changed_indices(BLACK, black_ksq, black_opponent_has_queen, psq_diff, true,
+                        psq_removed[BLACK], &psq_removed_len[BLACK], psq_added[BLACK],
+                        &psq_added_len[BLACK]);
 
     uint32_t thr_removed[NNUE_COLOR_COUNT][NNUE_THREAT_INDEX_CAPACITY];
     uint32_t thr_added[NNUE_COLOR_COUNT][NNUE_THREAT_INDEX_CAPACITY];
@@ -834,21 +857,21 @@ static void apply_combined_both(NnueAccumulatorStack *stack,
 
 // Bound the hybrid king-move step by piece count, upstream's MIN_PC_COUNT_HYBRID
 // (nnue_accumulator.cpp). Below it a position carries few enough threat/pair features
-// that summing them from scratch beats reconstructing the source king's cached HalfKA
+// that summing them from scratch beats reconstructing the source king's cached PSQ
 // accumulation.
 enum { MIN_PC_COUNT_HYBRID = 15 };
 
 // Take a king move incrementally — a port of upstream's update_accumulator_hybrid.
 //
-// A king move rebuckets every HalfKA index, so before this the whole accumulation had
+// A king move rebuckets every PSQ index, so before this the whole accumulation had
 // to be rebuilt from the refresh cache and the full active threat/pair set. But the
 // threat and pair features only change orientation when the king crosses the centre
 // FILE, so when it stays on its half their accumulation carries over from the previous
-// ply and only this ply's own threat delta applies. What remains is to swap the HalfKA
+// ply and only this ply's own threat delta applies. What remains is to swap the PSQ
 // half of the accumulation from the source king's bucket to the destination's, which
 // the two finny cache entries give:
 //
-//   target = computed - <source-bucket HalfKA> + <destination-bucket HalfKA>
+//   target = computed - <source-bucket PSQ> + <destination-bucket PSQ>
 //
 // Both halves come from a cache entry plus that entry's diff against the board it
 // should describe. The destination's is the live board; the source's is the position
@@ -885,8 +908,11 @@ static void update_accumulator_hybrid(uint8_t perspective,
     prev_board[old_ksq] = diff.pc;
     prev_occupancy |= 1ULL << old_ksq;
 
-    unsigned char *const old_entry = cache_entry(cache, old_ksq, perspective);
-    unsigned char *const new_entry = cache_entry(cache, new_ksq, perspective);
+    // The move captured no opponent queen (hybrid_applicable), so the queen state is the
+    // same either side of it and both entries are read under the live one.
+    const bool opponent_has_queen = nnue_opponent_has_queen(pos, perspective);
+    unsigned char *const old_entry = cache_entry(cache, opponent_has_queen, old_ksq, perspective);
+    unsigned char *const new_entry = cache_entry(cache, opponent_has_queen, new_ksq, perspective);
     uint64_t old_entry_bb;
     uint64_t new_entry_bb;
     memcpy(&old_entry_bb, old_entry + CACHE_ENTRY_PIECE_BB_OFFSET, sizeof old_entry_bb);
@@ -902,12 +928,12 @@ static void update_accumulator_hybrid(uint8_t perspective,
     size_t old_added_len;
     size_t new_removed_len;
     size_t new_added_len;
-    entry_diff_indices(perspective, old_ksq, cache_entry_pieces(old_entry), old_entry_bb,
-                       prev_board, prev_occupancy, old_removed, &old_removed_len, old_added,
-                       &old_added_len);
-    entry_diff_indices(perspective, new_ksq, cache_entry_pieces(new_entry), new_entry_bb,
-                       (const uint8_t *) pos->board, pos->by_type[ALL_PIECES], new_removed,
-                       &new_removed_len, new_added, &new_added_len);
+    entry_diff_indices(perspective, old_ksq, opponent_has_queen, cache_entry_pieces(old_entry),
+                       old_entry_bb, prev_board, prev_occupancy, old_removed, &old_removed_len,
+                       old_added, &old_added_len);
+    entry_diff_indices(perspective, new_ksq, opponent_has_queen, cache_entry_pieces(new_entry),
+                       new_entry_bb, (const uint8_t *) pos->board, pos->by_type[ALL_PIECES],
+                       new_removed, &new_removed_len, new_added, &new_added_len);
 
     uint32_t thr_removed[NNUE_THREAT_INDEX_CAPACITY];
     uint32_t thr_added[NNUE_THREAT_INDEX_CAPACITY];
@@ -934,10 +960,16 @@ static void update_accumulator_hybrid(uint8_t perspective,
 }
 
 // Report whether the latest ply is a king move the hybrid step can take: PERSPECTIVE's
-// own king, landing on the same half of the board (so the threat/pair orientation is
-// unchanged), with the previous ply computed and enough pieces on the board to pay for
-// the two cache diffs. Castling is excluded for simplicity, as upstream does -- it is
-// the one king move that also relocates a rook, which `add_sq` records.
+// own king, capturing no opponent queen (so the queen state both cache entries are read
+// under is unchanged), landing on the same half of the board (so the threat/pair
+// orientation is unchanged), with the previous ply computed and enough pieces on the
+// board to pay for the two cache diffs. Castling is excluded for simplicity, as upstream
+// does -- it is the one king move that also relocates a rook, which `add_sq` records.
+//
+// Upstream tests `remove_pc` alone, which on a quiet king move reads a byte its own
+// DirtyPiece leaves uninitialized. Read it only when `remove_sq` says a piece was
+// captured: what differs is whether a stale byte declines the step, and the refresh it
+// falls back to produces the same accumulation.
 static bool
 hybrid_applicable(uint8_t perspective, const NnueAccumulatorStack *stack, const Position *pos) {
     const size_t size = stack_size(stack);
@@ -945,16 +977,20 @@ hybrid_applicable(uint8_t perspective, const NnueAccumulatorStack *stack, const 
         return false;
 
     const NnueDirtyPiece diff = psq_diff_at(state_bytes_const(PSQ_FEATURE, size - 1, stack));
-    return diff.pc == (uint8_t) (6 + 8 * perspective)
+    const uint8_t opponent_queen = (uint8_t) (5 + 8 * (perspective ^ 1));
+    const bool takes_queen = diff.remove_sq != NNUE_SQ_NONE && diff.remove_pc == opponent_queen;
+    return diff.pc == (uint8_t) (6 + 8 * perspective) && !takes_queen
         && state_computed(stack, PSQ_FEATURE, size - 2, perspective)
         && stdc_count_ones(pos->by_type[ALL_PIECES]) >= MIN_PC_COUNT_HYBRID
         && ((diff.from & 0x4) == (diff.to & 0x4)) && diff.add_sq == NNUE_SQ_NONE;
 }
 
 // Walk the stack once for PERSPECTIVE over the combined accumulator — a port of upstream's
-// AccumulatorStack::evaluate_side. find_last_usable consults ONLY the HalfKA refresh
+// AccumulatorStack::evaluate_side. find_last_usable consults ONLY the PSQ refresh
 // condition, because a threat refresh (a king move across the centre) is a subset of a
-// HalfKA refresh, so the combined accumulator always refreshes together.
+// PSQ refresh, so the combined accumulator always refreshes together. The plies above
+// the slot it stops at force no refresh, so the king square and the queen state read off
+// the live position hold for every step of the walk.
 [[maybe_unused]] static void evaluate_side(uint8_t perspective,
                                            NnueAccumulatorStack *stack,
                                            const Position *pos,
@@ -963,21 +999,23 @@ hybrid_applicable(uint8_t perspective, const NnueAccumulatorStack *stack, const 
                                            size_t last_usable) {
     const size_t size = stack_size(stack);
     const uint8_t king_square = nnue_king_square(pos, perspective);
+    const bool opponent_has_queen = nnue_opponent_has_queen(pos, perspective);
 
     if (state_computed(stack, PSQ_FEATURE, last_usable, perspective)) {
         for (size_t next = last_usable + 1; next < size; next++) {
-            apply_combined(stack, perspective, ft, king_square, next, next - 1, true);
+            apply_combined(stack, perspective, ft, king_square, opponent_has_queen, next, next - 1,
+                           true);
         }
     } else if (hybrid_applicable(perspective, stack, pos)) {
         ACC_STAT_BUMP(hybrid);
         update_accumulator_hybrid(perspective, stack, pos, ft, cache);
     } else {
         ACC_STAT_BUMP(refresh);
-        refresh_combined(perspective, king_square, stack, pos, ft, cache);
+        refresh_combined(perspective, king_square, opponent_has_queen, stack, pos, ft, cache);
 
         for (size_t computed_index = size - 1; computed_index > last_usable; computed_index--) {
-            apply_combined(stack, perspective, ft, king_square, computed_index - 1, computed_index,
-                           false);
+            apply_combined(stack, perspective, ft, king_square, opponent_has_queen,
+                           computed_index - 1, computed_index, false);
         }
     }
 }
@@ -994,16 +1032,19 @@ hybrid_applicable(uint8_t perspective, const NnueAccumulatorStack *stack, const 
     const size_t size = stack_size(stack);
     const uint8_t white_ksq = nnue_king_square(pos, WHITE);
     const uint8_t black_ksq = nnue_king_square(pos, BLACK);
+    const bool white_opponent_has_queen = nnue_opponent_has_queen(pos, WHITE);
+    const bool black_opponent_has_queen = nnue_opponent_has_queen(pos, BLACK);
     const size_t shared_begin = white_begin > black_begin ? white_begin : black_begin;
 
     for (size_t next = white_begin + 1; next <= shared_begin; next++)
-        apply_combined(stack, WHITE, ft, white_ksq, next, next - 1, true);
+        apply_combined(stack, WHITE, ft, white_ksq, white_opponent_has_queen, next, next - 1, true);
     for (size_t next = black_begin + 1; next <= shared_begin; next++)
-        apply_combined(stack, BLACK, ft, black_ksq, next, next - 1, true);
+        apply_combined(stack, BLACK, ft, black_ksq, black_opponent_has_queen, next, next - 1, true);
 
     for (size_t next = shared_begin + 1; next < size; next++) {
         ACC_STAT_BUMP(shared_step);
-        apply_combined_both(stack, ft, white_ksq, black_ksq, next, next - 1);
+        apply_combined_both(stack, ft, white_ksq, black_ksq, white_opponent_has_queen,
+                            black_opponent_has_queen, next, next - 1);
     }
 }
 
@@ -1024,11 +1065,13 @@ void nnue_acc_evaluate(NnueAccumulatorStack *stack,
     // updated incrementally on that path and its node count moved (f876cb5b). Here that
     // is forward_update_both, and returning above the dispatch covers both by
     // construction.
-    refresh_combined(WHITE, nnue_king_square(pos, WHITE), stack, pos, ft, cache);
-    refresh_combined(BLACK, nnue_king_square(pos, BLACK), stack, pos, ft, cache);
+    refresh_combined(WHITE, nnue_king_square(pos, WHITE), nnue_opponent_has_queen(pos, WHITE),
+                     stack, pos, ft, cache);
+    refresh_combined(BLACK, nnue_king_square(pos, BLACK), nnue_opponent_has_queen(pos, BLACK),
+                     stack, pos, ft, cache);
     return;
 #else
-    // Match upstream AccumulatorStack::evaluate: one combined (HalfKA + Threats) pass per
+    // Match upstream AccumulatorStack::evaluate: one combined (PSQ + Threats) pass per
     // perspective, not one per (feature, perspective). When NEITHER perspective needs a
     // refresh the whole update is a forward walk, and the two walks share their suffix.
     const size_t last_white = find_last_usable(PSQ_FEATURE, stack, WHITE);

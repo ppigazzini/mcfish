@@ -35,17 +35,17 @@ gate battery cover them.
 | [`evaluate.c`](../src/engine/eval/evaluate.c) | the dispatch, the NNUE runtime state, the arena ownership, the scaling, the traces, the classical fallback |
 | [`network.c`](../src/engine/eval/nnue/network.c) | the net object, the load path, the verify report, the forward-pass entry |
 | [`nnue_parse.c`](../src/engine/eval/nnue/nnue_parse.c) | the `.nnue` parse primitives and the transformer's in-memory byte layout |
-| [`nnue_write.c`](../src/engine/eval/nnue/nnue_write.c) | the `.nnue` **write** primitives — the byte sink, the little-endian scalars and the LEB128 encoder `export_net` emits through. The mirror of `nnue_parse.c`, and the hazard is the mirroring: a read order and a write order are two statements of one format with nothing in the source relating them, and no gate that reads what the engine CONSUMES can see them diverge. `./build.sh net-roundtrip` is the weld |
+| [`nnue_write.c`](../src/engine/eval/nnue/nnue_write.c) | the `.nnue` **write** primitives — the byte sink and the little-endian scalars `export_net` emits through. The mirror of `nnue_parse.c`, and the hazard is the mirroring: a read order and a write order are two statements of one format with nothing in the source relating them, and no gate that reads what the engine CONSUMES can see them diverge. `./build.sh net-roundtrip` is the weld |
 | [`nnue_weight_storage.c`](../src/engine/eval/nnue/nnue_weight_storage.c) | the weight buffers and the loaded-net identity |
 | [`nnue_hash.c`](../src/engine/eval/nnue/nnue_hash.c) | **two families, and only one is consumed.** The u32 ARCHITECTURE hashes (`nnue_network_hash_value` and friends) are built by `combine_hash` over dimensions and constants; the net reader compares them against the file header and the writer emits them. The MurmurHash2-64A CONTENT hashes are what upstream names a shared-memory segment with, and this tree has no such surface — all three have zero callers. That distinction is load bearing: the content hash's tail was sign-extended, faithfully reproducing an upstream defect that collapses 65536 two-byte inputs to 32896 digests, and it was safe to fix precisely BECAUSE nothing reads it. `test_nnue_hash_tail_bytes` pins the census |
 | [`nnue_ft.c`](../src/engine/eval/nnue/nnue_ft.c) | the feature-transformer blob layout and its typed accessors |
-| [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c), [`nnue_feature_bb.c`](../src/engine/eval/nnue/nnue_feature_bb.c) | the `HalfKAv2_hm`, `full_threats` and `pp_3wide` index producers |
+| [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c), [`nnue_feature_bb.c`](../src/engine/eval/nnue/nnue_feature_bb.c) | the `K32Q2`, `full_threats` and `pp_3wide` index producers |
 | [`nnue_accumulator.c`](../src/engine/eval/nnue/nnue_accumulator.c) | the per-ply accumulator stack, the refresh cache, the transform to the first layer's input |
 | [`nnue_acc_rowops.c`](../src/engine/eval/nnue/nnue_acc_rowops.c) | the weight-row add/sub SIMD kernels the accumulator's delta, refresh and hybrid paths call, split out because they carry no arena knowledge |
 | [`nnue_affine.c`](../src/engine/eval/nnue/nnue_affine.c) | the affine kernel and the two activations |
 | [`nnue_inference.c`](../src/engine/eval/nnue/nnue_inference.c) | the per-bucket forward pass |
 | [`simd.h`](../src/engine/eval/nnue/simd.h) | the vector vocabulary, in two implementations |
-| [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv17 dimensions |
+| [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv18 dimensions |
 
 Upstream's `nnue/` sources are the golden.
 
@@ -111,11 +111,13 @@ the search does not need to know — but a harness comparing against upstream mu
 Slot `i` of the stack holds the accumulator after `i` plies *and* the diff that
 produced it; evaluation walks from the nearest computed slot to the top applying
 diffs. When neither perspective needs a refresh the two walks share their common
-suffix and read each ply's diff once. A king move invalidates the bucketed HalfKA
-features, but not the threat and pair ones unless it also crosses the centre file,
-so a same-half king move is still incremental: it swaps the HalfKA half between the
-two king squares' refresh-cache entries instead of rebuilding everything. Only the
-remaining king moves fall back to a full refresh.
+suffix and read each ply's diff once. A king move invalidates the PSQ features,
+which `K32Q2` buckets on the own king, but not the threat and pair ones unless it
+also crosses the centre file, so a same-half king move is still incremental: it
+swaps the PSQ half between the two king squares' refresh-cache entries instead of
+rebuilding everything. The remaining king moves, and any ply that captures an
+opponent queen or promotes to one -- the second thing a PSQ index is bucketed on --
+fall back to a full refresh.
 
 That imposes a contract on every caller that moves a piece:
 
@@ -178,17 +180,17 @@ same numbers**. Which one runs changes only how much work it costs:
 |---|---|---|
 | shared walk | neither perspective needs a refresh | one forward pass takes both, reading each ply's diff once |
 | split walk | otherwise | one pass per perspective |
-| hybrid | this perspective's own king moved but stayed on its half | swaps the HalfKA half between the two king squares' refresh-cache entries and carries the threat/pair accumulation over |
+| hybrid | this perspective's own king moved, stayed on its half and captured no opponent queen | swaps the PSQ half between the two king squares' refresh-cache entries and carries the threat/pair accumulation over |
 | refresh | everything else | rebuilds the top slot from the board |
 
-The hybrid step is the one worth understanding. A king move rebuckets every HalfKA
+The hybrid step is the one worth understanding. A king move rebuckets every PSQ
 index, but the threat and pair features only change orientation when the king
 crosses the **centre file** — so a same-half king move keeps that whole
-accumulation, and only the HalfKA half has to move buckets. Both buckets are
+accumulation, and only the PSQ half has to move buckets. Both buckets are
 available from the refresh cache, so the step is
 
 ```
-target = computed − <source-bucket HalfKA> + <destination-bucket HalfKA>
+target = computed − <source-bucket PSQ> + <destination-bucket PSQ>
          + <this ply's threat/pair delta>
 ```
 
@@ -504,7 +506,7 @@ into something that distorts play.
 `trace_nnue` prints each bucket's evaluation, marks the bucket this position
 actually selects, and follows with the three summary lines. It matches upstream byte
 for byte. The transform does not depend on the bucket, so the trace runs it once and
-propagates the layer stack eight times.
+propagates every layer stack from it.
 
 Every figure in the table goes through `uci_wdl_to_cp` before it is printed. That
 is what the header's "(Normalized, ...)" means, and it is the whole of what the
@@ -575,8 +577,8 @@ the anchor, `simd-scalar` and every golden green.
 
 The shipped net was written by upstream's own exporter, which makes the comparison a
 differential against upstream's bytes rather than against a second derivation: it
-checks every LEB128 group, every split point, every component hash and the inverse of
-the tier's SIMD permutation at once.
+checks every section's byte order, every split point, every component hash and the
+inverse of the tier's SIMD permutation at once.
 
 It writes outside `resources/` — a half-written file there is a net the next run
 loads — refuses a zero-byte subject, and **skips** with a red note when no net is

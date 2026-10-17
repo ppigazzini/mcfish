@@ -45,7 +45,7 @@ static uint8_t *LayerBiases[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK];
 // request up to the alignment: aligned_alloc wants a size the alignment divides.
 //
 // Do not zero the block. A successful parse writes every byte a reader can
-// reach: the five feature-transformer sections butt-join on 64-byte multiples
+// reach: the four feature-transformer sections butt-join on 64-byte multiples
 // with no padding between them, the layer biases are written linearly, and the
 // layer weight scramble is a bijection on [0, n). Zeroing here would fault in
 // and dirty the whole ~106 MB arena once just for the parse to overwrite every
