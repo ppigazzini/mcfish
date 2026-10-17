@@ -24,3 +24,22 @@
 # survives inlining and names the same call, or by teaching the tool to attribute
 # an inlined callee to its callers.
 movepick
+
+# The kernel is INLINED AWAY since the SFNNv18 port, so the row measures the regex.
+# nnue_acc_apply_combined_delta had six out-of-line call sites while its PSQ rows
+# were int16; with int8 rows LTO inlines it into all six, and the group reads A=0
+# against upstream's apply_combined count. Forcing it back out of line was MEASURED
+# here as +0.7% instructions at sse41 and at avx512icl (the call and the constants
+# its inlined copies fold), so the inline stays and the row is accepted. RETIRE when
+# LTO keeps a call site again, or by teaching the tool to attribute an inlined
+# callee to its callers.
+acc_apply
+
+# One call is INLINED AWAY: LTO folds pos_is_draw into run_main_search's ponder
+# extraction (root_move_extract_ponder_from_tt), which runs once per search that
+# ends with a one-move root PV, so the row is short by exactly the number of such
+# searches -- one on bench 16 1 8 under nn-c9e480e92425, none under the net before.
+# With pos_is_draw marked noinline the mcfish count is 147,119, upstream's exactly.
+# The node bodies' calls, the ones that matter, all survive. RETIRE when that call
+# site stays out of line, or when the workload has no one-move root PV again.
+is_draw

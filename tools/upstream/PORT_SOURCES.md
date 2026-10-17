@@ -3,7 +3,7 @@
 This page is about building the reference binary the differential gates compare
 against, and about one historical SHA. **The live pin is
 [`UPSTREAM_BASE`](UPSTREAM_BASE)**, which `upstream_oracle.sh` reads; `./build.sh
-sync-status` is what checks it against the golden checkout.
+sync-status` is what checks it against official-stockfish/Stockfish `master`.
 
 ## There is one reference tree, not two
 
