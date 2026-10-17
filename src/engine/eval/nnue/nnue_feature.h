@@ -1,6 +1,6 @@
-// Own the three NNUE feature sets: HalfKAv2_hm (the king-bucketed piece-square
-// features), full_threats (the attacker/attacked-pair features) and pp_3wide (the
-// pawn-pair features), as index producers only.
+// Own the three NNUE feature sets: K32Q2 (the piece-square features, bucketed on the
+// own king and on the opponent's queen), full_threats (the attacker/attacked-pair
+// features) and pp_3wide (the pawn-pair features), as index producers only.
 //
 // The INVARIANT is that a feature index is a pure function of its arguments and of the
 // tables `nnue_feature_init` builds. `nnue_feature_init` MUST run before any index is
@@ -13,10 +13,10 @@
 // and the caller drops it. That out-of-range return is the exclusion mechanism, not an
 // error, and it is what upstream does.
 //
-// Golden: the upstream `nnue/features/half_ka_v2_hm.cpp`,
+// Golden: the upstream `nnue/features/k32q2.cpp`,
 // `nnue/features/full_threats.cpp` and `nnue/features/pp_3wide.cpp`.
 //
-// Upstream: full_threats.h, pp_3wide.h and half_ka_v2_hm.h, the feature-set headers.
+// Upstream: full_threats.h, pp_3wide.h and k32q2.h, the feature-set headers.
 
 #ifndef MCFISH_NNUE_FEATURE_H
 #define MCFISH_NNUE_FEATURE_H
@@ -26,7 +26,8 @@
 #include <stdint.h>
 
 enum : uint32_t {
-    // 11 * 64: the per-king-bucket stride of the HalfKAv2_hm feature space.
+    // 11 * 64: the stride of one (king bucket, opponent-queen state) block of the K32Q2
+    // feature space. A king bucket spans both queen states, so it is twice as wide.
     NNUE_PS_NB = 11 * 64,
     NNUE_FULL_DIMENSIONS = NNUE_THREAT_DIMENSIONS,
     // The first PP_3Wide index. Pair features are concatenated onto the threats, so
@@ -47,12 +48,12 @@ enum {
     NNUE_SQ_NONE = 64,
 };
 
-// Hold the per-move HalfKAv2_hm delta a make/unmake records.
+// Hold the per-move K32Q2 delta a make/unmake records.
 //
 // The FIELD ORDER IS CONTRACTUAL: `pc` first, and the struct alignment-free. The
 // accumulator stores this record inside its arena at an offset that is deliberately NOT
-// rounded up, and reads `pc` as the arena's first diff byte to decide whether the ply
-// forces a refresh. This is the same layout as the board zone's DirtyPiece.
+// rounded up, and reads it back from there to decide whether the ply forces a refresh.
+// This is the same layout as the board zone's DirtyPiece.
 typedef struct NnueDirtyPiece {
     uint8_t pc;
     uint8_t from;
@@ -66,7 +67,7 @@ typedef struct NnueDirtyPiece {
 static_assert(sizeof(NnueDirtyPiece) == 7, "NnueDirtyPiece must be seven packed bytes");
 static_assert(alignof(NnueDirtyPiece) == 1,
               "NnueDirtyPiece must stay alignment-free for the unrounded diff offset");
-static_assert(offsetof(NnueDirtyPiece, pc) == 0, "the refresh test reads pc as diff byte 0");
+static_assert(offsetof(NnueDirtyPiece, pc) == 0, "pc leads the record, as in DirtyPiece");
 
 // Hold one recorded threat delta.
 //
@@ -96,15 +97,22 @@ typedef struct NnueFullAppendResult {
 // Build the feature-index tables. Call once, before any other function here.
 void nnue_feature_init(void);
 
-// --- HalfKAv2_hm ------------------------------------------------------------------
+// --- K32Q2 ------------------------------------------------------------------------
 
-uint32_t
-nnue_half_make_index(uint8_t perspective, uint8_t square, uint8_t piece, uint8_t king_square);
+// Return the index of PIECE on SQUARE, bucketed on PERSPECTIVE's KING_SQUARE and on
+// whether the opponent holds a queen.
+uint32_t nnue_k32q2_make_index(
+  uint8_t perspective, uint8_t square, uint8_t piece, uint8_t king_square, bool opponent_has_queen);
 
-// Report whether DIFF moves PERSPECTIVE's own king, which invalidates every bucketed
-// index and forces a full refresh.
-static inline bool nnue_half_requires_refresh(NnueDirtyPiece diff, uint8_t perspective) {
-    return diff.pc == (uint8_t) (6 + 8 * perspective);
+// Report whether DIFF forces PERSPECTIVE into a full refresh: its own king moved, which
+// rebuckets every index, or an opponent queen was captured or promoted to, which can
+// flip the queen state every index is bucketed on. A removed or added piece is read only
+// when its square is set; the board zone leaves it unspecified otherwise.
+static inline bool nnue_k32q2_requires_refresh(NnueDirtyPiece diff, uint8_t perspective) {
+    const uint8_t opponent_queen = (uint8_t) (5 + 8 * (perspective ^ 1));
+    return diff.pc == (uint8_t) (6 + 8 * perspective)
+        || (diff.remove_sq != NNUE_SQ_NONE && diff.remove_pc == opponent_queen)
+        || (diff.add_sq != NNUE_SQ_NONE && diff.add_pc == opponent_queen);
 }
 
 // --- full_threats -----------------------------------------------------------------

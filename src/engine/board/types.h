@@ -247,13 +247,13 @@ static inline Value mated_in(int ply) { return (Value) (ply - VALUE_MATE); }
 // promotion and capture look like a real square.
 static_assert(SQ_NONE == 64, "DirtyPiece's no-square sentinel is NNUE's 64");
 
-// Record the HalfKAv2_hm delta of one move: the piece that moved, plus at most one
+// Record the K32Q2 delta of one move: the piece that moved, plus at most one
 // removed and one added piece (a capture, a promotion, or castling's rook).
 //
 // The layout is a CONTRACT, not an implementation detail. `nnue_feature.h`'s
 // NnueDirtyPiece is a byte-identical view of this struct, because pos_do_move
 // writes its delta straight into the accumulator's arena; that arena stores the
-// record at a deliberately unrounded offset and reads `pc` as the first diff byte.
+// record at a deliberately unrounded offset and reads it back field by field.
 // Keep it all-uint8_t, alignment-free, and in this field order.
 //
 // Squares are raw uint8_t with 64 for "none"; pieces are `color << 3 | type`, which

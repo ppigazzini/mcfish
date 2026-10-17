@@ -24,7 +24,6 @@
 #include "../src/engine/eval/nnue/nnue_feature.h"
 #include "../src/engine/eval/nnue/nnue_hash.h"
 #include "../src/engine/eval/nnue/nnue_parse.h"
-#include "../src/engine/eval/nnue/nnue_write.h"
 #include "../src/engine/eval/nnue/nnue_weight_storage.h"
 #include "../src/engine/search/history.h"
 #include "../src/engine/search/movepick.h"
@@ -1243,8 +1242,8 @@ static void test_nnue_parse_poison(void) {
         before[i] = evaluate(&pos);
     }
 
-    // Checksum every block the first parse produced: the FT arena plus the 48
-    // per-(bucket, layer, part) affine blocks.
+    // Checksum every block the first parse produced: the FT arena plus every
+    // per-(bucket, layer, part) affine block.
     uint64_t sum_ft = fnv1a(nnue_ft_ptr(), NNUE_FT_TOTAL_BYTES);
     uint64_t sum_layer[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK][2];
     for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket)
@@ -1425,6 +1424,18 @@ static void test_nnue_accumulator_paths(void) {
     // castling also relocates a rook; both must fall back to a full refresh.
     static const char *const cross_half[] = { "e1d1", "e8d8", nullptr };
     static const char *const castles[] = { "e1g1", "e8c8", nullptr };
+    // The opponent-queen state is the second thing a PSQ index is bucketed on, so a ply
+    // that flips it must refresh that perspective: the bishop takes White's queen, and
+    // only Black's perspective loses an opponent queen.
+    static const char *const queen_capture[] = { "f3f6", "g7f6", nullptr };
+    // Each queen falls to the other side: White's queen takes Black's, then Black's king
+    // takes it back, a same-half king move at full material that must still not take
+    // the hybrid step, because both cache entries would be read under the wrong state.
+    static const char *const king_takes_queen[] = { "f3f6", "a8b8", "f6e7", "e8e7", nullptr };
+    // With both queens gone, a promotion to one hands White's perspective an opponent
+    // queen again.
+    static const char *const promote[] = { "f3f6", "a8b8", "f6e7",  "e8e7", "c3b1",
+                                           "h3g2", "b1c3", "g2h1q", nullptr };
 
     // Assert only on counters the INCREMENTAL arena can move. The control arena
     // refreshes twice on purpose before every comparison, so `refresh` carries both
@@ -1470,6 +1481,15 @@ static void test_nnue_accumulator_paths(void) {
           (unsigned long long) (s->hybrid - hybrid_before));
 #endif
 
+    acc_walk(inc, ctrl, queen_capture, 1, "queen capture");
+    acc_walk(inc, ctrl, king_takes_queen, 1, "king takes queen");
+#ifdef MCFISH_ACC_STATS
+    CHECK(s->hybrid == hybrid_before,
+          "a king move that captures a queen must not take the hybrid step (%llu did)",
+          (unsigned long long) (s->hybrid - hybrid_before));
+#endif
+    acc_walk(inc, ctrl, promote, 1, "promotion to queen");
+
     // Deferred evaluation: plies land uncomputed between evaluations, so a walk
     // catches up over a suffix and the two perspectives can start from different
     // plies -- the case the shared pass's catch-up loops exist for.
@@ -1479,6 +1499,7 @@ static void test_nnue_accumulator_paths(void) {
 #endif
     acc_walk(inc, ctrl, quiet, 3, "quiet, deferred");
     acc_walk(inc, ctrl, same_half, 3, "same-half king moves, deferred");
+    acc_walk(inc, ctrl, promote, 3, "queen trades and a promotion, deferred");
 
 #ifdef MCFISH_ACC_STATS
     CHECK(s->shared_step - shared_step_before > s->shared_walk - shared_walk_before,
@@ -2184,104 +2205,6 @@ static void test_page_allocator(void) {
     CHECK(memory_live_mappings() == base, "freeing nullptr moves nothing");
 }
 
-// The LEB128 encoder against the decoder that reads it back, and against the eight
-// encodings the format's sign rule fixes.
-//
-// `net-roundtrip` covers this end to end, but only over ONE net's values and only on
-// a machine that has the net; this pins the boundaries a 95 MB file may never contain
-// and runs under the sanitizers. The eight literals are the sharp half: the rule that
-// a group ending with bit 0x40 set continues unless the remainder is -1 is what
-// decides whether 64 takes one byte or two, and getting it wrong produces a file of
-// exactly the right LENGTH with the wrong bytes in it.
-static void test_nnue_leb_roundtrip(void) {
-    banner("nnue LEB128 encode/decode");
-
-    static constexpr int32_t Values[] = { 0,      1,       -1,        63,        64,
-                                          -64,    -65,     127,       -128,      8191,
-                                          -8192,  8192,    -8193,     INT16_MAX, INT16_MIN,
-                                          123456, -123456, INT32_MAX, INT32_MIN };
-    static constexpr size_t Count = sizeof Values / sizeof Values[0];
-
-    // Two bytes for 64 and one for -64: the same magnitude, and the sign rule splits
-    // them. A run without the continuation bit set encodes both as one byte and every
-    // length still matches, which is why the BYTES are asserted and not just the
-    // count.
-    static constexpr struct {
-        int32_t value;
-        size_t len;
-        uint8_t bytes[2];
-    } Fixed[] = {
-        { 0, 1, { 0x00, 0x00 } },   { 1, 1, { 0x01, 0x00 } },   { -1, 1, { 0x7f, 0x00 } },
-        { 63, 1, { 0x3f, 0x00 } },  { 64, 2, { 0xc0, 0x00 } },  { -64, 1, { 0x40, 0x00 } },
-        { -65, 2, { 0xbf, 0x7f } }, { 127, 2, { 0xff, 0x00 } }, { -128, 2, { 0x80, 0x7f } },
-    };
-
-    FILE *const mem = tmpfile();
-    if (mem == nullptr) {
-        CHECK(false, "tmpfile() for the encoder test");
-        return;
-    }
-
-    for (size_t i = 0; i < sizeof Fixed / sizeof Fixed[0]; ++i) {
-        NnueWriter w = { .out = mem, .ok = true };
-        const int32_t v = Fixed[i].value;
-        rewind(mem);
-        nnue_write_leb_i32(&w, &v, 1);
-        CHECK(w.ok, "writing %d succeeds", v);
-        CHECK(nnue_leb_bytes_i32(&v, 1) == Fixed[i].len, "%d measures %zu bytes", v, Fixed[i].len);
-
-        uint8_t got[4] = { 0 };
-        rewind(mem);
-        CHECK(fread(got, 1, Fixed[i].len, mem) == Fixed[i].len, "%d reads back its bytes", v);
-        CHECK(memcmp(got, Fixed[i].bytes, Fixed[i].len) == 0,
-              "%d encodes to the bytes the format fixes", v);
-    }
-
-    // int32 values, then the int16-representable ones at the narrower width: the two
-    // entry points share one encoder, so this asserts the sign extension a narrower
-    // element goes through rather than a second implementation.
-    int16_t narrow[Count];
-    size_t narrow_count = 0;
-    for (size_t i = 0; i < Count; ++i)
-        if (Values[i] >= INT16_MIN && Values[i] <= INT16_MAX)
-            narrow[narrow_count++] = (int16_t) Values[i];
-
-    NnueWriter w = { .out = mem, .ok = true };
-    rewind(mem);
-    nnue_write_leb_i32(&w, Values, Count);
-    nnue_write_leb_i16(&w, narrow, narrow_count);
-    CHECK(w.ok, "the mixed-width run writes");
-    fflush(mem);
-
-    const size_t wide_bytes = nnue_leb_bytes_i32(Values, Count);
-    const size_t narrow_bytes = nnue_leb_bytes_i16(narrow, narrow_count);
-    uint8_t encoded[512] = { 0 };
-    CHECK(wide_bytes + narrow_bytes <= sizeof encoded, "the run fits the read buffer");
-    rewind(mem);
-    CHECK(fread(encoded, 1, wide_bytes + narrow_bytes, mem) == wide_bytes + narrow_bytes,
-          "the measured length is the written length");
-    fclose(mem);
-
-    int32_t wide_out[Count];
-    size_t consumed = 0;
-    CHECK(nnue_decode_leb_i32(encoded, wide_bytes, wide_out, Count, &consumed),
-          "the int32 run decodes");
-    CHECK(consumed == wide_bytes, "the int32 run consumes exactly what it measured");
-    for (size_t i = 0; i < Count; ++i)
-        CHECK(wide_out[i] == Values[i], "int32 value %zu round-trips (%d != %d)", i, wide_out[i],
-              Values[i]);
-
-    int16_t narrow_out[Count];
-    consumed = 0;
-    CHECK(
-      nnue_decode_leb_i16(encoded + wide_bytes, narrow_bytes, narrow_out, narrow_count, &consumed),
-      "the int16 run decodes");
-    CHECK(consumed == narrow_bytes, "the int16 run consumes exactly what it measured");
-    for (size_t i = 0; i < narrow_count; ++i)
-        CHECK(narrow_out[i] == narrow[i], "int16 value %zu round-trips (%d != %d)", i,
-              (int) narrow_out[i], (int) narrow[i]);
-}
-
 int main(void) {
     bitboards_init();
     attacks_init();
@@ -2314,7 +2237,6 @@ int main(void) {
     test_conthist_scale_table();
     test_movepick_poison();
     test_nnue_parse_poison();
-    test_nnue_leb_roundtrip();
     test_syzygy_wdl_score_domain();
     test_nnue_hash_tail_bytes();
     test_numa_from_string();

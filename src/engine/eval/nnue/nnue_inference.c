@@ -75,10 +75,20 @@ propagate_bucket(size_t bucket, const uint8_t *transformed, const NnueNnzBitset 
 
 static size_t piece_count_of(const Position *pos) {
     // The material bucket reads the total piece count once per eval. Upstream reads
-    // the incrementally-maintained count<ALL_PIECES>() (network.cpp:152); mcfish's
+    // the incrementally-maintained count<ALL_PIECES>() (network.cpp:153); mcfish's
     // by_type[ALL_PIECES] carries the same set, so one popcount replaces a 64-square
     // board scan.
     return (size_t) popcount_bb(pieces(pos));
+}
+
+// Select the layer stack: four per piece-count bucket, one for each combination of the
+// side to move holding a queen (2) and its opponent holding one (1). Upstream
+// network.cpp:153-156.
+static size_t bucket_of(const Position *pos) {
+    const Color stm = pos->side_to_move;
+    const size_t ours = pieces_cp(pos, stm, QUEEN) != 0 ? 2 : 0;
+    const size_t theirs = pieces_cp(pos, flip_color(stm), QUEEN) != 0 ? 1 : 0;
+    return (piece_count_of(pos) - 1) / 4 * 4 + (ours | theirs);
 }
 
 // Bring the accumulator up to date and write the layer-0 input and its NNZ bitset.
@@ -98,7 +108,7 @@ Value nnue_inference_evaluate(const Position *pos,
     alignas(CACHE_LINE_SIZE) uint8_t transformed[NNUE_TRANSFORMED_BYTES];
     NnueNnzBitset nnz;
 
-    const size_t bucket = (piece_count_of(pos) - 1) / 4;
+    const size_t bucket = bucket_of(pos);
     transform(pos, stack, cache, transformed, &nnz);
     return (Value) (propagate_bucket(bucket, transformed, &nnz) / OUTPUT_SCALE);
 }
@@ -110,7 +120,7 @@ NnueTraceOutput nnue_inference_trace_evaluate(const Position *pos,
     NnueNnzBitset nnz;
 
     NnueTraceOutput output = { 0 };
-    output.correct_bucket = (piece_count_of(pos) - 1) / 4;
+    output.correct_bucket = bucket_of(pos);
 
     transform(pos, stack, cache, transformed, &nnz);
     for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; bucket++)

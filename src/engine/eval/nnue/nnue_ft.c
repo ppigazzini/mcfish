@@ -7,9 +7,9 @@ const int16_t *nnue_ft_biases(const NnueFeatureTransformer *ft) {
     return (const int16_t *) (const void *) (bytes + NNUE_FT_BIASES_OFFSET);
 }
 
-const int16_t *nnue_ft_psq_weights(const NnueFeatureTransformer *ft) {
+const int8_t *nnue_ft_psq_weights(const NnueFeatureTransformer *ft) {
     const unsigned char *bytes = (const unsigned char *) ft;
-    return (const int16_t *) (const void *) (bytes + NNUE_FT_PSQ_WEIGHTS_OFFSET);
+    return (const int8_t *) (const void *) (bytes + NNUE_FT_PSQ_WEIGHTS_OFFSET);
 }
 
 const int8_t *nnue_ft_threat_weights(const NnueFeatureTransformer *ft) {

@@ -165,7 +165,7 @@ static bool read_feature_transformer(const uint8_t *bytes, size_t len, size_t *o
         return false;
 #if NNUE_TRANSFORM_PACKUS_BITS >= 256
     permute_packus_order(dst + NNUE_FT_BIASES_OFF, sizeof(int16_t), NNUE_FT_BIASES_COUNT);
-    permute_packus_order(dst + NNUE_FT_WEIGHTS_OFF, sizeof(int16_t), NNUE_FT_PSQ_WEIGHTS_COUNT);
+    permute_packus_order(dst + NNUE_FT_WEIGHTS_OFF, sizeof(int8_t), NNUE_FT_PSQ_WEIGHTS_COUNT);
     permute_packus_order(dst + NNUE_FT_THREAT_WEIGHTS_OFF, sizeof(int8_t),
                          NNUE_FT_THREAT_WEIGHTS_COUNT);
 #endif
@@ -482,8 +482,8 @@ save_span(uint8_t *scratch, const uint8_t *region, size_t elem_bytes, size_t fir
 #endif
 }
 
-// Emit a raw int8 region: the threat and pp weight blocks, which the file stores as
-// plain bytes with no encoding and no byte order to apply.
+// Emit a raw int8 region: the threat, pp and psq weight blocks, which the file stores
+// as plain bytes with no byte order to apply.
 static void
 save_raw_i8(NnueWriter *w, const uint8_t *region, size_t first, size_t count, uint8_t *scratch) {
     for (size_t done = 0; done < count && w->ok;) {
@@ -494,22 +494,14 @@ save_raw_i8(NnueWriter *w, const uint8_t *region, size_t first, size_t count, ui
     }
 }
 
-// Emit one LEB128 section over a region, in two passes: a section states its byte
-// count before its bytes, and the largest of these is 23 million values.
-static void save_leb_i16(NnueWriter *w, const uint8_t *region, size_t count, uint8_t *scratch) {
+// Emit an int16 region little-endian: the biases, which the storage holds in host
+// order.
+static void save_i16(NnueWriter *w, const uint8_t *region, size_t count, uint8_t *scratch) {
     const size_t span = SAVE_SPAN_BYTES / sizeof(int16_t);
-    size_t bytes = 0;
-    for (size_t done = 0; done < count; done += span) {
-        const size_t n = count - done < span ? count - done : span;
-        save_span(scratch, region, sizeof(int16_t), done, n);
-        bytes += nnue_leb_bytes_i16((const int16_t *) (const void *) scratch, n);
-    }
-
-    nnue_write_leb_header(w, (uint32_t) bytes);
     for (size_t done = 0; done < count && w->ok; done += span) {
         const size_t n = count - done < span ? count - done : span;
         save_span(scratch, region, sizeof(int16_t), done, n);
-        nnue_write_leb_i16(w, (const int16_t *) (const void *) scratch, n);
+        nnue_write_i16_le(w, (const int16_t *) (const void *) scratch, n);
     }
 }
 
@@ -520,13 +512,13 @@ static void save_leb_i16(NnueWriter *w, const uint8_t *region, size_t count, uin
 static void save_feature_transformer(NnueWriter *w, const uint8_t *ft, uint8_t *scratch) {
     nnue_write_u32_le(w, nnue_feature_transformer_hash_value());
 
-    save_leb_i16(w, ft + NNUE_FT_BIASES_OFF, NNUE_FT_BIASES_COUNT, scratch);
+    save_i16(w, ft + NNUE_FT_BIASES_OFF, NNUE_FT_BIASES_COUNT, scratch);
 
     save_raw_i8(w, ft + NNUE_FT_THREAT_WEIGHTS_OFF, 0, NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT, scratch);
     save_raw_i8(w, ft + NNUE_FT_THREAT_WEIGHTS_OFF, NNUE_FT_THREAT_ONLY_WEIGHTS_COUNT,
                 NNUE_FT_PAIR_ONLY_WEIGHTS_COUNT, scratch);
 
-    save_leb_i16(w, ft + NNUE_FT_WEIGHTS_OFF, NNUE_FT_PSQ_WEIGHTS_COUNT, scratch);
+    save_raw_i8(w, ft + NNUE_FT_WEIGHTS_OFF, 0, NNUE_FT_PSQ_WEIGHTS_COUNT, scratch);
 }
 
 // Write one bucket's three affine layers: the stack's component hash, then each

@@ -1229,8 +1229,8 @@ do_signature_update() {
 # anchor still matches and every golden still passes.
 #
 # This is the weld. The net on disk was written by upstream's own exporter, so
-# exporting it back and comparing byte for byte checks every LEB128 group, every split
-# point, every hash and the SIMD permutation's inverse at once -- against upstream's
+# exporting it back and comparing byte for byte checks every section's byte order, every
+# split point, every hash and the SIMD permutation's inverse at once -- against upstream's
 # bytes rather than against a second derivation somebody thought to assert.
 # ../rfish a469772 reports the same hole from the Rust side and closes it the same
 # way.
