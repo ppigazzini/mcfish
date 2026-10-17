@@ -195,10 +195,9 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
            && !(id->limits_depth != 0 && main_thread && ctx->root_depth >= id->limits_depth)) {
         ctx->root_depth += 1;
 
-        if (main_thread) {
-            tot_best_move_changes /= 2.0;
+        // Signal the start of a new iteration.
+        if (main_thread)
             uci_pv_sent = false;
-        }
 
         // Save the last iteration's scores before the first PV line is searched
         // and every non-PV move's score is reset to -VALUE_INFINITE. The PV and
@@ -408,8 +407,6 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
         if (id->skill_enabled && skill_time_to_pick(id->skill_level, ctx->root_depth))
             skill_best = skill_pick_best(ctx, id, multi_pv);
 
-        tot_best_move_changes += id_collect_bmc(ctx);
-
         // Manage time: decide whether there is time for the next iteration.
         if (id->use_time_management && !id_stopped(ctx) && id->stop_on_ponderhit
             && !*id->stop_on_ponderhit) {
@@ -428,6 +425,12 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
 
             const double reduction =
               (1.468 + id->previous_time_reduction) / (2.284 * time_reduction);
+
+            // Age out and update the PV variability metric. Only this block reads it,
+            // so an iteration that manages no time neither halves nor collects it.
+            tot_best_move_changes /= 2.0;
+            tot_best_move_changes += id_collect_bmc(ctx);
+
             const double best_move_instability =
               1.077 + 2.229 * tot_best_move_changes / (double) id->threads_size;
 
