@@ -194,7 +194,7 @@ static inline Bitboard xattacks_by(const Position *pos, PieceType pt, Color c, B
     return threats;
 }
 
-// Upstream computes these at the end of set_extra_bitboards (position.cpp:482).
+// Upstream Position::compute_threats (position.cpp:487).
 void pos_compute_threats(const Position *pos) {
     const Color them = flip_color(pos->side_to_move);
     const Bitboard xocc = pieces(pos) ^ pieces_cp(pos, pos->side_to_move, KING);
@@ -207,7 +207,6 @@ void pos_compute_threats(const Position *pos) {
     threats[KING] = xattacks_by(pos, KING, them, xocc);
     threats[ALL_PIECES] = threats[PAWN] | threats[KNIGHT] | threats[BISHOP] | threats[ROOK]
                         | threats[QUEEN] | threats[KING];
-    pos->st->threats_ready = true;
 }
 
 static void set_extra_bitboards(Position *pos) {
@@ -235,7 +234,7 @@ static void set_extra_bitboards(Position *pos) {
     pos->st->check_squares[KING] = 0;
 
     // The threat sets are filled on first read; see threats_by.
-    pos->st->threats_ready = false;
+    pos->st->threats[ALL_PIECES] = 0;
 }
 
 // Recompute every key from the board. do_move maintains them incrementally; this
