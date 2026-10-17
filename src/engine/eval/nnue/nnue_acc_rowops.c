@@ -47,6 +47,24 @@ enum { ROW_TILE_WIDTH = 64 };
 static_assert(NNUE_HALF_DIMENSIONS % ROW_TILE_WIDTH == 0,
               "NNUE_HALF_DIMENSIONS must be a multiple of ROW_TILE_WIDTH");
 
+// Widen int8 weight rows TWO at a time on the one tier where that does less work:
+// SSSE3 has pmaddubsw but not SSE4.1's pmovsxbw, so the portable one-row widen lowers
+// to an unpack and a shift per register, and pairing two rows' bytes into one unpack
+// and one pmaddubsw against a vector of ones halves it -- upstream's
+// USE_PAIRED_WIDENING_ADD. Upstream enables it for SSSE3 and better. Keep it off where
+// SSE4.1 is: there the one-row widen is a pmovsxbw from memory and an add per
+// register, which a pair at best matches -- and loses to under the two-operand SSE
+// encoding, which copies the ones vector and an unpack input for every register.
+//
+// At 16 bytes the unpacks read a row's bytes in file order, so the weights need no
+// load-time reorder for it (upstream's WideningPairOrder is the identity at this width).
+#if MCFISH_SIMD_VECTOR && defined(__SSSE3__) && !defined(__SSE4_1__)
+    #define ROW_PAIRED_WIDENING 1
+#else
+    #define ROW_PAIRED_WIDENING 0
+#endif
+
+#if !ROW_PAIRED_WIDENING
 // Widen an int8 weight row tile to the int16 accumulator's lane width, carried as
 // uint16_t so the accumulation wraps rather than overflowing (see simd.h).
 static inline RowVecU16 load_row(const int8_t *w) {
@@ -206,3 +224,226 @@ void nnue_acc_apply_combined_delta(int16_t *target,
         row_store((uint16_t *) (target + d), acc);
     }
 }
+#else
+
+// Hold the int8 weight rows one kernel call adds or removes, resolved from feature
+// indices to row pointers ONCE, outside the tile loop -- upstream's WeightRows. Rows of
+// both feature sets go in one list when they share a sign, so that nearly every row
+// has a partner to be widened with (see tile_apply).
+typedef struct {
+    const int8_t *row[NNUE_PSQ_INDEX_CAPACITY + NNUE_THREAT_INDEX_CAPACITY];
+    size_t count;
+} RowList;
+
+// Start an empty list. Only the count: a `{ .count = 0 }` initializer zero-fills the
+// whole pointer array, which is over glibc's rep-stosb threshold and is invisible to
+// the instruction counter while costing cycles on every call.
+__attribute__((always_inline)) static inline RowList rows_empty(void) {
+    RowList list;
+    list.count = 0;
+    return list;
+}
+
+static inline void
+rows_append(RowList *list, const uint32_t *indices, size_t count, const int8_t *weights) {
+    assert(list->count + count <= sizeof list->row / sizeof list->row[0]);
+    for (size_t i = 0; i < count; i++)
+        list->row[list->count++] = weights + (size_t) indices[i] * NNUE_HALF_DIMENSIONS;
+}
+
+// The tile is upstream SIMDTiling's eight registers of int16 lanes, and an int8 row's
+// slice of it is four. Every helper is pinned inline: the tile is passed by value, and
+// one left out of line would carry it through memory.
+enum { TILE_REGS = ROW_TILE_WIDTH * sizeof(int16_t) / sizeof(__m128i) };
+static_assert(TILE_REGS == 8, "the tile is upstream SIMDTiling's eight registers");
+
+typedef struct {
+    __m128i reg[TILE_REGS];
+} Tile;
+
+__attribute__((always_inline)) static inline Tile tile_load(const int16_t *p) {
+    Tile t;
+    for (size_t k = 0; k < TILE_REGS; k++)
+        t.reg[k] = _mm_load_si128((const __m128i *) (p + 8 * k));
+    return t;
+}
+
+__attribute__((always_inline)) static inline void tile_store(int16_t *p, Tile t) {
+    for (size_t k = 0; k < TILE_REGS; k++)
+        _mm_store_si128((__m128i *) (p + 8 * k), t.reg[k]);
+}
+
+__attribute__((always_inline)) static inline Tile tile_add_i16(Tile t, const int16_t *p, bool add) {
+    for (size_t k = 0; k < TILE_REGS; k++) {
+        const __m128i v = _mm_load_si128((const __m128i *) (p + 8 * k));
+        t.reg[k] = add ? _mm_add_epi16(t.reg[k], v) : _mm_sub_epi16(t.reg[k], v);
+    }
+    return t;
+}
+
+// Widen two rows with one shuffle per register: interleave their bytes, then let
+// pmaddubsw sum each (row 0, row 1) byte pair against a vector of ones. The sum of two
+// int8 values cannot saturate int16, and int16 addition wraps the same in any order, so
+// acc + (w0 + w1) is the value (acc + w0) + w1 is.
+__attribute__((always_inline)) static inline Tile
+tile_pair(Tile t, const int8_t *w0, const int8_t *w1, bool add) {
+    const __m128i ones = _mm_set1_epi8(1);
+    for (size_t k = 0; k < TILE_REGS / 2; k++) {
+        const __m128i a = _mm_load_si128((const __m128i *) (w0 + 16 * k));
+        const __m128i b = _mm_load_si128((const __m128i *) (w1 + 16 * k));
+        const __m128i lo = _mm_maddubs_epi16(ones, _mm_unpacklo_epi8(a, b));
+        const __m128i hi = _mm_maddubs_epi16(ones, _mm_unpackhi_epi8(a, b));
+        t.reg[2 * k] = add ? _mm_add_epi16(t.reg[2 * k], lo) : _mm_sub_epi16(t.reg[2 * k], lo);
+        t.reg[2 * k + 1] =
+          add ? _mm_add_epi16(t.reg[2 * k + 1], hi) : _mm_sub_epi16(t.reg[2 * k + 1], hi);
+    }
+    return t;
+}
+
+// Widen one row, a list's odd one out: unpack each byte into the high half of its lane
+// and shift it back down arithmetically, the widen the portable kernels lower to here.
+__attribute__((always_inline)) static inline Tile tile_single(Tile t, const int8_t *w, bool add) {
+    const __m128i zero = _mm_setzero_si128();
+    for (size_t k = 0; k < TILE_REGS / 2; k++) {
+        const __m128i a = _mm_load_si128((const __m128i *) (w + 16 * k));
+        const __m128i lo = _mm_srai_epi16(_mm_unpacklo_epi8(zero, a), 8);
+        const __m128i hi = _mm_srai_epi16(_mm_unpackhi_epi8(zero, a), 8);
+        t.reg[2 * k] = add ? _mm_add_epi16(t.reg[2 * k], lo) : _mm_sub_epi16(t.reg[2 * k], lo);
+        t.reg[2 * k + 1] =
+          add ? _mm_add_epi16(t.reg[2 * k + 1], hi) : _mm_sub_epi16(t.reg[2 * k + 1], hi);
+    }
+    return t;
+}
+
+// Apply LIST to the tile at lane offset D, two rows at a time.
+__attribute__((always_inline)) static inline Tile
+tile_apply(Tile t, const RowList *list, size_t d, bool add) {
+    size_t i = 0;
+    for (; i + 1 < list->count; i += 2)
+        t = tile_pair(t, list->row[i] + d, list->row[i + 1] + d, add);
+    if (i < list->count)
+        t = tile_single(t, list->row[i] + d, add);
+    return t;
+}
+
+// Apply removed and added in ONE tile sweep -- upstream's apply_combined shape: hold the tile
+// in registers, subtract every removed row and add every added row into it, then store the
+// refreshed tile to BOTH cache_dest (in place) and state_dest before moving on, so the value
+// reaches the ply's state slot as a register store rather than a trailing 2KB memcpy.
+// Bit-identical however grouped: uint16 wrap addition is associative and commutative.
+void nnue_acc_apply_delta_dual(int16_t *cache_dest,
+                               int16_t *state_dest,
+                               const uint32_t *removed,
+                               size_t removed_len,
+                               const uint32_t *added,
+                               size_t added_len,
+                               const int8_t *weights) {
+    RowList removed_rows = rows_empty();
+    RowList added_rows = rows_empty();
+    rows_append(&removed_rows, removed, removed_len, weights);
+    rows_append(&added_rows, added, added_len, weights);
+
+    for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
+        Tile acc = tile_load(cache_dest + d);
+        acc = tile_apply(acc, &removed_rows, d, false);
+        acc = tile_apply(acc, &added_rows, d, true);
+        tile_store(cache_dest + d, acc);
+        tile_store(state_dest + d, acc);
+    }
+}
+
+void nnue_acc_apply_hybrid_delta(int16_t *target,
+                                 const int16_t *source,
+                                 int16_t *new_entry,
+                                 const int16_t *old_entry,
+                                 const uint32_t *new_removed,
+                                 size_t new_removed_len,
+                                 const uint32_t *new_added,
+                                 size_t new_added_len,
+                                 const uint32_t *old_removed,
+                                 size_t old_removed_len,
+                                 const uint32_t *old_added,
+                                 size_t old_added_len,
+                                 const uint32_t *thr_removed,
+                                 size_t thr_removed_len,
+                                 const uint32_t *thr_added,
+                                 size_t thr_added_len,
+                                 const int8_t *psq_weights,
+                                 const int8_t *thr_weights) {
+    RowList new_removed_rows = rows_empty();
+    RowList new_added_rows = rows_empty();
+    rows_append(&new_removed_rows, new_removed, new_removed_len, psq_weights);
+    rows_append(&new_added_rows, new_added, new_added_len, psq_weights);
+
+    // The source entry's removed rows are added back and its added rows removed, so
+    // they share a list with the threat rows of the same sign.
+    RowList removed_rows = rows_empty();
+    RowList added_rows = rows_empty();
+    rows_append(&added_rows, old_removed, old_removed_len, psq_weights);
+    rows_append(&added_rows, thr_added, thr_added_len, thr_weights);
+    rows_append(&removed_rows, old_added, old_added_len, psq_weights);
+    rows_append(&removed_rows, thr_removed, thr_removed_len, thr_weights);
+
+    for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
+        Tile acc = tile_load(new_entry + d);
+        acc = tile_apply(acc, &new_removed_rows, d, false);
+        acc = tile_apply(acc, &new_added_rows, d, true);
+        // The destination king's cache entry now describes the live board: store it
+        // before the tile picks up terms that belong to this ply alone.
+        tile_store(new_entry + d, acc);
+
+        // The previous ply's combined accumulation carries the threat/pair rows this
+        // move mostly keeps, plus PSQ rows bucketed on the SOURCE king square.
+        // Subtracting that king's cache entry and re-applying its own diff removes
+        // exactly those, leaving the destination bucket's rows already added above.
+        acc = tile_add_i16(acc, source + d, true);
+        acc = tile_add_i16(acc, old_entry + d, false);
+        acc = tile_apply(acc, &removed_rows, d, false);
+        acc = tile_apply(acc, &added_rows, d, true);
+        tile_store(target + d, acc);
+    }
+}
+
+void nnue_acc_accumulate_rows_i8(int16_t *target,
+                                 const uint32_t *rows,
+                                 size_t row_count,
+                                 const int8_t *weights) {
+    RowList list = rows_empty();
+    rows_append(&list, rows, row_count, weights);
+
+    for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH)
+        tile_store(target + d, tile_apply(tile_load(target + d), &list, d, true));
+}
+
+// Port upstream's `apply_combined` (nnue_accumulator.cpp): ONE combined accumulator (PSQ +
+// Threats), loaded per tile once into registers, with both feature sets' removed/added
+// weight rows applied in-register, then stored once. Integer add/sub commute under
+// two's-complement wrap, so the final tile value equals
+// source + Σpsq_added − Σpsq_removed + Σthr_added − Σthr_removed regardless of order.
+void nnue_acc_apply_combined_delta(int16_t *target,
+                                   const int16_t *source,
+                                   const uint32_t *psq_removed,
+                                   size_t psq_removed_len,
+                                   const uint32_t *psq_added,
+                                   size_t psq_added_len,
+                                   const uint32_t *thr_removed,
+                                   size_t thr_removed_len,
+                                   const uint32_t *thr_added,
+                                   size_t thr_added_len,
+                                   const int8_t *psq_weights,
+                                   const int8_t *thr_weights) {
+    RowList removed_rows = rows_empty();
+    RowList added_rows = rows_empty();
+    rows_append(&removed_rows, psq_removed, psq_removed_len, psq_weights);
+    rows_append(&removed_rows, thr_removed, thr_removed_len, thr_weights);
+    rows_append(&added_rows, psq_added, psq_added_len, psq_weights);
+    rows_append(&added_rows, thr_added, thr_added_len, thr_weights);
+
+    for (size_t d = 0; d < NNUE_HALF_DIMENSIONS; d += ROW_TILE_WIDTH) {
+        Tile acc = tile_load(source + d);
+        acc = tile_apply(acc, &removed_rows, d, false);
+        acc = tile_apply(acc, &added_rows, d, true);
+        tile_store(target + d, acc);
+    }
+}
+#endif  // ROW_PAIRED_WIDENING
