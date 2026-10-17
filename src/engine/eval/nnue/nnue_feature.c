@@ -1,4 +1,4 @@
-// Implement the HalfKAv2_hm and full_threats feature indexers.
+// Implement the K32Q2, full_threats and pp_3wide feature indexers.
 //
 // C23 has no compile-time evaluation for tables of this shape, so every table here is
 // built once by nnue_feature_init (docs/08-idiomatic-c.md, "comptime becomes ... a table
@@ -23,26 +23,39 @@ static constexpr uint32_t PieceSquareIndex[2][16] = {
     { 0, 64, 192, 320, 448, 576, 640, 0, 0, 0, 128, 256, 384, 512, 640, 0 },
 };
 
+// Space the king buckets two NNUE_PS_NB blocks apart: each bucket spans both
+// opponent-queen states (upstream's B(v)).
+enum : uint32_t { KING_BUCKET_STRIDE = 2 * NNUE_PS_NB };
+
 static constexpr uint32_t KingBuckets[64] = {
-    28 * NNUE_PS_NB, 29 * NNUE_PS_NB, 30 * NNUE_PS_NB, 31 * NNUE_PS_NB, 31 * NNUE_PS_NB,
-    30 * NNUE_PS_NB, 29 * NNUE_PS_NB, 28 * NNUE_PS_NB, 24 * NNUE_PS_NB, 25 * NNUE_PS_NB,
-    26 * NNUE_PS_NB, 27 * NNUE_PS_NB, 27 * NNUE_PS_NB, 26 * NNUE_PS_NB, 25 * NNUE_PS_NB,
-    24 * NNUE_PS_NB, 20 * NNUE_PS_NB, 21 * NNUE_PS_NB, 22 * NNUE_PS_NB, 23 * NNUE_PS_NB,
-    23 * NNUE_PS_NB, 22 * NNUE_PS_NB, 21 * NNUE_PS_NB, 20 * NNUE_PS_NB, 16 * NNUE_PS_NB,
-    17 * NNUE_PS_NB, 18 * NNUE_PS_NB, 19 * NNUE_PS_NB, 19 * NNUE_PS_NB, 18 * NNUE_PS_NB,
-    17 * NNUE_PS_NB, 16 * NNUE_PS_NB, 12 * NNUE_PS_NB, 13 * NNUE_PS_NB, 14 * NNUE_PS_NB,
-    15 * NNUE_PS_NB, 15 * NNUE_PS_NB, 14 * NNUE_PS_NB, 13 * NNUE_PS_NB, 12 * NNUE_PS_NB,
-    8 * NNUE_PS_NB,  9 * NNUE_PS_NB,  10 * NNUE_PS_NB, 11 * NNUE_PS_NB, 11 * NNUE_PS_NB,
-    10 * NNUE_PS_NB, 9 * NNUE_PS_NB,  8 * NNUE_PS_NB,  4 * NNUE_PS_NB,  5 * NNUE_PS_NB,
-    6 * NNUE_PS_NB,  7 * NNUE_PS_NB,  7 * NNUE_PS_NB,  6 * NNUE_PS_NB,  5 * NNUE_PS_NB,
-    4 * NNUE_PS_NB,  0 * NNUE_PS_NB,  1 * NNUE_PS_NB,  2 * NNUE_PS_NB,  3 * NNUE_PS_NB,
-    3 * NNUE_PS_NB,  2 * NNUE_PS_NB,  1 * NNUE_PS_NB,  0 * NNUE_PS_NB,
+    28 * KING_BUCKET_STRIDE, 29 * KING_BUCKET_STRIDE, 30 * KING_BUCKET_STRIDE,
+    31 * KING_BUCKET_STRIDE, 31 * KING_BUCKET_STRIDE, 30 * KING_BUCKET_STRIDE,
+    29 * KING_BUCKET_STRIDE, 28 * KING_BUCKET_STRIDE, 24 * KING_BUCKET_STRIDE,
+    25 * KING_BUCKET_STRIDE, 26 * KING_BUCKET_STRIDE, 27 * KING_BUCKET_STRIDE,
+    27 * KING_BUCKET_STRIDE, 26 * KING_BUCKET_STRIDE, 25 * KING_BUCKET_STRIDE,
+    24 * KING_BUCKET_STRIDE, 20 * KING_BUCKET_STRIDE, 21 * KING_BUCKET_STRIDE,
+    22 * KING_BUCKET_STRIDE, 23 * KING_BUCKET_STRIDE, 23 * KING_BUCKET_STRIDE,
+    22 * KING_BUCKET_STRIDE, 21 * KING_BUCKET_STRIDE, 20 * KING_BUCKET_STRIDE,
+    16 * KING_BUCKET_STRIDE, 17 * KING_BUCKET_STRIDE, 18 * KING_BUCKET_STRIDE,
+    19 * KING_BUCKET_STRIDE, 19 * KING_BUCKET_STRIDE, 18 * KING_BUCKET_STRIDE,
+    17 * KING_BUCKET_STRIDE, 16 * KING_BUCKET_STRIDE, 12 * KING_BUCKET_STRIDE,
+    13 * KING_BUCKET_STRIDE, 14 * KING_BUCKET_STRIDE, 15 * KING_BUCKET_STRIDE,
+    15 * KING_BUCKET_STRIDE, 14 * KING_BUCKET_STRIDE, 13 * KING_BUCKET_STRIDE,
+    12 * KING_BUCKET_STRIDE, 8 * KING_BUCKET_STRIDE,  9 * KING_BUCKET_STRIDE,
+    10 * KING_BUCKET_STRIDE, 11 * KING_BUCKET_STRIDE, 11 * KING_BUCKET_STRIDE,
+    10 * KING_BUCKET_STRIDE, 9 * KING_BUCKET_STRIDE,  8 * KING_BUCKET_STRIDE,
+    4 * KING_BUCKET_STRIDE,  5 * KING_BUCKET_STRIDE,  6 * KING_BUCKET_STRIDE,
+    7 * KING_BUCKET_STRIDE,  7 * KING_BUCKET_STRIDE,  6 * KING_BUCKET_STRIDE,
+    5 * KING_BUCKET_STRIDE,  4 * KING_BUCKET_STRIDE,  0 * KING_BUCKET_STRIDE,
+    1 * KING_BUCKET_STRIDE,  2 * KING_BUCKET_STRIDE,  3 * KING_BUCKET_STRIDE,
+    3 * KING_BUCKET_STRIDE,  2 * KING_BUCKET_STRIDE,  1 * KING_BUCKET_STRIDE,
+    0 * KING_BUCKET_STRIDE,
 };
 
 // Mirror the file when the king stands on the queen side, so the bucketed feature space
-// only has to cover half the board. The half tables and the full tables disagree on which
+// only has to cover half the board. The psq tables and the full tables disagree on which
 // half is mirrored, which is upstream's convention, not a transcription slip.
-static constexpr uint32_t OrientTblHalf[64] = {
+static constexpr uint32_t OrientTblPsq[64] = {
     7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0,
     7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0,
 };
@@ -98,12 +111,13 @@ static_assert(sizeof(ThreatIndexBlock) % 64 == 0,
 
 static alignas(64) ThreatIndexBlock ThreatIndexBlocks[16];
 
-// Fold PieceSquareIndex, KingBuckets and the king-side orientation into one u16 per
-// (perspective, king square, piece), so a HalfKAv2_hm index is one load and one xor.
-// Every addend but the orientation is a multiple of 64 and the orientation is below 64,
-// so adding it equals xoring it, and xoring the square into the sum gives the same
-// index the three-table form summed. Golden: `HalfKAv2_hm::make_index`'s `offsets`.
-static alignas(64) uint16_t HalfIndexOffsets[2 * SQUARE_NB][PIECE_NB];
+// Fold PieceSquareIndex, KingBuckets, the queen-state offset and the king-side
+// orientation into one u16 per (queen state, perspective, king square, piece), so a
+// K32Q2 index is one load and one xor. Every addend but the orientation is a multiple of
+// 64 and the orientation is below 64, so adding it equals xoring it, and xoring the
+// square into the sum gives the same index the four-table form summed. Golden:
+// `K32Q2::make_index`'s `offsets`.
+static alignas(64) uint16_t PsqIndexOffsets[2 * 2 * SQUARE_NB][PIECE_NB];
 
 static void init_threat_offsets(void) {
     uint32_t cumulative_offset = 0;
@@ -205,18 +219,22 @@ static void init_threat_blocks(void) {
     }
 }
 
-static void init_half_index_offsets(void) {
-    for (unsigned perspective = 0; perspective < 2; perspective++) {
-        const uint32_t flip = 56u * perspective;
-        for (unsigned king_square = 0; king_square < SQUARE_NB; king_square++) {
-            const uint32_t orient = OrientTblHalf[king_square] ^ flip;
-            for (unsigned piece = 0; piece < PIECE_NB; piece++) {
-                const uint32_t sum =
-                  PieceSquareIndex[perspective][piece] + KingBuckets[king_square ^ flip] + orient;
-                if (sum > UINT16_MAX) {
-                    __builtin_trap();
+static void init_psq_index_offsets(void) {
+    for (unsigned queen = 0; queen < 2; queen++) {
+        const uint32_t queen_offset = queen != 0 ? NNUE_PS_NB : 0;
+        for (unsigned perspective = 0; perspective < 2; perspective++) {
+            const uint32_t flip = 56u * perspective;
+            for (unsigned king_square = 0; king_square < SQUARE_NB; king_square++) {
+                const uint32_t orient = OrientTblPsq[king_square] ^ flip;
+                const uint32_t bucket = KingBuckets[king_square ^ flip] + queen_offset + orient;
+                for (unsigned piece = 0; piece < PIECE_NB; piece++) {
+                    const uint32_t sum = PieceSquareIndex[perspective][piece] + bucket;
+                    if (sum > UINT16_MAX) {
+                        __builtin_trap();
+                    }
+                    PsqIndexOffsets[(queen * 2 + perspective) * SQUARE_NB + king_square][piece] =
+                      (uint16_t) sum;
                 }
-                HalfIndexOffsets[perspective * SQUARE_NB + king_square][piece] = (uint16_t) sum;
             }
         }
     }
@@ -233,15 +251,20 @@ void nnue_feature_init(void) {
     init_index_luts();
     init_index_lut2();
     init_threat_blocks();
-    init_half_index_offsets();
+    init_psq_index_offsets();
     init_pawn_pair_bb();
 }
 
-// --- HalfKAv2_hm ------------------------------------------------------------------
+// --- K32Q2 ------------------------------------------------------------------------
 
-uint32_t
-nnue_half_make_index(uint8_t perspective, uint8_t square, uint8_t piece, uint8_t king_square) {
-    return (uint32_t) square ^ HalfIndexOffsets[perspective * SQUARE_NB + king_square][piece];
+uint32_t nnue_k32q2_make_index(uint8_t perspective,
+                               uint8_t square,
+                               uint8_t piece,
+                               uint8_t king_square,
+                               bool opponent_has_queen) {
+    const unsigned queen = opponent_has_queen ? 1u : 0u;
+    return (uint32_t) square
+         ^ PsqIndexOffsets[(queen * 2 + perspective) * SQUARE_NB + king_square][piece];
 }
 
 // --- full_threats -----------------------------------------------------------------

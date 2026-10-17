@@ -487,7 +487,7 @@ static void trace_nnue(EvalArena *arena, const Position *pos, char *buf, int buf
     for (size_t b = 0; b < NNUE_LAYER_STACKS && n > 0 && n < buf_len; ++b) {
         char cell[16];
         format_cp_aligned_dot((Value) trace.positional[b], material, cell, sizeof cell);
-        n += snprintf(buf + n, (size_t) (buf_len - n), "|  %zu         |  %s   |%s\n", b, cell,
+        n += snprintf(buf + n, (size_t) (buf_len - n), "|  %-10zu|  %s   |%s\n", b, cell,
                       b == trace.correct_bucket ? " <-- this bucket is used" : "");
     }
 

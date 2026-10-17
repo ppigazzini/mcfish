@@ -31,14 +31,14 @@ enum : size_t {
     NNUE_ALIGN = NNUE_CACHE_LINE_SIZE,
 
     NNUE_FT_BIASES_BYTES = NNUE_HALF_DIMENSIONS * sizeof(int16_t),
-    NNUE_FT_PSQ_WEIGHTS_BYTES =
-      NNUE_HALF_DIMENSIONS * NNUE_PSQ_FEATURE_DIMENSIONS * sizeof(int16_t),
+    // Every weight row is int8 -- psq, threat and pair rows alike -- one byte per lane.
+    NNUE_FT_ROW_BYTES = NNUE_HALF_DIMENSIONS * sizeof(int8_t),
+    NNUE_FT_PSQ_WEIGHTS_BYTES = NNUE_PSQ_FEATURE_DIMENSIONS * NNUE_FT_ROW_BYTES,
     // The threat region spans BOTH feature sets that index it: the full_threats rows
     // followed by the pp_3wide rows, one contiguous array (upstream's
     // threatAndPpWeights). A pair index is >= the threat count, so it addresses the
     // tail of the same region with no second base pointer.
-    NNUE_FT_THREAT_WEIGHTS_BYTES =
-      NNUE_HALF_DIMENSIONS * (size_t) NNUE_THREAT_AND_PAIR_DIMENSIONS * sizeof(int8_t),
+    NNUE_FT_THREAT_WEIGHTS_BYTES = NNUE_THREAT_AND_PAIR_DIMENSIONS * NNUE_FT_ROW_BYTES,
 
     NNUE_FT_BIASES_OFFSET = 0,
     NNUE_FT_PSQ_WEIGHTS_OFFSET = NNUE_CEIL_TO_MULTIPLE(NNUE_FT_BIASES_BYTES, NNUE_ALIGN),
@@ -52,7 +52,7 @@ enum : size_t {
 typedef struct NnueFeatureTransformer NnueFeatureTransformer;
 
 const int16_t *nnue_ft_biases(const NnueFeatureTransformer *ft);
-const int16_t *nnue_ft_psq_weights(const NnueFeatureTransformer *ft);
+const int8_t *nnue_ft_psq_weights(const NnueFeatureTransformer *ft);
 const int8_t *nnue_ft_threat_weights(const NnueFeatureTransformer *ft);
 
 static inline size_t nnue_ft_blob_bytes(void) { return NNUE_FT_BLOB_BYTES; }

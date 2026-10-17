@@ -26,8 +26,8 @@ src/movepick.cpp	src/engine/search/movepick.h,src/engine/search/movepick.c
 src/movepick.h	src/engine/search/movepick.h
 src/nnue/features/full_threats.cpp	src/engine/eval/nnue/nnue_feature.c,src/engine/board/threats.h,src/engine/eval/nnue/nnue_feature.h,src/engine/eval/nnue/nnue_feature_bb.h
 src/nnue/features/full_threats.h	src/engine/eval/nnue/nnue_feature.h
-src/nnue/features/half_ka_v2_hm.cpp	src/engine/eval/nnue/nnue_accumulator.c,src/engine/eval/nnue/nnue_feature.h,src/engine/eval/nnue/nnue_feature_bb.h
-src/nnue/features/half_ka_v2_hm.h	src/engine/eval/nnue/nnue_feature.h
+src/nnue/features/k32q2.cpp	src/engine/eval/nnue/nnue_accumulator.c,src/engine/eval/nnue/nnue_feature.h,src/engine/eval/nnue/nnue_feature_bb.h
+src/nnue/features/k32q2.h	src/engine/eval/nnue/nnue_feature.h
 src/nnue/features/pp_3wide.cpp	src/engine/eval/nnue/nnue_feature.c,src/engine/eval/nnue/nnue_feature.h
 src/nnue/features/pp_3wide.h	src/engine/eval/nnue/nnue_feature.h
 src/nnue/layers/affine_transform.h	src/engine/eval/nnue/nnue_affine.c,src/engine/eval/nnue/nnue_affine.h

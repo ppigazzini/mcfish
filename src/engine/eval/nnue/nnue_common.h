@@ -7,8 +7,8 @@
 // multi-byte quantity out of the file byte by byte: the file's byte order is
 // fixed little-endian, the host's is not.
 //
-// Mirrors src/nnue/nnue_common.h:56-105 (types, Version, scaling constants,
-// CacheLineSize, the LEB128 magic, ceil_to_multiple).
+// Mirrors src/nnue/nnue_common.h:58-102 (types, Version, scaling constants,
+// CacheLineSize, ceil_to_multiple).
 
 #ifndef MCFISH_NNUE_COMMON_H
 #define MCFISH_NNUE_COMMON_H
@@ -18,30 +18,27 @@
 
 typedef int16_t BiasType;
 typedef int8_t ThreatWeightType;
-typedef int16_t WeightType;
+typedef int8_t WeightType;
 typedef uint32_t IndexType;
 
-// Type of input feature after conversion (nnue_common.h:99).
+// Type of input feature after conversion (nnue_common.h:96).
 typedef uint8_t TransformedFeatureType;
 
-// Version of the evaluation file (nnue_common.h:65, the post-merge format).
+// Version of the evaluation file (nnue_common.h:64, the post-merge format).
 #define NNUE_VERSION 0x6A448AFAu
 
 enum {
-    // Constants used in evaluation value calculation (nnue_common.h:68-71).
+    // Constants used in evaluation value calculation (nnue_common.h:67-70).
     NNUE_OUTPUT_SCALE = 16,
     NNUE_WEIGHT_SCALE_BITS = 6,
     NNUE_FT_MAX_VAL = 255,
     NNUE_HIDDEN_ONE_VAL = 128,
 
-    // Size of cache line, in bytes (nnue_common.h:74).
+    // Size of cache line, in bytes (nnue_common.h:73).
     NNUE_CACHE_LINE_SIZE = 64,
 };
 
-#define NNUE_LEB128_MAGIC "COMPRESSED_LEB128"
-#define NNUE_LEB128_MAGIC_SIZE (sizeof(NNUE_LEB128_MAGIC) - 1)
-
-// Round N up to a multiple of BASE (ceil_to_multiple, nnue_common.h:101). Both
+// Round N up to a multiple of BASE (ceil_to_multiple, nnue_common.h:100). Both
 // arguments must already be `size_t`; the layout constants below depend on it
 // staying an integer-constant expression.
 //
@@ -68,5 +65,10 @@ static inline uint32_t nnue_read_u32_le(const uint8_t *p) {
 // Read a little-endian int32_t from P. The uint32_t -> int32_t conversion is a
 // two's-complement reinterpretation in C23, which is what the file stores.
 static inline int32_t nnue_read_i32_le(const uint8_t *p) { return (int32_t) nnue_read_u32_le(p); }
+
+// Read a little-endian int16_t from P, by the same two's-complement reinterpretation.
+static inline int16_t nnue_read_i16_le(const uint8_t *p) {
+    return (int16_t) (uint16_t) ((uint16_t) p[0] | (uint16_t) (p[1] << 8));
+}
 
 #endif  // MCFISH_NNUE_COMMON_H

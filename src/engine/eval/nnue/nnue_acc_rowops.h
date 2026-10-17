@@ -12,30 +12,25 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// psq-only i16 accumulation: (target - Σremoved + Σadded), one tile sweep.
-void nnue_acc_apply_delta_i16(int16_t *target,
-                              const uint32_t *removed,
-                              size_t removed_len,
-                              const uint32_t *added,
-                              size_t added_len,
-                              const int16_t *weights);
+// Every weight row is int8 -- psq, threat and pair rows alike -- and is widened to the
+// int16 accumulator's lanes as it is applied.
 
-// Dual-store i16 refresh: compute (cache_dest - Σremoved + Σadded) once per tile and store the
-// refreshed row to BOTH cache_dest (in place, for next time) and state_dest, fusing the
+// Dual-store psq refresh: compute (cache_dest - Σremoved + Σadded) once per tile and store
+// the refreshed row to BOTH cache_dest (in place, for next time) and state_dest, fusing the
 // cache→state copy into the same pass so it is a register store, not a trailing memcpy.
-void nnue_acc_apply_delta_i16_dual(int16_t *cache_dest,
-                                   int16_t *state_dest,
-                                   const uint32_t *removed,
-                                   size_t removed_len,
-                                   const uint32_t *added,
-                                   size_t added_len,
-                                   const int16_t *weights);
+void nnue_acc_apply_delta_dual(int16_t *cache_dest,
+                               int16_t *state_dest,
+                               const uint32_t *removed,
+                               size_t removed_len,
+                               const uint32_t *added,
+                               size_t added_len,
+                               const int8_t *weights);
 
 // Hybrid king-move i16 step (upstream update_accumulator_hybrid, nnue_accumulator.cpp).
 // Per tile, in ONE register:
 //   1. refresh the destination-king cache entry in place:
 //      new_entry = new_entry - Σnew_removed + Σnew_added, stored;
-//   2. carry the previous ply's combined accumulation over, then swap the HalfKA half
+//   2. carry the previous ply's combined accumulation over, then swap the PSQ half
 //      from the source king's bucket to the destination's:
 //      acc = new_entry + source - old_entry + Σold_removed - Σold_added;
 //   3. apply this ply's threat/pair delta on top.
@@ -57,17 +52,17 @@ void nnue_acc_apply_hybrid_delta(int16_t *target,
                                  size_t thr_removed_len,
                                  const uint32_t *thr_added,
                                  size_t thr_added_len,
-                                 const int16_t *psq_weights,
+                                 const int8_t *psq_weights,
                                  const int8_t *thr_weights);
 
-// int8 (threat) rows accumulated onto target, widened to i16.
+// Threat/pair rows accumulated onto target.
 void nnue_acc_accumulate_rows_i8(int16_t *target,
                                  const uint32_t *rows,
                                  size_t row_count,
                                  const int8_t *weights);
 
 // The fused combined step: source + Σpsq_added − Σpsq_removed + Σthr_added − Σthr_removed
-// into target, one load/store per tile (psq i16 rows direct, threat i8 rows widened).
+// into target, one load/store per tile.
 void nnue_acc_apply_combined_delta(int16_t *target,
                                    const int16_t *source,
                                    const uint32_t *psq_removed,
@@ -78,7 +73,7 @@ void nnue_acc_apply_combined_delta(int16_t *target,
                                    size_t thr_removed_len,
                                    const uint32_t *thr_added,
                                    size_t thr_added_len,
-                                   const int16_t *psq_weights,
+                                   const int8_t *psq_weights,
                                    const int8_t *thr_weights);
 
 #endif  // MCFISH_NNUE_ACC_ROWOPS_H
