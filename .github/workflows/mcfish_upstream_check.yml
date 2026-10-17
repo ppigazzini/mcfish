@@ -173,8 +173,8 @@ jobs:
         run: CC="clang-$CLANG_VERSION" ./build.sh upstream-transcript
 
       # Reports, never gates: upstream moving is normal and the failure this catches
-      # is not NOTICING. It reads the pin in both directions, and a checkout sitting
-      # BEFORE the pin is the one direction that is a workspace defect.
+      # is not NOTICING. It reads the pin against official master, which ../Stockfish's
+      # `origin` is here; a pin that master does not contain is the one defect.
       - name: Pin status, both directions
         run: ./build.sh sync-status || true
 

@@ -3119,7 +3119,7 @@ do_upstream_nodes() {
   python3 tools/upstream_nodes.py "$@"
 }
 
-# Report the drift between the pinned SHA and the golden checkout.
+# Report the drift between the pinned SHA and official-stockfish/Stockfish master.
 #
 # ONE tracked project, and that is the point. The files under tools/upstream/
 # record which Stockfish commit this tree is a clone of; nothing read them before
@@ -3136,54 +3136,88 @@ do_upstream_nodes() {
 #
 # This does not gate. A tracked repository moving is normal and is not a defect
 # here; the failure it catches is not NOTICING that it moved.
-do_sync_status() {
-  local name dir pin head ahead behind
-  local rc=0
-  # shellcheck disable=SC2043  # ONE tracked repo today; the loop is what lets a second be added as a row
-  for pair in "Stockfish:../Stockfish:tools/upstream/UPSTREAM_BASE"; do
-    name=${pair%%:*}; dir=$(echo "$pair" | cut -d: -f2); pinfile=$(echo "$pair" | cut -d: -f3)
+# The repository the pin is a commit OF. The status is read against its `master`,
+# never against whatever ../Stockfish has checked out: that checkout is a workspace,
+# routinely sitting on the fork's `refish` branch -- a sibling port with hundreds of
+# its own commits -- and its HEAD says nothing about where upstream is. Read it there,
+# and a pin equal to official master once printed red "CHECKOUT IS BEHIND THE PIN".
+OFFICIAL_STOCKFISH_URL=https://github.com/official-stockfish/Stockfish.git
 
-    if [[ ! -d $dir/.git ]]; then
-      red "  $name: no checkout at $dir -- cannot verify ${pinfile##*/}"
-      rc=1
-      continue
-    fi
-    pin=$(tr -d '[:space:]' < "$pinfile")
-    head=$(git -C "$dir" rev-parse HEAD)
-
-    if ! git -C "$dir" cat-file -e "$pin^{commit}" 2>/dev/null; then
-      red "  $name: pinned $pin is not a commit in $dir"
-      rc=1
-      continue
-    fi
-
-    # BOTH directions, and they are not the same finding.
-    #
-    # `ahead` is the tracked project having moved past the pin: normal, and the
-    # resync worklist's input. `behind` is the CHECKOUT sitting before the pin,
-    # which is a defect in the workspace -- ../Stockfish is the golden, so a
-    # checkout behind the pin means every grep of it, and upstream_map.py's
-    # fallback read, answers from source this tree has already ported past.
-    # Count only the first direction and that state prints as "in sync at <pin>",
-    # which is worse than silence: it asserts the thing a reader would verify.
-    ahead=$(git -C "$dir" rev-list --count "$pin..HEAD")
-    behind=$(git -C "$dir" rev-list --count "HEAD..$pin")
-
-    if [[ $ahead -eq 0 && $behind -eq 0 ]]; then
-      green "  $name: in sync at ${pin:0:9}"
-    elif [[ $behind -ne 0 ]]; then
-      # Red, and rc=1: this one is actionable here rather than a port decision.
-      red "  $name: CHECKOUT IS BEHIND THE PIN by $behind commit(s)"
-      red "      pinned ${pin:0:9}, $dir HEAD ${head:0:9}$([[ $ahead -ne 0 ]] && echo ' (diverged)')"
-      red "      $dir is the golden -- fetch and check it out at the pin before"
-      red "      comparing anything against it."
-      rc=1
-    else
-      printf '  \033[33m%s: pin is %d commit(s) behind the checkout\033[0m  (pinned %s, HEAD %s)\n' \
-        "$name" "$ahead" "${pin:0:9}" "${head:0:9}"
-      git -C "$dir" log --oneline --reverse "$pin..HEAD" | sed 's/^/      /'
+# Print the name of DIR's remote that points at official-stockfish/Stockfish. Matched
+# by URL, never by name: locally `origin` is the fork and `upstream` the official
+# repository, while a fresh clone (CI's) calls the official one `origin`.
+official_stockfish_remote() {
+  local dir=$1 remote url
+  for remote in $(git -C "$dir" remote); do
+    url=$(git -C "$dir" remote get-url "$remote")
+    if [[ $url =~ github\.com[:/]official-stockfish/Stockfish(\.git)?/?$ ]]; then
+      echo "$remote"
+      return 0
     fi
   done
+  return 1
+}
+
+do_sync_status() {
+  local dir=../Stockfish pin official remote source head ahead
+  local rc=0
+  pin=$(tr -d '[:space:]' < tools/upstream/UPSTREAM_BASE)
+
+  if [[ ! -d $dir/.git ]]; then
+    red "  Stockfish: no clone at $dir -- cannot verify UPSTREAM_BASE"
+    red "      git clone $OFFICIAL_STOCKFISH_URL $dir"
+    return 1
+  fi
+
+  # Fetch official master now: a status read off a stale remote-tracking ref repeats
+  # whatever the last fetch saw. Offline, fall back to the last fetch and SAY so.
+  official=""
+  if remote=$(official_stockfish_remote "$dir"); then
+    source="$remote/master"
+    if ! git -C "$dir" fetch --quiet "$remote" master 2>/dev/null; then
+      printf '  \033[33mStockfish: could not fetch %s -- comparing against the last fetch\033[0m\n' \
+        "$OFFICIAL_STOCKFISH_URL"
+    fi
+    official=$(git -C "$dir" rev-parse --verify --quiet "refs/remotes/$remote/master") || official=""
+  else
+    source=$OFFICIAL_STOCKFISH_URL
+    if git -C "$dir" fetch --quiet "$OFFICIAL_STOCKFISH_URL" master 2>/dev/null; then
+      official=$(git -C "$dir" rev-parse FETCH_HEAD)
+    fi
+  fi
+  if [[ -z $official ]]; then
+    red "  Stockfish: cannot read official master ($OFFICIAL_STOCKFISH_URL) -- the pin is unverified"
+    return 1
+  fi
+
+  if ! git -C "$dir" cat-file -e "$pin^{commit}" 2>/dev/null; then
+    red "  Stockfish: pinned $pin is not a commit in $dir"
+    return 1
+  fi
+  # A pin that official master does not contain is not an upstream commit at all --
+  # a fork's, or one upstream rewrote away -- and nothing in this tree is a clone of it.
+  if ! git -C "$dir" merge-base --is-ancestor "$pin" "$official"; then
+    red "  Stockfish: pinned ${pin:0:9} is NOT on official master (${official:0:9}, $source)"
+    rc=1
+  else
+    ahead=$(git -C "$dir" rev-list --count "$pin..$official")
+    if [[ $ahead -eq 0 ]]; then
+      green "  Stockfish: in sync with official master at ${pin:0:9} ($source)"
+    else
+      printf '  \033[33mStockfish: official master is %d commit(s) past the pin\033[0m  (pinned %s, master %s, %s)\n' \
+        "$ahead" "${pin:0:9}" "${official:0:9}" "$source"
+      git -C "$dir" log --oneline --reverse "$pin..$official" | sed 's/^/      /'
+    fi
+  fi
+
+  # Say where the checkout is when it is not the pin, as a note: it decides nothing
+  # here, but a grep of $dir/src then answers from that branch, not from upstream at
+  # the pin -- read upstream by SHA instead (git -C $dir show <pin>:src/<file>).
+  head=$(git -C "$dir" rev-parse HEAD)
+  if [[ $head != "$pin" ]]; then
+    printf '  note: %s has %s checked out at %s -- read upstream by SHA, not from its src/\n' \
+      "$dir" "$(git -C "$dir" symbolic-ref --short -q HEAD || echo 'a detached HEAD')" "${head:0:9}"
+  fi
 
   # UPSTREAM_TARGET is the SHA the port is aiming AT while catching up to a moving
   # upstream; UPSTREAM_BASE is what the tree claims to match today. Equal means the
@@ -3679,13 +3713,15 @@ do_tb_cursed() {
   # phase shifts the node-limited stop by hundreds of nodes when the reset is
   # wrong, while every fixed-depth gate stays green.
   #
-  # These two values are a SELF-golden and cannot be otherwise: the oracle
-  # early-returns at depth 1 once the root is in a tablebase and reports `nodes 0`
-  # for both legs, which is the same asymmetry tb.golden documents. So they move
-  # with anything that moves a node count -- a net sync moves them -- and nothing
-  # re-derives them automatically. Re-derive from mcfish when the anchor moves for
-  # an intended reason, and only after the WDL/DTZ half above is still green: that
-  # half is oracle-pinned and is what says the prober is right.
+  # These two values are a SELF-golden: piped the way this gate drives mcfish, the
+  # oracle stops on the `quit` at once and reports depth 1, `nodes 0`, an empty pv,
+  # for both legs. Driven with a delayed quit -- the commands, a
+  # `sleep 8`, then `quit` -- it searches to the limit and the totals can be
+  # adjudicated by hand. So they move with anything that moves a node count -- a net
+  # sync moves them -- and nothing re-derives them automatically. Re-derive from
+  # mcfish when the anchor moves for an intended reason, only after the WDL/DTZ half
+  # above is still green (that half is oracle-pinned and is what says the prober is
+  # right), and adjudicate the new totals against the oracle that way first.
   local nactual
   nactual=$(tb_cursed_nodes_half)
 

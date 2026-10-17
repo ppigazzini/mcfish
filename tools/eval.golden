@@ -1,5 +1,5 @@
 <engine banner>
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -7,311 +7,45 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  -  0.07   |
-|  1         |  -  0.07   |
-|  2         |  -  0.05   |
-|  3         |  +  0.08   |
-|  4         |  +  0.15   |
-|  5         |  +  0.09   |
-|  6         |  -  0.02   |
-|  7         |  +  0.07   | <-- this bucket is used
+|  0         |  -  1.74   |
+|  1         |  -  5.95   |
+|  2         |  + 11.97   |
+|  3         |  -  0.06   |
+|  4         |  +  0.13   |
+|  5         |  -  2.09   |
+|  6         |  +  1.50   |
+|  7         |  +  0.07   |
+|  8         |  +  0.01   |
+|  9         |  -  0.96   |
+|  10        |  +  1.08   |
+|  11        |  +  0.11   |
+|  12        |  -  0.04   |
+|  13        |  -  0.90   |
+|  14        |  +  1.67   |
+|  15        |  +  0.08   |
+|  16        |  +  0.02   |
+|  17        |  -  1.15   |
+|  18        |  +  1.02   |
+|  19        |  +  0.09   |
+|  20        |  +  0.05   |
+|  21        |  -  0.12   |
+|  22        |  +  0.89   |
+|  23        |  +  0.12   |
+|  24        |  -  0.16   |
+|  25        |  -  0.73   |
+|  26        |  +  1.36   |
+|  27        |  +  0.03   |
+|  28        |  +  0.20   |
+|  29        |  -  1.59   |
+|  30        |  +  1.59   |
+|  31        |  +  0.09   | <-- this bucket is used
 +------------+------------+
 
-NNUE evaluation          +21 (side to move, internal units)
-NNUE evaluation        +0.07 (white side)
-Final evaluation      +0.09 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  5.87   | <-- this bucket is used
-|  1         |  +  4.96   |
-|  2         |  +  8.67   |
-|  3         |  +  4.16   |
-|  4         |  +  4.56   |
-|  5         |  +  6.09   |
-|  6         |  +  6.09   |
-|  7         |  +  4.20   |
-+------------+------------+
-
-NNUE evaluation          +2019 (side to move, internal units)
-NNUE evaluation        +5.87 (white side)
-Final evaluation      +6.12 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  0.37   |
-|  1         |  -  1.21   |
-|  2         |  -  1.88   |
-|  3         |  -  1.12   |
-|  4         |  -  1.21   |
-|  5         |  -  1.26   |
-|  6         |  -  1.18   |
-|  7         |  -  1.10   | <-- this bucket is used
-+------------+------------+
-
-NNUE evaluation          -312 (side to move, internal units)
-NNUE evaluation        -1.10 (white side)
-Final evaluation      -1.40 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-Final evaluation: none (in check)
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  0.07   |
-|  1         |  -  0.07   |
-|  2         |  -  0.05   |
-|  3         |  +  0.08   |
-|  4         |  +  0.15   |
-|  5         |  +  0.09   |
-|  6         |  -  0.02   |
-|  7         |  +  0.07   | <-- this bucket is used
-+------------+------------+
-
-NNUE evaluation          +21 (side to move, internal units)
-NNUE evaluation        +0.07 (white side)
-Final evaluation      +0.09 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  0.37   |
-|  1         |  -  1.21   |
-|  2         |  -  1.88   |
-|  3         |  -  1.12   |
-|  4         |  -  1.21   |
-|  5         |  -  1.26   |
-|  6         |  -  1.18   |
-|  7         |  -  1.10   | <-- this bucket is used
-+------------+------------+
-
-NNUE evaluation          -312 (side to move, internal units)
-NNUE evaluation        -1.10 (white side)
-Final evaluation      -1.40 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.19   |
-|  1         |  +  0.32   |
-|  2         |  +  0.31   | <-- this bucket is used
-|  3         |  +  0.23   |
-|  4         |  +  0.22   |
-|  5         |  +  0.17   |
-|  6         |  +  0.06   |
-|  7         |  +  0.34   |
-+------------+------------+
-
-NNUE evaluation          +105 (side to move, internal units)
-NNUE evaluation        +0.31 (white side)
-Final evaluation      +0.32 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.33   |
-|  1         |  -  0.49   |
-|  2         |  -  0.83   |
-|  3         |  -  0.51   |
-|  4         |  -  0.43   |
-|  5         |  -  0.61   | <-- this bucket is used
-|  6         |  -  0.61   |
-|  7         |  -  0.58   |
-+------------+------------+
-
-NNUE evaluation          -183 (side to move, internal units)
-NNUE evaluation        +0.61 (white side)
-Final evaluation      +0.71 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.13   |
-|  1         |  -  1.36   |
-|  2         |  -  2.00   |
-|  3         |  -  1.66   |
-|  4         |  -  1.57   |
-|  5         |  -  1.51   |
-|  6         |  -  1.52   | <-- this bucket is used
-|  7         |  -  1.47   |
-+------------+------------+
-
-NNUE evaluation          -458 (side to move, internal units)
-NNUE evaluation        +1.52 (white side)
-Final evaluation      +1.84 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.31   |
-|  1         |  +  3.47   |
-|  2         |  +  3.47   |
-|  3         |  +  4.30   |
-|  4         |  +  4.43   |
-|  5         |  +  4.10   |
-|  6         |  +  4.70   | <-- this bucket is used
-|  7         |  +  4.02   |
-+------------+------------+
-
-NNUE evaluation          +1434 (side to move, internal units)
-NNUE evaluation        +4.70 (white side)
-Final evaluation      +5.62 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.86   |
-|  1         |  -  0.09   |
-|  2         |  -  0.01   |
-|  3         |  +  0.11   |
-|  4         |  +  0.19   |
-|  5         |  +  0.15   |
-|  6         |  +  0.21   | <-- this bucket is used
-|  7         |  +  0.22   |
-+------------+------------+
-
-NNUE evaluation          +61 (side to move, internal units)
-NNUE evaluation        +0.21 (white side)
-Final evaluation      +0.25 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.36   |
-|  1         |  +  0.71   |
-|  2         |  +  0.70   |
-|  3         |  +  0.52   |
-|  4         |  +  0.71   |
-|  5         |  +  0.66   | <-- this bucket is used
-|  6         |  +  0.60   |
-|  7         |  +  0.64   |
-+------------+------------+
-
-NNUE evaluation          +199 (side to move, internal units)
-NNUE evaluation        +0.66 (white side)
-Final evaluation      +0.80 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  0.08   |
-|  1         |  -  0.74   |
-|  2         |  -  1.51   |
-|  3         |  -  1.42   |
-|  4         |  -  1.59   |
-|  5         |  -  1.90   |
-|  6         |  -  1.91   |
-|  7         |  -  1.73   | <-- this bucket is used
-+------------+------------+
-
-NNUE evaluation          -496 (side to move, internal units)
-NNUE evaluation        +1.73 (white side)
-Final evaluation      +2.18 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.43   |
-|  1         |  +  0.40   |
-|  2         |  +  0.10   |
-|  3         |  +  0.14   |
-|  4         |  +  0.17   |
-|  5         |  +  0.13   |
-|  6         |  +  0.09   | <-- this bucket is used
-|  7         |  +  0.11   |
-+------------+------------+
-
-NNUE evaluation          +28 (side to move, internal units)
+NNUE evaluation          +26 (side to move, internal units)
 NNUE evaluation        +0.09 (white side)
 Final evaluation      +0.12 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.16   |
-|  1         |  +  0.72   |
-|  2         |  +  0.84   |
-|  3         |  +  0.87   |
-|  4         |  +  1.01   |
-|  5         |  +  0.98   |
-|  6         |  +  0.90   | <-- this bucket is used
-|  7         |  +  0.87   |
-+------------+------------+
-
-NNUE evaluation          +270 (side to move, internal units)
-NNUE evaluation        -0.90 (white side)
-Final evaluation      -1.07 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -319,65 +53,555 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  4.37   |
+|  0         |  +  4.68   |
+|  1         |  -  7.37   |
+|  2         |  +  6.02   | <-- this bucket is used
+|  3         |  +  0.06   |
+|  4         |  +  6.82   |
+|  5         |  +  6.02   |
+|  6         |  +  7.33   |
+|  7         |  +  5.84   |
+|  8         |  +  4.48   |
+|  9         |  +  5.40   |
+|  10        |  +  8.22   |
+|  11        |  +  7.14   |
+|  12        |  +  6.69   |
+|  13        |  +  6.30   |
+|  14        |  +  7.34   |
+|  15        |  +  7.60   |
+|  16        |  +  5.91   |
+|  17        |  +  7.03   |
+|  18        |  +  7.74   |
+|  19        |  +  5.26   |
+|  20        |  +  6.75   |
+|  21        |  +  5.84   |
+|  22        |  + 10.00   |
+|  23        |  +  6.79   |
+|  24        |  +  7.53   |
+|  25        |  +  6.29   |
+|  26        |  +  5.30   |
+|  27        |  +  5.54   |
+|  28        |  +  8.06   |
+|  29        |  +  5.22   |
+|  30        |  + 17.46   |
+|  31        |  +  8.74   |
++------------+------------+
+
+NNUE evaluation          +2069 (side to move, internal units)
+NNUE evaluation        +6.02 (white side)
+Final evaluation      +6.27 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  0.00   |
+|  1         |  - 15.55   |
+|  2         |  + 19.51   |
+|  3         |  +  1.47   |
+|  4         |  -  0.82   |
+|  5         |  -  2.70   |
+|  6         |  +  0.63   |
+|  7         |  -  2.15   |
+|  8         |  -  1.81   |
+|  9         |  -  2.01   |
+|  10        |  -  1.46   |
+|  11        |  -  1.57   |
+|  12        |  -  1.24   |
+|  13        |  -  1.82   |
+|  14        |  -  0.47   |
+|  15        |  -  1.93   |
+|  16        |  -  1.39   |
+|  17        |  -  1.18   |
+|  18        |  -  0.93   |
+|  19        |  -  1.86   |
+|  20        |  -  1.85   |
+|  21        |  -  0.94   |
+|  22        |  -  1.09   |
+|  23        |  -  1.80   |
+|  24        |  -  1.81   |
+|  25        |  -  1.61   |
+|  26        |  -  1.13   |
+|  27        |  -  1.69   |
+|  28        |  -  1.35   |
+|  29        |  -  1.09   |
+|  30        |  -  1.49   |
+|  31        |  -  1.76   | <-- this bucket is used
++------------+------------+
+
+NNUE evaluation          -498 (side to move, internal units)
+NNUE evaluation        -1.76 (white side)
+Final evaluation      -2.24 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+Final evaluation: none (in check)
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  1.74   |
+|  1         |  -  5.95   |
+|  2         |  + 11.97   |
+|  3         |  -  0.06   |
+|  4         |  +  0.13   |
+|  5         |  -  2.09   |
+|  6         |  +  1.50   |
+|  7         |  +  0.07   |
+|  8         |  +  0.01   |
+|  9         |  -  0.96   |
+|  10        |  +  1.08   |
+|  11        |  +  0.11   |
+|  12        |  -  0.04   |
+|  13        |  -  0.90   |
+|  14        |  +  1.67   |
+|  15        |  +  0.08   |
+|  16        |  +  0.02   |
+|  17        |  -  1.15   |
+|  18        |  +  1.02   |
+|  19        |  +  0.09   |
+|  20        |  +  0.05   |
+|  21        |  -  0.12   |
+|  22        |  +  0.89   |
+|  23        |  +  0.12   |
+|  24        |  -  0.16   |
+|  25        |  -  0.73   |
+|  26        |  +  1.36   |
+|  27        |  +  0.03   |
+|  28        |  +  0.20   |
+|  29        |  -  1.59   |
+|  30        |  +  1.59   |
+|  31        |  +  0.09   | <-- this bucket is used
++------------+------------+
+
+NNUE evaluation          +26 (side to move, internal units)
+NNUE evaluation        +0.09 (white side)
+Final evaluation      +0.12 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  0.00   |
+|  1         |  - 15.55   |
+|  2         |  + 19.51   |
+|  3         |  +  1.47   |
+|  4         |  -  0.82   |
+|  5         |  -  2.70   |
+|  6         |  +  0.63   |
+|  7         |  -  2.15   |
+|  8         |  -  1.81   |
+|  9         |  -  2.01   |
+|  10        |  -  1.46   |
+|  11        |  -  1.57   |
+|  12        |  -  1.24   |
+|  13        |  -  1.82   |
+|  14        |  -  0.47   |
+|  15        |  -  1.93   |
+|  16        |  -  1.39   |
+|  17        |  -  1.18   |
+|  18        |  -  0.93   |
+|  19        |  -  1.86   |
+|  20        |  -  1.85   |
+|  21        |  -  0.94   |
+|  22        |  -  1.09   |
+|  23        |  -  1.80   |
+|  24        |  -  1.81   |
+|  25        |  -  1.61   |
+|  26        |  -  1.13   |
+|  27        |  -  1.69   |
+|  28        |  -  1.35   |
+|  29        |  -  1.09   |
+|  30        |  -  1.49   |
+|  31        |  -  1.76   | <-- this bucket is used
++------------+------------+
+
+NNUE evaluation          -498 (side to move, internal units)
+NNUE evaluation        -1.76 (white side)
+Final evaluation      -2.24 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  0.87   |
+|  1         |  -  1.87   |
+|  2         |  +  6.55   |
+|  3         |  +  1.11   |
+|  4         |  +  0.20   |
+|  5         |  -  0.26   |
+|  6         |  +  1.63   |
+|  7         |  -  0.02   |
+|  8         |  +  0.10   | <-- this bucket is used
+|  9         |  -  0.63   |
+|  10        |  +  1.80   |
+|  11        |  +  0.08   |
+|  12        |  +  0.06   |
+|  13        |  -  1.02   |
+|  14        |  +  1.62   |
+|  15        |  +  0.08   |
+|  16        |  +  0.07   |
+|  17        |  -  1.12   |
+|  18        |  +  1.18   |
+|  19        |  +  0.00   |
+|  20        |  +  0.03   |
+|  21        |  -  0.88   |
+|  22        |  +  0.88   |
+|  23        |  -  0.07   |
+|  24        |  -  0.05   |
+|  25        |  -  1.19   |
+|  26        |  +  0.84   |
+|  27        |  -  0.13   |
+|  28        |  +  0.05   |
+|  29        |  +  0.86   |
+|  30        |  -  2.73   |
+|  31        |  -  0.23   |
++------------+------------+
+
+NNUE evaluation          +35 (side to move, internal units)
+NNUE evaluation        +0.10 (white side)
+Final evaluation      +0.11 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  1.42   |
+|  1         |  - 10.37   |
+|  2         |  + 13.46   |
+|  3         |  +  1.10   |
+|  4         |  -  0.51   |
+|  5         |  -  3.63   |
+|  6         |  +  0.80   |
+|  7         |  -  0.84   |
+|  8         |  -  0.51   |
+|  9         |  -  1.66   |
+|  10        |  +  0.38   |
+|  11        |  -  0.45   |
+|  12        |  -  0.46   |
+|  13        |  -  1.60   |
+|  14        |  +  0.20   |
+|  15        |  -  0.22   |
+|  16        |  -  0.35   |
+|  17        |  -  1.61   |
+|  18        |  -  0.19   |
+|  19        |  -  0.27   |
+|  20        |  -  0.37   |
+|  21        |  -  0.98   |
+|  22        |  -  0.14   |
+|  23        |  -  0.39   | <-- this bucket is used
+|  24        |  -  0.47   |
+|  25        |  -  1.33   |
+|  26        |  +  0.02   |
+|  27        |  -  0.44   |
+|  28        |  -  0.53   |
+|  29        |  -  2.29   |
+|  30        |  -  0.67   |
+|  31        |  -  0.51   |
++------------+------------+
+
+NNUE evaluation          -117 (side to move, internal units)
+NNUE evaluation        +0.39 (white side)
+Final evaluation      +0.45 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  0.80   |
+|  1         |  - 11.02   |
+|  2         |  + 15.25   |
+|  3         |  -  1.04   |
+|  4         |  -  2.04   |
+|  5         |  -  2.80   |
+|  6         |  +  0.67   |
+|  7         |  -  1.31   |
+|  8         |  -  2.51   |
+|  9         |  -  2.10   |
+|  10        |  +  0.77   |
+|  11        |  -  1.15   |
+|  12        |  -  2.19   |
+|  13        |  -  2.02   |
+|  14        |  +  0.64   |
+|  15        |  -  1.32   |
+|  16        |  -  2.39   |
+|  17        |  -  1.08   |
+|  18        |  +  0.49   |
+|  19        |  -  1.34   |
+|  20        |  -  2.42   |
+|  21        |  -  1.03   |
+|  22        |  +  0.92   |
+|  23        |  -  1.38   |
+|  24        |  -  2.00   |
+|  25        |  -  1.81   |
+|  26        |  +  0.47   |
+|  27        |  -  1.26   | <-- this bucket is used
+|  28        |  -  1.36   |
+|  29        |  -  1.88   |
+|  30        |  +  0.68   |
+|  31        |  -  1.08   |
++------------+------------+
+
+NNUE evaluation          -380 (side to move, internal units)
+NNUE evaluation        +1.26 (white side)
+Final evaluation      +1.53 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  2.87   |
 |  1         |  +  0.15   |
-|  2         |  +  0.13   |
-|  3         |  +  0.20   |
-|  4         |  +  0.25   |
-|  5         |  +  0.18   |
-|  6         |  +  0.06   | <-- this bucket is used
+|  2         |  + 13.05   |
+|  3         |  +  4.03   |
+|  4         |  +  2.89   |
+|  5         |  +  2.51   |
+|  6         |  +  3.99   |
+|  7         |  +  3.65   |
+|  8         |  +  4.21   |
+|  9         |  +  5.45   |
+|  10        |  +  6.54   |
+|  11        |  +  5.08   |
+|  12        |  +  4.66   |
+|  13        |  +  4.73   |
+|  14        |  +  5.24   |
+|  15        |  +  5.37   |
+|  16        |  +  5.38   |
+|  17        |  +  5.32   |
+|  18        |  +  4.97   |
+|  19        |  +  5.27   |
+|  20        |  +  4.61   |
+|  21        |  +  4.37   |
+|  22        |  +  5.00   |
+|  23        |  +  5.47   |
+|  24        |  +  4.71   | <-- this bucket is used
+|  25        |  +  4.32   |
+|  26        |  +  4.84   |
+|  27        |  +  5.36   |
+|  28        |  +  4.57   |
+|  29        |  +  5.80   |
+|  30        |  +  3.35   |
+|  31        |  +  5.44   |
++------------+------------+
+
+NNUE evaluation          +1437 (side to move, internal units)
+NNUE evaluation        +4.71 (white side)
+Final evaluation      +5.63 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  3.19   |
+|  1         |  - 10.02   |
+|  2         |  + 10.18   |
+|  3         |  +  1.31   |
+|  4         |  +  0.01   |
+|  5         |  -  2.17   |
+|  6         |  +  2.24   |
 |  7         |  +  0.09   |
+|  8         |  -  0.08   |
+|  9         |  -  1.14   |
+|  10        |  +  2.00   |
+|  11        |  +  0.13   |
+|  12        |  -  0.14   |
+|  13        |  -  0.22   |
+|  14        |  +  1.53   |
+|  15        |  +  0.05   |
+|  16        |  -  0.11   |
+|  17        |  -  0.43   |
+|  18        |  +  1.65   |
+|  19        |  +  0.06   |
+|  20        |  -  0.07   |
+|  21        |  +  0.10   |
+|  22        |  +  1.55   |
+|  23        |  +  0.13   |
+|  24        |  -  0.14   |
+|  25        |  -  0.17   |
+|  26        |  +  1.87   |
+|  27        |  +  0.16   | <-- this bucket is used
+|  28        |  -  0.20   |
+|  29        |  +  0.23   |
+|  30        |  +  1.54   |
+|  31        |  +  0.27   |
 +------------+------------+
 
-NNUE evaluation          +19 (side to move, internal units)
-NNUE evaluation        +0.06 (white side)
-Final evaluation      +0.08 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +46 (side to move, internal units)
+NNUE evaluation        +0.16 (white side)
+Final evaluation      +0.19 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
-NNUE network contributions (Normalized, Black to move)
+NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  0.10   |
-|  1         |  +  0.55   |
-|  2         |  +  0.39   |
-|  3         |  +  0.49   |
-|  4         |  +  0.51   |
-|  5         |  +  0.59   | <-- this bucket is used
-|  6         |  +  0.85   |
-|  7         |  +  1.09   |
-+------------+------------+
-
-NNUE evaluation          +182 (side to move, internal units)
-NNUE evaluation        -0.59 (white side)
-Final evaluation      -0.66 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, Black to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  0.01   |
-|  1         |  +  0.96   |
-|  2         |  +  1.16   |
-|  3         |  +  1.13   |
+|  0         |  +  0.22   |
+|  1         |  - 10.51   |
+|  2         |  + 15.30   |
+|  3         |  +  2.27   |
 |  4         |  +  1.22   |
-|  5         |  +  1.10   | <-- this bucket is used
-|  6         |  +  1.12   |
-|  7         |  +  1.11   |
+|  5         |  -  0.33   |
+|  6         |  +  2.17   |
+|  7         |  +  0.55   |
+|  8         |  +  0.98   |
+|  9         |  +  0.89   |
+|  10        |  +  1.12   |
+|  11        |  +  0.75   |
+|  12        |  +  0.60   |
+|  13        |  +  0.80   |
+|  14        |  +  1.64   |
+|  15        |  +  0.39   |
+|  16        |  +  0.73   |
+|  17        |  +  0.78   |
+|  18        |  +  1.40   |
+|  19        |  +  0.55   |
+|  20        |  +  0.64   |
+|  21        |  +  0.80   |
+|  22        |  +  1.61   |
+|  23        |  +  0.68   | <-- this bucket is used
+|  24        |  +  0.62   |
+|  25        |  +  1.09   |
+|  26        |  +  1.90   |
+|  27        |  +  0.88   |
+|  28        |  +  1.05   |
+|  29        |  +  0.63   |
+|  30        |  +  2.23   |
+|  31        |  +  0.87   |
 +------------+------------+
 
-NNUE evaluation          +336 (side to move, internal units)
-NNUE evaluation        -1.10 (white side)
-Final evaluation      -1.28 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +205 (side to move, internal units)
+NNUE evaluation        +0.68 (white side)
+Final evaluation      +0.82 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  5.38   |
+|  1         |  - 14.38   |
+|  2         |  + 14.85   |
+|  3         |  -  2.11   |
+|  4         |  -  1.38   |
+|  5         |  -  3.08   |
+|  6         |  +  0.16   |
+|  7         |  -  0.83   |
+|  8         |  -  1.15   |
+|  9         |  -  2.88   |
+|  10        |  -  0.95   |
+|  11        |  -  1.78   |
+|  12        |  -  0.97   |
+|  13        |  -  2.36   |
+|  14        |  -  1.00   |
+|  15        |  -  1.71   |
+|  16        |  -  1.23   |
+|  17        |  -  2.54   |
+|  18        |  -  1.42   |
+|  19        |  -  1.45   |
+|  20        |  -  1.09   |
+|  21        |  -  2.64   |
+|  22        |  -  1.31   |
+|  23        |  -  1.52   |
+|  24        |  -  1.09   |
+|  25        |  -  1.85   |
+|  26        |  -  1.06   |
+|  27        |  -  1.48   |
+|  28        |  -  1.45   |
+|  29        |  -  0.83   |
+|  30        |  -  2.09   |
+|  31        |  -  1.43   | <-- this bucket is used
++------------+------------+
+
+NNUE evaluation          -411 (side to move, internal units)
+NNUE evaluation        +1.43 (white side)
+Final evaluation      +1.81 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  1.14   |
+|  1         |  -  7.90   |
+|  2         |  +  9.34   |
+|  3         |  +  2.10   |
+|  4         |  +  0.22   |
+|  5         |  -  1.79   |
+|  6         |  +  2.46   |
+|  7         |  +  0.46   |
+|  8         |  +  0.20   |
+|  9         |  -  0.67   |
+|  10        |  +  2.78   |
+|  11        |  +  0.31   |
+|  12        |  +  0.01   |
+|  13        |  -  0.39   |
+|  14        |  +  1.93   |
+|  15        |  +  0.17   |
+|  16        |  +  0.08   |
+|  17        |  -  1.26   |
+|  18        |  +  1.38   |
+|  19        |  +  0.14   |
+|  20        |  +  0.08   |
+|  21        |  -  0.74   |
+|  22        |  +  1.49   |
+|  23        |  +  0.18   |
+|  24        |  +  0.17   |
+|  25        |  -  0.54   |
+|  26        |  +  1.74   |
+|  27        |  +  0.19   | <-- this bucket is used
+|  28        |  +  0.15   |
+|  29        |  -  1.09   |
+|  30        |  +  1.13   |
+|  31        |  +  0.26   |
++------------+------------+
+
+NNUE evaluation          +56 (side to move, internal units)
+NNUE evaluation        +0.19 (white side)
+Final evaluation      +0.23 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -386,20 +610,44 @@ NNUE network contributions (Normalized, Black to move)
 |   Bucket   | Evaluation |
 +------------+------------+
 |  0         |  -  0.22   |
-|  1         |  +  0.09   |
-|  2         |  +  0.37   |
-|  3         |  +  0.32   | <-- this bucket is used
-|  4         |  +  0.50   |
-|  5         |  +  0.24   |
-|  6         |  +  0.09   |
-|  7         |  -  0.38   |
+|  1         |  - 12.40   |
+|  2         |  + 12.08   |
+|  3         |  +  3.33   |
+|  4         |  +  0.75   |
+|  5         |  -  1.80   |
+|  6         |  +  1.89   |
+|  7         |  +  0.63   |
+|  8         |  +  1.23   |
+|  9         |  -  0.89   |
+|  10        |  +  2.32   |
+|  11        |  +  0.79   |
+|  12        |  +  1.00   |
+|  13        |  -  0.67   |
+|  14        |  +  2.50   |
+|  15        |  +  0.89   |
+|  16        |  +  1.02   |
+|  17        |  -  0.47   |
+|  18        |  +  2.89   |
+|  19        |  +  1.09   |
+|  20        |  +  0.98   |
+|  21        |  -  0.29   |
+|  22        |  +  3.02   |
+|  23        |  +  1.17   |
+|  24        |  +  0.83   |
+|  25        |  -  0.39   |
+|  26        |  +  2.89   |
+|  27        |  +  1.14   | <-- this bucket is used
+|  28        |  +  0.62   |
+|  29        |  -  0.44   |
+|  30        |  +  2.44   |
+|  31        |  +  1.10   |
 +------------+------------+
 
-NNUE evaluation          +108 (side to move, internal units)
-NNUE evaluation        -0.32 (white side)
-Final evaluation      -0.34 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +343 (side to move, internal units)
+NNUE evaluation        -1.14 (white side)
+Final evaluation      -1.36 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -407,131 +655,45 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  3.41   |
-|  1         |  +  1.23   |
-|  2         |  +  0.23   |
-|  3         |  +  0.01   |
-|  4         |  +  0.10   | <-- this bucket is used
-|  5         |  +  0.14   |
-|  6         |  +  0.07   |
-|  7         |  +  0.46   |
+|  0         |  -  2.08   |
+|  1         |  - 11.23   |
+|  2         |  + 18.30   |
+|  3         |  +  2.03   |
+|  4         |  +  0.45   |
+|  5         |  -  2.45   |
+|  6         |  +  2.68   |
+|  7         |  +  0.24   |
+|  8         |  +  0.39   |
+|  9         |  -  2.09   |
+|  10        |  +  2.85   |
+|  11        |  +  0.08   |
+|  12        |  +  0.30   |
+|  13        |  -  1.28   |
+|  14        |  +  1.44   |
+|  15        |  +  0.25   |
+|  16        |  +  0.09   |
+|  17        |  -  1.22   |
+|  18        |  +  1.22   |
+|  19        |  +  0.05   |
+|  20        |  +  0.06   |
+|  21        |  -  0.87   |
+|  22        |  +  1.74   |
+|  23        |  -  0.03   |
+|  24        |  +  0.16   |
+|  25        |  -  0.63   |
+|  26        |  +  1.59   |
+|  27        |  +  0.07   | <-- this bucket is used
+|  28        |  -  0.05   |
+|  29        |  -  1.00   |
+|  30        |  +  0.66   |
+|  31        |  +  0.15   |
 +------------+------------+
 
-NNUE evaluation          +34 (side to move, internal units)
-NNUE evaluation        +0.10 (white side)
-Final evaluation      +0.11 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +20 (side to move, internal units)
+NNUE evaluation        +0.07 (white side)
+Final evaluation      +0.08 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.50   |
-|  1         |  +  1.31   |
-|  2         |  +  1.31   | <-- this bucket is used
-|  3         |  +  1.36   |
-|  4         |  +  1.37   |
-|  5         |  +  1.52   |
-|  6         |  +  1.67   |
-|  7         |  +  1.00   |
-+------------+------------+
-
-NNUE evaluation          +425 (side to move, internal units)
-NNUE evaluation        +1.31 (white side)
-Final evaluation      +1.44 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  6.89   |
-|  1         |  -  4.50   |
-|  2         |  -  4.60   | <-- this bucket is used
-|  3         |  -  4.41   |
-|  4         |  -  4.30   |
-|  5         |  -  4.22   |
-|  6         |  -  4.04   |
-|  7         |  -  3.31   |
-+------------+------------+
-
-NNUE evaluation          -1492 (side to move, internal units)
-NNUE evaluation        -4.60 (white side)
-Final evaluation      -5.08 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.74   |
-|  1         |  +  2.08   |
-|  2         |  +  2.16   | <-- this bucket is used
-|  3         |  +  2.08   |
-|  4         |  +  0.97   |
-|  5         |  +  0.71   |
-|  6         |  +  0.95   |
-|  7         |  +  1.84   |
-+------------+------------+
-
-NNUE evaluation          +742 (side to move, internal units)
-NNUE evaluation        +2.16 (white side)
-Final evaluation      +2.26 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  0.03   |
-|  1         |  -  1.34   |
-|  2         |  -  2.13   | <-- this bucket is used
-|  3         |  -  1.56   |
-|  4         |  -  0.70   |
-|  5         |  -  0.46   |
-|  6         |  -  0.39   |
-|  7         |  -  0.31   |
-+------------+------------+
-
-NNUE evaluation          -733 (side to move, internal units)
-NNUE evaluation        -2.13 (white side)
-Final evaluation      -2.23 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  0.07   |
-|  1         |  +  0.08   |
-|  2         |  +  0.11   |
-|  3         |  +  0.11   | <-- this bucket is used
-|  4         |  +  0.15   |
-|  5         |  +  0.10   |
-|  6         |  +  0.11   |
-|  7         |  +  0.05   |
-+------------+------------+
-
-NNUE evaluation          +36 (side to move, internal units)
-NNUE evaluation        +0.11 (white side)
-Final evaluation      +0.12 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -539,21 +701,45 @@ NNUE network contributions (Normalized, Black to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  -  0.01   |
-|  1         |  +  0.45   |
-|  2         |  +  0.12   |
-|  3         |  +  0.22   |
-|  4         |  +  0.27   | <-- this bucket is used
-|  5         |  +  0.26   |
-|  6         |  +  0.29   |
-|  7         |  +  0.36   |
+|  0         |  -  0.47   |
+|  1         |  - 11.08   |
+|  2         |  + 13.30   |
+|  3         |  +  1.95   |
+|  4         |  +  0.62   |
+|  5         |  -  0.98   |
+|  6         |  +  1.99   |
+|  7         |  +  0.78   |
+|  8         |  +  0.62   |
+|  9         |  -  0.71   |
+|  10        |  +  2.18   |
+|  11        |  +  0.38   |
+|  12        |  +  0.57   |
+|  13        |  -  0.59   |
+|  14        |  +  2.00   |
+|  15        |  +  0.53   |
+|  16        |  +  0.50   |
+|  17        |  -  1.01   |
+|  18        |  +  1.66   |
+|  19        |  +  0.33   |
+|  20        |  +  0.53   | <-- this bucket is used
+|  21        |  -  0.49   |
+|  22        |  +  1.93   |
+|  23        |  +  0.39   |
+|  24        |  +  0.54   |
+|  25        |  -  0.56   |
+|  26        |  +  2.52   |
+|  27        |  +  0.46   |
+|  28        |  +  0.43   |
+|  29        |  -  0.60   |
+|  30        |  +  1.39   |
+|  31        |  +  0.53   |
 +------------+------------+
 
-NNUE evaluation          +90 (side to move, internal units)
-NNUE evaluation        -0.27 (white side)
-Final evaluation      -0.29 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +164 (side to move, internal units)
+NNUE evaluation        -0.53 (white side)
+Final evaluation      -0.60 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -561,175 +747,45 @@ NNUE network contributions (Normalized, Black to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  -  5.14   |
-|  1         |  -  1.51   |
-|  2         |  -  1.33   | <-- this bucket is used
-|  3         |  -  1.01   |
-|  4         |  -  0.96   |
-|  5         |  -  1.47   |
-|  6         |  -  1.23   |
-|  7         |  -  0.90   |
+|  0         |  +  2.83   |
+|  1         |  - 11.93   |
+|  2         |  + 12.97   |
+|  3         |  +  1.61   |
+|  4         |  +  1.83   |
+|  5         |  -  0.34   |
+|  6         |  +  2.50   |
+|  7         |  +  1.64   |
+|  8         |  +  1.79   |
+|  9         |  +  0.24   |
+|  10        |  +  2.42   |
+|  11        |  +  1.53   |
+|  12        |  +  1.74   |
+|  13        |  +  0.35   |
+|  14        |  +  2.33   |
+|  15        |  +  1.40   |
+|  16        |  +  1.56   |
+|  17        |  +  0.69   |
+|  18        |  +  2.17   |
+|  19        |  +  1.66   |
+|  20        |  +  1.54   |
+|  21        |  +  1.19   |
+|  22        |  +  2.87   |
+|  23        |  +  1.58   | <-- this bucket is used
+|  24        |  +  1.62   |
+|  25        |  +  2.69   |
+|  26        |  +  3.07   |
+|  27        |  +  1.51   |
+|  28        |  +  1.19   |
+|  29        |  +  2.94   |
+|  30        |  +  1.98   |
+|  31        |  +  1.45   |
 +------------+------------+
 
-NNUE evaluation          -458 (side to move, internal units)
-NNUE evaluation        +1.33 (white side)
-Final evaluation      +1.41 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +484 (side to move, internal units)
+NNUE evaluation        -1.58 (white side)
+Final evaluation      -1.84 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  1.70   |
-|  1         |  +  0.42   |
-|  2         |  +  0.31   |
-|  3         |  +  0.20   | <-- this bucket is used
-|  4         |  +  0.27   |
-|  5         |  +  0.52   |
-|  6         |  +  0.91   |
-|  7         |  +  1.10   |
-+------------+------------+
-
-NNUE evaluation          +65 (side to move, internal units)
-NNUE evaluation        +0.20 (white side)
-Final evaluation      +0.21 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  2.43   |
-|  1         |  +  1.83   |
-|  2         |  +  2.34   |
-|  3         |  +  2.47   |
-|  4         |  +  2.38   | <-- this bucket is used
-|  5         |  +  2.35   |
-|  6         |  +  2.20   |
-|  7         |  +  2.82   |
-+------------+------------+
-
-NNUE evaluation          +738 (side to move, internal units)
-NNUE evaluation        +2.38 (white side)
-Final evaluation      +2.73 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.28   |
-|  1         |  +  1.29   |
-|  2         |  +  1.41   |
-|  3         |  +  1.28   |
-|  4         |  +  1.30   | <-- this bucket is used
-|  5         |  +  0.84   |
-|  6         |  +  0.39   |
-|  7         |  +  0.29   |
-+------------+------------+
-
-NNUE evaluation          +418 (side to move, internal units)
-NNUE evaluation        +1.30 (white side)
-Final evaluation      +1.45 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  4.29   |
-|  1         |  -  1.83   |
-|  2         |  -  1.67   | <-- this bucket is used
-|  3         |  -  1.75   |
-|  4         |  -  1.47   |
-|  5         |  -  1.46   |
-|  6         |  -  1.25   |
-|  7         |  -  1.45   |
-+------------+------------+
-
-NNUE evaluation          -575 (side to move, internal units)
-NNUE evaluation        -1.67 (white side)
-Final evaluation      -1.76 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.05   |
-|  1         |  -  0.25   |
-|  2         |  +  0.17   |
-|  3         |  +  0.38   |
-|  4         |  +  0.55   |
-|  5         |  +  0.52   | <-- this bucket is used
-|  6         |  +  0.41   |
-|  7         |  +  0.46   |
-+------------+------------+
-
-NNUE evaluation          +159 (side to move, internal units)
-NNUE evaluation        +0.52 (white side)
-Final evaluation      +0.31 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  -  0.27   |
-|  1         |  -  1.75   |
-|  2         |  -  1.33   |
-|  3         |  -  0.59   |
-|  4         |  -  0.83   |
-|  5         |  -  1.00   |
-|  6         |  -  0.71   | <-- this bucket is used
-|  7         |  -  0.80   |
-+------------+------------+
-
-NNUE evaluation          -213 (side to move, internal units)
-NNUE evaluation        -0.71 (white side)
-Final evaluation      -0.69 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
-info string Network replica 1: <backing>
-
-
-NNUE network contributions (Normalized, White to move)
-+------------+------------+
-|   Bucket   | Evaluation |
-+------------+------------+
-|  0         |  +  0.05   |
-|  1         |  -  0.05   |
-|  2         |  +  0.23   |
-|  3         |  +  0.42   |
-|  4         |  +  0.49   |
-|  5         |  +  0.47   |
-|  6         |  +  0.50   | <-- this bucket is used
-|  7         |  +  0.60   |
-+------------+------------+
-
-NNUE evaluation          +149 (side to move, internal units)
-NNUE evaluation        +0.50 (white side)
-Final evaluation      +0.63 (white side) [with scaled NNUE, ...]
-
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -737,21 +793,183 @@ NNUE network contributions (Normalized, Black to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  -  0.36   |
-|  1         |  -  1.23   |
-|  2         |  -  1.65   |
-|  3         |  -  1.65   |
-|  4         |  -  1.73   |
-|  5         |  -  1.88   |
-|  6         |  -  1.89   | <-- this bucket is used
-|  7         |  -  1.82   |
+|  0         |  +  1.28   |
+|  1         |  -  9.33   |
+|  2         |  + 10.54   |
+|  3         |  +  0.82   |
+|  4         |  +  0.57   |
+|  5         |  -  0.48   |
+|  6         |  +  1.16   |
+|  7         |  -  0.30   |
+|  8         |  +  0.40   |
+|  9         |  -  0.52   |
+|  10        |  +  2.03   |
+|  11        |  -  0.12   |
+|  12        |  +  0.33   | <-- this bucket is used
+|  13        |  -  0.96   |
+|  14        |  +  2.43   |
+|  15        |  +  0.09   |
+|  16        |  +  0.28   |
+|  17        |  -  0.39   |
+|  18        |  +  2.29   |
+|  19        |  +  0.21   |
+|  20        |  +  0.67   |
+|  21        |  -  0.76   |
+|  22        |  +  2.39   |
+|  23        |  +  0.20   |
+|  24        |  +  0.40   |
+|  25        |  +  0.18   |
+|  26        |  +  1.74   |
+|  27        |  +  0.21   |
+|  28        |  -  0.03   |
+|  29        |  +  0.83   |
+|  30        |  -  1.13   |
+|  31        |  +  0.43   |
 +------------+------------+
 
-NNUE evaluation          -563 (side to move, internal units)
-NNUE evaluation        +1.89 (white side)
-Final evaluation      +2.18 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +113 (side to move, internal units)
+NNUE evaluation        -0.33 (white side)
+Final evaluation      -0.36 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  3.03   |
+|  1         |  -  5.77   |
+|  2         |  + 10.38   |
+|  3         |  +  1.71   |
+|  4         |  +  0.58   |
+|  5         |  +  0.50   |
+|  6         |  +  0.46   |
+|  7         |  +  0.97   |
+|  8         |  +  0.18   |
+|  9         |  +  0.87   |
+|  10        |  +  0.39   |
+|  11        |  +  0.45   |
+|  12        |  +  0.11   |
+|  13        |  +  0.90   |
+|  14        |  +  1.06   |
+|  15        |  +  0.77   |
+|  16        |  +  0.14   | <-- this bucket is used
+|  17        |  +  0.29   |
+|  18        |  +  0.52   |
+|  19        |  +  0.68   |
+|  20        |  +  0.36   |
+|  21        |  +  0.28   |
+|  22        |  +  0.12   |
+|  23        |  +  0.92   |
+|  24        |  +  0.30   |
+|  25        |  +  1.10   |
+|  26        |  +  0.54   |
+|  27        |  +  0.71   |
+|  28        |  +  0.25   |
+|  29        |  +  0.77   |
+|  30        |  +  0.96   |
+|  31        |  +  0.57   |
++------------+------------+
+
+NNUE evaluation          +48 (side to move, internal units)
+NNUE evaluation        +0.14 (white side)
+Final evaluation      +0.15 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  0.14   |
+|  1         |  -  3.97   |
+|  2         |  +  7.40   |
+|  3         |  -  0.81   |
+|  4         |  +  0.36   |
+|  5         |  +  1.26   |
+|  6         |  +  3.24   |
+|  7         |  +  0.87   |
+|  8         |  +  0.72   |
+|  9         |  +  2.83   |
+|  10        |  +  4.22   |
+|  11        |  +  1.03   | <-- this bucket is used
+|  12        |  +  0.92   |
+|  13        |  +  0.80   |
+|  14        |  +  3.94   |
+|  15        |  +  0.89   |
+|  16        |  +  1.16   |
+|  17        |  +  0.50   |
+|  18        |  +  2.33   |
+|  19        |  +  0.99   |
+|  20        |  +  1.83   |
+|  21        |  +  1.12   |
+|  22        |  +  2.76   |
+|  23        |  +  1.06   |
+|  24        |  +  2.45   |
+|  25        |  +  1.78   |
+|  26        |  +  2.97   |
+|  27        |  +  1.42   |
+|  28        |  +  0.69   |
+|  29        |  +  2.76   |
+|  30        |  -  0.59   |
+|  31        |  +  1.92   |
++------------+------------+
+
+NNUE evaluation          +334 (side to move, internal units)
+NNUE evaluation        +1.03 (white side)
+Final evaluation      +1.13 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  5.61   |
+|  1         |  -  7.27   |
+|  2         |  + 12.60   |
+|  3         |  -  0.91   |
+|  4         |  -  3.96   |
+|  5         |  -  2.66   |
+|  6         |  -  3.41   |
+|  7         |  -  4.88   |
+|  8         |  -  4.94   |
+|  9         |  -  1.71   |
+|  10        |  -  4.63   |
+|  11        |  -  5.20   | <-- this bucket is used
+|  12        |  -  4.70   |
+|  13        |  -  2.17   |
+|  14        |  -  3.59   |
+|  15        |  -  4.92   |
+|  16        |  -  5.21   |
+|  17        |  -  3.16   |
+|  18        |  -  3.72   |
+|  19        |  -  4.26   |
+|  20        |  -  4.41   |
+|  21        |  -  0.87   |
+|  22        |  -  3.45   |
+|  23        |  -  4.45   |
+|  24        |  -  2.81   |
+|  25        |  +  0.78   |
+|  26        |  -  4.08   |
+|  27        |  -  4.32   |
+|  28        |  -  5.28   |
+|  29        |  -  1.00   |
+|  30        |  -  5.44   |
+|  31        |  -  3.93   |
++------------+------------+
+
+NNUE evaluation          -1688 (side to move, internal units)
+NNUE evaluation        -5.20 (white side)
+Final evaluation      -5.75 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -760,20 +978,44 @@ NNUE network contributions (Normalized, White to move)
 |   Bucket   | Evaluation |
 +------------+------------+
 |  0         |  +  0.10   |
-|  1         |  +  1.04   |
-|  2         |  +  0.47   |
-|  3         |  +  0.85   |
-|  4         |  +  0.70   | <-- this bucket is used
-|  5         |  +  0.63   |
-|  6         |  +  0.97   |
-|  7         |  +  0.85   |
+|  1         |  -  4.63   |
+|  2         |  +  3.24   |
+|  3         |  -  0.03   |
+|  4         |  +  1.08   |
+|  5         |  +  0.02   |
+|  6         |  +  1.67   |
+|  7         |  +  0.24   |
+|  8         |  +  1.31   | <-- this bucket is used
+|  9         |  -  0.12   |
+|  10        |  +  1.55   |
+|  11        |  +  0.55   |
+|  12        |  +  1.31   |
+|  13        |  -  0.17   |
+|  14        |  +  0.99   |
+|  15        |  +  0.42   |
+|  16        |  +  1.44   |
+|  17        |  -  0.09   |
+|  18        |  +  1.17   |
+|  19        |  +  0.48   |
+|  20        |  +  2.08   |
+|  21        |  -  0.29   |
+|  22        |  +  2.03   |
+|  23        |  +  0.64   |
+|  24        |  +  0.67   |
+|  25        |  -  0.79   |
+|  26        |  +  1.37   |
+|  27        |  +  1.25   |
+|  28        |  +  0.07   |
+|  29        |  +  0.70   |
+|  30        |  +  1.08   |
+|  31        |  +  0.45   |
 +------------+------------+
 
-NNUE evaluation          +212 (side to move, internal units)
-NNUE evaluation        +0.70 (white side)
-Final evaluation      +0.81 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +450 (side to move, internal units)
+NNUE evaluation        +1.31 (white side)
+Final evaluation      +1.37 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -781,21 +1023,45 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  -  0.02   |
-|  1         |  -  0.32   |
-|  2         |  -  0.47   |
-|  3         |  -  0.73   |
-|  4         |  -  0.68   | <-- this bucket is used
-|  5         |  -  0.78   |
-|  6         |  -  0.72   |
-|  7         |  -  0.44   |
+|  0         |  -  0.23   |
+|  1         |  -  4.60   |
+|  2         |  +  5.31   |
+|  3         |  -  0.21   |
+|  4         |  -  2.12   |
+|  5         |  -  2.08   |
+|  6         |  +  1.91   |
+|  7         |  -  0.07   |
+|  8         |  -  2.16   | <-- this bucket is used
+|  9         |  -  2.85   |
+|  10        |  +  3.58   |
+|  11        |  -  0.03   |
+|  12        |  -  1.70   |
+|  13        |  -  1.48   |
+|  14        |  +  1.97   |
+|  15        |  -  0.08   |
+|  16        |  -  1.29   |
+|  17        |  -  0.62   |
+|  18        |  +  1.86   |
+|  19        |  +  0.03   |
+|  20        |  -  0.25   |
+|  21        |  -  0.95   |
+|  22        |  +  2.45   |
+|  23        |  -  0.29   |
+|  24        |  -  1.56   |
+|  25        |  -  1.30   |
+|  26        |  +  0.17   |
+|  27        |  -  0.23   |
+|  28        |  -  0.84   |
+|  29        |  -  1.66   |
+|  30        |  -  1.92   |
+|  31        |  -  0.15   |
 +------------+------------+
 
-NNUE evaluation          -208 (side to move, internal units)
-NNUE evaluation        -0.68 (white side)
-Final evaluation      -0.79 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -743 (side to move, internal units)
+NNUE evaluation        -2.16 (white side)
+Final evaluation      -2.26 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -803,65 +1069,137 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  6.95   |
-|  1         |  + 16.55   |
-|  2         |  + 15.30   |
-|  3         |  + 14.92   |
-|  4         |  + 12.54   |
-|  5         |  + 16.66   |
-|  6         |  + 15.18   | <-- this bucket is used
-|  7         |  + 16.55   |
+|  0         |  +  0.33   |
+|  1         |  -  8.37   |
+|  2         |  +  9.52   |
+|  3         |  +  1.31   |
+|  4         |  +  0.08   |
+|  5         |  -  1.15   |
+|  6         |  +  1.70   |
+|  7         |  +  0.26   |
+|  8         |  +  0.10   |
+|  9         |  -  0.60   |
+|  10        |  +  1.94   |
+|  11        |  +  0.05   |
+|  12        |  +  0.10   | <-- this bucket is used
+|  13        |  -  0.87   |
+|  14        |  +  2.19   |
+|  15        |  +  0.30   |
+|  16        |  +  0.14   |
+|  17        |  -  0.90   |
+|  18        |  +  1.47   |
+|  19        |  +  0.42   |
+|  20        |  +  0.13   |
+|  21        |  -  0.46   |
+|  22        |  +  1.03   |
+|  23        |  +  0.17   |
+|  24        |  +  0.07   |
+|  25        |  -  0.54   |
+|  26        |  +  1.65   |
+|  27        |  +  0.22   |
+|  28        |  +  0.30   |
+|  29        |  +  0.77   |
+|  30        |  -  0.11   |
+|  31        |  +  0.27   |
 +------------+------------+
 
-NNUE evaluation          +4301 (side to move, internal units)
-NNUE evaluation        +15.18 (white side)
-Final evaluation      +19.41 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +34 (side to move, internal units)
+NNUE evaluation        +0.10 (white side)
+Final evaluation      +0.11 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
-NNUE network contributions (Normalized, White to move)
+NNUE network contributions (Normalized, Black to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  3.24   |
-|  1         |  +  8.48   |
-|  2         |  + 11.00   |
-|  3         |  +  9.71   |
-|  4         |  +  5.65   |
-|  5         |  +  4.30   | <-- this bucket is used
-|  6         |  +  3.49   |
+|  0         |  -  1.02   |
+|  1         |  -  9.48   |
+|  2         |  + 13.51   |
+|  3         |  +  0.16   |
+|  4         |  +  1.08   |
+|  5         |  -  0.69   |
+|  6         |  +  1.90   |
 |  7         |  +  0.66   |
+|  8         |  +  0.98   |
+|  9         |  -  0.10   |
+|  10        |  +  0.83   |
+|  11        |  +  0.44   |
+|  12        |  +  1.07   |
+|  13        |  +  0.59   |
+|  14        |  +  1.47   |
+|  15        |  +  0.85   |
+|  16        |  +  1.06   | <-- this bucket is used
+|  17        |  +  0.24   |
+|  18        |  +  0.84   |
+|  19        |  +  0.83   |
+|  20        |  +  1.15   |
+|  21        |  +  0.35   |
+|  22        |  +  1.11   |
+|  23        |  +  0.97   |
+|  24        |  +  0.46   |
+|  25        |  +  0.18   |
+|  26        |  -  0.91   |
+|  27        |  +  1.01   |
+|  28        |  +  0.25   |
+|  29        |  +  1.72   |
+|  30        |  +  0.08   |
+|  31        |  +  0.92   |
 +------------+------------+
 
-NNUE evaluation          +1218 (side to move, internal units)
-NNUE evaluation        +4.30 (white side)
-Final evaluation      +5.67 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +358 (side to move, internal units)
+NNUE evaluation        -1.06 (white side)
+Final evaluation      -1.17 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
-NNUE network contributions (Normalized, White to move)
+NNUE network contributions (Normalized, Black to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  -  0.03   |
-|  1         |  +  0.93   | <-- this bucket is used
-|  2         |  +  1.09   |
-|  3         |  +  1.59   |
-|  4         |  +  1.38   |
-|  5         |  +  1.06   |
-|  6         |  +  1.86   |
-|  7         |  +  0.98   |
+|  0         |  -  3.94   |
+|  1         |  - 11.32   |
+|  2         |  +  8.44   |
+|  3         |  -  0.46   |
+|  4         |  -  1.57   |
+|  5         |  -  2.79   |
+|  6         |  +  0.17   |
+|  7         |  -  1.55   |
+|  8         |  -  0.93   | <-- this bucket is used
+|  9         |  -  2.51   |
+|  10        |  -  0.09   |
+|  11        |  -  1.74   |
+|  12        |  -  0.92   |
+|  13        |  -  2.45   |
+|  14        |  -  0.65   |
+|  15        |  -  1.61   |
+|  16        |  -  0.80   |
+|  17        |  -  2.10   |
+|  18        |  -  1.39   |
+|  19        |  -  1.49   |
+|  20        |  -  1.84   |
+|  21        |  -  2.48   |
+|  22        |  -  1.91   |
+|  23        |  -  1.65   |
+|  24        |  -  1.81   |
+|  25        |  -  2.35   |
+|  26        |  -  2.03   |
+|  27        |  -  2.04   |
+|  28        |  -  1.41   |
+|  29        |  +  0.63   |
+|  30        |  -  4.55   |
+|  31        |  -  1.38   |
 +------------+------------+
 
-NNUE evaluation          +319 (side to move, internal units)
+NNUE evaluation          -321 (side to move, internal units)
 NNUE evaluation        +0.93 (white side)
-Final evaluation      +0.95 (white side) [with scaled NNUE, ...]
+Final evaluation      +0.99 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -869,21 +1207,45 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  0.02   |
-|  1         |  -  0.22   | <-- this bucket is used
-|  2         |  +  3.18   |
-|  3         |  +  2.88   |
-|  4         |  +  3.48   |
-|  5         |  +  4.40   |
-|  6         |  +  4.32   |
-|  7         |  +  4.29   |
+|  0         |  -  0.25   |
+|  1         |  -  2.33   |
+|  2         |  + 11.29   |
+|  3         |  +  2.03   |
+|  4         |  +  0.35   |
+|  5         |  +  0.27   |
+|  6         |  +  1.61   |
+|  7         |  +  0.78   |
+|  8         |  +  0.15   |
+|  9         |  +  0.55   |
+|  10        |  +  2.33   |
+|  11        |  +  0.70   |
+|  12        |  +  0.15   | <-- this bucket is used
+|  13        |  +  0.45   |
+|  14        |  +  2.04   |
+|  15        |  +  0.50   |
+|  16        |  +  0.31   |
+|  17        |  +  0.79   |
+|  18        |  +  1.57   |
+|  19        |  +  0.76   |
+|  20        |  +  0.69   |
+|  21        |  +  1.31   |
+|  22        |  +  1.75   |
+|  23        |  +  0.87   |
+|  24        |  +  0.86   |
+|  25        |  +  0.72   |
+|  26        |  +  1.23   |
+|  27        |  +  0.89   |
+|  28        |  +  0.42   |
+|  29        |  +  2.89   |
+|  30        |  -  0.08   |
+|  31        |  +  0.85   |
 +------------+------------+
 
-NNUE evaluation          -76 (side to move, internal units)
-NNUE evaluation        -0.22 (white side)
-Final evaluation      -0.22 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +48 (side to move, internal units)
+NNUE evaluation        +0.15 (white side)
+Final evaluation      +0.16 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -891,21 +1253,45 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  0.45   |
-|  1         |  +  1.18   | <-- this bucket is used
-|  2         |  +  4.24   |
-|  3         |  +  3.29   |
-|  4         |  +  3.96   |
-|  5         |  +  4.58   |
-|  6         |  +  4.72   |
-|  7         |  +  5.86   |
+|  0         |  +  1.72   |
+|  1         |  -  6.07   |
+|  2         |  + 11.25   |
+|  3         |  +  1.57   |
+|  4         |  +  1.76   |
+|  5         |  +  1.22   |
+|  6         |  +  1.83   |
+|  7         |  +  0.80   |
+|  8         |  +  1.98   |
+|  9         |  +  1.43   |
+|  10        |  +  3.31   |
+|  11        |  +  2.16   |
+|  12        |  +  1.96   |
+|  13        |  +  1.64   |
+|  14        |  +  4.63   |
+|  15        |  +  2.00   |
+|  16        |  +  1.73   |
+|  17        |  +  1.80   |
+|  18        |  +  4.29   |
+|  19        |  +  1.96   | <-- this bucket is used
+|  20        |  +  1.64   |
+|  21        |  +  2.01   |
+|  22        |  +  4.20   |
+|  23        |  +  2.04   |
+|  24        |  +  1.64   |
+|  25        |  +  1.84   |
+|  26        |  +  4.54   |
+|  27        |  +  2.05   |
+|  28        |  +  1.37   |
+|  29        |  +  2.45   |
+|  30        |  +  0.92   |
+|  31        |  +  2.33   |
 +------------+------------+
 
-NNUE evaluation          +404 (side to move, internal units)
-NNUE evaluation        +1.18 (white side)
-Final evaluation      +1.21 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +608 (side to move, internal units)
+NNUE evaluation        +1.96 (white side)
+Final evaluation      +2.25 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -913,25 +1299,647 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  2.75   |
-|  1         |  +  0.73   | <-- this bucket is used
-|  2         |  +  1.02   |
-|  3         |  +  1.15   |
-|  4         |  +  1.69   |
-|  5         |  +  1.47   |
-|  6         |  +  1.41   |
-|  7         |  +  1.78   |
+|  0         |  -  0.77   |
+|  1         |  - 11.24   |
+|  2         |  + 10.57   |
+|  3         |  +  1.53   |
+|  4         |  +  1.00   |
+|  5         |  -  1.23   |
+|  6         |  +  1.02   |
+|  7         |  +  0.68   |
+|  8         |  +  1.04   |
+|  9         |  +  0.21   |
+|  10        |  +  1.40   |
+|  11        |  +  0.79   |
+|  12        |  +  0.94   |
+|  13        |  +  1.40   |
+|  14        |  +  1.75   |
+|  15        |  +  1.00   |
+|  16        |  +  0.79   | <-- this bucket is used
+|  17        |  +  1.40   |
+|  18        |  +  1.84   |
+|  19        |  +  0.64   |
+|  20        |  +  0.83   |
+|  21        |  +  0.69   |
+|  22        |  +  1.61   |
+|  23        |  +  0.31   |
+|  24        |  +  0.50   |
+|  25        |  +  0.86   |
+|  26        |  +  1.26   |
+|  27        |  +  0.73   |
+|  28        |  -  0.36   |
+|  29        |  -  0.66   |
+|  30        |  -  0.96   |
+|  31        |  +  0.61   |
 +------------+------------+
 
-NNUE evaluation          +252 (side to move, internal units)
-NNUE evaluation        +0.73 (white side)
+NNUE evaluation          +255 (side to move, internal units)
+NNUE evaluation        +0.79 (white side)
+Final evaluation      +0.88 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  5.54   |
+|  1         |  -  4.25   |
+|  2         |  +  7.39   |
+|  3         |  +  0.17   |
+|  4         |  -  0.94   |
+|  5         |  -  2.80   |
+|  6         |  +  0.23   |
+|  7         |  -  0.29   |
+|  8         |  -  0.90   | <-- this bucket is used
+|  9         |  -  1.48   |
+|  10        |  +  0.32   |
+|  11        |  -  0.38   |
+|  12        |  -  0.85   |
+|  13        |  -  2.24   |
+|  14        |  +  0.47   |
+|  15        |  -  0.40   |
+|  16        |  -  0.60   |
+|  17        |  -  1.96   |
+|  18        |  +  0.39   |
+|  19        |  -  0.42   |
+|  20        |  -  1.05   |
+|  21        |  -  2.03   |
+|  22        |  +  0.02   |
+|  23        |  -  0.53   |
+|  24        |  -  0.84   |
+|  25        |  -  2.62   |
+|  26        |  +  0.17   |
+|  27        |  -  0.74   |
+|  28        |  -  0.96   |
+|  29        |  -  1.13   |
+|  30        |  -  2.16   |
+|  31        |  -  0.76   |
++------------+------------+
+
+NNUE evaluation          -308 (side to move, internal units)
+NNUE evaluation        -0.90 (white side)
+Final evaluation      -0.94 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  0.77   |
+|  1         |  -  7.55   |
+|  2         |  + 14.44   |
+|  3         |  +  1.01   |
+|  4         |  +  0.62   |
+|  5         |  -  0.51   |
+|  6         |  +  1.40   |
+|  7         |  +  0.21   |
+|  8         |  +  0.83   |
+|  9         |  -  0.03   |
+|  10        |  +  1.06   |
+|  11        |  +  0.39   |
+|  12        |  +  1.04   |
+|  13        |  +  0.06   |
+|  14        |  +  0.91   |
+|  15        |  +  0.69   |
+|  16        |  +  1.07   |
+|  17        |  +  0.53   |
+|  18        |  +  1.07   |
+|  19        |  +  0.98   |
+|  20        |  +  1.19   |
+|  21        |  +  0.86   |
+|  22        |  +  1.25   |
+|  23        |  +  0.84   | <-- this bucket is used
+|  24        |  +  1.01   |
+|  25        |  +  1.21   |
+|  26        |  +  1.20   |
+|  27        |  +  0.74   |
+|  28        |  +  0.69   |
+|  29        |  +  0.98   |
+|  30        |  -  0.17   |
+|  31        |  +  0.65   |
++------------+------------+
+
+NNUE evaluation          +257 (side to move, internal units)
+NNUE evaluation        +0.84 (white side)
+Final evaluation      +0.51 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  0.08   |
+|  1         |  -  8.20   |
+|  2         |  + 14.97   |
+|  3         |  +  1.14   |
+|  4         |  -  0.81   |
+|  5         |  -  1.23   |
+|  6         |  +  1.42   |
+|  7         |  -  0.15   |
+|  8         |  +  0.08   |
+|  9         |  +  0.37   |
+|  10        |  +  1.03   |
+|  11        |  -  0.24   |
+|  12        |  -  0.19   |
+|  13        |  +  0.48   |
+|  14        |  +  0.91   |
+|  15        |  -  0.56   |
+|  16        |  -  0.22   |
+|  17        |  +  2.20   |
+|  18        |  +  0.57   |
+|  19        |  -  0.42   |
+|  20        |  -  0.11   |
+|  21        |  +  1.58   |
+|  22        |  +  0.70   |
+|  23        |  -  0.56   |
+|  24        |  -  0.34   |
+|  25        |  +  1.35   |
+|  26        |  +  0.47   |
+|  27        |  -  0.59   | <-- this bucket is used
+|  28        |  -  0.69   |
+|  29        |  +  1.64   |
+|  30        |  -  0.20   |
+|  31        |  -  0.47   |
++------------+------------+
+
+NNUE evaluation          -176 (side to move, internal units)
+NNUE evaluation        -0.59 (white side)
+Final evaluation      -0.57 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  0.12   |
+|  1         |  -  6.11   |
+|  2         |  + 15.27   |
+|  3         |  +  3.78   |
+|  4         |  +  0.75   |
+|  5         |  -  1.78   |
+|  6         |  +  3.28   |
+|  7         |  +  0.63   |
+|  8         |  +  0.49   |
+|  9         |  -  1.99   |
+|  10        |  +  3.11   |
+|  11        |  +  0.35   |
+|  12        |  +  0.65   |
+|  13        |  -  0.71   |
+|  14        |  +  2.78   |
+|  15        |  +  0.40   |
+|  16        |  +  0.57   |
+|  17        |  -  0.98   |
+|  18        |  +  3.02   |
+|  19        |  +  0.62   |
+|  20        |  +  0.65   |
+|  21        |  -  0.34   |
+|  22        |  +  2.97   |
+|  23        |  +  0.63   |
+|  24        |  +  0.66   |
+|  25        |  -  0.42   |
+|  26        |  +  2.72   |
+|  27        |  +  0.62   | <-- this bucket is used
+|  28        |  +  0.61   |
+|  29        |  -  0.09   |
+|  30        |  +  2.91   |
+|  31        |  +  0.77   |
++------------+------------+
+
+NNUE evaluation          +182 (side to move, internal units)
+NNUE evaluation        +0.62 (white side)
 Final evaluation      +0.76 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, Black to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  0.11   |
+|  1         |  - 18.84   |
+|  2         |  + 13.19   |
+|  3         |  -  3.63   |
+|  4         |  +  0.21   |
+|  5         |  -  2.63   |
+|  6         |  -  0.11   |
+|  7         |  -  0.98   |
+|  8         |  -  0.76   |
+|  9         |  -  1.63   |
+|  10        |  -  0.85   |
+|  11        |  -  1.01   |
+|  12        |  -  0.75   |
+|  13        |  -  1.65   |
+|  14        |  -  1.71   |
+|  15        |  -  1.49   |
+|  16        |  -  1.21   |
+|  17        |  -  2.06   |
+|  18        |  -  2.23   |
+|  19        |  -  1.71   |
+|  20        |  -  1.73   |
+|  21        |  -  2.02   |
+|  22        |  -  2.84   |
+|  23        |  -  1.95   |
+|  24        |  -  1.85   |
+|  25        |  -  1.75   |
+|  26        |  -  2.42   |
+|  27        |  -  1.76   | <-- this bucket is used
+|  28        |  -  1.21   |
+|  29        |  -  0.23   |
+|  30        |  -  1.52   |
+|  31        |  -  1.70   |
++------------+------------+
+
+NNUE evaluation          -524 (side to move, internal units)
+NNUE evaluation        +1.76 (white side)
+Final evaluation      +2.03 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  0.88   |
+|  1         |  -  5.23   |
+|  2         |  + 21.09   |
+|  3         |  -  0.08   |
+|  4         |  +  0.99   |
+|  5         |  +  0.66   |
+|  6         |  +  1.38   |
+|  7         |  +  1.50   |
+|  8         |  +  0.12   |
+|  9         |  +  2.01   |
+|  10        |  +  0.52   |
+|  11        |  +  0.05   |
+|  12        |  +  1.02   |
+|  13        |  +  0.62   |
+|  14        |  +  0.56   |
+|  15        |  +  0.72   |
+|  16        |  +  0.49   |
+|  17        |  +  1.26   |
+|  18        |  +  0.43   |
+|  19        |  +  0.82   | <-- this bucket is used
+|  20        |  +  1.39   |
+|  21        |  +  0.85   |
+|  22        |  +  1.26   |
+|  23        |  +  0.57   |
+|  24        |  +  1.22   |
+|  25        |  +  1.54   |
+|  26        |  +  0.88   |
+|  27        |  +  0.75   |
+|  28        |  +  0.77   |
+|  29        |  +  4.33   |
+|  30        |  -  1.46   |
+|  31        |  +  0.56   |
++------------+------------+
+
+NNUE evaluation          +249 (side to move, internal units)
+NNUE evaluation        +0.82 (white side)
+Final evaluation      +0.95 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  0.83   |
+|  1         |  - 15.78   |
+|  2         |  + 14.71   |
+|  3         |  -  1.50   |
+|  4         |  -  0.08   |
+|  5         |  -  1.94   |
+|  6         |  +  0.13   |
+|  7         |  -  1.18   |
+|  8         |  -  0.17   |
+|  9         |  -  1.47   |
+|  10        |  -  0.36   |
+|  11        |  -  0.69   |
+|  12        |  -  0.30   |
+|  13        |  -  1.61   |
+|  14        |  -  0.72   |
+|  15        |  -  0.91   |
+|  16        |  -  0.35   |
+|  17        |  -  1.37   |
+|  18        |  -  0.49   |
+|  19        |  -  0.60   | <-- this bucket is used
+|  20        |  -  0.36   |
+|  21        |  -  1.09   |
+|  22        |  -  0.87   |
+|  23        |  -  0.58   |
+|  24        |  -  0.37   |
+|  25        |  -  0.70   |
+|  26        |  -  0.98   |
+|  27        |  -  0.49   |
+|  28        |  -  0.70   |
+|  29        |  +  0.11   |
+|  30        |  -  0.77   |
+|  31        |  -  0.31   |
++------------+------------+
+
+NNUE evaluation          -183 (side to move, internal units)
+NNUE evaluation        -0.60 (white side)
+Final evaluation      -0.70 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  + 10.62   |
+|  1         |  - 27.73   |
+|  2         |  + 32.20   |
+|  3         |  -  6.35   |
+|  4         |  + 11.09   |
+|  5         |  +  8.51   |
+|  6         |  + 13.91   |
+|  7         |  + 10.38   |
+|  8         |  +  7.50   |
+|  9         |  + 10.38   |
+|  10        |  + 18.11   |
+|  11        |  + 10.86   |
+|  12        |  + 15.38   |
+|  13        |  + 12.04   |
+|  14        |  + 16.70   |
+|  15        |  +  8.83   |
+|  16        |  + 10.18   |
+|  17        |  + 11.49   |
+|  18        |  + 13.75   |
+|  19        |  +  8.28   |
+|  20        |  +  3.43   |
+|  21        |  + 13.88   |
+|  22        |  + 19.95   |
+|  23        |  +  9.06   |
+|  24        |  + 18.09   |
+|  25        |  + 14.20   |
+|  26        |  + 14.71   | <-- this bucket is used
+|  27        |  +  4.38   |
+|  28        |  + 18.44   |
+|  29        |  + 12.47   |
+|  30        |  + 38.16   |
+|  31        |  + 20.22   |
++------------+------------+
+
+NNUE evaluation          +4168 (side to move, internal units)
+NNUE evaluation        +14.71 (white side)
+Final evaluation      +18.80 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  9.16   |
+|  1         |  -  7.12   |
+|  2         |  + 63.04   |
+|  3         |  -  0.22   |
+|  4         |  +  9.74   |
+|  5         |  + 18.77   |
+|  6         |  +  4.81   |
+|  7         |  +  7.88   |
+|  8         |  +  6.23   |
+|  9         |  + 28.19   |
+|  10        |  + 11.52   |
+|  11        |  + 10.15   |
+|  12        |  +  9.17   |
+|  13        |  + 18.82   |
+|  14        |  + 12.96   |
+|  15        |  + 14.09   |
+|  16        |  +  3.64   |
+|  17        |  + 13.30   |
+|  18        |  + 19.97   |
+|  19        |  +  6.50   |
+|  20        |  +  5.67   |
+|  21        |  +  7.72   |
+|  22        |  + 20.06   |
+|  23        |  + 20.99   | <-- this bucket is used
+|  24        |  +  7.02   |
+|  25        |  + 12.34   |
+|  26        |  +  9.67   |
+|  27        |  + 12.11   |
+|  28        |  + 10.39   |
+|  29        |  + 39.23   |
+|  30        |  -  1.43   |
+|  31        |  +  7.33   |
++------------+------------+
+
+NNUE evaluation          +5946 (side to move, internal units)
+NNUE evaluation        +20.99 (white side)
+Final evaluation      +27.67 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  -  0.06   |
+|  1         |  -  3.75   |
+|  2         |  +  3.90   |
+|  3         |  +  0.07   |
+|  4         |  +  1.44   | <-- this bucket is used
+|  5         |  -  0.16   |
+|  6         |  +  2.49   |
+|  7         |  +  0.23   |
+|  8         |  +  0.70   |
+|  9         |  -  0.14   |
+|  10        |  +  2.14   |
+|  11        |  +  0.45   |
+|  12        |  +  1.39   |
+|  13        |  +  0.12   |
+|  14        |  +  2.48   |
+|  15        |  +  0.80   |
+|  16        |  +  1.65   |
+|  17        |  -  0.15   |
+|  18        |  +  2.28   |
+|  19        |  +  1.09   |
+|  20        |  +  2.34   |
+|  21        |  +  0.09   |
+|  22        |  +  3.19   |
+|  23        |  +  1.15   |
+|  24        |  +  1.29   |
+|  25        |  +  0.18   |
+|  26        |  +  2.25   |
+|  27        |  +  1.47   |
+|  28        |  +  0.03   |
+|  29        |  -  0.46   |
+|  30        |  +  0.34   |
+|  31        |  +  2.33   |
++------------+------------+
+
+NNUE evaluation          +496 (side to move, internal units)
+NNUE evaluation        +1.44 (white side)
+Final evaluation      +1.48 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  0.22   |
+|  1         |  -  5.10   |
+|  2         |  +  4.08   |
+|  3         |  +  0.96   |
+|  4         |  +  0.16   | <-- this bucket is used
+|  5         |  +  1.36   |
+|  6         |  +  4.38   |
+|  7         |  +  3.10   |
+|  8         |  +  3.26   |
+|  9         |  +  3.04   |
+|  10        |  +  4.06   |
+|  11        |  +  4.73   |
+|  12        |  +  4.37   |
+|  13        |  +  3.90   |
+|  14        |  +  5.59   |
+|  15        |  +  3.76   |
+|  16        |  +  4.59   |
+|  17        |  +  3.82   |
+|  18        |  +  4.26   |
+|  19        |  +  4.51   |
+|  20        |  +  5.14   |
+|  21        |  +  4.15   |
+|  22        |  +  5.75   |
+|  23        |  +  3.95   |
+|  24        |  +  4.92   |
+|  25        |  +  4.00   |
+|  26        |  +  3.46   |
+|  27        |  +  4.78   |
+|  28        |  +  4.49   |
+|  29        |  +  1.28   |
+|  30        |  +  4.04   |
+|  31        |  +  5.74   |
++------------+------------+
+
+NNUE evaluation          +56 (side to move, internal units)
+NNUE evaluation        +0.16 (white side)
+Final evaluation      +0.17 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |  +  1.08   |
+|  1         |  - 13.44   |
+|  2         |  +  5.55   |
+|  3         |  -  1.52   |
+|  4         |  +  0.96   | <-- this bucket is used
+|  5         |  +  4.28   |
+|  6         |  +  7.37   |
+|  7         |  +  5.09   |
+|  8         |  +  4.66   |
+|  9         |  +  4.20   |
+|  10        |  +  6.09   |
+|  11        |  +  6.51   |
+|  12        |  +  5.33   |
+|  13        |  +  5.88   |
+|  14        |  +  5.59   |
+|  15        |  +  4.07   |
+|  16        |  +  5.34   |
+|  17        |  +  5.84   |
+|  18        |  +  5.06   |
+|  19        |  +  4.28   |
+|  20        |  +  5.43   |
+|  21        |  +  5.79   |
+|  22        |  +  8.84   |
+|  23        |  +  5.45   |
+|  24        |  +  7.93   |
+|  25        |  +  6.84   |
+|  26        |  +  4.89   |
+|  27        |  +  5.35   |
+|  28        |  +  8.48   |
+|  29        |  +  3.59   |
+|  30        |  + 16.16   |
+|  31        |  +  8.36   |
++------------+------------+
+
+NNUE evaluation          +331 (side to move, internal units)
+NNUE evaluation        +0.96 (white side)
+Final evaluation      +0.99 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+
+
+NNUE network contributions (Normalized, White to move)
++------------+------------+
+|   Bucket   | Evaluation |
++------------+------------+
+|  0         |     0.00   |
+|  1         |  -  3.32   |
+|  2         |  +  2.76   |
+|  3         |  +  0.72   |
+|  4         |  +  0.85   | <-- this bucket is used
+|  5         |  -  0.35   |
+|  6         |  +  4.47   |
+|  7         |  +  0.93   |
+|  8         |  +  0.77   |
+|  9         |  +  0.11   |
+|  10        |  +  4.88   |
+|  11        |  +  0.98   |
+|  12        |  +  1.15   |
+|  13        |  +  0.18   |
+|  14        |  +  3.90   |
+|  15        |  +  0.79   |
+|  16        |  +  0.81   |
+|  17        |  +  0.29   |
+|  18        |  +  3.00   |
+|  19        |  +  0.90   |
+|  20        |  +  1.52   |
+|  21        |  +  0.94   |
+|  22        |  +  2.33   |
+|  23        |  +  1.07   |
+|  24        |  +  0.88   |
+|  25        |  +  0.87   |
+|  26        |  +  2.22   |
+|  27        |  +  1.48   |
+|  28        |  +  1.13   |
+|  29        |  +  1.83   |
+|  30        |  +  1.61   |
+|  31        |  +  1.00   |
++------------+------------+
+
+NNUE evaluation          +291 (side to move, internal units)
+NNUE evaluation        +0.85 (white side)
+Final evaluation      +0.88 (white side) [with scaled NNUE, ...]
+
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 Final evaluation: none (in check)
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -939,21 +1947,45 @@ NNUE network contributions (Normalized, Black to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  -  0.35   |
-|  1         |  -  0.36   | <-- this bucket is used
-|  2         |  -  0.45   |
-|  3         |  -  0.46   |
-|  4         |  -  0.17   |
-|  5         |  +  0.46   |
-|  6         |  +  1.24   |
-|  7         |  +  0.60   |
+|  0         |  -  0.18   |
+|  1         |  -  2.41   |
+|  2         |  +  4.11   |
+|  3         |  +  0.11   |
+|  4         |  -  0.20   | <-- this bucket is used
+|  5         |  -  0.38   |
+|  6         |  +  0.33   |
+|  7         |  -  0.18   |
+|  8         |  -  0.94   |
+|  9         |  -  0.33   |
+|  10        |  +  0.99   |
+|  11        |  -  0.34   |
+|  12        |  -  0.46   |
+|  13        |  -  0.16   |
+|  14        |  +  1.17   |
+|  15        |  -  0.09   |
+|  16        |  -  0.22   |
+|  17        |  -  0.44   |
+|  18        |  +  0.94   |
+|  19        |  -  0.01   |
+|  20        |  +  1.10   |
+|  21        |  -  0.28   |
+|  22        |  +  2.43   |
+|  23        |  +  0.23   |
+|  24        |  +  0.56   |
+|  25        |  -  1.38   |
+|  26        |  +  2.12   |
+|  27        |  +  0.82   |
+|  28        |  +  0.56   |
+|  29        |  +  0.97   |
+|  30        |  -  0.74   |
+|  31        |  +  1.30   |
 +------------+------------+
 
-NNUE evaluation          -124 (side to move, internal units)
-NNUE evaluation        +0.36 (white side)
-Final evaluation      +0.37 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -69 (side to move, internal units)
+NNUE evaluation        +0.20 (white side)
+Final evaluation      +0.20 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -961,21 +1993,45 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  0.19   |
-|  1         |  -  0.07   | <-- this bucket is used
-|  2         |  -  0.05   |
-|  3         |  +  0.03   |
-|  4         |  -  0.07   |
-|  5         |  -  0.19   |
-|  6         |  -  0.52   |
-|  7         |  +  0.52   |
+|  0         |  -  0.17   |
+|  1         |  -  8.73   |
+|  2         |  +  3.21   |
+|  3         |  -  0.28   |
+|  4         |  +  0.02   |
+|  5         |  -  0.25   | <-- this bucket is used
+|  6         |  +  0.06   |
+|  7         |  +  0.29   |
+|  8         |  -  0.01   |
+|  9         |  -  0.18   |
+|  10        |  -  0.16   |
+|  11        |  -  0.08   |
+|  12        |  -  0.24   |
+|  13        |  -  0.64   |
+|  14        |  -  0.72   |
+|  15        |  -  0.49   |
+|  16        |  -  0.59   |
+|  17        |  -  1.29   |
+|  18        |  -  0.24   |
+|  19        |  -  0.44   |
+|  20        |  -  0.85   |
+|  21        |  -  0.67   |
+|  22        |  +  0.67   |
+|  23        |  -  0.34   |
+|  24        |  -  0.55   |
+|  25        |  -  0.39   |
+|  26        |  -  1.19   |
+|  27        |  +  0.22   |
+|  28        |  -  0.13   |
+|  29        |  -  0.55   |
+|  30        |  -  2.38   |
+|  31        |  -  0.70   |
 +------------+------------+
 
-NNUE evaluation          -23 (side to move, internal units)
-NNUE evaluation        -0.07 (white side)
-Final evaluation      -0.07 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -85 (side to move, internal units)
+NNUE evaluation        -0.25 (white side)
+Final evaluation      -0.27 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -983,21 +2039,45 @@ NNUE network contributions (Normalized, Black to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  0.04   |
-|  1         |  +  0.08   |
-|  2         |     0.00   |
-|  3         |  +  0.24   |
-|  4         |  +  0.25   |
-|  5         |  +  0.31   | <-- this bucket is used
-|  6         |  +  0.45   |
-|  7         |     0.00   |
+|  0         |  -  1.91   |
+|  1         |  -  8.49   |
+|  2         |  + 21.37   |
+|  3         |  -  0.94   |
+|  4         |  +  0.73   |
+|  5         |  +  0.58   |
+|  6         |  -  0.91   |
+|  7         |  -  1.80   |
+|  8         |  -  0.48   |
+|  9         |  +  0.56   |
+|  10        |  -  0.95   |
+|  11        |  -  0.88   |
+|  12        |  -  1.29   |
+|  13        |  +  1.18   |
+|  14        |  -  0.41   |
+|  15        |  -  0.59   |
+|  16        |  -  0.73   |
+|  17        |  +  1.37   |
+|  18        |  -  0.57   |
+|  19        |  -  0.78   |
+|  20        |  -  1.11   |
+|  21        |  +  1.11   |
+|  22        |  -  0.05   |
+|  23        |  -  0.74   | <-- this bucket is used
+|  24        |  -  1.60   |
+|  25        |  +  1.32   |
+|  26        |  -  0.73   |
+|  27        |  -  0.89   |
+|  28        |  -  1.83   |
+|  29        |  +  2.59   |
+|  30        |  -  1.64   |
+|  31        |  -  0.64   |
 +------------+------------+
 
-NNUE evaluation          +95 (side to move, internal units)
-NNUE evaluation        -0.31 (white side)
-Final evaluation      -0.37 (white side) [with scaled NNUE, ...]
+NNUE evaluation          -226 (side to move, internal units)
+NNUE evaluation        +0.74 (white side)
+Final evaluation      +0.89 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -1005,21 +2085,45 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  +  1.25   |
-|  1         |  +  2.09   |
-|  2         |  +  2.92   |
-|  3         |  +  3.52   |
-|  4         |  +  3.06   |
-|  5         |  +  3.11   | <-- this bucket is used
-|  6         |  +  2.88   |
-|  7         |  +  2.71   |
+|  0         |  +  0.88   |
+|  1         |  -  6.12   |
+|  2         |  + 17.78   |
+|  3         |  +  4.93   |
+|  4         |  +  2.15   |
+|  5         |  +  1.78   |
+|  6         |  +  1.34   |
+|  7         |  +  1.39   |
+|  8         |  +  2.27   |
+|  9         |  +  2.49   |
+|  10        |  +  2.55   |
+|  11        |  +  3.42   |
+|  12        |  +  1.84   |
+|  13        |  +  2.54   |
+|  14        |  +  3.04   |
+|  15        |  +  3.25   |
+|  16        |  +  2.11   |
+|  17        |  +  2.87   |
+|  18        |  +  3.78   |
+|  19        |  +  2.74   |
+|  20        |  +  2.53   |
+|  21        |  +  3.38   |
+|  22        |  +  3.82   |
+|  23        |  +  3.75   | <-- this bucket is used
+|  24        |  +  2.70   |
+|  25        |  +  4.83   |
+|  26        |  +  4.90   |
+|  27        |  +  3.68   |
+|  28        |  +  0.64   |
+|  29        |  +  4.16   |
+|  30        |  +  1.86   |
+|  31        |  +  3.02   |
 +------------+------------+
 
-NNUE evaluation          +945 (side to move, internal units)
-NNUE evaluation        +3.11 (white side)
-Final evaluation      +3.71 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +1140 (side to move, internal units)
+NNUE evaluation        +3.75 (white side)
+Final evaluation      +4.47 (white side) [with scaled NNUE, ...]
 
-info string NNUE evaluation using nn-a8bcb689c267.nnue (107MiB, (86896, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
 
 
@@ -1027,18 +2131,42 @@ NNUE network contributions (Normalized, White to move)
 +------------+------------+
 |   Bucket   | Evaluation |
 +------------+------------+
-|  0         |  -  0.42   |
-|  1         |  -  0.05   |
-|  2         |  -  0.11   |
-|  3         |  +  0.14   |
-|  4         |  +  0.32   |
-|  5         |  +  0.26   |
-|  6         |  +  0.19   |
-|  7         |  +  0.19   | <-- this bucket is used
+|  0         |  -  0.46   |
+|  1         |  - 10.26   |
+|  2         |  + 15.77   |
+|  3         |  +  3.30   |
+|  4         |  -  0.04   |
+|  5         |  -  1.87   |
+|  6         |  +  1.67   |
+|  7         |  +  0.45   |
+|  8         |  +  0.10   |
+|  9         |  -  1.43   |
+|  10        |  +  2.06   |
+|  11        |  +  0.08   |
+|  12        |  +  0.24   |
+|  13        |  -  1.53   |
+|  14        |  +  1.43   |
+|  15        |  +  0.28   |
+|  16        |  +  0.19   |
+|  17        |  -  1.22   |
+|  18        |  +  1.29   |
+|  19        |  +  0.31   |
+|  20        |  +  0.16   |
+|  21        |  -  0.73   |
+|  22        |  +  0.95   |
+|  23        |  +  0.22   |
+|  24        |  +  0.14   |
+|  25        |  -  1.00   |
+|  26        |  +  0.95   |
+|  27        |  +  0.14   |
+|  28        |  +  0.08   |
+|  29        |  -  1.09   |
+|  30        |  +  0.88   |
+|  31        |  +  0.25   | <-- this bucket is used
 +------------+------------+
 
-NNUE evaluation          +54 (side to move, internal units)
-NNUE evaluation        +0.19 (white side)
-Final evaluation      +0.24 (white side) [with scaled NNUE, ...]
+NNUE evaluation          +71 (side to move, internal units)
+NNUE evaluation        +0.25 (white side)
+Final evaluation      +0.32 (white side) [with scaled NNUE, ...]
 
 exit=0

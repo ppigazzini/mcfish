@@ -79,11 +79,14 @@ compares the two trees as they stand rather than replaying a range, and `git log
 - **`UPSTREAM_TARGET`** — the SHA being ported toward when catching up to a moving
   upstream; equal to `UPSTREAM_BASE` when synced.
 
-**`./build.sh sync-status` is what checks these**, comparing the pin to the golden
-checkout's `HEAD` and listing every commit in between, in BOTH directions — a
-checkout sitting *before* the pin is red, because every grep of it then answers
-from source this tree has already ported past. It reports; it does not gate,
-because upstream moving is normal — the failure it catches is not noticing.
+**`./build.sh sync-status` is what checks these**, against official-stockfish/Stockfish
+`master` itself: it fetches the `../Stockfish` remote whose URL names that
+repository, then lists every commit between the pin and master. A pin master does
+not contain is red -- it is no upstream commit at all. It never reads the checkout's
+`HEAD`, which is routinely the fork's `refish` branch and says nothing about where
+upstream is; it only notes when that checkout is not the pin, since a grep of its
+`src/` then answers from another tree. It reports; it does not gate, because upstream
+moving is normal — the failure it catches is not noticing.
 Before this step existed nothing read the pins at all, and one sat five commits
 stale while reading as authoritative.
 

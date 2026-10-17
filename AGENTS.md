@@ -198,8 +198,10 @@ The consequences an agent gets wrong before reading
   worker-root install. Two claim LATENCY or PREDICTION and cost instructions to
   buy it, which no instrument here can price. The threat-index fold is half
   present and stronger — `ThreatIndexBlock` already merges the offsets into a u16
-  plane AND colocates `lut1` — leaving its row dedup as an unmeasured hypothesis
-  about cache footprint. `git log --grep=refish` finds each with its evidence.
+  plane AND colocates `lut1`. Its row dedup was left as a hypothesis about cache
+  footprint, and upstream shipped it as `b877fbde5`: measured at the 2026-10-17
+  sync, it costs instructions in both layouts tried and callgrind's D1mr does not
+  move, so it is refused. `git log --grep=refish` finds each with its evidence.
 - **The sibling's column decides WHETHER; only this tree's decides HOW MUCH.** The
   fourteenth sweep (2026-08-23) took seven commits, worth -0.67% at sse41 and -2.4%
   at avx512icl on `perf-budget`, and every one of them read a different number here
