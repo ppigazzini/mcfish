@@ -1615,6 +1615,10 @@ NEGATIVE_CONTROL_ROWS=(
   # removed, and only the symlen-at-domain control sees it one too tight.
   "a table past the alphabet is used%src/platform/syzygy/decode.c%s#symlen_size > TB_SYM_COUNT || ##%malformed%run"
   "a table at the alphabet is refused%src/platform/syzygy/decode.c%s#symlen_size > TB_SYM_COUNT#symlen_size >= TB_SYM_COUNT#%malformed%run"
+  # Without the refusal, symmetric-dtz-black is the stack overflow the nightly
+  # fuzz-tb lane found; its silent twin is what a refusal of every symmetric pawn
+  # table would fail instead.
+  "a symmetric DTZ table stores black%src/platform/syzygy/registry.c%s#if (dtz \&\& t->key == t->key2 \&\& t->has_pawns) {#if (false) {#%malformed%run"
   # HELD: only the ABSORBED family detects this, and that family needs the 3-man
   # corpus. On a machine that has not fetched it the gate narrows and stays green,
   # which this rig would credit as "the gate passed a mutated engine" -- a verdict
