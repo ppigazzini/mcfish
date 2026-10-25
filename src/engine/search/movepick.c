@@ -67,7 +67,7 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
     // Collect, per moving piece type, the squares attacked by a strictly cheaper
     // enemy piece. Quiet scoring pays for stepping into one and rewards leaving one.
     // The per-type sets are the position's cached threats, which see through our
-    // own king (movepick.cpp:205).
+    // own king (movepick.cpp:197).
     Bitboard threat_by_lesser[PIECE_TYPE_NB] = { 0 };
     // Hoisted for the same reason as the pawn row below, but paid for by the ADDRESSING
     // rather than by the lookup. `pos->st->check_squares[pt]` is two dependent loads off
@@ -172,7 +172,7 @@ static size_t score_list(const MovePicker *mp, int kind, ExtMove *out) {
 // is never tested against LIMIT, exactly as upstream's partial_insertion_sort.
 #ifdef __AVX512F__
 // Sort the first up-to-16 qualifying moves in two 512-bit registers, as upstream's
-// MoveSorter does (movepick.cpp:66). Values and moves live in SEPARATE registers so
+// MoveSorter does (movepick.cpp:54). Values and moves live in SEPARATE registers so
 // an insertion is one masked expand each; `write_sorted` reassembles the 8-byte
 // ExtMoves with a permute across the register pair.
 //
@@ -279,7 +279,7 @@ static void partial_insertion_sort(ExtMove *entries, size_t count, int limit) {
 
 #ifdef __AVX512F__
     // Vector pass over the leading run, then the scalar loop finishes the tail --
-    // upstream's shape at movepick.cpp:114.
+    // upstream's shape at movepick.cpp:103.
     MoveSorter sorter = move_sorter_init(entries[0]);
     for (; scan < count; ++scan) {
         if (entries[scan].value >= limit) {
@@ -318,8 +318,8 @@ static void init_common(MovePicker *mp, const Position *pos, Histories *h, Move 
     mp->threshold = 0;
     mp->depth = 0;
     mp->skip_quiets = false;
-    // Leave the cursor/span fields (cur, end_cur, end_bad_captures, end_captures,
-    // end_generated) unset, as upstream's constructor does: every stage of
+    // Leave the cursor/span fields (cur, end_cur, end_bad_captures, end_bad_moves)
+    // unset, as upstream's constructor does: every stage of
     // movepick_next writes each one before any stage reads it, and movepick_next
     // is an out-of-line call, so a zero-fill here is five stores per picker the
     // optimizer cannot prove dead.
@@ -357,68 +357,34 @@ static Move select_any(MovePicker *mp) {
     return MOVE_NONE;
 }
 
-// Return the next capture that survives SEE, shuffling the losing ones into the
-// [0, end_bad_captures) prefix for the BAD_CAPTURE stage to replay later.
+// Return the next capture that survives SEE, copying the losing ones into the
+// [0, end_bad_moves) prefix for MP_BAD_MOVES to replay later. The prefix never
+// overtakes the cursor, so the copy only ever lands on an entry already consumed.
 static Move select_good_capture(MovePicker *mp) {
     while (mp->cur < mp->end_cur) {
-        const size_t index = mp->cur;
-        const ExtMove entry = mp->moves[index];
+        const ExtMove entry = mp->moves[mp->cur++];
 
         if (entry.move != mp->tt_move) {
-            if (see_ge(mp->pos, entry.move, -entry.value / 18)) {
-                ++mp->cur;
+            if (see_ge(mp->pos, entry.move, -entry.value / 18))
                 return entry.move;
-            }
-
-            const ExtMove tmp = mp->moves[mp->end_bad_captures];
-            mp->moves[mp->end_bad_captures] = mp->moves[index];
-            mp->moves[index] = tmp;
-            ++mp->end_bad_captures;
+            mp->moves[mp->end_bad_moves++] = entry;
         }
-
-        ++mp->cur;
     }
     return MOVE_NONE;
 }
 
-// Walk for the next quiet scoring above GOOD_QUIET_THRESHOLD, stopping at the first
-// move that does not.
-//
-// partial_insertion_sort leaves the list in two pieces: a prefix that DESCENDS, and a
-// tail every member of which scores below the sort's own limit. So past the first move
-// at or below the threshold there is nothing left to find -- the rest of the prefix is
-// at or below it by the ordering, and the tail is below it by the limit.
-//
-// The tail half of that argument holds only while the LIMIT is at or below the
-// threshold. The limit is -3560 * depth and reaches -14000 at depth 4, so below that a
-// tail move can still outscore the threshold and the walk has to run to the end. The
-// caller picks between the two forms on exactly that test.
-static Move select_good_quiet_bounded(MovePicker *mp) {
-    while (mp->cur < mp->end_cur) {
-        const ExtMove entry = mp->moves[mp->cur];
-        if (entry.value <= GOOD_QUIET_THRESHOLD)
-            return MOVE_NONE;
-        ++mp->cur;
-        if (entry.move != mp->tt_move)
-            return entry.move;
-    }
-    return MOVE_NONE;
-}
-
+// Return the next quiet scoring above GOOD_QUIET_THRESHOLD, copying the losing ones
+// behind the bad captures for MP_BAD_MOVES to replay after them, in the order they
+// were met -- upstream's GOOD_QUIET filter (movepick.cpp:323).
 static Move select_good_quiet(MovePicker *mp) {
     while (mp->cur < mp->end_cur) {
         const ExtMove entry = mp->moves[mp->cur++];
-        if (entry.move != mp->tt_move && entry.value > GOOD_QUIET_THRESHOLD)
-            return entry.move;
-    }
-    return MOVE_NONE;
-}
 
-static Move select_bad_quiet(MovePicker *mp) {
-    while (mp->cur < mp->end_cur) {
-        const ExtMove entry = mp->moves[mp->cur++];
-        if (entry.move != mp->tt_move && entry.value <= GOOD_QUIET_THRESHOLD)
-            return entry.move;
+        if (entry.move != mp->tt_move) {
+            if (entry.value > GOOD_QUIET_THRESHOLD)
+                return entry.move;
+            mp->moves[mp->end_bad_moves++] = entry;
+        }
     }
     return MOVE_NONE;
 }
@@ -432,8 +398,7 @@ static Move select_probcut(MovePicker *mp) {
     return MOVE_NONE;
 }
 
-// The three stages that only walk a list, chained by fallthrough exactly as they were
-// when they were cases of the switch below. Reached by a range test rather than through
+// The four stages that only walk a list. Reached by a range test rather than through
 // the jump table, so more than half of the dispatches are a direct branch and the table
 // keeps the rest.
 //
@@ -442,43 +407,23 @@ static Move select_probcut(MovePicker *mp) {
 // byte-identical dispatch. They have to LEAVE the switch for the test to survive -- and
 // leaving the FUNCTION is what drops the frame, which is the other half of the cost.
 static Move walk_lists(MovePicker *mp) {
-    Move walk_move;
-
-    if (mp->stage == MP_GOOD_QUIET)
-        goto good_quiet;
-    if (mp->stage == MP_BAD_CAPTURE)
-        goto bad_capture;
-    goto bad_quiet;
-
-good_quiet:
-    if (!mp->skip_quiets) {
-        walk_move = -3560 * mp->depth <= GOOD_QUIET_THRESHOLD ? select_good_quiet_bounded(mp)
-                                                              : select_good_quiet(mp);
+    if (mp->stage == MP_GOOD_QUIET) {
+        const Move walk_move = select_good_quiet(mp);
         if (walk_move != MOVE_NONE)
             return walk_move;
+
+        // Replay the losers: the bad captures, then the bad quiets copied after them.
+        mp->cur = 0;
+        mp->end_cur = mp->end_bad_moves;
+        mp->stage = MP_BAD_MOVES;
     }
 
-    mp->cur = 0;
-    mp->end_cur = mp->end_bad_captures;
-    ++mp->stage;
-
-bad_capture:
-    walk_move = select_any(mp);
-    if (walk_move != MOVE_NONE)
-        return walk_move;
-
-    mp->cur = mp->end_captures;
-    mp->end_cur = mp->end_generated;
-    ++mp->stage;
-
-bad_quiet:
-    if (!mp->skip_quiets)
-        return select_bad_quiet(mp);
-    return MOVE_NONE;
+    // MP_BAD_MOVES, MP_QSEARCH and MP_EVASION take every move left in the span.
+    return select_any(mp);
 }
 
-// The stages that have no list to walk yet: the TT move, the three that generate and
-// score one, and the two that filter a list through see_ge.
+// The stages that have no list to walk yet: the TT move, the one that generates the
+// first list, and the two that filter a list through see_ge.
 //
 // It is out of line and never inlined because of what it costs its CALLER to hold. The
 // generating arms inline score_list, whose per-list locals -- the threat and check-square
@@ -489,29 +434,23 @@ bad_quiet:
 [[gnu::noinline]] static Move generate_stage(MovePicker *mp) {
     for (;;) {
         switch (mp->stage) {
-        case MP_MAIN_TT :
-        case MP_EVASION_TT :
-        case MP_QSEARCH_TT :
-        case MP_PROBCUT_TT :
-            ++mp->stage;
+        case MP_TT :
+            mp->stage = MP_INIT_FIRST_STAGE;
             return mp->tt_move;
 
-        case MP_CAPTURE_INIT :
-        case MP_PROBCUT_INIT :
-        case MP_QCAPTURE_INIT : {
+        case MP_INIT_FIRST_STAGE : {
             mp->cur = 0;
-            mp->end_bad_captures = 0;
+            mp->end_bad_moves = 0;
 
-            const size_t count = score_list(mp, KIND_CAPTURES, mp->moves + mp->cur);
+            const int kind = mp->first_stage == MP_EVASION ? KIND_EVASIONS : KIND_CAPTURES;
+            const size_t count = score_list(mp, kind, mp->moves);
 
-            mp->end_cur = mp->cur + count;
-            mp->end_captures = mp->end_cur;
-            sort_all(mp->moves + mp->cur, count);
-            ++mp->stage;
-            // Re-dispatch, as upstream's `goto top` does here (movepick.cpp:305): three
-            // stages share this block and each has a different successor, so the
-            // successor has to be read back off the stage. Every OTHER transition below
-            // has exactly one successor and falls through to it.
+            mp->end_cur = count;
+            sort_all(mp->moves, count);
+            mp->stage = mp->first_stage;
+            // Re-dispatch, as upstream's `goto dispatch` does here (movepick.cpp:297):
+            // four kinds of picker share this block and each has a different successor,
+            // so the successor has to be read back off the stage.
             continue;
         }
 
@@ -520,41 +459,29 @@ bad_quiet:
             if (m != MOVE_NONE)
                 return m;
 
-            ++mp->stage;
-            // Fall into the one successor this stage has, as upstream does
-            // (movepick.cpp:317): re-dispatching would reload the stage and jump
-            // through the switch's table, and that indirect jump is the one the
-            // hardware predicts worst -- measured 48% mispredicted here.
-            [[fallthrough]];
-        }
+            mp->end_bad_captures = mp->end_bad_moves;
 
-        case MP_QUIET_INIT : {
             if (!mp->skip_quiets) {
+                // Score the quiets over the good captures, right behind the bad ones.
+                mp->cur = mp->end_bad_moves;
                 const size_t count = score_list(mp, KIND_QUIETS, mp->moves + mp->cur);
 
                 mp->end_cur = mp->cur + count;
-                mp->end_generated = mp->end_cur;
                 partial_insertion_sort(mp->moves + mp->cur, count, -3560 * mp->depth);
+                mp->stage = MP_GOOD_QUIET;
+                return walk_lists(mp);
             }
 
-            ++mp->stage;
-            return walk_lists(mp);
-        }
-
-        case MP_EVASION_INIT : {
             mp->cur = 0;
-
-            const size_t count = score_list(mp, KIND_EVASIONS, mp->moves + mp->cur);
-
-            mp->end_cur = mp->cur + count;
-            mp->end_generated = mp->end_cur;
-            sort_all(mp->moves + mp->cur, count);
-            ++mp->stage;
-            [[fallthrough]];
+            mp->end_cur = mp->end_bad_moves;
+            mp->stage = MP_BAD_MOVES;
+            return select_any(mp);
         }
 
+        // Reached only from the init's re-dispatch: movepick_next sends every later call
+        // for these two straight to walk_lists.
+        case MP_QSEARCH :
         case MP_EVASION :
-        case MP_QCAPTURE :
             return select_any(mp);
 
         case MP_PROBCUT :
@@ -570,10 +497,10 @@ bad_quiet:
 //
 // Essentially every indirect mispredict this engine pays is the jump table in
 // generate_stage. Over a warm game the dispatch is entered several times a node, and
-// more than half of those entries ask for one of the three CONSECUTIVE stages that do
+// more than half of those entries ask for one of the four CONSECUTIVE stages that do
 // nothing but walk a list, which the range test below answers without reaching it.
 Move movepick_next(MovePicker *mp) {
-    if ((unsigned) (mp->stage - MP_GOOD_QUIET) <= (unsigned) (MP_BAD_QUIET - MP_GOOD_QUIET))
+    if ((unsigned) (mp->stage - MP_GOOD_QUIET) <= (unsigned) (MP_EVASION - MP_GOOD_QUIET))
         return walk_lists(mp);
 
     return generate_stage(mp);
