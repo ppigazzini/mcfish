@@ -293,7 +293,8 @@ outside it is unwired, not deferred:
   discovery only and says so. The `d` command prints `Tablebases WDL:`/`DTZ:` lines
   once a `SyzygyPath` covers the position. Cursed-win / blessed-loss is covered by
   `./build.sh tb-cursed`, which needs `./build.sh tb-fetch 5` and is deliberately
-  **not** in `parity` — a gate that is usually skipped stops being read — so run it
+  **not** in `parity` — a gate that is usually skipped stops being read — so the
+  parity workflow fetches the 5-man set and runs it as its own step, and you run it
   by hand when touching the prober.
 
   Two more instruments own this reader, and both exist because the bench list

@@ -277,9 +277,9 @@ time".
   so only a 5-man table reaches them, and `./build.sh tb-cursed` drives exactly
   that against `tools/tb_cursed.golden` after `./build.sh tb-fetch 5`. It is
   deliberately outside `parity`, because it depends on tables `tb-fetch` does not
-  get by default and a gate that is usually skipped stops being read. Run it by
-  hand when touching the prober; it exits **127**, not 0, when the tables are
-  absent. Its golden mixes provenance — oracle-pinned probe results over two
+  get by default and a gate that is usually skipped stops being read; the parity
+  workflow fetches them and runs it as its own step. Run it by hand when touching
+  the prober; it exits **127**, not 0, when the tables are absent. Its golden mixes provenance — oracle-pinned probe results over two
   self-golden node totals — and `./build.sh tb-cursed-update` re-derives only the
   latter, refusing outright if the former has moved. See
   [10-tooling-ci.md](10-tooling-ci.md).
@@ -313,7 +313,7 @@ seven of them.
 | `tb` | discovery, the root DTZ/WDL ranking and the probe path, against an oracle-derived golden | this page |
 | `tb-fetch` | nothing — it fetches, and verifies each file's Syzygy magic so a mirror's error page cannot masquerade as a table | this page |
 | `tb-update` | nothing — it re-derives `tools/tb.golden` from the ORACLE, and refuses without the full set | this page |
-| `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5` | this page |
+| `tb-cursed` | the DTZ > 100 cursed-win / blessed-loss branches no 3-man table reaches. Needs `./build.sh tb-fetch 5`, which the parity workflow fetches | this page |
 | `tb-cursed-update` | nothing — it re-derives only the node-limited legs, and only once the oracle-pinned half is green | this page |
 | `fuzz-tb` | the parse under two libFuzzer lanes, neither of which subsumes the other | this page |
 | `malformed` | that a file refused yesterday is refused today, and that a mutated one that loads stays inside its arrays | this page |

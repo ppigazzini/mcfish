@@ -129,21 +129,71 @@ jobs:
       # build.sh honours CC; everything else is its defaults.
       # The 3-man Syzygy set is 26 KB and two gates inside `parity` narrow without it:
       # `tb` checks discovery only and says so in red, and `malformed` runs its
-      # crafted-header family but not the mutated-real-table one. Fetching it here is
-      # what makes those two assert what they claim rather than what is reachable.
+      # crafted-header family but not the mutated-real-table one. The 24 MB 5-man set
+      # (`tb-fetch 5`: KNNvKP plus the two children its DTZ walk recurses into) is what
+      # `tb-cursed` below needs, because no smaller table holds a DTZ past 100. Fetching
+      # both here is what makes those three assert what they claim rather than what is
+      # reachable.
       #
+      # The tables never change, so the cache is keyed on the one thing that changes
+      # WHAT is fetched: do_tb_fetch's own text, which lives inside build.sh rather than
+      # in a file hashFiles can name. Restore and save are split so that only a COMPLETE
+      # fetch is saved -- a key that hits is never saved again, so caching what an
+      # outage left behind would pin the partial set until the fetcher next changed.
+      - name: Key the tablebase cache on the fetcher
+        id: tbkey
+        run: |
+          body="$(sed -n '/^do_tb_fetch()/,/^}/p' build.sh)"
+          [ -n "$body" ] || { echo "do_tb_fetch() not found in build.sh" >&2; exit 1; }
+          echo "key=syzygy-3man-5man-$(printf '%s' "$body" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - name: Restore the Syzygy tables
+        id: tbcache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            resources/syzygy
+            resources/syzygy5
+          key: ${{ steps.tbkey.outputs.key }}
+
       # BEST EFFORT ON PURPOSE. This is the blocking lane, and a tablebase mirror is
       # not this project's dependency to be held hostage by: if the fetch fails the
       # gates narrow exactly as they do on a developer's machine, print why, and the
       # lane stays green on the half it can still prove.
-      - name: Fetch the 3-man tables (best effort; the gates narrow without them)
+      - name: Fetch the 3-man and 5-man tables (best effort; the gates narrow without them)
+        id: tbfetch
         continue-on-error: true
-        run: ./build.sh tb-fetch
+        run: ./build.sh tb-fetch 5
+      - name: Save the Syzygy tables
+        if: steps.tbfetch.outcome == 'success' && steps.tbcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            resources/syzygy
+            resources/syzygy5
+          key: ${{ steps.tbkey.outputs.key }}
 
       - name: parity (all gates)
         env:
           CC: clang-${{ env.CLANG_VERSION }}
         run: ./build.sh parity
+
+      # The cursed-win / blessed-loss battery: the DTZ > 100 branches of the prober,
+      # which only the 5-man set fetched above reaches. It stays out of `parity` because
+      # a developer's machine usually lacks those tables, and a gate that is usually
+      # skipped stops being read; this lane always has them, unless the mirror was down
+      # on a cache miss. Then the gate exits 127 -- could not run, not failed -- and the
+      # step says so in a warning instead of going red, the same best effort as the fetch.
+      - name: Cursed win / blessed loss (5-man tables)
+        env:
+          CC: clang-${{ env.CLANG_VERSION }}
+        run: |
+          rc=0
+          ./build.sh tb-cursed || rc=$?
+          if [ "$rc" -eq 127 ]; then
+            echo "::warning title=tb-cursed SKIPPED::no 5-man tables (the fetch failed), so the cursed-win branches are UNEXERCISED in this run"
+            exit 0
+          fi
+          exit "$rc"
 
       # The three gates that need the net and the binary but not the oracle, so they
       # belong in the BLOCKING lane rather than the weekly one. Each ran in no lane

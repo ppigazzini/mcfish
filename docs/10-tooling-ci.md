@@ -173,7 +173,7 @@ does not carry the step, are both findings.
 | `arch-determinism` | builds every ISA tier the host can execute and requires one node count, and holds `native` to upstream's selector | that the evaluation is arch-invariant, and — since the tiers now run different ALGORITHMS — that those algorithms agree. Not in `parity`: several full builds. | [08-idiomatic-c.md](08-idiomatic-c.md) |
 | `malformed` | two families past the sanitized engine — crafted `.rtbw` headers that must be REFUSED, and real tables with a few bytes changed that must be ABSORBED — plus two controls that must stay silent | that a file refused yesterday is refused today, which neither `signature` nor the nightly fuzz lane can be. 2.4 s, in `parity`. | [05-tablebases.md](05-tablebases.md) |
 | `attribution` / `attribution-update` | diffs the tail of [`../AUTHORS`](../AUTHORS) — everything past its header rule — against upstream's own `AUTHORS` at the pin, read straight out of the golden's object store | that the GPL attribution mcfish is REQUIRED to carry is still upstream's list, which nothing else here reads: no node count, no golden and no lint opens this file. It had drifted by six names across four syncs, one of them added by `22dfb404` in the range the port that added this gate had just closed — a resync reads `src/`, so a commit touching `AUTHORS` and `search.cpp` together gets ported by its diff and silently loses the half that is not code. **NARROWS** to unchecked without a golden checkout, the way `tb` does, so it can sit in `parity` and still be the real comparison in the weekly upstream lane. `attribution-update` re-derives the copy. | this page |
-| `tb-cursed` / `tb-cursed-update` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. **LOCAL**, needs `./build.sh tb-fetch 5`, exits 127 without them. | [05-tablebases.md](05-tablebases.md) |
+| `tb-cursed` / `tb-cursed-update` | the DTZ > 100 cursed-win / blessed-loss battery plus two node-limited TB legs | the branches no 3-man table reaches. Needs `./build.sh tb-fetch 5`, exits 127 without them; out of `parity`, but the parity workflow runs `tb-cursed` as its own step. | [05-tablebases.md](05-tablebases.md) |
 | `pgo` | instrument, profile the canonical `bench`, rebuild with `-fprofile-use` | nothing — it is a build mode, not a gate. | [08-idiomatic-c.md](08-idiomatic-c.md) |
 | `perf-budget-tb` / `perf-budget-tb-update` | the same measurement over a PROBING workload, filed under a `<tier>+syzygy` row | the tablebase reader, which `perf-budget` cannot see at all. **LOCAL**, needs `perf_event_open` *and* `./build.sh tb-fetch 5`. | [11-performance.md](11-performance.md) |
 | `perf-budget` / `perf-budget-update` | measure retired instructions against `tools/instr_budget.golden`, keyed by the ISA TIER in the binary and held to 0.05% | an instruction-count regression the node signature is blind to. **LOCAL**, and the budget file is gitignored. | [11-performance.md](11-performance.md) |
@@ -514,12 +514,16 @@ Runs on every push and PR, with six jobs:
 
   It fetches two RESOURCES first, and both are best effort by design: the NNUE net
   (cached; without it `signature`, `net-roundtrip` and `simd-scalar` skip) and the
-  26 KB 3-man Syzygy set (without it `tb` and `malformed` narrow). Neither is this
-  project's dependency to be held hostage by, so a mirror that is down costs
-  coverage the run announces rather than a red blocking lane. What that buys is
-  the difference between a lane that is green and one that checked what it claims:
-  before the tables were fetched here, `tb` had only ever asserted discovery in
-  CI.
+  Syzygy tables, `tb-fetch 5` — the 26 KB 3-man set, without which `tb` and
+  `malformed` narrow, and the 24 MB 5-man one that `tb-cursed` needs. Neither is
+  this project's dependency to be held hostage by, so a mirror that is down costs
+  coverage the run announces rather than a red blocking lane: `tb-cursed` runs as
+  its own step after `parity` and turns its exit 127 into a warning. What that buys
+  is the difference between a lane that is green and one that checked what it
+  claims: before the tables were fetched here, `tb` had only ever asserted
+  discovery in CI, and the cursed-win branches had never run in it at all. The
+  tables are cached on the text of `do_tb_fetch`, and saved only after a complete
+  fetch.
 - **`sanitizers`** — ASan+UBSan over paths `parity`'s test binary never reaches:
   the release search at bench depth and the perft path through `shell/`. Kept
   separate because the instrumented binary is roughly an order of magnitude
