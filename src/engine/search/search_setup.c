@@ -178,6 +178,7 @@ void search_id_state_init(SearchIdState *id,
         id->tm_use_nodes_time = tm->use_nodes_time;
     }
 
+    id->limits_npmsec = ctx->limits.npmsec;
     id->limits_depth = ctx->limits.depth;
     id->limits_mate = ctx->limits.mate;
 
