@@ -1,7 +1,6 @@
 #include "position.h"
 
 #include "../search/history.h"
-#include "../search/tt.h"
 
 #include <ctype.h>
 #include <stddef.h>
@@ -961,11 +960,12 @@ void pos_do_move(Position *pos,
     new_st->key = key;
 
     // Preload the lines the child will read, now that every key it is indexed by
-    // is final (upstream position.cpp:1006-1010). The make is not finished: the
+    // is final (upstream position.cpp:978-982). The make is not finished: the
     // checkers scan, set_extra_bitboards and the repetition walk all still run below,
-    // and that is the lead time these hints are issued to buy.
+    // and that is the lead time these hints are issued to buy. The child's TT cluster
+    // is not among them: search_do_move prefetches it before the make, and upstream
+    // ed2f9bdce dropped this second hint for the same line.
     if (history != nullptr) {
-        tt_prefetch(pos_adjust_key50_of(key, new_st->rule50));
         __builtin_prefetch(
           &pawn_history_row(history, new_st->pawn_key)[(size_t) pc * SQUARE_NB + (size_t) to], 0,
           3);
