@@ -11,9 +11,10 @@
 // `tt_move` must already be known legal for `pos` — the picker returns it
 // unchecked. Pass MOVE_NONE when there is no usable TT move.
 //
-// The move buffer is reused across stages: quiets are scored on top of the
-// captures already consumed, so `cur` only ever moves forward and MAX_MOVES is
-// enough for both lists.
+// The move buffer is reused across stages. Losing captures and losing quiets are
+// copied, in the order they were met, into a prefix that grows behind the cursor,
+// and quiets are scored over the good captures already consumed, so one buffer of
+// MAX_MOVES holds both lists and the losers are replayed as one span at the end.
 //
 // Golden: the upstream `movepick.cpp`. `see_ge` mirrors upstream
 // `position.cpp: Position::see_ge` and lives in the board zone
@@ -33,29 +34,24 @@
 
 #include <stddef.h>
 
-// Order the stages exactly as upstream does: `initMainStage` computes a stage by
-// adding 1 when there is no TT move, so each *_TT stage must be immediately
-// followed by its init stage.
+// Order the stages as upstream does (movepick.cpp:30). Every picker starts at MP_TT,
+// or at MP_INIT_FIRST_STAGE when its TT move is not usable; what KIND of picker it is
+// -- main search, quiescence, evasions or ProbCut -- is `first_stage`, the stage the
+// init hands over to. The four stages from MP_GOOD_QUIET to MP_EVASION only walk a
+// list, and are kept consecutive so movepick_next can reach them by one range test.
 enum {
-    MP_MAIN_TT = 0,
-    MP_CAPTURE_INIT,
-    MP_GOOD_CAPTURE,
-    MP_QUIET_INIT,
-    MP_GOOD_QUIET,
-    MP_BAD_CAPTURE,
-    MP_BAD_QUIET,
+    MP_TT = 0,
+    MP_INIT_FIRST_STAGE,
 
-    MP_EVASION_TT = 7,
-    MP_EVASION_INIT,
+    MP_GOOD_CAPTURE,
+    MP_GOOD_QUIET,
+    MP_BAD_MOVES,
+
+    MP_QSEARCH,
+
     MP_EVASION,
 
-    MP_PROBCUT_TT = 10,
-    MP_PROBCUT_INIT,
     MP_PROBCUT,
-
-    MP_QSEARCH_TT = 13,
-    MP_QCAPTURE_INIT,
-    MP_QCAPTURE,
 };
 
 typedef struct {
@@ -63,7 +59,7 @@ typedef struct {
     Histories *hist;
     Key pawn_key;
     // The CALLER's continuation-page array, not a copy: `contHist` in upstream's
-    // constructor (movepick.cpp:160). Slot k is the (ss-1-k) page. Quiet scoring
+    // constructor (movepick.cpp:149). Slot k is the (ss-1-k) page. Quiet scoring
     // reads slots 0, 1, 2, 3 and 5, evasion scoring reads slot 0, and the
     // quiescence caller passes a one-entry array because its only scorer is the
     // evasion one (search.cpp:1732). Null for the ProbCut picker, whose stages
@@ -73,6 +69,7 @@ typedef struct {
 
     Move tt_move;
     int stage;
+    int first_stage;
     int threshold;  // probcut SEE threshold
     int depth;
     bool skip_quiets;
@@ -80,15 +77,14 @@ typedef struct {
     size_t cur;
     size_t end_cur;
     size_t end_bad_captures;
-    size_t end_captures;
-    size_t end_generated;
+    size_t end_bad_moves;
     ExtMove moves[MAX_MOVES];
 } MovePicker;
 
 // Set up the main-search / qsearch picker. The caller must then select the
-// opening stage (its mp_set_*_stage helper) before the first movepick_next:
-// the stage choice reads the TT move's legality, which the search zone tests, so
-// the picker does not compute a stage of its own.
+// opening stages (its mp_set_*_stage helper) before the first movepick_next:
+// the choice reads the TT move's legality, which the search zone tests, so the
+// picker does not compute a stage of its own.
 // SS is the frame whose (ss-1)..(ss-6) continuation pages quiet/evasion scoring
 // reads; the picker gathers them only when such a stage runs.
 void movepick_init(MovePicker *mp,
@@ -109,7 +105,16 @@ void movepick_init_probcut(
 // legal: the generators emit nothing else.
 Move movepick_next(MovePicker *mp);
 
-// Stop producing quiets from the next call on. Bad captures still follow.
-static inline void movepick_skip_quiets(MovePicker *mp) { mp->skip_quiets = true; }
+// Stop producing quiets from the next call on. Bad captures still follow. A quiet
+// stage already under way is cut short by moving the span ends back to the bad
+// captures' end, which drops the quiets left in the current span and every losing
+// quiet copied so far (upstream skip_quiet_moves, movepick.cpp:353).
+static inline void movepick_skip_quiets(MovePicker *mp) {
+    mp->skip_quiets = true;
+    if (mp->stage == MP_BAD_MOVES || mp->stage == MP_GOOD_QUIET) {
+        mp->end_cur = mp->end_bad_captures;
+        mp->end_bad_moves = mp->end_bad_captures;
+    }
+}
 
 #endif  // MCFISH_MOVEPICK_H

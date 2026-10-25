@@ -42,9 +42,9 @@ void tt_move_history_update(Histories *h, int bonus) {
 // there is no usable TT move, but keep `tt_move` set either way so the generated
 // list still filters it out.
 static void mp_set_main_stage(MovePicker *mp, const Position *pos, Move tt_move, int depth) {
-    const int base = checkers(pos) != 0 ? MP_EVASION_TT : depth > 0 ? MP_MAIN_TT : MP_QSEARCH_TT;
+    mp->first_stage = checkers(pos) != 0 ? MP_EVASION : depth > 0 ? MP_GOOD_CAPTURE : MP_QSEARCH;
     const bool usable = tt_move != MOVE_NONE && pos_legal(pos, tt_move);
-    mp->stage = base + (int) (!usable);
+    mp->stage = usable ? MP_TT : MP_INIT_FIRST_STAGE;
 }
 
 // Clone the body per NodeType, the way upstream instantiates qsearch<PV> and

@@ -1117,13 +1117,12 @@ static size_t drain_picker(uint8_t pattern,
 
     if (probcut) {
         movepick_init_probcut(&mp, pos, h, MOVE_NONE, 1);
-        mp.stage = MP_PROBCUT_TT + 1;  // no usable TT move
+        mp.first_stage = MP_PROBCUT;
+        mp.stage = MP_INIT_FIRST_STAGE;  // no usable TT move
     } else {
         movepick_init(&mp, pos, h, pos->st->pawn_key, MOVE_NONE, depth, 2, cont_hist);
-        const int base = checkers(pos) != 0 ? MP_EVASION_TT
-                       : depth > 0          ? MP_MAIN_TT
-                                            : MP_QSEARCH_TT;
-        mp.stage = base + 1;  // no usable TT move
+        mp.first_stage = checkers(pos) != 0 ? MP_EVASION : depth > 0 ? MP_GOOD_CAPTURE : MP_QSEARCH;
+        mp.stage = MP_INIT_FIRST_STAGE;  // no usable TT move
     }
 
     size_t n = 0;
