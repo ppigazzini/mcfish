@@ -266,11 +266,12 @@ do not remove the bound.**
 
 `tools/tb.golden` is **oracle-derived**: `./build.sh tb-update` regenerates it by
 running the pristine upstream binary over the same battery, never mcfish. It pins
-each position's root `score` and `tbhits` from the **depth-1** info line and
-deliberately pins neither nodes, pv nor bestmove — upstream early-returns at depth
-1 once the root is in the tablebase while mcfish searches on, and among
-equally-optimal TB moves either may pick a different winning one. Gating that
-would be fake parity. See [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md).
+each position's root `score`, `tbhits` and pv from the **depth-1** info line, and
+the `d` command's WDL and DTZ probe **with its state** — the search reads only
+whether a DTZ probe failed, so a state that differs from upstream's moves nothing
+else the gate sees. It deliberately pins neither nodes nor bestmove — upstream
+early-returns at depth 1 once the root is in the tablebase while mcfish searches
+on. Gating that would be fake parity. See [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md).
 
 ### A skipped gate is not a passing gate
 

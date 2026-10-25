@@ -4,6 +4,9 @@
 # and the root ranking fires. Between them these cover all five piece types, a
 # win, a loss and a draw, both colours to move, the pawn path, the black-stronger
 # flip (the lone king is white), and the DTZ one-sided `change_stm` resolution.
+# Every row also records the `d` probe with its state, and the last two rows are
+# there for the two states nothing else reaches: a winning zeroing move (2), and a
+# side to move that is mated, whose one-ply search leaves change_stm standing (-1).
 KQvK-win-w 8/8/8/8/8/4k3/8/3QK3 w - - 0 1
 KQvK-loss-b 8/8/8/8/8/3k4/8/3QK3 b - - 0 1
 KRvK-win-w 8/8/8/8/8/4k3/8/3RK3 w - - 0 1
@@ -15,3 +18,5 @@ KNvK-draw-w 8/8/8/8/5k2/8/8/3NK3 w - - 0 1
 KPvK-draw-w 8/8/8/8/8/4k3/4P3/4K3 w - - 0 1
 KPvK-draw-b 8/8/8/8/8/4k3/4P3/4K3 b - - 0 1
 KPvK-black-pawn 4k3/4p3/8/8/8/8/8/4K3 b - - 0 1
+KPvK-zeroing-w 8/8/6K1/3P4/8/8/8/2k5 w - - 0 1
+KRvK-mated-b 7R/8/8/8/8/8/5K1k/8 b - - 0 1

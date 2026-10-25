@@ -32,29 +32,29 @@ static int32_t dtz_before_zeroing(int32_t wdl) {
     }
 }
 
-// Port upstream `probe_dtz` (syzygy/tbprobe.cpp:1601).
+// Port upstream `probe_dtz` (syzygy/tbprobe.cpp:1725).
+//
+// STATE is upstream's `result`, and it is SHARED rather than owned: the WDL search, the
+// table probe and every child probe of the one-ply search write it in turn, and it
+// returns holding what the last of them left -- ZEROING when the best move zeroes, a
+// child's state after the one-ply search, CHANGE_STM when that search had no move. The
+// search reads only whether it is FAIL; the `d` command prints it.
 int32_t probe_dtz(Position *pos, int32_t *state) {
-    *state = PROBE_OK;
     const TbProbeValue w = search_wdl(pos, true);
-    if (w.state == PROBE_FAIL) {
-        *state = PROBE_FAIL;
-        return 0;
-    }
+    *state = w.state;
     const int32_t wdl = w.value;
-    if (wdl == WDL_DRAW) {
+    if (w.state == PROBE_FAIL || wdl == WDL_DRAW) {
         return 0;  // DTZ tables store no draws
     }
     if (w.state == PROBE_ZEROING) {
         return dtz_before_zeroing(wdl);  // the best move is a winning zeroing move
     }
 
-    int32_t table_state = PROBE_OK;
-    const int32_t table_dtz = probe_table(pos, true, wdl, &table_state);
-    if (table_state == PROBE_FAIL) {
-        *state = PROBE_FAIL;
+    const int32_t table_dtz = probe_table(pos, true, wdl, state);
+    if (*state == PROBE_FAIL) {
         return 0;
     }
-    if (table_state != PROBE_CHANGE_STM) {
+    if (*state != PROBE_CHANGE_STM) {
         const int32_t cursed = (wdl == WDL_BLESSED_LOSS || wdl == WDL_CURSED_WIN) ? 1 : 0;
         return (table_dtz + 100 * cursed) * sign_of(wdl);
     }
@@ -76,17 +76,16 @@ int32_t probe_dtz(Position *pos, int32_t *state) {
         pos_do_move(pos, m, &st, pos_gives_check(pos, m), &pos->scratch_dp, &pos->scratch_dts,
                     nullptr);
 
-        int32_t child_state = PROBE_OK;
         int32_t dtz;
         if (zeroing) {
             // Take the DTZ of the move BEFORE playing it — otherwise this is the
             // DTZ of the next move sequence — but search the position after it to
             // get the sign.
             const TbProbeValue s = search_wdl(pos, false);
-            child_state = s.state;
+            *state = s.state;
             dtz = -dtz_before_zeroing(s.value);
         } else {
-            dtz = -probe_dtz(pos, &child_state);
+            dtz = -probe_dtz(pos, state);
         }
 
         // Force DTZ 1 for a mating move: the child is in check with no legal reply.
@@ -107,8 +106,7 @@ int32_t probe_dtz(Position *pos, int32_t *state) {
 
         pos_undo_move(pos, m);
 
-        if (child_state == PROBE_FAIL) {
-            *state = PROBE_FAIL;
+        if (*state == PROBE_FAIL) {
             return 0;
         }
     }

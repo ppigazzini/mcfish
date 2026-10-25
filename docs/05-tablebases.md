@@ -342,9 +342,9 @@ reallocation would leave that chain pointing into freed memory.
 **No gate here reaches the long case.** `tb-fetch` installs three-man tables and
 `tb-fetch 5` five-man ones, and neither holds a DTZ line past MAX_PLY plies, so
 the capacity contract is gated at the type instead — `test_root_pv_capacity`,
-under `test`. Score, tbhits and pv are pinned; nodes,
-seldepth and bestmove are not — they are search-side, and this is not a search
-gate.
+under `test`. Score, tbhits and pv are pinned, and so is the `d` command's probe
+with its state, which no other gate reads; nodes, seldepth and bestmove are not —
+they are search-side, and this is not a search gate.
 
 **A missing table reads as UNEXERCISED, never as a pass.** Without the full
 10-file set the gate checks discovery only and says so in red. `./build.sh

@@ -3592,7 +3592,7 @@ do_tb_fetch() {
 # `quit` cuts the search off and the fingerprint records an EMPTY pv -- a golden
 # that then matches nothing this gate can produce.
 tb_fingerprint() {
-  local bin=$1 tbpath=$2 fens=$3 pause=${4:-0} label fen out
+  local bin=$1 tbpath=$2 fens=$3 pause=${4:-0} label fen out dline
   printf 'discovery-absent %s\n' \
     "$(printf 'setoption name SyzygyPath value /nonexistent-syzygy-dir\nquit\n' \
        | "$bin" 2>&1 | grep -oE 'Found .*' || echo MISSING)"
@@ -3612,7 +3612,13 @@ tb_fingerprint() {
             printf 'quit\n'; } \
           | "$bin" 2>&1 | grep -E '^info depth 1 ' | head -1 \
           | grep -oE 'score [a-z]+ -?[0-9]+|tbhits [0-9]+| pv .*' | tr '\n' ' ' | tr -s ' ')
-    printf '%s %s\n' "$label" "${out:-NO-PROBE}"
+    # And the probe `d` reports, STATE included: the search reads only whether a DTZ
+    # probe failed, so a state that differs from upstream's -- a zeroing best move
+    # reported as a plain one -- moves no score, no PV and no node count. `d` is
+    # synchronous on both engines, so it needs no pause.
+    dline=$(printf 'setoption name SyzygyPath value %s\nposition fen %s\nd\nquit\n' "$tbpath" "$fen" \
+            | "$bin" 2>&1 | grep -E '^Tablebases (WDL|DTZ):' | tr '\n' ' ' | tr -s ' ')
+    printf '%s %s| %s\n' "$label" "${out:-NO-PROBE}" "${dline:-NO-D}"
   done < "$fens"
 }
 
