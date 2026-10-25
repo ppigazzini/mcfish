@@ -3,9 +3,10 @@
 // has been spent.
 //
 // The budget arithmetic is a pure function of its input record — timeman_compute
-// reads no clock, no option, and no position. The stateful wrapper timeman_init
-// only stores its result and hands back the possibly-converted clock, so the
-// formulas stay testable without a running search.
+// reads no clock, no option, and no position. The stateful wrapper is
+// search_tm_init (search_setup.h), which reads the options and the carried state
+// into that record and stores the result, so the formulas stay testable without a
+// running search.
 //
 // Nothing here reads the clock per node. timeman_elapsed_time is the single clock
 // read, and the caller decides how often to make it; in `nodes as time` mode
@@ -22,8 +23,6 @@
 
 #ifndef MCFISH_TIMEMAN_H
 #define MCFISH_TIMEMAN_H
-
-#include "search.h"
 
 #include "../board/types.h"
 
@@ -57,22 +56,6 @@ typedef struct {
     int64_t cyclic_budget;       // nodes one cycle of a cyclic control is worth
     bool use_nodes_time;         // true while in `nodes as time` mode
 } TimeManagement;
-
-// Carry the UCI options the budget depends on. The caller reads them from the
-// options map; this module never does.
-typedef struct {
-    TimePoint npmsec;         // "nodestime": nodes per millisecond, 0 to disable
-    TimePoint move_overhead;  // "Move Overhead", milliseconds
-    bool ponder;              // "Ponder"
-} TimemanOptions;
-
-// Report the clock as it stands after a `nodes as time` conversion. Equal to the
-// caller's own limits when that mode is off.
-typedef struct {
-    TimePoint time;
-    TimePoint inc;
-    TimePoint npmsec;
-} TimemanLimits;
 
 // Mirror the pure core of Stockfish's TimeManagement::init.
 typedef struct {
@@ -113,17 +96,6 @@ typedef struct {
 // only start_time and use_nodes_time are otherwise established (upstream
 // timeman.cpp:61).
 TimemanOutput timeman_compute(TimemanInput input);
-
-// Set up TM for the search about to start and return the effective clock. Read
-// the side-to-move clock out of LIMITS; ORIGINAL_TIME_ADJUST is the caller's
-// per-game state and is updated in place on the first move that fixes it.
-TimemanLimits timeman_init(TimeManagement *tm,
-                           const SearchLimits *limits,
-                           Color us,
-                           int ply,
-                           TimemanOptions opts,
-                           TimePoint start_time,
-                           double *original_time_adjust);
 
 // Reset the carried-over node budget. Call at the start of a new game.
 void timeman_clear(TimeManagement *tm);

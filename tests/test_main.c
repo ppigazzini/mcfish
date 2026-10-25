@@ -31,6 +31,8 @@
 #include "../src/engine/search/search_common.h"
 #include "../src/engine/search/root_pv.h"
 #include "../src/engine/search/search_types.h"
+#include "../src/engine/search/search_setup.h"
+#include "../src/engine/search/option_source.h"
 #include "../src/engine/search/timeman.h"
 #include "../src/engine/search/tt.h"
 #include "../src/engine/eval/nnue/simd.h"
@@ -1858,6 +1860,63 @@ static void test_timeman_nodestime_cycle(void) {
           "a new cycle tops the budget up, got %lld", (long long) out.available_nodes);
 }
 
+// Answer the options search_tm_init reads, with `nodestime` under the test's control.
+static int TmTestNodestime;
+static int tm_test_options(const char *name) {
+    if (strcmp(name, "nodestime") == 0)
+        return TmTestNodestime;
+    return strcmp(name, "Move Overhead") == 0 ? 10 : 0;
+}
+
+// Run search_tm_init for one `go` with the clocks given, as the search does.
+static void
+tm_test_go(SearchCtx *ctx, TimeManagement *tm, TimePoint white, TimePoint black, int mtg) {
+    double adjust = -1.0;
+    ctx->limits = (SearchZoneLimits) { .time = { white, black }, .movestogo = mtg };
+    search_tm_init(ctx, tm, &adjust);
+}
+
+// Hold search_tm_init -- the wrapper every `go` runs -- to the two properties above.
+// Both tests drive the pure core and thread its state by hand, and both passed while
+// the binary diverged: the record the live wrapper built left out the opponent's clock
+// and the cyclic control's carried fields, so they read as zero on every move. The
+// oracle spent a quarter of mcfish's nodes behind on the clock, and five times as
+// many on the move that opens a new cycle.
+static void test_search_tm_init_carries_clock_state(void) {
+    banner("the live time-manager wrapper carries every clock field");
+
+    int (*const saved)(const char *) = OptionIntByName;
+    OptionIntByName = tm_test_options;
+
+    Position pos;
+    StateInfo st;
+    CHECK(pos_set(&pos, "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1", false, &st),
+          "setup");
+    static SearchCtx ctx;
+    ctx.root_pos = &pos;
+    TimeManagement tm;
+
+    TmTestNodestime = 0;
+    timeman_clear(&tm);
+    tm_test_go(&ctx, &tm, 2000, 2000, 0);
+    const TimePoint level = tm.optimum_time;
+    tm_test_go(&ctx, &tm, 20000, 2000, 0);
+    CHECK(tm.optimum_time < level, "black behind on the clock spends less: %lld vs %lld level",
+          (long long) tm.optimum_time, (long long) level);
+
+    TmTestNodestime = 50;
+    timeman_clear(&tm);
+    tm_test_go(&ctx, &tm, 4000, 4000, 2);
+    tm_test_go(&ctx, &tm, 4000, 4000, 1);
+    CHECK(tm.available_nodes == 50 * 4000, "a move inside the cycle adds nothing, got %lld",
+          (long long) tm.available_nodes);
+    tm_test_go(&ctx, &tm, 4000, 4000, 2);
+    CHECK(tm.available_nodes == 2 * 50 * 4000, "a new cycle tops the budget up, got %lld",
+          (long long) tm.available_nodes);
+
+    OptionIntByName = saved;
+}
+
 // Hold the conthist scale table to the two arrays it was derived from.
 //
 // The table's 42 entries are written out because a `constexpr` initializer that
@@ -2234,6 +2293,7 @@ int main(void) {
     test_timeman_zero_clock();
     test_timeman_time_advantage();
     test_timeman_nodestime_cycle();
+    test_search_tm_init_carries_clock_state();
     test_conthist_scale_table();
     test_movepick_poison();
     test_nnue_parse_poison();
