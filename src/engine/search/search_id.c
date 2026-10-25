@@ -440,9 +440,13 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
 
             double total_time = (double) id->tm_optimum * falling_eval * reduction
                               * best_move_instability * high_best_move_effort;
-            // Cap used time for a better viewer experience.
-            if (ctx->root_moves_count == 1)
-                total_time = total_time < 500.0 ? total_time : 500.0;
+            // Cap used time to half a second for a better viewer experience. In `nodes
+            // as time` mode the budget is in nodes, so the cap is half a second's worth
+            // of them (search.cpp:615).
+            if (ctx->root_moves_count == 1) {
+                const double cap = 500.0 * (double) (id->limits_npmsec > 1 ? id->limits_npmsec : 1);
+                total_time = total_time < cap ? total_time : cap;
+            }
 
             // Stop once there is nothing better to find: a mate in <= 3 for us, or
             // a forced mate against us in 2. Without both disjuncts a found mate

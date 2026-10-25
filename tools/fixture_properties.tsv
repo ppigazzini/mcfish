@@ -72,6 +72,7 @@ go-nodes-limit	src/engine/search/search_control.c	tools/cases/transcript/go_node
 nodestime-cyclic-control	src/engine/search/search_setup.c	tools/cases/nodestime.uci	movestogo 1
 nodestime-clockless-go	src/engine/search/timeman.c	tools/cases/nodestime.uci	go depth 3
 nodestime-movetime	src/engine/search/search_setup.c	tools/cases/nodestime.uci	go movetime 100
+nodestime-single-root-move	src/engine/search/search_id.c	tools/cases/nodestime.uci	7k/8/8/8/8/r7/1N6/K7
 go-perft	src/shell/uci.c	tools/cases/perft.uci	go perft
 search-depth	src/engine/search/search_main.c	tools/cases/search.uci	go depth
 uci-handshake	src/shell/uci.c	tools/cases/handshake.uci	uci

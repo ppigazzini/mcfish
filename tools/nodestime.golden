@@ -90,4 +90,20 @@ info depth 5 seldepth 8 multipv 1 score cp -26 nodes 260 hashfull 0 tbhits 0 pv 
 info depth 6 seldepth 6 multipv 1 score cp -26 nodes 396 hashfull 0 tbhits 0 pv c7c5
 info depth 7 seldepth 11 multipv 1 score cp -30 upperbound nodes 1239 hashfull 0 tbhits 0 pv c7c5 g1f3
 bestmove c7c5 ponder g1f3
+info string Available processors: <cpus>
+info string Using 1 thread
+info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string Network replica 1: <backing>
+info depth 1 seldepth 2 multipv 1 score cp 0 nodes 1 hashfull 0 tbhits 0 pv a1b1
+info depth 2 seldepth 4 multipv 1 score cp -1 nodes 6 hashfull 0 tbhits 0 pv a1b1 a3a1 b1a1
+info depth 3 seldepth 4 multipv 1 score cp -1 nodes 28 hashfull 0 tbhits 0 pv a1b1 a3c3
+info depth 4 seldepth 6 multipv 1 score cp 0 nodes 113 hashfull 0 tbhits 0 pv a1b1 a3c3 b1a2 c3c2
+info depth 5 seldepth 6 multipv 1 score cp 0 nodes 184 hashfull 0 tbhits 0 pv a1b1 a3c3 b2d1 c3g3
+info depth 6 seldepth 8 multipv 1 score cp -1 nodes 275 hashfull 0 tbhits 0 pv a1b1 a3c3 b2d1 c3b3 b1c2
+info depth 7 seldepth 8 multipv 1 score cp -3 nodes 614 hashfull 0 tbhits 0 pv a1b1 h8g7 b1c2
+info depth 8 seldepth 10 multipv 1 score cp -4 nodes 1165 hashfull 0 tbhits 0 pv a1b1 a3a7 b2d1 a7b7 b1c2 h8g8 d1b2
+info depth 9 seldepth 10 multipv 1 score cp -4 nodes 1514 hashfull 0 tbhits 0 pv a1b1 a3a6 b2d1 a6b6 d1b2
+info depth 10 seldepth 12 multipv 1 score cp -4 nodes 2152 hashfull 0 tbhits 0 pv a1b1 a3a7 b2d1 a7a6 d1c3 h8g7 c3a2 g7g6 b1b2
+info depth 11 seldepth 14 multipv 1 score cp -9 nodes 13351 hashfull 3 tbhits 0 pv a1b1 a3e3 b1c2
+bestmove a1b1 ponder a3e3
 exit=0
