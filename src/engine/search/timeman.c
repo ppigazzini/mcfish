@@ -22,7 +22,12 @@ TimemanOutput timeman_compute(TimemanInput input) {
         .time = input.time,
         .inc = input.inc,
         .start_time = input.start_time,
-        .npmsec = input.npmsec,
+        // A `go` line carries no npmsec, so the caller's limit stays 0 until the clock
+        // is converted below -- which a clockless `go` never reaches. Upstream writes
+        // limits.npmsec there alone (timeman.cpp:95), and the nodes-as-time bank keys
+        // on it: a clockless `go` that banked its nodes spent the -1 sentinel, and the
+        // next game clock was never converted at all.
+        .npmsec = 0,
         .available_nodes = input.available_nodes,
         .previous_movestogo = input.previous_movestogo,
         .cyclic_budget = input.cyclic_budget,
@@ -62,6 +67,7 @@ TimemanOutput timeman_compute(TimemanInput input) {
         // Convert from milliseconds to nodes
         output.time = output.available_nodes;
         output.inc *= input.npmsec;
+        output.npmsec = input.npmsec;
         move_overhead *= input.npmsec;
     }
 

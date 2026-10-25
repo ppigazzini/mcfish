@@ -6,4 +6,10 @@ position startpos moves e2e4 e7e5
 go wtime 2000 btime 2000 movestogo 1
 position startpos moves e2e4 e7e5 g1f3 b8c6
 go wtime 4000 btime 4000 movestogo 2
+ucinewgame
+position startpos
+go depth 3
+position startpos moves e2e4
+go wtime 4000 btime 4000
+go movetime 100
 quit

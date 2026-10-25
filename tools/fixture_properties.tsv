@@ -70,6 +70,8 @@ go-depth-transcript	src/shell/uci.c	tools/cases/transcript/go_depth.uci	go depth
 go-fen-transcript	src/shell/uci.c	tools/cases/transcript/go_fen.uci	go depth
 go-nodes-limit	src/engine/search/search_control.c	tools/cases/transcript/go_nodes.uci	go nodes
 nodestime-cyclic-control	src/engine/search/search_setup.c	tools/cases/nodestime.uci	movestogo 1
+nodestime-clockless-go	src/engine/search/timeman.c	tools/cases/nodestime.uci	go depth 3
+nodestime-movetime	src/engine/search/search_setup.c	tools/cases/nodestime.uci	go movetime 100
 go-perft	src/shell/uci.c	tools/cases/perft.uci	go perft
 search-depth	src/engine/search/search_main.c	tools/cases/search.uci	go depth
 uci-handshake	src/shell/uci.c	tools/cases/handshake.uci	uci
