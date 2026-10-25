@@ -305,6 +305,7 @@ typedef struct {
     TimePoint tm_start_time;
     bool tm_use_nodes_time;
 
+    TimePoint limits_npmsec;  // 0 unless search_tm_init converted the clock to nodes
     int32_t limits_depth;
     int32_t limits_mate;
     int32_t best_previous_score;
