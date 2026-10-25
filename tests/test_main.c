@@ -1876,7 +1876,8 @@ tm_test_go(SearchCtx *ctx, TimeManagement *tm, TimePoint white, TimePoint black,
     search_tm_init(ctx, tm, &adjust);
 }
 
-// Hold search_tm_init -- the wrapper every `go` runs -- to the two properties above.
+// Hold search_tm_init -- the wrapper every `go` runs -- to the two properties above,
+// and to what a clockless `go` must leave behind.
 // Both tests drive the pure core and thread its state by hand, and both passed while
 // the binary diverged: the record the live wrapper built left out the opponent's clock
 // and the cyclic control's carried fields, so they read as zero on every move. The
@@ -1913,6 +1914,18 @@ static void test_search_tm_init_carries_clock_state(void) {
     tm_test_go(&ctx, &tm, 4000, 4000, 2);
     CHECK(tm.available_nodes == 2 * 50 * 4000, "a new cycle tops the budget up, got %lld",
           (long long) tm.available_nodes);
+
+    // A clockless `go` converts its movetime and leaves npmsec at the caller's 0, which
+    // the nodes-as-time bank keys on: a clockless search that banked its nodes spent
+    // the -1 sentinel, and the next game clock was never converted.
+    timeman_clear(&tm);
+    double adjust = -1.0;
+    ctx.limits = (SearchZoneLimits) { .movetime = 100 };
+    search_tm_init(&ctx, &tm, &adjust);
+    CHECK(ctx.limits.npmsec == 0, "a clockless go converts no clock, got npmsec %lld",
+          (long long) ctx.limits.npmsec);
+    CHECK(ctx.limits.movetime == 50 * 100, "but its movetime is in nodes, got %lld",
+          (long long) ctx.limits.movetime);
 
     OptionIntByName = saved;
 }

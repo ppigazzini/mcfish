@@ -94,6 +94,18 @@ void search_tm_init(SearchCtx *ctx, TimeManagement *tm, double *original_time_ad
     lim->inc[us] = out.inc;
     lim->npmsec = out.npmsec;
 
+    // CONVERT movetime when `nodestime` is in force, ahead of the clock as upstream
+    // does (timeman.cpp:60). In that mode the clock the check reads IS a node count, and
+    // movetime is the one budget the conversion above never reaches: a `go movetime`
+    // has no clock. Unconverted, `go movetime 1000` under `nodestime 600` stopped at
+    // 1416 nodes in 8 ms instead of spending the 600000 nodes that budget names.
+    //
+    // The product cannot overflow: `nodestime` is capped at 10000 by its own option
+    // range and a clock is bounded at 1e12 ms where it enters, so the widest movetime
+    // this can form is 1e16.
+    if (out.use_nodes_time)
+        lim->movetime *= input.npmsec;
+
     tt_new_search();
 }
 
@@ -112,18 +124,8 @@ void search_time_state_init(SearchCtx *ctx,
         .tm_start_time = tm->start_time,
         .tm_maximum_time = tm->maximum_time,
         .lim_nodes = ctx->limits.nodes,
-        // CONVERT movetime when `nodestime` is in force. In that mode the clock the
-        // check reads IS a node count -- timeman scales `time` and `inc` by npmsec
-        // for exactly that reason -- and movetime is the one budget nothing scaled,
-        // so a millisecond count was compared against nodes. `go movetime 1000`
-        // under `nodestime 600` stopped at 1416 nodes in 8 ms instead of spending
-        // the 600000 nodes that budget names.
-        //
-        // The product cannot overflow: `nodestime` is capped at 10000 by its own
-        // option range and a clock is bounded at 1e12 ms where it enters, so the
-        // widest movetime this can form is 1e16.
-        .lim_movetime =
-          tm->use_nodes_time ? ctx->limits.movetime * ctx->limits.npmsec : ctx->limits.movetime,
+        // Already in nodes under `nodestime`: search_tm_init converted it.
+        .lim_movetime = ctx->limits.movetime,
         .tm_use_nodes_time = tm->use_nodes_time,
         .use_time_management = ctx->limits.time[WHITE] != 0 || ctx->limits.time[BLACK] != 0,
     };
