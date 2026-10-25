@@ -32,10 +32,12 @@ env:
   # type (`typedef enum : uint8_t` throughout src/engine/board/types.h). build.sh pins
   # -std=c23 deliberately so those are hard errors rather than silent extensions, which
   # means an old clang fails the build outright instead of quietly building something
-  # different. The engine was developed against clang 22; anything from 20 up handles the
-  # constructs above. Bumping this is a one-line change and should be done deliberately,
-  # not floated, so a toolchain regression is attributable to a commit here.
-  CLANG_VERSION: "22"
+  # different. The engine is built and formatted with clang 23; anything from 20 up
+  # compiles the constructs above, but only this major formats the tree clean. Bump it
+  # deliberately, never floated, so a toolchain regression is attributable to a commit
+  # here -- and in the same commit as every other workflow's CLANG_VERSION and
+  # find_clang_format in build.sh, which resolves the versioned clang-format by name.
+  CLANG_VERSION: "23"
 
 jobs:
   # Formatting gate, split out and run first because it is the cheapest signal in the
@@ -52,8 +54,9 @@ jobs:
 
       # clang-format output is version-dependent: a different major version reflows code
       # that was clean under another one, which would make this gate flap for reasons
-      # unrelated to any commit. Install and use the SAME pinned major as the compiler,
-      # and symlink it to the bare `clang-format` name that build.sh invokes.
+      # unrelated to any commit. Install and use the SAME pinned major as the compiler;
+      # build.sh resolves the versioned name first, and the symlink gives the bare
+      # `clang-format` it falls back to the same major.
       - name: Install clang-format ${{ env.CLANG_VERSION }}
         run: |
           wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh

@@ -30,7 +30,7 @@ permissions:
 
 env:
   # Same pinned toolchain as the parity workflow; see the rationale there.
-  CLANG_VERSION: "22"
+  CLANG_VERSION: "23"
 
 jobs:
   fuzz:
