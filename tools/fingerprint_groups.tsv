@@ -25,7 +25,10 @@ see_ge	^see_ge$|Position::see_ge
 is_draw	^pos_is_draw$|Position::is_draw
 set_extra_bitboards	^set_extra_bitboards$|Position::set_extra_bitboards
 position_set	^pos_set_reason$|Position::set\(
-do_move	^pos_do_move$|Position::do_move
+# The make itself. Upstream's two-argument do_move forwards to it and is out of line
+# at some pins (dbe600b74: 141 calls on bench 16 1 8), so matching both counts those
+# makes twice -- see perf_fingerprint.py's note on the two overloads.
+do_move	^pos_do_move$|Position::do_move\(Stockfish::Move, Stockfish::StateInfo&, bool
 undo_move	^pos_undo_move$|Position::undo_move
 do_null_move	^pos_do_null_move$|Position::do_null_move
 threats	^threats_update_piece_(ray|no_ray_at)$|update_piece_threats

@@ -17,7 +17,7 @@
 
 # The symbol is INLINED AWAY, so the row measures the regex and not the engine.
 # `movepick_next` does not survive LTO in the mcfish binary and the group reads
-# A=0 against upstream's 231,768. It cannot be repaired with a regex: summing its
+# A=0 against upstream's count. It cannot be repaired with a regex: summing its
 # two surviving callees double-counts the generate_stage -> walk_lists calls
 # (387,964 summed against 359,913 real entries, upstream 383,977), and the
 # arithmetic is worked in `7ab86db3`'s body. RETIRE by finding a symbol that
