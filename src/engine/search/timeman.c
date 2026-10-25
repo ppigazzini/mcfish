@@ -147,45 +147,6 @@ TimemanOutput timeman_compute(TimemanInput input) {
     return output;
 }
 
-TimemanLimits timeman_init(TimeManagement *tm,
-                           const SearchLimits *limits,
-                           Color us,
-                           int ply,
-                           TimemanOptions opts,
-                           TimePoint start_time,
-                           double *original_time_adjust) {
-    const TimemanInput input = {
-        .time = (TimePoint) limits->time_ms[us],
-        .time_them = (TimePoint) limits->time_ms[flip_color(us)],
-        .inc = (TimePoint) limits->inc_ms[us],
-        .start_time = start_time,
-        .npmsec = opts.npmsec,
-        .move_overhead = opts.move_overhead,
-        .available_nodes = tm->available_nodes,
-        .previous_movestogo = tm->previous_movestogo,
-        .cyclic_budget = tm->cyclic_budget,
-        .current_optimum_time = tm->optimum_time,
-        .current_maximum_time = tm->maximum_time,
-        .movestogo = (int32_t) limits->moves_to_go,
-        .ply = (int32_t) ply,
-        .original_time_adjust = *original_time_adjust,
-        .ponder = opts.ponder,
-    };
-
-    const TimemanOutput out = timeman_compute(input);
-
-    tm->start_time = out.start_time;
-    tm->optimum_time = out.optimum_time;
-    tm->maximum_time = out.maximum_time;
-    tm->available_nodes = out.available_nodes;
-    tm->previous_movestogo = out.previous_movestogo;
-    tm->cyclic_budget = out.cyclic_budget;
-    tm->use_nodes_time = out.use_nodes_time;
-    *original_time_adjust = out.original_time_adjust;
-
-    return (TimemanLimits) { .time = out.time, .inc = out.inc, .npmsec = out.npmsec };
-}
-
 void timeman_clear(TimeManagement *tm) {
     tm->available_nodes = -1;  // When in `nodes as time` mode
     tm->previous_movestogo = 0;
