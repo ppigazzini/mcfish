@@ -1687,14 +1687,13 @@ LANE_EXCUSED=(
   "pgo:a build mode; the anchor is asserted by signature on the shipped one"
   "perf-budget:LOCAL -- needs perf_event_open, which CI containers refuse, and the golden is per-machine"
   "perf-budget-update:writes that per-machine golden"
-  "perf-budget-tb:LOCAL -- perf_event_open plus the 5-man tables (tb-fetch 5), too large for a lane"
+  "perf-budget-tb:LOCAL -- needs perf_event_open, which CI containers refuse, and the golden is per-machine"
   "perf-decomp:LOCAL -- callgrind is minutes per side, and it takes the two binaries to compare rather than asserting a threshold"
   "perf-budget-tb-update:writes that per-machine golden"
   "counter-validate:LOCAL -- needs perf_event_open"
   "signature-update:re-derives the anchor; signature is what asserts it"
   "tb-update:re-derives the tb golden; tb is what asserts it"
-  "tb-cursed:needs the 5-man tables (tb-fetch 5), too large for a lane"
-  "tb-cursed-update:re-derives that golden"
+  "tb-cursed-update:re-derives the tb_cursed golden; tb-cursed is what asserts it"
   "attribution-update:re-derives the AUTHORS copy from the golden; attribution is what asserts it"
 )
 
@@ -1775,7 +1774,7 @@ do_lane_coverage() {
 GOLDEN_OWNERS=(
   "signature.golden:build.sh:the bench anchor -- do_signature diffs it; no UCI case can produce a node count"
   "tb.golden:build.sh:do_tb's Syzygy discovery and root probe, which need a SyzygyPath rather than a case script"
-  "tb_cursed.golden:build.sh:do_tb_cursed, LOCAL -- needs the 5-man tables tb-fetch does not get by default"
+  "tb_cursed.golden:build.sh:do_tb_cursed's cursed-win battery and node legs, which need the 5-man SyzygyPath (tb-fetch 5) rather than a case script"
   "instr_budget.golden:build.sh:do_perf_budget, LOCAL -- a retired-instruction budget needs perf_event_open, which CI containers refuse, and the count is per-machine"
 )
 
@@ -3662,9 +3661,10 @@ do_tb() {
 
 # Re-derive tools/tb.golden from the ORACLE, never from mcfish. The oracle is run
 # from its own directory, so the table path must be absolute.
-# Pin the cursed-win / blessed-loss WDL+DTZ pair (M5). LOCAL ONLY: it needs the
-# 5-man tables from `./build.sh tb-fetch 5`, which the 3-man set never contains,
-# so it is NOT in `parity` -- a gate that is usually skipped stops being read.
+# Pin the cursed-win / blessed-loss WDL+DTZ pair (M5). It needs the 5-man tables
+# from `./build.sh tb-fetch 5`, which the 3-man set never contains, so it is NOT in
+# `parity` -- a gate that is usually skipped stops being read. The parity workflow
+# fetches them and runs this as its own step.
 #
 # A cursed win is a win whose DTZ exceeds 100 plies, which the fifty-move rule
 # turns into a draw. Those two branches are unreachable from any 3-man table, so
@@ -3751,8 +3751,8 @@ do_tb_cursed() {
 }
 
 # Re-derive tools/tb_cursed.golden. A golden with no regeneration step rots, and this
-# one rots invisibly: it is outside `parity` and needs tables `tb-fetch` does not get
-# by default, so nothing re-derives it when a net change moves every node count.
+# one is outside `parity` and needs tables `tb-fetch` does not get by default, so
+# nothing re-derives it when a net change moves every node count.
 #
 # REFUSE unless the probe half already matches. That half is derived from the oracle
 # and is what says the prober is right; the node legs below it are a self-golden that
@@ -3917,7 +3917,7 @@ usage: ./build.sh <step> [args]
   perft              assert perft counts vs tools/perft.table
   golden             diff the UCI case outputs vs tools/*.golden
   tb-fetch [5]       download + magic-verify the Syzygy sets -> resources/syzygy[5]
-  tb-cursed          LOCAL: cursed-win/blessed-loss DTZ>100 branches (needs tb-fetch 5)
+  tb-cursed          cursed-win/blessed-loss DTZ>100 branches (needs tb-fetch 5)
   tb                 assert Syzygy discovery and the root probe vs tools/tb.golden
   malformed          assert a crafted tablebase file is still refused (asan+ubsan)
   zone-check         assert engine/+platform/ link without shell/
