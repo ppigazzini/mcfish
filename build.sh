@@ -1611,6 +1611,10 @@ NEGATIVE_CONTROL_ROWS=(
   "scalar shift off by one%src/engine/eval/nnue/simd.h%s#(Elem) (a.l\[i\] >> s)#(Elem) (a.l[i] >> (s + 1))#%simd-scalar%run"
   "exported FT component hash zeroed%src/engine/eval/nnue/network.c%s#nnue_write_u32_le(w, nnue_feature_transformer_hash_value());#nnue_write_u32_le(w, 0);#%net-roundtrip%run"
   "a refused table says nothing%src/platform/syzygy/registry.c%s#report_unusable(path);#(void) path;#%malformed%run"
+  # The symbol-count bound is upstream's, from both sides: symlen-past-domain sees it
+  # removed, and only the symlen-at-domain control sees it one too tight.
+  "a table past the alphabet is used%src/platform/syzygy/decode.c%s#symlen_size > TB_SYM_COUNT || ##%malformed%run"
+  "a table at the alphabet is refused%src/platform/syzygy/decode.c%s#symlen_size > TB_SYM_COUNT#symlen_size >= TB_SYM_COUNT#%malformed%run"
   # HELD: only the ABSORBED family detects this, and that family needs the 3-man
   # corpus. On a machine that has not fetched it the gate narrows and stays green,
   # which this rig would credit as "the gate passed a mutated engine" -- a verdict

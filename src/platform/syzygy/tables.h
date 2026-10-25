@@ -47,6 +47,10 @@ enum { SYZYGY_LEN_TAB_MAX_BITS = 12, SYZYGY_NO_FAST_LEN = 0xFF };
 
 typedef uint16_t Sym;  // RE-PAIR / canonical-Huffman symbol
 
+// The symbols a 12-bit Sym can name: upstream SymCount (syzygy/tbprobe.cpp:220), the most a
+// table may declare.
+enum { TB_SYM_COUNT = 4096 };
+
 // Pack two 12-bit symbols (left child, right child) into 3 bytes. When the symbol
 // has length 1 the left field is the stored value; right == 0xFFF marks a leaf.
 typedef struct {

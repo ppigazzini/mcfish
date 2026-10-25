@@ -189,7 +189,12 @@ bool decode_set_sizes(
     }
     const size_t symlen_size = rd_u16le(buf + p);
     p += 2;
-    if (!fits(p, symlen_size * sizeof(LR), buf_len)) {
+    // Refuse a table declaring more symbols than a Sym can name, as upstream does
+    // (syzygy/tbprobe.cpp:1211), whose containers are TB_SYM_COUNT long. The ones here
+    // are sized to the declared count, so a larger table loaded without overrunning
+    // anything -- but the golden does not use it, and a clone must not probe what the
+    // golden refuses.
+    if (symlen_size > TB_SYM_COUNT || !fits(p, symlen_size * sizeof(LR), buf_len)) {
         return false;
     }
     // Read the btree through an LR* into the mapped file. LR is three bytes with
