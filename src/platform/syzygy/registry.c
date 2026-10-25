@@ -529,6 +529,21 @@ static bool set(TBTable *t, bool dtz, const uint8_t *buf, size_t buf_len) {
         }
     }
 
+    // Refuse a symmetric DTZ table with pawns that claims to store black to move on any
+    // file. do_probe_table maps every position of a symmetric table to stm 0, and the
+    // exemption that lets a pawnless one answer either side excludes pawns, so such a
+    // file answers CHANGE_STM for BOTH sides: probe_dtz's one-ply search then recurses
+    // down every quiet line until the stack is gone. Upstream reads the file the same
+    // way and segfaults (syzygy/tbprobe.cpp:748, :1761). A real table carries the flag
+    // clear -- KPvKP's four files read 0x02 -- because only white to move is stored.
+    if (dtz && t->key == t->key2 && t->has_pawns) {
+        for (size_t f = 0; f <= max_file; ++f) {
+            if (tbtable_get(t, true, TB_STM_WHITE, tb_file_at(f))->flags & TB_FLAG_STM) {
+                return false;
+            }
+        }
+    }
+
     if (dtz && !set_dtz_map(t, buf, buf_len, &pos, max_file)) {
         return false;
     }
