@@ -58,13 +58,19 @@ void search_tm_init(SearchCtx *ctx, TimeManagement *tm, double *original_time_ad
     SearchZoneLimits *const lim = &ctx->limits;
     const Color us = board_side_to_move(ctx->root_pos);
 
+    // Carry every field the core reads, the opponent's clock and the cyclic control's
+    // state included. A field left out of this initializer is a silent zero: the time
+    // advantage then reads as never behind, and a new cycle as never begun.
     const TimemanInput input = {
         .time = lim->time[us],
+        .time_them = lim->time[flip_color(us)],
         .inc = lim->inc[us],
         .start_time = lim->start_time,
         .npmsec = OptionIntByName("nodestime"),
         .move_overhead = OptionIntByName("Move Overhead"),
         .available_nodes = tm->available_nodes,
+        .previous_movestogo = tm->previous_movestogo,
+        .cyclic_budget = tm->cyclic_budget,
         .current_optimum_time = tm->optimum_time,
         .current_maximum_time = tm->maximum_time,
         .movestogo = lim->movestogo,
@@ -79,6 +85,8 @@ void search_tm_init(SearchCtx *ctx, TimeManagement *tm, double *original_time_ad
     tm->optimum_time = out.optimum_time;
     tm->maximum_time = out.maximum_time;
     tm->available_nodes = out.available_nodes;
+    tm->previous_movestogo = out.previous_movestogo;
+    tm->cyclic_budget = out.cyclic_budget;
     tm->use_nodes_time = out.use_nodes_time;
     *original_time_adjust = out.original_time_adjust;
 

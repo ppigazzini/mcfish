@@ -397,7 +397,7 @@ flowchart TD
 ```
 
 `uci_loop` parses a `go` line into a `SearchLimits` and calls `search_go`.
-`search_go` resolves the time budget once through `timeman_init`, seeds a legal
+`search_go` resolves the time budget once through `search_tm_init`, seeds a legal
 move, then deepens: each iteration runs `alphabeta` from the root, reads the best
 move back out of the TT, and emits one `info` line through the sink. `alphabeta`
 recurses, dropping into `qsearch` at depth zero; both pull moves from the staged

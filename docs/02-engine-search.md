@@ -592,10 +592,12 @@ different tree while still playing plausible chess.
 
 **The budget arithmetic is a pure function of its input record.**
 `timeman_compute` reads no clock, no option and no position, which is what makes
-the formulas testable without a running search. `timeman_init` is the stateful
-wrapper that stores the result; `search_go` calls it once, before the recursion
-starts, and the recursion never re-derives it. If it did, the node count would
-become a function of *when* the clock was read.
+the formulas testable without a running search. `search_tm_init`
+([`search_setup.c`](../src/engine/search/search_setup.c)) is the stateful wrapper:
+it reads the options and the carried state into that record and stores the result.
+`search_go` calls it once, before the recursion starts, and the recursion never
+re-derives it. If it did, the node count would become a function of *when* the
+clock was read.
 
 `available_nodes` is `-1` until the first init of a `nodes as time` game and is
 carried across moves; `timeman_clear` resets it at the start of a new game.
