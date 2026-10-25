@@ -154,11 +154,12 @@ void pos_pretty(const Position *pos, char *buf, int buf_len);
 // pre-move position, and a wrong value corrupts the child's checkers and every
 // evasion/movegen decision below it.
 // HISTORY is the worker's history block, or null. Non-null means "this make is a
-// search make": the child's transposition cluster, its four correction bundles and
-// its pawn-history row are prefetched from INSIDE the make, at the point the keys
-// become final, which is where upstream issues them (position.cpp:1008-1010). It
-// is a hint and changes no value; a caller with no search behind it -- perft, the
-// root builder, the tablebase PV walk -- passes null and pays nothing.
+// search make": the child's four correction bundles and its pawn-history row are
+// prefetched from INSIDE the make, at the point the keys become final, which is where
+// upstream issues them (position.cpp:978-982). It is a hint and changes no value; a
+// caller with no search behind it -- perft, the root builder, the tablebase PV walk --
+// passes null and pays nothing. The child's transposition cluster is prefetched by
+// the search before the make (search_do_move), and only there.
 //
 // Issuing them here rather than after the make is the whole point. Everything the
 // make still has to do afterwards -- the checkers scan, set_extra_bitboards, the
@@ -171,8 +172,8 @@ typedef struct Histories Histories;
 
 // Hash the halfmove clock into K past move 14, so a position reached with a
 // different rule50 count cannot reuse a TT entry the rule invalidates. Upstream
-// keeps this on Position (position.h:322); the make needs it to prefetch the
-// child's cluster, and the search reads it through `adjust_key50`.
+// keeps this on Position (position.h:326); the search reads it through
+// `adjust_key50`, and `d` prints it.
 static inline Key pos_adjust_key50_of(Key k, int rule50) {
     if (rule50 < 14)
         return k;
