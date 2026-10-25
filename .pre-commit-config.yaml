@@ -34,8 +34,8 @@ repos:
     hooks:
       # clang-format is CI's first gate and blocks everything after it; run the
       # repo's own gate here so drift never reaches CI. Through build.sh, not a
-      # bare clang-format entry: find_clang_format resolves the versioned binary
-      # names (clang-format-22) that a bare entry misses, and a third-party
+      # bare clang-format entry: find_clang_format resolves the pinned major's
+      # versioned binary, which a bare entry misses, and a third-party
       # mirror would add a supply-chain edge for one command. Whole-tree, like
       # the gate: the check is seconds, and staged-file scoping buys nothing.
       - id: clang-format

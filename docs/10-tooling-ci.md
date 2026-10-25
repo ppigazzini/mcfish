@@ -508,6 +508,9 @@ Runs on every push and PR, with six jobs:
   minute beats whitespace drift caught fifteen minutes in. clang-format is
   installed at the **same pinned major** as the compiler, because a different
   major reflows code that was clean under another one and the gate would flap.
+  `find_clang_format` in `build.sh` holds the local run to that major too: it
+  resolves the versioned binary first and the bare name only after it, so a bump
+  edits both in one commit.
 - **`parity`** — `./build.sh parity`, after asserting the installed clang is new
   enough for the C23 the tree uses. The pin is explicit so a toolchain regression
   is attributable to a commit rather than to a floating runner image.

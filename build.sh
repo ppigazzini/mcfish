@@ -3093,13 +3093,14 @@ do_tsan_search() {
   rm -f "$log"
 }
 
-# Resolve clang-format, preferring a versioned binary. Echo the name, or nothing
-# when none is installed — never fall back to a no-op, because a formatting gate
-# that silently does nothing is worse than no gate at all.
+# Resolve clang-format at the major CI pins (CLANG_VERSION in the workflows), then
+# the bare name. Keep the two in step: another major reflows lines this tree
+# formats clean, so the gate reports drift no commit made. Echo the name, or
+# nothing when none is installed — never fall back to a no-op, because a
+# formatting gate that silently does nothing is worse than no gate at all.
 find_clang_format() {
   local c
-  for c in clang-format clang-format-22 clang-format-21 clang-format-20 \
-           /usr/lib/llvm-22/bin/clang-format /usr/lib/llvm-18/bin/clang-format; do
+  for c in clang-format-23 /usr/lib/llvm-23/bin/clang-format clang-format; do
     command -v "$c" > /dev/null 2>&1 && { echo "$c"; return 0; }
   done
   return 1
