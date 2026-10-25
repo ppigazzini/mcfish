@@ -402,7 +402,7 @@ held yesterday still holds.** `./build.sh malformed` is the regression half, and
 it runs in `parity` because it costs 2.4 s. Two families, and the second is the
 stronger:
 
-- **REFUSED** — six crafted tables, each wrong in one field. They prove a crafted
+- **REFUSED** — seven crafted tables, each wrong in one field. They prove a crafted
   table is refused SAFELY and says so: exit 0, no sanitizer report, a diagnostic
   naming the file, and the engine still answers. What they cannot prove is WHICH
   check fired, because the reader emits one message for every refusal — so their
@@ -412,7 +412,11 @@ stronger:
   symbols than a 12-bit Sym can name. It is the one fixture that is not an 80-byte
   header: it carries a valid second side and a whole body, so the bound is the
   only thing that can refuse it, and its twin at exactly 4096 symbols is a control
-  that must load in silence.
+  that must load in silence. The seventh is a KPvKP pair whose DTZ file claims to
+  store black to move: a symmetric table maps every position to white, so the file
+  answers "the other side" for both and `probe_dtz` recursed until the stack ran out
+  — the nightly fuzz lane's find, and a segfault in pristine upstream. Its twin with
+  the flag clear, as every real table has it, must load in silence.
 - **ABSORBED** — four real 3-man tables with a handful of bytes changed, replayed
   as byte lists rather than fuzz seeds. A fixture is a GENERATOR, not a blob: the
   interesting thing about it is which field is wrong. These LOAD, so the search reaches the

@@ -36,6 +36,7 @@
 #   btree-past-end    decode.c, the symlen array reaching past the file
 #   bad-magic         registry.c, the magic compare
 #   symlen-past-domain  decode.c, the TB_SYM_COUNT refusal
+#   symmetric-dtz-black registry.c, the symmetric-pawn STM refusal
 #
 # One fixture the sibling carries is DELIBERATELY ABSENT, and re-adding it would
 # gate nothing here: `symbol-oob` (a btree child outside the alphabet) PASSES this
@@ -52,6 +53,15 @@
 # bound is the only thing that can refuse it. Its twin at exactly 4096 symbols is a
 # control below: it must load without a word, which is what catches a bound one
 # too tight.
+#
+# `symmetric-dtz-black` is a KPvKP PAIR, and the only fixture whose defect lives
+# past the parse. Both files are single-valued -- the WDL one says every position
+# is won -- and every file of the DTZ one is flagged as storing black to move. A
+# symmetric table maps every position to white to move, so that DTZ table answers
+# "the other side" for BOTH sides, and probe_dtz's one-ply search recursed down the
+# king moves until ASan reported a stack overflow (the nightly fuzz-tb lane found it;
+# pristine upstream segfaults on the same pair). Its twin with the flag clear is a
+# control below, so a refusal of every symmetric pawn table fails too.
 #
 # ABSORBED -- real 3-man tables with a handful of bytes changed. These LOAD, so the
 # search reaches the decode loop, which is where this tree's per-symbol bounds live
@@ -192,6 +202,29 @@ def symlen_at_domain():
     return whole_table(4096)
 
 
+# KPvKP's own order and piece bytes, from the real tables, and the word-alignment byte.
+KPVKP_WDL_HEAD = bytes.fromhex("423322119966EE3311119966EE22111199EE6633221199EE6600")
+KPVKP_DTZ_HEAD = bytes.fromhex("4201030109060E03020109060E03010109060E03010109060E00")
+
+
+def kpvkp_pair(dtz_flags):
+    """A single-valued KPvKP pair: WDL says won (4 is +2), DTZ carries DTZ_FLAGS per file."""
+    wdl = bytearray([0x71, 0xE8, 0x23, 0x5D]) + KPVKP_WDL_HEAD + bytes([0x80, 4]) * 4
+    dtz = bytearray([0xD7, 0x66, 0x0C, 0xA5]) + KPVKP_DTZ_HEAD + bytes([dtz_flags, 1]) * 4
+    pad = lambda b: b + bytes(80 - len(b))
+    return {"KPvKP.rtbw": pad(wdl), "KPvKP.rtbz": pad(dtz)}
+
+
+def symmetric_dtz_black():
+    """A symmetric pawn DTZ table claiming to store black to move, on every file."""
+    return kpvkp_pair(0x80 | 0x01)
+
+
+def symmetric_dtz_white():
+    """Its twin with the flag clear, as every real table has it: must load."""
+    return kpvkp_pair(0x80)
+
+
 def bad_magic():
     """A file named KQvK.rtbw that is not a WDL table at all."""
     b = base()
@@ -201,14 +234,20 @@ def bad_magic():
 
 dest = sys.argv[2]
 os.makedirs(dest, exist_ok=True)
-with open(os.path.join(dest, "KQvK.rtbw"), "wb") as fh:
-    fh.write(bytes(globals()[sys.argv[1]]()))
+out = globals()[sys.argv[1]]()
+for name, body in (out.items() if isinstance(out, dict) else [("KQvK.rtbw", out)]):
+    with open(os.path.join(dest, name), "wb") as fh:
+        fh.write(bytes(body))
 PY
 
-# Every fixture is a KQvK table, so they all take the same probe.
+# Every fixture but one is a KQvK table and takes this probe. The KPvKP pair takes a
+# black-to-move position with both pawns blocked: no capture and no pawn move, so the
+# probe goes past the WDL search into the DTZ table, and the one-ply search under it
+# can only make king moves.
 KQVK_FEN="4k3/8/8/8/8/8/8/3QK3 w - - 0 1"
+KPVKP_FEN="8/3k4/8/1K4p1/6P1/8/8/8 b - - 0 1"
 
-# name              | generator
+# name              | generator           | probe (default KQVK_FEN)
 FIXTURES=(
   "negative-resize   |negative_resize"
   "block-shift       |block_shift"
@@ -216,6 +255,7 @@ FIXTURES=(
   "btree-past-end    |btree_past_end"
   "bad-magic         |bad_magic"
   "symlen-past-domain |symlen_past_domain"
+  "symmetric-dtz-black |symmetric_dtz_black |$KPVKP_FEN"
 )
 
 PASS=0; FAIL=0
@@ -223,15 +263,15 @@ note() { echo "    $*"; }
 
 # Drive one probe. Echoes the engine's whole output; the caller judges it.
 probe() {
-    local dir=$1
+    local dir=$1 fen=${2:-$KQVK_FEN}
     ( printf 'setoption name SyzygyPath value %s\nposition fen %s\ngo depth 8\nquit\n' \
-             "$dir" "$KQVK_FEN" ) \
+             "$dir" "$fen" ) \
       | ( cd "$RESOURCES" && timeout -s KILL 120 "$EXE" ) 2>&1
 }
 
 check_refused() {
-    local name=$1 dir=$2 out rc
-    out=$(probe "$dir"); rc=$?
+    local name=$1 dir=$2 fen=${3:-} out rc
+    out=$(probe "$dir" "$fen"); rc=$?
 
     local bad=0
     [ "$rc" = "0" ] || { note "exit $rc -- a refusal exits 0"; bad=1; }
@@ -256,16 +296,16 @@ check_refused() {
     fi
 }
 
-echo "malformed: 6 crafted tables, 4 mutated tables, against $(basename "$EXE")"
+echo "malformed: 7 crafted tables, 4 mutated tables, against $(basename "$EXE")"
 for row in "${FIXTURES[@]}"; do
-    IFS='|' read -r name gen <<< "$row"
+    IFS='|' read -r name gen fen <<< "$row"
     name=${name%% *}
     gen=${gen// /}
     if ! python3 "$WORK/gen.py" "$gen" "$WORK/fx/$gen"; then
         echo "malformed: SKIPPED -- the $gen generator failed" >&2
         exit 2
     fi
-    check_refused "$name" "$WORK/fx/$gen"
+    check_refused "$name" "$WORK/fx/$gen" "$fen"
 done
 
 # ------------------------------------------------- the absorbed family
@@ -386,7 +426,23 @@ else
     printf '  %-19s silent\n' "symlen-at-domain"; PASS=$((PASS + 1))
 fi
 
-# The THIRD needs the 3-man set, and is the stronger claim: a table that is REAL
+# The THIRD needs no corpus: `symmetric-dtz-black`'s twin, flagged as every real
+# symmetric table is, must load silently and still answer. It is what fails a fix
+# that refuses symmetric pawn tables wholesale instead of the flag that breaks them.
+python3 "$WORK/gen.py" symmetric_dtz_white "$WORK/fx/symmetric_dtz_white" \
+  || { echo "malformed: SKIPPED -- the symmetric_dtz_white generator failed" >&2; exit 2; }
+out=$(probe "$WORK/fx/symmetric_dtz_white" "$KPVKP_FEN")
+if grep -qi 'Corrupt tablebase file' <<< "$out"; then
+    note "a symmetric pawn DTZ table storing white to move was refused"
+    printf '  %-19s FAILED\n' "symmetric-dtz-white"; FAIL=$((FAIL + 1))
+elif grep -qE 'AddressSanitizer|runtime error:' <<< "$out" || ! grep -q '^bestmove' <<< "$out"; then
+    note "the engine did not survive a well-formed symmetric pawn table"
+    printf '  %-19s FAILED\n' "symmetric-dtz-white"; FAIL=$((FAIL + 1))
+else
+    printf '  %-19s silent\n' "symmetric-dtz-white"; PASS=$((PASS + 1))
+fi
+
+# The FOURTH needs the 3-man set, and is the stronger claim: a table that is REAL
 # must load and stay quiet. Without the corpus it is unexercised, which is reported
 # the way `do_tb` reports its own missing half -- narrow the gate, never fail it,
 # and never let the narrowing read as a pass.
