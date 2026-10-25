@@ -35,14 +35,23 @@
 #   block-shift       decode.c, the block/span log >= 64 refusal
 #   btree-past-end    decode.c, the symlen array reaching past the file
 #   bad-magic         registry.c, the magic compare
+#   symlen-past-domain  decode.c, the TB_SYM_COUNT refusal
 #
-# Two fixtures the sibling carries are DELIBERATELY ABSENT, and re-adding them
-# would gate nothing here: `symbol-oob` (a btree child outside the alphabet) and
-# `symlen-past-domain` (more symbols than a 12-bit Sym can name) both PASS this
+# One fixture the sibling carries is DELIBERATELY ABSENT, and re-adding it would
+# gate nothing here: `symbol-oob` (a btree child outside the alphabet) PASSES this
 # tree's parser by design -- `set_sym_len` clamps an out-of-domain child instead of
-# writing through it, and the containers are sized to the DECLARED count rather
-# than to a 12-bit cap. Both were refused only because a 2-sided table's second
-# header lands in this file's zero padding, which is not what their names claim.
+# writing through it. It was refused only because a 2-sided table's second header
+# lands in this file's zero padding, which is not what its name claims.
+#
+# `symlen-past-domain` (more symbols than a 12-bit Sym can name) was absent for the
+# same reason until upstream 7316ef4e8 began refusing such a table: the containers
+# here are sized to the declared count, so it overran nothing, but the golden will
+# not use it and so this tree must not either. It is therefore NOT an 80-byte
+# header. It carries a valid second side and a complete body, so that without the
+# bound it LOADS SILENTLY -- verified against the build before the bound -- and the
+# bound is the only thing that can refuse it. Its twin at exactly 4096 symbols is a
+# control below: it must load without a word, which is what catches a bound one
+# too tight.
 #
 # ABSORBED -- real 3-man tables with a handful of bytes changed. These LOAD, so the
 # search reaches the decode loop, which is where this tree's per-symbol bounds live
@@ -152,6 +161,37 @@ def btree_past_end():
     return b
 
 
+def huffman_side(count):
+    """One Huffman-coded per-side header declaring COUNT leaf symbols, btree included."""
+    h = bytearray([0x00, 6, 15, 1])            # flags, sizeofBlock 64, span 2^15, padding 1
+    h += (0).to_bytes(4, "little")             # blocksNum 0
+    h += bytes([1, 1])                         # maxSymLen = minSymLen = 1
+    h += (0).to_bytes(2, "little")             # lowestSym[0]
+    h += count.to_bytes(2, "little")
+    h += bytes([0x00, 0xF0, 0xFF]) * count     # every entry a leaf: right == 0xFFF
+    h += bytes(count & 1)                      # the word-alignment pad
+    return h
+
+
+def whole_table(count):
+    """KQvK's own header, side 0 declaring COUNT symbols, a valid side 1, and a body."""
+    b = bytearray([0x71, 0xE8, 0x23, 0x5D, 0x31, 0x00, 0xEE, 0x56, 0x65, 0x00])
+    b += huffman_side(count) + huffman_side(2)
+    size = 64 * 256 + 16                       # room for the sparse index and block lengths
+    assert len(b) < size
+    return b + bytes(size - len(b))
+
+
+def symlen_past_domain():
+    """4097 symbols, one more than a 12-bit Sym can name."""
+    return whole_table(4097)
+
+
+def symlen_at_domain():
+    """Exactly 4096 symbols: the most a table may declare, so it must load."""
+    return whole_table(4096)
+
+
 def bad_magic():
     """A file named KQvK.rtbw that is not a WDL table at all."""
     b = base()
@@ -175,6 +215,7 @@ FIXTURES=(
   "base64-shift      |base64_shift"
   "btree-past-end    |btree_past_end"
   "bad-magic         |bad_magic"
+  "symlen-past-domain |symlen_past_domain"
 )
 
 PASS=0; FAIL=0
@@ -215,7 +256,7 @@ check_refused() {
     fi
 }
 
-echo "malformed: 5 crafted headers, 4 mutated tables, against $(basename "$EXE")"
+echo "malformed: 6 crafted tables, 4 mutated tables, against $(basename "$EXE")"
 for row in "${FIXTURES[@]}"; do
     IFS='|' read -r name gen <<< "$row"
     name=${name%% *}
@@ -328,7 +369,24 @@ else
     printf '  %-19s silent\n' "empty-path"; PASS=$((PASS + 1))
 fi
 
-# The SECOND needs the 3-man set, and is the stronger claim: a table that is REAL
+# The SECOND needs no corpus either: a table at exactly TB_SYM_COUNT symbols is the
+# largest a table may declare, so it must load and stay silent. It is the twin of
+# `symlen-past-domain` above, and the pair is what pins the bound to upstream's: a
+# refusal at 4096 fails here, a missing one fails there.
+python3 "$WORK/gen.py" symlen_at_domain "$WORK/fx/symlen_at_domain" \
+  || { echo "malformed: SKIPPED -- the symlen_at_domain generator failed" >&2; exit 2; }
+out=$(probe "$WORK/fx/symlen_at_domain")
+if grep -qi 'Corrupt tablebase file' <<< "$out"; then
+    note "a table at exactly 4096 symbols was refused -- the bound is one too tight"
+    printf '  %-19s FAILED\n' "symlen-at-domain"; FAIL=$((FAIL + 1))
+elif ! grep -q 'Found 1 WDL' <<< "$out" || ! grep -q '^bestmove' <<< "$out"; then
+    note "the control loaded no table, or the engine stopped answering"
+    printf '  %-19s FAILED\n' "symlen-at-domain"; FAIL=$((FAIL + 1))
+else
+    printf '  %-19s silent\n' "symlen-at-domain"; PASS=$((PASS + 1))
+fi
+
+# The THIRD needs the 3-man set, and is the stronger claim: a table that is REAL
 # must load and stay quiet. Without the corpus it is unexercised, which is reported
 # the way `do_tb` reports its own missing half -- narrow the gate, never fail it,
 # and never let the narrowing read as a pass.

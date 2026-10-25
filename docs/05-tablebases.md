@@ -402,13 +402,17 @@ held yesterday still holds.** `./build.sh malformed` is the regression half, and
 it runs in `parity` because it costs 2.4 s. Two families, and the second is the
 stronger:
 
-- **REFUSED** — five crafted 80-byte headers, each wrong in one field. They prove
-  a crafted header is refused SAFELY and says so: exit 0, no sanitizer report, a
-  diagnostic naming the file, and the engine still answers. What they cannot
-  prove is WHICH check fired, because the reader emits one message for every
-  refusal — so their names were re-derived against an instrumented build rather
-  than trusted, and two inherited from a sibling were dropped for gating nothing
-  here.
+- **REFUSED** — six crafted tables, each wrong in one field. They prove a crafted
+  table is refused SAFELY and says so: exit 0, no sanitizer report, a diagnostic
+  naming the file, and the engine still answers. What they cannot prove is WHICH
+  check fired, because the reader emits one message for every refusal — so their
+  names were re-derived against an instrumented build rather than trusted. Two
+  inherited from a sibling were dropped for gating nothing here, and one of them
+  came back when upstream 7316ef4e8 began refusing a table that declares more
+  symbols than a 12-bit Sym can name. It is the one fixture that is not an 80-byte
+  header: it carries a valid second side and a whole body, so the bound is the
+  only thing that can refuse it, and its twin at exactly 4096 symbols is a control
+  that must load in silence.
 - **ABSORBED** — four real 3-man tables with a handful of bytes changed, replayed
   as byte lists rather than fuzz seeds. A fixture is a GENERATOR, not a blob: the
   interesting thing about it is which field is wrong. These LOAD, so the search reaches the
