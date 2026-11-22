@@ -1,10 +1,10 @@
 <engine banner>
 info string Available processors: <cpus>
 info string Using 1 thread
-info string NNUE evaluation using nn-c9e480e92425.nnue (107MiB, (109424, 1024, 32, 32, 1))
+info string NNUE evaluation using nn-bddd9d57eb87.nnue (131MiB, (131952, 1024, 32, 32, 1))
 info string Network replica 1: <backing>
-info depth 1 seldepth 2 multipv 1 score cp 13 nodes 20 hashfull 0 tbhits 0 pv d2d4
-bestmove d2d4
+info depth 1 seldepth 2 multipv 1 score cp 9 nodes 20 hashfull 0 tbhits 0 pv b1c3
+bestmove b1c3
 info string Available processors: <cpus>
 info string Using 1 thread
 info string CRITICAL ERROR: Command `go depth 3000000000` failed. Reason: Invalid argument for 'depth'

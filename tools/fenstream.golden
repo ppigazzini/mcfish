@@ -20,7 +20,7 @@
    a   b   c   d   e   f   g   h
 
 Fen: 1nbbnrkr/p1p1qppp/3p4/1p2p3/3PP3/2N5/PPP1QPPP/1NBBR1KR w KQk - 4 9
-Key: 8B9EBB0F3C71BC99
+Key: 173D761E78E37932
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -43,7 +43,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: 4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2
-Key: DF7A0861474FBD85
+Key: BEF410C28E9F7B0A
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -66,7 +66,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: 8/8/8/K1pP3q/8/8/8/7k w - - 0 2
-Key: D4E34A747446369F
+Key: A9C694E8E88C6D3E
 Checkers: 
 info string CRITICAL ERROR: Command `position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq e3 0 1` failed. Reason: Invalid FEN. Invalid en-passant square.
 

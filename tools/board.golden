@@ -20,7 +20,7 @@
    a   b   c   d   e   f   g   h
 
 Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
-Key: 8F8F01D4562F59FB
+Key: 1F1E03A8AC5EB3F6
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -43,7 +43,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4
-Key: F893600D185C37BC
+Key: B0CC8153A34CD8E1
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -66,7 +66,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 10
-Key: BA0586148EFA180B
+Key: 740B0C291DF43016
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -89,7 +89,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1
-Key: 2F7A21709FD50237
+Key: 1F1E03A8AC5EB3F7
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -112,7 +112,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
-Key: 8F8F01D4562F59FB
+Key: 1F1E03A8AC5EB3F6
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -135,7 +135,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: rnbqkbnr/pppp1ppp/8/4p3/2P5/8/PP1PPPPP/RNBQKBNR b KQkq - 3 7
-Key: 6FC5F2A734EC7545
+Key: 9E61A407FA2C5D13
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -158,7 +158,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: r3k2r/8/8/8/8/8/8/R3K2R b Qk - 5 12
-Key: 50AD516E930427DB
+Key: E0B0E394B5FCF82F
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -181,7 +181,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: 8/8/8/8/8/4k3/8/R3K3 w - - 0 1
-Key: DE5B20BE6598373B
+Key: BCB6417CCB306E76
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -204,7 +204,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: 8/8/8/8/8/4k3/8/R3K3 w Q - 0 1
-Key: 5B14D3D5AFC14A16
+Key: B629A7AB5F82942C
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -227,7 +227,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: 8/8/8/8/8/4k3/8/R3K3 w Q - 0 1
-Key: 5B14D3D5AFC14A16
+Key: B629A7AB5F82942C
 Checkers: 
 
  +---+---+---+---+---+---+---+---+
@@ -250,7 +250,7 @@ Checkers:
    a   b   c   d   e   f   g   h
 
 Fen: 8/8/8/8/8/4k3/8/R3K3 w Q - 0 1
-Key: 5B14D3D5AFC14A16
+Key: B629A7AB5F82942C
 Checkers: 
 info string CRITICAL ERROR: Command `position fen 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 11 moves b4b6` failed. Reason: Illegal move: b4b6
 
