@@ -2212,6 +2212,29 @@ do_async_check() {
     printf '  \033[32mok\033[0m    a setoption stops a bounded search before it applies (%s)\n' "$bm"
   fi
 
+  #    The other half, and the one the stop in 7 can break if it spreads: every OTHER
+  #    command still waits a bounded search out. Upstream's ucinewgame reaches
+  #    search_clear, which waits without stopping -- a pristine build answers `go depth
+  #    10` + `ucinewgame` with the same 4543 nodes as `go depth 10` alone -- so the
+  #    node count with and without the trailing command must be the SAME, the sharp
+  #    form of the claim. Stopping every search, bounded ones included, truncates it.
+  local with without
+  with=$(printf 'position startpos\ngo depth 10\nucinewgame\nquit\n' \
+         | ( cd "$ROOT/$RESOURCES_DIR" && timeout 60 "$ROOT/$BIN" ) 2>&1 \
+         | grep -E '^info depth 10 ' | tail -1 | grep -oE 'nodes [0-9]+' || true)
+  without=$(printf 'position startpos\ngo depth 10\nquit\n' \
+            | ( cd "$ROOT/$RESOURCES_DIR" && timeout 60 "$ROOT/$BIN" ) 2>&1 \
+            | grep -E '^info depth 10 ' | tail -1 | grep -oE 'nodes [0-9]+' || true)
+  if [[ -z $without ]]; then
+    red "  bounded wait: the control search did not reach depth 10"; fails=$((fails + 1))
+  elif [[ $with != "$without" ]]; then
+    red "  bounded wait: a trailing ucinewgame cut the search ($with vs $without)"
+    fails=$((fails + 1))
+  else
+    printf '  \033[32mok\033[0m    a bounded search is not truncated by a following ucinewgame (%s)\n' \
+           "$without"
+  fi
+
   # THE THREE REMAINING HANG SHAPES from the upstream defect register. All three are
   # closed in this tree's CODE and none of them was reached by any gate -- which is
   # the reading refish's liveness.sh exists to force: ask what a sibling's instrument
@@ -2281,7 +2304,7 @@ do_async_check() {
   fi
 
   [[ $fails -eq 0 ]] || { red "async-check: $fails invariant(s) broken"; return 1; }
-  green "async-check: 10 of 10 invariants hold on the interrupted-search path"
+  green "async-check: 11 of 11 invariants hold on the interrupted-search path"
 }
 
 do_fixture_coverage() {
