@@ -144,7 +144,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
     const bool tt_is_pv = tt_hit && probe.is_pv;
     ss->tt_pv = excluded_move != MOVE_NONE ? ss->tt_pv : (pv_node || tt_is_pv);
     const bool tt_capture = tt_move != MOVE_NONE && search_capture_stage(pos, tt_move);
-    TTEntry *const writer = probe.writer;
+    const TTWriter writer = probe.writer;
 
     // Step 5. Compute the static evaluation.
     Value unadjusted_static_eval = VALUE_NONE;
@@ -207,7 +207,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                     pos_undo_move(pos, tt_move);
                     // Read the entry's value WITHOUT gating on `found`, as upstream
                     // does (search.cpp:913-918). `found` is the occupancy test
-                    // (depth8 != 0), not a key test: a probe that matched key16 on a
+                    // (depth8 != 0), not a key test: a probe that matched the key on a
                     // penalised entry whose depth walked down to zero still carries a
                     // real value16. Substituting VALUE_NONE there takes the cutoff in
                     // a case upstream declines, and changes what gets stored below.

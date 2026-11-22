@@ -97,7 +97,7 @@ __attribute__((always_inline)) static inline Value qsearch_node_impl(
     const Bound tt_bound_v = probe.bound;
     const Value tt_eval = probe.eval;
     const bool pv_hit = tt_hit && probe.is_pv;
-    TTEntry *const writer = probe.writer;
+    const TTWriter writer = probe.writer;
 
     if (!pv_node && tt_depth >= DEPTH_QS && value_is_valid(tt_value)
         && bound_covers(tt_bound_v, tt_value >= beta))

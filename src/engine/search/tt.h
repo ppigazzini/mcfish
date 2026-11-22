@@ -58,11 +58,11 @@ static inline bool bound_covers(Bound b, bool fail_high) {
 // value under the name the offset has upstream today.
 static constexpr int32_t DEPTH_ENTRY_OFFSET = -3;
 
-// Hold one position, in ten bytes (tt.cpp:62). The field order is the order
-// tt_probe reads them in, because memory is fastest sequentially, and tt_save
-// stores them in that same order.
-// Every field is a RELAXED atomic, as upstream declares all six
-// (tt.cpp:82-87). The table is shared by every worker with no lock, and upstream
+// Hold one position, in eight bytes (tt.cpp:62). Its 21-bit key is not here: the
+// cluster packs the three keys into one word ahead of its entries, so the probe
+// compares all three at once. tt_save stores the fields in declaration order.
+// Every field is a RELAXED atomic, as upstream declares all of them
+// (tt.cpp:84-88). The table is shared by every worker with no lock, and upstream
 // says plainly that an entry write "is non-atomic and can be racy" -- what it
 // relies on is that each FIELD is read and written indivisibly, so a torn or
 // rematerialised half-value never reaches the search. Plain members are a data
@@ -70,11 +70,10 @@ static constexpr int32_t DEPTH_ENTRY_OFFSET = -3;
 // measured at 10185 TSan reports on an 8-thread depth-14 search before this.
 //
 // Relaxed, not seq_cst. There is no ordering to establish between fields -- the
-// entry is validated by key16 after the read -- and on x86 a relaxed load or
+// entry is validated by its key after the read -- and on x86 a relaxed load or
 // store is a plain move, which is what keeps Threads 1 executing the same
 // instructions and the anchor exact.
 typedef struct {
-    _Atomic uint16_t key16;
     _Atomic uint8_t depth8;
     _Atomic uint8_t gen_bound8;
     _Atomic Move move16;
@@ -105,27 +104,39 @@ typedef struct {
     bool is_pv;
 } TTData;
 
-// Return the three things a probe yields (tt.cpp:254): whether the entry already
+enum { TT_CLUSTER_SIZE = 3, TT_KEY_BITS = 21 };
+
+// The low TT_KEY_BITS of a Zobrist key, which is all of it a cluster stores; the
+// high bits already chose the cluster.
+static constexpr uint64_t TT_KEY_MASK = (UINT64_C(1) << TT_KEY_BITS) - 1;
+
+// Group the entries a key maps onto (tt.cpp:103). `keys` holds the low 21 bits of
+// each entry's key, entry i in bits 21i..21i+20, and bit 63 is always clear. A
+// cluster is exactly 32 bytes, so it never straddles a cache line in a
+// 64-byte-aligned table.
+typedef struct {
+    _Atomic uint64_t keys;
+    TTEntry entry[TT_CLUSTER_SIZE];
+} TTCluster;
+
+static_assert(sizeof(TTEntry) == 8, "TTEntry must stay a packed 8-byte record");
+static_assert(sizeof(TTCluster) == 32, "TTCluster must fill exactly half a cache line");
+
+// Name the slot a store goes through: its cluster, whose key word the store
+// rewrites, and the entry's index within it (tt.h:75).
+typedef struct {
+    TTCluster *cluster;
+    int32_t index;
+} TTWriter;
+
+// Return the three things a probe yields (tt.cpp:266): whether the entry already
 // held data on this position, the copy of that data, and the entry to write
 // through — which on a miss is the least valuable entry of the cluster.
 typedef struct {
     bool found;
     TTData data;
-    TTEntry *writer;
+    TTWriter writer;
 } TTProbeResult;
-
-enum { TT_CLUSTER_SIZE = 3 };
-
-// Group the entries a key maps onto. A cluster is exactly 32 bytes: the entries
-// plus two bytes of explicit padding, so a cluster never straddles a cache line
-// in a 64-byte-aligned table (tt.cpp:156).
-typedef struct {
-    TTEntry entry[TT_CLUSTER_SIZE];
-    uint8_t padding[2];
-} TTCluster;
-
-static_assert(sizeof(TTEntry) == 10, "TTEntry must stay a packed 10-byte record");
-static_assert(sizeof(TTCluster) == 32, "TTCluster must fill exactly half a cache line");
 
 // Hold the table handle: the cluster count, the cluster base, and the running
 // generation the store path ages entries by (tt.h:79).
@@ -254,10 +265,10 @@ void tt_prefetch(Key key);
 
 // Write through WRITER, overwriting a less valuable entry (tt.cpp:92). The write
 // is non-atomic, may be racy, and may be declined outright.
-void tt_save(TTEntry *writer, Key k, Value v, bool pv, Bound b, int32_t d, Move m, Value ev);
+void tt_save(TTWriter writer, Key k, Value v, bool pv, Bound b, int32_t d, Move m, Value ev);
 
-// Decrement a stored depth by PENALTY, saturating at 0 (tt.cpp:144).
-void tt_penalize(TTEntry *writer, int32_t penalty);
+// Decrement a stored depth by PENALTY, saturating at 0 (tt.cpp:172).
+void tt_penalize(TTWriter writer, int32_t penalty);
 
 // Report the fill in permille, as UCI `hashfull` wants it, counting only entries
 // no older than MAX_AGE generations (tt.cpp:229).
