@@ -595,6 +595,7 @@ bool pos_set_reason(
     si->non_pawn_material[WHITE] = compute_non_pawn_material(pos, WHITE);
     si->non_pawn_material[BLACK] = compute_non_pawn_material(pos, BLACK);
     si->key = compute_key(pos);
+    pos_pack_placement(si->piece_placement, pos->board);
 
     // Compute the checkers from the board here, the one place with no move to
     // derive them from — upstream set_state (position.cpp:493). set_extra_bitboards no
@@ -986,9 +987,12 @@ void pos_do_move(Position *pos,
     pos->side_to_move = them;
     set_extra_bitboards(pos);
 
+    pos_pack_placement(new_st->piece_placement, pos->board);
+
     // Record the repetition distance. Walk back two plies at a time — only
     // same-side-to-move positions can repeat — bounded by the last irreversible
-    // move, beyond which no position can recur. Mirrors position.cpp:1046.
+    // move, beyond which no position can recur. Mirrors position.cpp:1046. The
+    // placement test makes a key collision unable to fake one (position.cpp:1098).
     new_st->repetition = 0;
     const int end =
       new_st->rule50 < new_st->plies_from_null ? new_st->rule50 : new_st->plies_from_null;
@@ -996,7 +1000,10 @@ void pos_do_move(Position *pos,
         const StateInfo *stp = new_st->previous->previous;
         for (int i = 4; i <= end; i += 2) {
             stp = stp->previous->previous;
-            if (stp->key == new_st->key) {
+            if (stp->key == new_st->key
+                && memcmp(stp->piece_placement, new_st->piece_placement,
+                          sizeof new_st->piece_placement)
+                     == 0) {
                 new_st->repetition = stp->repetition ? -i : i;
                 break;
             }
@@ -1119,6 +1126,9 @@ void pos_do_null_move(Position *pos, StateInfo *new_st, DirtyPiece *dp, DirtyThr
     // no legal position has the side NOT to move in check, so the carried zero
     // is the new mover's checkers too.
     new_st->checkers = new_st->previous->checkers;
+    // The null move moves no piece; the placement is the tail's other carried field.
+    memcpy(new_st->piece_placement, new_st->previous->piece_placement,
+           sizeof new_st->piece_placement);
 
     pos->side_to_move = flip_color(pos->side_to_move);
     set_extra_bitboards(pos);
