@@ -39,7 +39,7 @@ gate battery cover them.
 | [`nnue_weight_storage.c`](../src/engine/eval/nnue/nnue_weight_storage.c) | the weight buffers and the loaded-net identity |
 | [`nnue_hash.c`](../src/engine/eval/nnue/nnue_hash.c) | **two families, and only one is consumed.** The u32 ARCHITECTURE hashes (`nnue_network_hash_value` and friends) are built by `combine_hash` over dimensions and constants; the net reader compares them against the file header and the writer emits them. The MurmurHash2-64A CONTENT hashes are what upstream names a shared-memory segment with, and this tree has no such surface — all three have zero callers. That distinction is load bearing: the content hash's tail was sign-extended, faithfully reproducing an upstream defect that collapses 65536 two-byte inputs to 32896 digests, and it was safe to fix precisely BECAUSE nothing reads it. `test_nnue_hash_tail_bytes` pins the census |
 | [`nnue_ft.c`](../src/engine/eval/nnue/nnue_ft.c) | the feature-transformer blob layout and its typed accessors |
-| [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c), [`nnue_feature_bb.c`](../src/engine/eval/nnue/nnue_feature_bb.c) | the `K32Q2`, `full_threats` and `pp_3wide` index producers |
+| [`nnue_feature.c`](../src/engine/eval/nnue/nnue_feature.c), [`nnue_feature_bb.c`](../src/engine/eval/nnue/nnue_feature_bb.c) | the `K32H3`, `full_threats` and `pp_3wide` index producers |
 | [`nnue_accumulator.c`](../src/engine/eval/nnue/nnue_accumulator.c) | the per-ply accumulator stack, the refresh cache, the transform to the first layer's input |
 | [`nnue_acc_rowops.c`](../src/engine/eval/nnue/nnue_acc_rowops.c) | the weight-row add/sub SIMD kernels the accumulator's delta, refresh and hybrid paths call, split out because they carry no arena knowledge |
 | [`nnue_affine.c`](../src/engine/eval/nnue/nnue_affine.c) | the affine kernel and the two activations |
@@ -112,19 +112,22 @@ Slot `i` of the stack holds the accumulator after `i` plies *and* the diff that
 produced it; evaluation walks from the nearest computed slot to the top applying
 diffs. When neither perspective needs a refresh the two walks share their common
 suffix and read each ply's diff once. A king move invalidates the PSQ features,
-which `K32Q2` buckets on the own king, but not the threat and pair ones unless it
+which `K32H3` buckets on the own king, but not the threat and pair ones unless it
 also crosses the centre file, so a same-half king move is still incremental: it
 swaps the PSQ half between the two king squares' refresh-cache entries instead of
-rebuilding everything. The remaining king moves, and any ply that captures an
-opponent queen or promotes to one -- the second thing a PSQ index is bucketed on --
-fall back to a full refresh.
+rebuilding everything. The remaining king moves, and any ply that moves a
+perspective into another of `K32H3`'s three blocks -- 2 while its opponent has a
+queen, else 1 while any rook or queen is on the board, else 0 -- fall back to a full
+refresh. Each block is its own contiguous run of weight rows, so an index is
+relative to its block and the block picks the base. A slot records the blocks the
+board had BEFORE its ply, which is what the walk down the stack compares against.
 
 That imposes a contract on every caller that moves a piece:
 
 ```c
 DirtyPiece   *dp;
 DirtyThreats *dts;
-eval_acc_push(arena, &dp, &dts);       // hands back the arena's own slots
+eval_acc_push(arena, pos, &dp, &dts);  // records pos's blocks, hands back the slots
 pos_do_move(pos, m, &st, gives_check, dp, dts, hist);
 ...
 pos_undo_move(pos, m);
@@ -180,7 +183,7 @@ same numbers**. Which one runs changes only how much work it costs:
 |---|---|---|
 | shared walk | neither perspective needs a refresh | one forward pass takes both, reading each ply's diff once |
 | split walk | otherwise | one pass per perspective |
-| hybrid | this perspective's own king moved, stayed on its half and captured no opponent queen | swaps the PSQ half between the two king squares' refresh-cache entries and carries the threat/pair accumulation over |
+| hybrid | this perspective's own king moved, stayed on its half and left its `K32H3` block unchanged | swaps the PSQ half between the two king squares' refresh-cache entries and carries the threat/pair accumulation over |
 | refresh | everything else | rebuilds the top slot from the board |
 
 The hybrid step is the one worth understanding. A king move rebuckets every PSQ

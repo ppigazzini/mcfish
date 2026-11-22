@@ -129,7 +129,8 @@ void eval_arena_clear_refresh_cache(EvalArena *arena);
 // board rather than from a stale ply's diff.
 void eval_acc_reset(EvalArena *arena);
 
-// Push one ply and hand back the two records pos_do_move must fill. The pointers
+// Push one ply and hand back the two records pos_do_move must fill. POS is the board
+// BEFORE the move, whose K32H3 blocks the slot records (upstream push(pos)). The pointers
 // address ARENA's own storage, so the make-move writes its delta straight into the
 // slot and nothing is copied. Both are always non-null: a ply the stack cannot hold
 // lands in the arena's private scratch, so a call site needs no branch.
@@ -137,7 +138,7 @@ void eval_acc_reset(EvalArena *arena);
 // ARENA must not be null. A search that could not get one must not start: without a
 // place to absorb the diff there is no evaluation to fall back TO, and a shared
 // scratch record would be exactly the cross-worker aliasing the arena exists to end.
-void eval_acc_push(EvalArena *arena, DirtyPiece **dp, DirtyThreats **dts);
+void eval_acc_push(EvalArena *arena, const Position *pos, DirtyPiece **dp, DirtyThreats **dts);
 
 // Drop the top ply. Pair with eval_acc_push around pos_undo_move.
 void eval_acc_pop(EvalArena *arena);

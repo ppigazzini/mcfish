@@ -245,9 +245,11 @@ void eval_acc_reset(EvalArena *arena) {
     nnue_acc_stack_reset(arena->acc_stack);
 }
 
-void eval_acc_push(EvalArena *arena, DirtyPiece **dp, DirtyThreats **dts) {
+void eval_acc_push(EvalArena *arena, const Position *pos, DirtyPiece **dp, DirtyThreats **dts) {
     if (arena->acc_depth + 2 <= (size_t) NNUE_MAX_STACK_SIZE) {
-        const NnueStackPushOutput out = nnue_acc_stack_push(arena->acc_stack);
+        const NnueStackPushOutput out = nnue_acc_stack_push(
+          arena->acc_stack, nnue_k32h3_blocks(pos->by_color[WHITE], pos->by_color[BLACK],
+                                              pos->by_type[ROOK], pos->by_type[QUEEN]));
         ++arena->acc_depth;
         // Hand the arena slot straight to the make-move. The two record pairs are
         // byte-identical by contract (static_asserts above), which is what lets the

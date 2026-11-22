@@ -263,7 +263,7 @@ static inline void search_do_move(
     ctx_add_nodes(ctx, 1);
     DirtyPiece *dp;
     DirtyThreats *dts;
-    eval_acc_push(ctx->eval_arena, &dp, &dts);
+    eval_acc_push(ctx->eval_arena, pos, &dp, &dts);
     pos_do_move(pos, m, st, gives_check, dp, dts, ctx->hist);
 
     ss->current_move = m;

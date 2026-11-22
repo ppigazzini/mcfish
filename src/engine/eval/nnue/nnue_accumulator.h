@@ -16,9 +16,10 @@
 //   shared walk    neither perspective needs a refresh: one forward pass takes both,
 //                  reading each ply's diff once (upstream forward_update_incremental_both)
 //   split walk     otherwise, one pass per perspective (upstream evaluate_side)
-//   hybrid         PERSPECTIVE's own king moved but stayed on its half of the board, so
-//                  the threat/pair accumulation carries over and only the HalfKA half is
-//                  swapped between the two king squares' cache entries
+//   hybrid         PERSPECTIVE's own king moved but stayed on its half of the board and
+//                  in its K32H3 block, so the threat/pair accumulation carries over and
+//                  only the PSQ half is swapped between the two king squares' cache
+//                  entries
 //                  (upstream update_accumulator_hybrid)
 //   refresh        every remaining case: rebuild the top slot from the board
 //
@@ -95,9 +96,11 @@ typedef struct NnueStackPushOutput {
 // Reset the stack to one uncomputed root slot with a zeroed diff.
 void nnue_acc_stack_reset(NnueAccumulatorStack *stack);
 
-// Push a fresh uncomputed slot and return the ply's diff records. The caller MUST fill
-// both before the next evaluate. Pushing past NNUE_MAX_STACK_SIZE is a caller error.
-NnueStackPushOutput nnue_acc_stack_push(NnueAccumulatorStack *stack);
+// Push a fresh uncomputed slot recording BLOCKS_BEFORE, the packed K32H3 blocks of the
+// board before the ply (nnue_k32h3_blocks), and return the ply's diff records. The
+// caller MUST fill both before the next evaluate. Pushing past NNUE_MAX_STACK_SIZE is a
+// caller error.
+NnueStackPushOutput nnue_acc_stack_push(NnueAccumulatorStack *stack, uint8_t blocks_before);
 
 void nnue_acc_stack_pop(NnueAccumulatorStack *stack);
 
