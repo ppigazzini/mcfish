@@ -54,8 +54,8 @@ The enum tier is the port's workhorse: `Square`, `Piece`, `PieceType`, `Color`,
   caught by both — clang spells it `-Wimplicit-enum-enum-cast`, gcc spells it
   `-Wenum-conversion` — so that half is enforced on every lane. Int-to-enum
   narrowing has **no gcc diagnostic at all**, so under the second compiler a raw
-  integer still enters a domain type for free. Measured on gcc 13.3 and 14.2 by
-  compiling the confusion, not by reading flag lists.
+  integer still enters a domain type for free. Measured on gcc 13.3, 14.2 and
+  15.2 by compiling the confusion, not by reading flag lists.
 - **Neither promotion stops an explicit cast**, which is deliberate. A narrowing
   conversion is sometimes correct; it should be a line a reviewer can see.
 
@@ -506,8 +506,8 @@ where the cost rule predicts a real if small cost. Recorded as known, not fixed.
 
 **A raw integer entering a domain type, under gcc.** Enum-to-enum is enforced on
 every lane — gcc has `-Wenum-conversion` and it is promoted alongside clang's
-spelling. Int-to-enum narrowing is not: gcc 13.3 and 14.2 emit nothing for it, so
-on the second-compiler lane an unconverted board file still reaches a `TbFile`
+spelling. Int-to-enum narrowing is not: gcc 13.3, 14.2 and 15.2 emit nothing for
+it, so on the second-compiler lane an unconverted board file still reaches a `TbFile`
 silently. The struct tier has no such asymmetry, because it is language rather
 than diagnostics.
 

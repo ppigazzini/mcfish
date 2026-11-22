@@ -44,15 +44,16 @@ env:
 jobs:
   upstream-check:
     name: Map audit + upstream drift
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # pyproject pins requires-python >= 3.14 and ruff's target-version to py314,
       # and the formatter EMITS 3.14-only syntax accordingly -- it rewrites
-      # `except (A, B):` to PEP 758's `except A, B:`. ubuntu-latest still ships
-      # 3.12, where that is a SyntaxError, so without this step upstream_map.py
+      # `except (A, B):` to PEP 758's `except A, B:`. ubuntu-24.04 shipped 3.12,
+      # where that is a SyntaxError, and the image's python moves with the image,
+      # so without this step upstream_map.py
       # could not be parsed and the audit below died before it checked anything.
       # A gate that cannot run is not a gate. Keep this in step with
       # requires-python.
@@ -100,7 +101,7 @@ jobs:
 
   upstream-nodes:
     name: Node-for-node differential (random positions)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Raised from 20: this job now also adjudicates the goldens (which drives the
     # oracle with a settle after every `go`) and runs two callgrind profiles. The
     # fingerprint alone measures 77s on a developer box and a runner is slower.

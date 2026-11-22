@@ -26,7 +26,7 @@ permissions:
 env:
   # Pinned LLVM major version, installed from apt.llvm.org in every job below.
   #
-  # WHY NOT the runner's default clang: ubuntu-latest's clang is several releases behind
+  # WHY NOT the runner's default clang: the runner image's clang is several releases behind
   # and rejects or mis-diagnoses the C23 spellings this codebase relies on -- bare
   # `nullptr` (src/engine/search/tt.c, src/shell/uci.c) and enums with a fixed underlying
   # type (`typedef enum : uint8_t` throughout src/engine/board/types.h). build.sh pins
@@ -47,7 +47,7 @@ jobs:
   # whitespace drift in 60 seconds beats catching it 15 minutes into the full aggregate.
   fmt:
     name: clang-format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -86,7 +86,7 @@ jobs:
   # and re-deriving an anchor on a red gate launders the bug into the anchor, so don't.
   parity:
     name: Linux x86-64 parity (clang)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -234,7 +234,7 @@ jobs:
   # instrumented binary is roughly an order of magnitude slower.
   sanitizers:
     name: ASan + UBSan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
       # NOTE: CC is set per-step below as `CC=clang-$CLANG_VERSION` rather than here --
@@ -325,7 +325,8 @@ jobs:
   # the image ships and it moves without warning -- it moved from 13 to 14 under this
   # very workflow, so the comment here described gcc-13's `-std=c2x` fallback while the
   # lane was actually exercising gcc-14 on `-std=c23`. A lane whose subject drifts is a
-  # lane that stops testing what it claims.
+  # lane that stops testing what it claims. The newer row is gcc-15, on the
+  # ubuntu-26.04 image every job here pins: the release the development host runs.
   #
   # The two entries are not redundant, and the matrix says why in the `std` column:
   # `detect_std_flag` prefers `-std=c23` and falls back to `-std=c2x`, and gcc-13 is the
@@ -333,7 +334,7 @@ jobs:
   # branch of the probe is never executed by CI again.
   gcc:
     name: Linux x86-64 parity (${{ matrix.cc }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     strategy:
       # Both versions always run: a failure on one is a fact about that toolchain and
@@ -345,7 +346,7 @@ jobs:
             std: -std=c2x
             # gcc 13 predates the -std=c23 spelling; this is the fallback branch.
             rejects: -std=c23
-          - cc: gcc-14
+          - cc: gcc-15
             std: -std=c23
             rejects: ''
     steps:
@@ -424,7 +425,7 @@ jobs:
   # the parallel clear dispatch) and the shared histories. Zero races or red.
   tsan-race:
     name: Linux TSan race gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -459,7 +460,7 @@ jobs:
   # branches fail.
   valgrind:
     name: Linux valgrind memcheck
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
