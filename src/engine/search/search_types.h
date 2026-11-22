@@ -215,6 +215,10 @@ typedef struct SearchCtx {
     int32_t nmp_min_ply;
     int32_t sel_depth;
     int32_t root_depth;
+    // 1 on an odd-indexed worker, which reduces its null move one ply less
+    // (search.cpp:1040), so half the threads verify null move cutoffs more
+    // carefully; 0 on the main worker and on every one-thread search.
+    int32_t odd_thread;
 
     const uint16_t *reductions;
 
