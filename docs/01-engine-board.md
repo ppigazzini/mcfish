@@ -647,9 +647,13 @@ threefold is required. Passing a wrong `ply` does not crash — it changes which
 positions the search calls drawn, which moves the node signature.
 
 `pos_is_repetition` and `pos_has_repeated` are the root-side queries, and
-`pos_upcoming_repetition` is the cycle-detection test that probes the cuckoo table.
+`pos_upcoming_repetition` is the cycle-detection test that probes the repetition
+table: every reversible one-piece move key in a Robin Hood table, open addressing
+from `key & 8191` with each entry's one-based probe distance beside it, so a lookup
+walks forward from its home slot until the key or a shorter distance. A key match is
+then confirmed against the piece placement, as the make's own repetition walk is.
 
-**The cuckoo table is built inside `position_init`**, at the end, from the psq and
+**The repetition table is built inside `position_init`**, at the end, from the psq and
 side keys it has just drawn. It takes them as arguments rather than re-deriving
 them: two independently seeded copies of the same PRNG is exactly the drift this
 table cannot survive. `pos_upcoming_repetition` is probed at the top of every

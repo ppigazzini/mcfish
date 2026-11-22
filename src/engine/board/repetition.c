@@ -6,14 +6,19 @@
 #include "bitboard.h"
 #include "movegen.h"
 
-// Hold the cuckoo hash of every reversible one-piece move key. Two slots per key
-// (H1/H2) with cuckoo displacement, so a lookup is at most two probes.
-static Key Cuckoo[8192];
-static Move CuckooMove[8192];
+// Hold every reversible one-piece move key in a Robin Hood table (upstream
+// RepetitionTable): open addressing from key & 8191, each entry recording its probe
+// distance, one-based, so a zero distance marks an empty slot. A lookup walks forward
+// from its home slot and stops at the first slot whose distance is shorter than its
+// own, which a resident key can never have.
+enum { REPETITION_TABLE_SIZE = 8192, REPETITION_TABLE_MASK = REPETITION_TABLE_SIZE - 1 };
+
+static Key RepetitionKeys[REPETITION_TABLE_SIZE];
+static Move RepetitionMoves[REPETITION_TABLE_SIZE];
+static uint8_t RepetitionDistances[REPETITION_TABLE_SIZE];
 static Key Zobrist_side_key;
 
-static inline size_t cuckoo_h1(Key key) { return (size_t) (key & 0x1FFFULL); }
-static inline size_t cuckoo_h2(Key key) { return (size_t) ((key >> 16) & 0x1FFFULL); }
+static inline size_t repetition_hash(Key key) { return (size_t) (key & REPETITION_TABLE_MASK); }
 
 void repetition_init(const Key (*zobrist_psq)[SQUARE_NB], Key zobrist_side) {
     static constexpr Piece init_pieces[12] = {
@@ -22,8 +27,9 @@ void repetition_init(const Key (*zobrist_psq)[SQUARE_NB], Key zobrist_side) {
     };
 
     Zobrist_side_key = zobrist_side;
-    memset(Cuckoo, 0, sizeof Cuckoo);
-    memset(CuckooMove, 0, sizeof CuckooMove);
+    memset(RepetitionKeys, 0, sizeof RepetitionKeys);
+    memset(RepetitionMoves, 0, sizeof RepetitionMoves);
+    memset(RepetitionDistances, 0, sizeof RepetitionDistances);
 
     for (int p = 0; p < 12; ++p) {
         const Piece pc = init_pieces[p];
@@ -38,22 +44,40 @@ void repetition_init(const Key (*zobrist_psq)[SQUARE_NB], Key zobrist_side) {
 
                 Move move = make_move(s1, s2);
                 Key key = zobrist_psq[pc][s1] ^ zobrist_psq[pc][s2] ^ zobrist_side;
+                size_t i = repetition_hash(key);
+                unsigned distance = 1;
 
-                // Displace whatever occupies the slot and re-place it, until the
-                // displaced entry is the empty one.
-                size_t i = cuckoo_h1(key);
+                // Walk forward until an empty slot takes the entry, handing the slot to
+                // whichever of the two is further from home and carrying the other on.
                 for (;;) {
-                    const Key tk = Cuckoo[i];
-                    Cuckoo[i] = key;
-                    key = tk;
+                    // A distance past a byte cannot be recorded; upstream refuses the table
+                    // at compile time, and this table is built at startup.
+                    if (distance > 255)
+                        __builtin_trap();
 
-                    const Move tm = CuckooMove[i];
-                    CuckooMove[i] = move;
-                    move = tm;
-
-                    if (move == MOVE_NONE)
+                    if (RepetitionDistances[i] == 0) {
+                        RepetitionKeys[i] = key;
+                        RepetitionMoves[i] = move;
+                        RepetitionDistances[i] = (uint8_t) distance;
                         break;
-                    i = (i == cuckoo_h1(key)) ? cuckoo_h2(key) : cuckoo_h1(key);
+                    }
+
+                    if (RepetitionDistances[i] < distance) {
+                        const Key tk = RepetitionKeys[i];
+                        RepetitionKeys[i] = key;
+                        key = tk;
+
+                        const Move tm = RepetitionMoves[i];
+                        RepetitionMoves[i] = move;
+                        move = tm;
+
+                        const unsigned td = RepetitionDistances[i];
+                        RepetitionDistances[i] = (uint8_t) distance;
+                        distance = td;
+                    }
+
+                    ++distance;
+                    i = (i + 1) & REPETITION_TABLE_MASK;
                 }
             }
         }
@@ -93,14 +117,16 @@ bool pos_upcoming_repetition(const Position *pos, int ply) {
             continue;
 
         const Key move_key = original_key ^ stp->key;
-        size_t j = cuckoo_h1(move_key);
-        if (Cuckoo[j] != move_key) {
-            j = cuckoo_h2(move_key);
-            if (Cuckoo[j] != move_key)
-                continue;
+        size_t j = repetition_hash(move_key);
+        unsigned distance = 1;
+        while (RepetitionDistances[j] >= distance && RepetitionKeys[j] != move_key) {
+            ++distance;
+            j = (j + 1) & REPETITION_TABLE_MASK;
         }
+        if (RepetitionDistances[j] < distance)
+            continue;
 
-        const Move mv = CuckooMove[j];
+        const Move mv = RepetitionMoves[j];
         const Square s1 = move_from(mv);
         const Square s2 = move_to(mv);
         if (((BetweenBB[s1][s2] ^ square_bb(s2)) & pieces(pos)) == 0) {

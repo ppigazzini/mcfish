@@ -159,7 +159,7 @@ is a live local the optimizer can place in a register. Do not re-split it.
 
 Node order:
 
-1. **Upcoming-repetition draw** (non-root) — the cuckoo test, then Step 1 node
+1. **Upcoming-repetition draw** (non-root) — the repetition-table test, then Step 1 node
    init, Step 2 the aborted-search / draw / `MAX_PLY` bail, Step 3 mate-distance
    pruning.
 2. **Step 4 TT probe**, then **Step 5 static eval** through the correction

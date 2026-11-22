@@ -15,11 +15,11 @@
 void position_init(void) {
     // The key tables and their draw order belong to zobrist.c, which owns the one
     // seeded PRNG in the engine. Everything downstream of a key -- the TT, the
-    // repetition cuckoo table, the bench signature, every golden -- is a function
+    // repetition table, the bench signature, every golden -- is a function
     // of that draw order, so it lives in exactly one place.
     zobrist_init();
 
-    // Build the cuckoo table from the keys just drawn, here and only here: it is a
+    // Build the repetition table from the keys just drawn, here and only here: it is a
     // pure function of the psq and side keys, and repetition.h requires it be
     // filled after them. Skipping it leaves the table all zeros, which makes
     // pos_upcoming_repetition answer "no" for every position it is asked about
