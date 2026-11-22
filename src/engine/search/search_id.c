@@ -241,11 +241,9 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
             Value alpha = (Value) (avg - delta > -VALUE_INFINITE ? avg - delta : -VALUE_INFINITE);
             Value beta = (Value) (avg + delta < VALUE_INFINITE ? avg + delta : VALUE_INFINITE);
 
-            // Read previous_score past the first line: a MultiPV line's score is
-            // usually -VALUE_INFINITE here, and that value must not seek a mate.
-            const RootMove *const pv_line = &ctx->root_moves[ctx->pv_idx];
-            const int32_t seek_mate_score =
-              ctx->pv_idx != 0 ? pv_line->previous_score : pv_line->score;
+            // Read the line's previous score: a MultiPV line's score is usually
+            // -VALUE_INFINITE here, and the first line's equals its previous one.
+            const int32_t seek_mate_score = ctx->root_moves[ctx->pv_idx].previous_score;
             ctx->seek_mate =
               seek_mate_score != -VALUE_INFINITE
               && (seek_mate_score < 0 ? -seek_mate_score : seek_mate_score) >= seek_mate_threshold;
