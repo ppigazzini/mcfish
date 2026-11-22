@@ -28,6 +28,7 @@
 typedef struct NnueTraceOutput {
     int32_t positional[NNUE_LAYER_STACKS];
     size_t correct_bucket;
+    size_t layer_stacks;
 } NnueTraceOutput;
 
 // --- the weight-storage seam ------------------------------------------------------

@@ -177,7 +177,8 @@ size_t nnue_layer_stack_content_hash(const uint8_t *fc0_biases,
 }
 
 uint32_t nnue_network_hash_value(void) {
-    return nnue_feature_transformer_hash_value() ^ nnue_architecture_hash_value();
+    return nnue_feature_transformer_hash_value() ^ nnue_architecture_hash_value()
+         ^ NNUE_LAYER_STACK_TABLE_HASH;
 }
 
 size_t nnue_eval_file_content_hash(const char *default_name,

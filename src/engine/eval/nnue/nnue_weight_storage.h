@@ -67,6 +67,21 @@ const uint8_t *nnue_ft_ptr(void);
 // Return one affine layer's block, or nullptr when it has never been loaded.
 const uint8_t *nnue_layer_ptr(size_t bucket, size_t idx, NnueLayerPart part);
 
+// Hold the loaded net's layer-stack table (network.h layerStackFallback,
+// layerStackIndex, storedLayerStacks): STORED stacks are in the file, FALLBACK names
+// for every raw stack the raw stack whose weights it uses, and INDEX maps a raw stack
+// straight to its stored ordinal. Every INDEX entry is < STORED.
+typedef struct {
+    uint32_t stored;
+    uint16_t fallback[NNUE_RAW_LAYER_STACKS];
+    uint16_t index[NNUE_RAW_LAYER_STACKS];
+} NnueLayerStackTable;
+
+// Install TABLE as the loaded net's. Call only once the whole file has parsed, so a
+// rejected net leaves the resident one's table in place.
+void nnue_set_layer_stack_table(const NnueLayerStackTable *table);
+const NnueLayerStackTable *nnue_layer_stack_table(void);
+
 // Release every block and forget the loaded-net identity. A subsequent load
 // re-allocates.
 void nnue_weight_storage_free(void);

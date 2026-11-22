@@ -1,4 +1,4 @@
-// Describe the network shape: the transformed feature width, the 32
+// Describe the network shape: the transformed feature width, the 192 raw
 // layer stacks, and the three affine layers each stack holds.
 //
 // These dimensions are the architecture, not a tuning knob. The .nnue file
@@ -22,7 +22,11 @@ enum {
     NNUE_L2 = 32,
     NNUE_L3 = 32,
 
-    NNUE_LAYER_STACKS = 32,
+    // 192 raw layer stacks, one per selection key (network.cpp layer_stack). A net
+    // stores only the ones it trained and names, per raw stack, the stored one it
+    // falls back to (network.h layerStackFallback).
+    NNUE_RAW_LAYER_STACKS = 192,
+    NNUE_LAYER_STACKS = NNUE_RAW_LAYER_STACKS,
 
     // NetworkArchitecture's static shape (nnue_architecture.h:52-54).
     NNUE_TRANSFORMED_FEATURE_DIMENSIONS = NNUE_L1,

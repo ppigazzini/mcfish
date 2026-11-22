@@ -34,6 +34,10 @@ uint32_t nnue_feature_transformer_hash_value(void);
 // variant that threads prevHash through fc_0, ac_0, fc_1, ac_1, fc_2.
 uint32_t nnue_architecture_hash_value(void);
 
+// Tag the layer-stack table that follows the header, and fold into Network::hash
+// (network.h LayerStackTableHash).
+enum : uint32_t { NNUE_LAYER_STACK_TABLE_HASH = 0x5A7AB1E5u };
+
 // Compute Network::hash (network.h): the evaluation-function structure hash
 // embedded in the file header. This is the value a load compares against.
 uint32_t nnue_network_hash_value(void);

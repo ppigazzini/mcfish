@@ -219,10 +219,16 @@ static bool load_network_bytes(const uint8_t *bytes,
     if (header.hash_value != nnue_network_hash_value())
         return false;
 
+    NnueLayerStackTable table;
+    size_t table_bytes = 0;
+    if (!nnue_parse_layer_stack_table(bytes + offset, len - offset, &table, &table_bytes))
+        return false;
+    offset += table_bytes;
+
     if (!read_feature_transformer(bytes, len, &offset))
         return false;
 
-    for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket) {
+    for (size_t bucket = 0; bucket < table.stored; ++bucket) {
         if (!read_layer(bucket, bytes, len, &offset))
             return false;
     }
@@ -230,6 +236,7 @@ static bool load_network_bytes(const uint8_t *bytes,
     if (offset != len)
         return false;
 
+    nnue_set_layer_stack_table(&table);
     nnue_set_loaded_state(current_name, current_name_len, (const char *) header.description,
                           header.description_len);
     // Trust the parse as the sole source of weights; the offset == len check above
@@ -430,7 +437,7 @@ NetworkVerifyResult network_verify(const char *evalfile_path, size_t evalfile_pa
     }
 
     // Fix the verification dimensions by the NNUE architecture: sizeof the
-    // FeatureTransformer plus NetworkArchitecture * LayerStacks, and the static
+    // FeatureTransformer plus NetworkArchitecture * storedLayerStacks, and the static
     // InputDimensions / TransformedFeatureDimensions / FC_0_OUTPUTS /
     // FC_1_OUTPUTS (upstream nnue/network.cpp:192).
     //
@@ -441,7 +448,8 @@ NetworkVerifyResult network_verify(const char *evalfile_path, size_t evalfile_pa
     // sizeof(NetworkArchitecture), a padded C++ object mcfish does not mirror field
     // for field.
     const size_t network_architecture_bytes = 35328;
-    const size_t size_bytes = NNUE_FT_TOTAL_BYTES + network_architecture_bytes * NNUE_LAYER_STACKS;
+    const size_t size_bytes =
+      NNUE_FT_TOTAL_BYTES + network_architecture_bytes * nnue_layer_stack_table()->stored;
     const size_t input_dimensions = NNUE_PSQ_FEATURE_DIMENSIONS + NNUE_THREAT_AND_PAIR_DIMENSIONS;
 
     return (NetworkVerifyResult) {
@@ -589,8 +597,19 @@ NetworkSaveResult network_save(const char *filename) {
         nnue_write_u32_le(&w, (uint32_t) description_len);
         nnue_write_bytes(&w, description, description_len);
 
+        // The layer-stack table, in nnue_parse_layer_stack_table's order.
+        const NnueLayerStackTable *const table = nnue_layer_stack_table();
+        nnue_write_u32_le(&w, NNUE_LAYER_STACK_TABLE_HASH);
+        nnue_write_u32_le(&w, NNUE_RAW_LAYER_STACKS);
+        nnue_write_u32_le(&w, table->stored);
+        for (size_t s = 0; s < NNUE_RAW_LAYER_STACKS; ++s) {
+            const uint8_t le[2] = { (uint8_t) table->fallback[s],
+                                    (uint8_t) (table->fallback[s] >> 8) };
+            nnue_write_bytes(&w, le, sizeof le);
+        }
+
         save_feature_transformer(&w, nnue_ft_ptr(), scratch);
-        for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS && w.ok; ++bucket)
+        for (size_t bucket = 0; bucket < table->stored && w.ok; ++bucket)
             save_layer_stack(&w, bucket, scratch);
 
         // Close before reporting: the last megabytes are still in the stdio buffer

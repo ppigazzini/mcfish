@@ -81,14 +81,30 @@ static size_t piece_count_of(const Position *pos) {
     return (size_t) popcount_bb(pieces(pos));
 }
 
-// Select the layer stack: four per piece-count bucket, one for each combination of the
-// side to move holding a queen (2) and its opponent holding one (1). Upstream
-// network.cpp:153-156.
+// Select the layer stack (network.cpp layer_stack): the raw key combines the
+// piece-count band, which side holds a queen (side to move 2, opponent 1), where the
+// pawns stand -- 0 on both board halves, 1 on one, 2 with no pawns -- and whether
+// either side has two or more officers (pieces other than pawns and kings). The
+// loaded net's table maps the 192 raw keys onto the stacks it stores.
 static size_t bucket_of(const Position *pos) {
     const Color stm = pos->side_to_move;
-    const size_t ours = pieces_cp(pos, stm, QUEEN) != 0 ? 2 : 0;
-    const size_t theirs = pieces_cp(pos, flip_color(stm), QUEEN) != 0 ? 1 : 0;
-    return (piece_count_of(pos) - 1) / 4 * 4 + (ours | theirs);
+    const size_t band = (piece_count_of(pos) - 1) / 4;
+    const size_t queens = (pieces_cp(pos, stm, QUEEN) != 0 ? 2 : 0)
+                        | (pieces_cp(pos, flip_color(stm), QUEEN) != 0 ? 1 : 0);
+
+    // Files a..d.
+    const Bitboard queen_side = 0x0F0F0F0F0F0F0F0FULL;
+    const Bitboard pawns = pos->by_type[PAWN];
+    const size_t layout = pawns == 0                                              ? 2
+                        : (pawns & queen_side) != 0 && (pawns & ~queen_side) != 0 ? 0
+                                                                                  : 1;
+
+    const Bitboard officers = pieces(pos) & ~(pawns | pos->by_type[KING]);
+    const int white_officers = popcount_bb(officers & pos->by_color[WHITE]);
+    const int black_officers = popcount_bb(officers & pos->by_color[BLACK]);
+    const size_t many = (white_officers > black_officers ? white_officers : black_officers) >= 2;
+
+    return nnue_layer_stack_table()->index[((band * 4 + queens) * 3 + layout) * 2 + many];
 }
 
 // Bring the accumulator up to date and write the layer-0 input and its NNZ bitset.
@@ -121,9 +137,10 @@ NnueTraceOutput nnue_inference_trace_evaluate(const Position *pos,
 
     NnueTraceOutput output = { 0 };
     output.correct_bucket = bucket_of(pos);
+    output.layer_stacks = nnue_layer_stack_table()->stored;
 
     transform(pos, stack, cache, transformed, &nnz);
-    for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; bucket++)
+    for (size_t bucket = 0; bucket < output.layer_stacks; bucket++)
         output.positional[bucket] = propagate_bucket(bucket, transformed, &nnz) / OUTPUT_SCALE;
 
     return output;

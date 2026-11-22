@@ -509,7 +509,16 @@ into something that distorts play.
 `trace_nnue` prints each bucket's evaluation, marks the bucket this position
 actually selects, and follows with the three summary lines. It matches upstream byte
 for byte. The transform does not depend on the bucket, so the trace runs it once and
-propagates every layer stack from it.
+propagates every stored layer stack from it.
+
+**The net decides how many stacks there are.** `bucket_of` in
+[`nnue_inference.c`](../src/engine/eval/nnue/nnue_inference.c) forms upstream's
+192-key selector -- the piece-count band, which side holds a queen, whether the
+pawns stand on both board halves, one or none, and whether either side has two or
+more officers -- and the table the file carries after its header maps every key onto
+one of the stacks it stores. So the table prints one row per STORED stack, and
+`nnue_parse_layer_stack_table` refuses a table whose fallbacks do not all land on a
+stored stack: a key mapped anywhere else would read weights the file never had.
 
 Every figure in the table goes through `uci_wdl_to_cp` before it is printed. That
 is what the header's "(Normalized, ...)" means, and it is the whole of what the
