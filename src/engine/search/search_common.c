@@ -369,7 +369,7 @@ int aspiration_delta_grow(int delta) { return delta + 47 * delta / 128; }
 
 int optimism_of(int avg) {
     const int abs_avg = avg < 0 ? -avg : avg;
-    return 114 * avg / (abs_avg + 85);
+    return 456 * avg / (abs_avg + 85);
 }
 
 // ---- board predicates --------------------------------------------------
