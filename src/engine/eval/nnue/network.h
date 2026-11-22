@@ -25,13 +25,14 @@
 
 // Name the default net (EvalFileDefaultName, evaluate.h), a build constant. A net
 // bump edits this one line.
-#define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-d1ee674a62ca.nnue"
+#define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-18cd32e11a9c.nnue"
 
-// Report every bucket's score for the UCI `eval` breakdown, plus the bucket the
-// position actually selects.
+// Report every stored bucket's score for the UCI `eval` breakdown, how many that is,
+// plus the bucket the position actually selects.
 typedef struct {
     int32_t positional[NNUE_LAYER_STACKS];
     size_t correct_bucket;
+    size_t layer_stacks;
 } NnueTraceOutput;
 
 // Carry the outcome of network_verify. MESSAGE is heap-allocated and may be nullptr

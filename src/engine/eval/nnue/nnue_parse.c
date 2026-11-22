@@ -1,5 +1,7 @@
 #include "nnue_parse.h"
 
+#include "nnue_hash.h"
+
 #include "nnue_architecture.h"
 #include "nnue_common.h"
 
@@ -108,5 +110,44 @@ bool nnue_parse_layer(const uint8_t *blob,
     pos += n;
 
     *consumed = pos;
+    return true;
+}
+
+bool nnue_parse_layer_stack_table(const uint8_t *blob,
+                                  size_t blob_len,
+                                  NnueLayerStackTable *table,
+                                  size_t *consumed) {
+    enum : size_t { HEAD_BYTES = 3 * sizeof(uint32_t), FALLBACK_BYTES = 2 * NNUE_RAW_LAYER_STACKS };
+    if (blob_len < HEAD_BYTES + FALLBACK_BYTES)
+        return false;
+    if (nnue_read_u32_le(blob) != NNUE_LAYER_STACK_TABLE_HASH
+        || nnue_read_u32_le(blob + 4) != NNUE_RAW_LAYER_STACKS)
+        return false;
+    table->stored = nnue_read_u32_le(blob + 8);
+    if (table->stored == 0 || table->stored > NNUE_LAYER_STACKS)
+        return false;
+
+    const uint8_t *const fallback = blob + HEAD_BYTES;
+    for (size_t s = 0; s < NNUE_RAW_LAYER_STACKS; ++s) {
+        const uint16_t f = (uint16_t) (fallback[2 * s] | fallback[2 * s + 1] << 8);
+        if (f >= NNUE_RAW_LAYER_STACKS)
+            return false;
+        table->fallback[s] = f;
+    }
+
+    uint32_t stored = 0;
+    for (size_t s = 0; s < NNUE_RAW_LAYER_STACKS; ++s)
+        if (table->fallback[s] == s)
+            table->index[s] = (uint16_t) stored++;
+    if (stored != table->stored)
+        return false;
+    for (size_t s = 0; s < NNUE_RAW_LAYER_STACKS; ++s) {
+        const uint16_t f = table->fallback[s];
+        if (table->fallback[f] != f)
+            return false;
+        table->index[s] = table->index[f];
+    }
+
+    *consumed = HEAD_BYTES + FALLBACK_BYTES;
     return true;
 }

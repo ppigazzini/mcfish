@@ -663,7 +663,8 @@ static bool execute(char *line) {
     } else if (strcmp(cmd, "eval") == 0) {
         engine_report_net();
         engine_verify_network();
-        char buf[2048];
+        // Room for every raw layer stack's row in the bucket table.
+        char buf[16384];
         engine_trace_eval(buf, sizeof buf);
         uci_output_write(buf);
     } else if (strcmp(cmd, "bench") == 0) {

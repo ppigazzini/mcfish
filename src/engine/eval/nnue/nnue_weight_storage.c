@@ -33,6 +33,12 @@ static char *NnDescription = nullptr;
 static size_t NnDescriptionLen = 0;
 static char NnNoDescription[1] = { '\0' };
 
+static NnueLayerStackTable LayerStackTable;
+
+void nnue_set_layer_stack_table(const NnueLayerStackTable *table) { LayerStackTable = *table; }
+
+const NnueLayerStackTable *nnue_layer_stack_table(void) { return &LayerStackTable; }
+
 // Hold the inference storage. The parse writes the weights straight here;
 // inference reads from the same memory.
 static uint8_t *FtStorage = nullptr;
@@ -181,6 +187,7 @@ void nnue_weight_storage_free(void) {
             LayerBiases[bucket][idx] = nullptr;
         }
     }
+    LayerStackTable = (NnueLayerStackTable) { 0 };
     NnInitialized = false;
     NnCurrent[0] = '\0';
     NnCurrentLen = 0;

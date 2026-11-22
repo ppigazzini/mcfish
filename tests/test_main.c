@@ -1213,6 +1213,64 @@ static uint64_t fnv1a(const uint8_t *p, size_t n) {
     return h;
 }
 
+// Build a layer-stack table in BUF: the tag, 192 raw stacks, STORED, then the 192 u16
+// FALLBACK entries, all little-endian.
+static size_t put_layer_stack_table(
+  uint8_t *buf, uint32_t tag, uint32_t raw, uint32_t stored, const uint16_t *fallback) {
+    const uint32_t head[3] = { tag, raw, stored };
+    size_t n = 0;
+    for (size_t i = 0; i < 3; ++i)
+        for (size_t b = 0; b < 4; ++b)
+            buf[n++] = (uint8_t) (head[i] >> (8 * b));
+    for (size_t s = 0; s < NNUE_RAW_LAYER_STACKS; ++s) {
+        buf[n++] = (uint8_t) fallback[s];
+        buf[n++] = (uint8_t) (fallback[s] >> 8);
+    }
+    return n;
+}
+
+// The table is user input that decides which weights every evaluation reads, so each
+// rule nnue_parse_layer_stack_table enforces gets the mutation that breaks it.
+static void test_nnue_layer_stack_table(void) {
+    banner("nnue layer-stack table");
+
+    // Three stored stacks, 0, 5 and 191; even raw stacks fall back onto 0 and odd ones
+    // onto 5, except 191 itself.
+    uint16_t fallback[NNUE_RAW_LAYER_STACKS];
+    for (size_t s = 0; s < NNUE_RAW_LAYER_STACKS; ++s)
+        fallback[s] = s % 2 == 0 ? 0 : 5;
+    fallback[191] = 191;
+
+    uint8_t buf[12 + 2 * NNUE_RAW_LAYER_STACKS];
+    NnueLayerStackTable t;
+    size_t used = 0;
+    size_t len = put_layer_stack_table(buf, NNUE_LAYER_STACK_TABLE_HASH, 192, 3, fallback);
+    CHECK(nnue_parse_layer_stack_table(buf, len, &t, &used), "a well-formed table parses");
+    CHECK(used == sizeof buf, "the table is 396 bytes, consumed %zu", used);
+    CHECK(t.stored == 3 && t.index[0] == 0 && t.index[5] == 1 && t.index[191] == 2,
+          "stored stacks number in raw order");
+    CHECK(t.index[2] == 0 && t.index[7] == 1, "a raw stack reads its fallback's ordinal");
+
+    CHECK(!nnue_parse_layer_stack_table(buf, len - 1, &t, &used), "a truncated table");
+    len = put_layer_stack_table(buf, NNUE_LAYER_STACK_TABLE_HASH ^ 1, 192, 3, fallback);
+    CHECK(!nnue_parse_layer_stack_table(buf, len, &t, &used), "a wrong tag");
+    len = put_layer_stack_table(buf, NNUE_LAYER_STACK_TABLE_HASH, 191, 3, fallback);
+    CHECK(!nnue_parse_layer_stack_table(buf, len, &t, &used), "a raw count other than 192");
+    len = put_layer_stack_table(buf, NNUE_LAYER_STACK_TABLE_HASH, 192, 0, fallback);
+    CHECK(!nnue_parse_layer_stack_table(buf, len, &t, &used), "no stored stack");
+    len = put_layer_stack_table(buf, NNUE_LAYER_STACK_TABLE_HASH, 192, 4, fallback);
+    CHECK(!nnue_parse_layer_stack_table(buf, len, &t, &used),
+          "a stored count the self-mapped stacks do not match");
+
+    fallback[9] = 192;
+    len = put_layer_stack_table(buf, NNUE_LAYER_STACK_TABLE_HASH, 192, 3, fallback);
+    CHECK(!nnue_parse_layer_stack_table(buf, len, &t, &used), "a fallback past the raw range");
+    fallback[9] = 7;
+    len = put_layer_stack_table(buf, NNUE_LAYER_STACK_TABLE_HASH, 192, 3, fallback);
+    CHECK(!nnue_parse_layer_stack_table(buf, len, &t, &used),
+          "a fallback onto a stack that is not stored");
+}
+
 static void test_nnue_parse_poison(void) {
     banner("nnue weight-arena 0xAA parse poison");
 
@@ -1246,8 +1304,11 @@ static void test_nnue_parse_poison(void) {
     // Checksum every block the first parse produced: the FT arena plus every
     // per-(bucket, layer, part) affine block.
     uint64_t sum_ft = fnv1a(nnue_ft_ptr(), NNUE_FT_TOTAL_BYTES);
+    // Only the stacks the net stores are parsed; the rest of the raw range is never
+    // allocated, so the walk stops at the stored count.
+    const size_t stored = nnue_layer_stack_table()->stored;
     uint64_t sum_layer[NNUE_LAYER_STACKS][NNUE_LAYERS_PER_STACK][2];
-    for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket)
+    for (size_t bucket = 0; bucket < stored; ++bucket)
         for (size_t idx = 0; idx < NNUE_LAYERS_PER_STACK; ++idx) {
             sum_layer[bucket][idx][0] =
               fnv1a(nnue_layer_ptr(bucket, idx, NNUE_LAYER_WEIGHTS), nnue_layer_weights_bytes(idx));
@@ -1260,7 +1321,7 @@ static void test_nnue_parse_poison(void) {
     // poisoned memory; any byte the parse skips but a reader reaches now holds
     // 0xAA instead of whatever the first allocation happened to contain.
     memset(nnue_ft_storage(NNUE_FT_TOTAL_BYTES), 0xAA, NNUE_FT_TOTAL_BYTES);
-    for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket)
+    for (size_t bucket = 0; bucket < stored; ++bucket)
         for (size_t idx = 0; idx < NNUE_LAYERS_PER_STACK; ++idx) {
             memset(
               nnue_layer_storage(bucket, idx, NNUE_LAYER_WEIGHTS, nnue_layer_weights_bytes(idx)),
@@ -1278,7 +1339,7 @@ static void test_nnue_parse_poison(void) {
     // a byte the parse failed to write survives as 0xAA and breaks its checksum.
     CHECK(fnv1a(nnue_ft_ptr(), NNUE_FT_TOTAL_BYTES) == sum_ft,
           "FT arena differs after the poisoned re-parse");
-    for (size_t bucket = 0; bucket < NNUE_LAYER_STACKS; ++bucket)
+    for (size_t bucket = 0; bucket < stored; ++bucket)
         for (size_t idx = 0; idx < NNUE_LAYERS_PER_STACK; ++idx) {
             CHECK(
               fnv1a(nnue_layer_ptr(bucket, idx, NNUE_LAYER_WEIGHTS), nnue_layer_weights_bytes(idx))
@@ -2342,6 +2403,7 @@ int main(void) {
     test_search_tm_init_carries_clock_state();
     test_conthist_scale_table();
     test_movepick_poison();
+    test_nnue_layer_stack_table();
     test_nnue_parse_poison();
     test_syzygy_wdl_score_domain();
     test_nnue_hash_tail_bytes();
