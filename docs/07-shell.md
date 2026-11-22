@@ -721,7 +721,7 @@ running search ends it wherever the clock got to — the final info line's node 
 moved 443388 → 460932 between two runs of one binary — so no byte-golden can hold it.
 **LOCAL**, ~6s.
 
-It drives a real interrupted search and asserts ten invariants. Five are the shapes a
+It drives a real interrupted search and asserts eleven invariants. Five are the shapes a
 GUI sends: a stopped search returns exactly one **legal** bestmove and leaves an
 engine that still answers `isready`; a `stop` with no search running answers nothing;
 `quit` mid-search exits; and the same `stop` and `quit` again in the ZERO-WAIT shape —
@@ -729,14 +729,16 @@ piped in the same buffer as the `go` they interrupt, so the command is readable 
 the search has begun, which is what every harness actually sends and what the first
 three cannot reach because they sleep first.
 
-Two more the first five structurally cannot see, because all five interrupt with
+Three more the first five structurally cannot see, because all five interrupt with
 `stop` or `quit`, the commands dispatched BEFORE the end-search call: that a
 `setoption` arriving during `go infinite` does not WEDGE, and that one arriving
 during a BOUNDED search stops it too, inside a deadline a 200M-node budget cannot
-meet when it is waited out. The wedge was upstream's own defect until its
+meet when it is waited out, and that a `ucinewgame` arriving during one does NOT
+stop it, asserted on the node count. The wedge was upstream's own defect until its
 `apply_idle` -- its `setoption` waited for a search only the UCI thread can stop,
-and that thread was inside `setoption` -- and stopping every search, bounded ones
-included, is upstream's fix and this tree's.
+and that thread was inside `setoption` -- and stopping the search is upstream's
+fix and this tree's, for those two commands only: every other command still waits
+a bounded search out, which the `ucinewgame` invariant holds.
 
 The last three are the remaining HANG shapes from the upstream defect register, each
 closed in this tree's code and reached by no gate until they were added: an
