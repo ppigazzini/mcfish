@@ -11,7 +11,7 @@ Audience: engine contributors. The board APIs this page calls are in
 ## Where this zone stands
 
 The decomposed node bodies are the live search, and they
-evaluate through NNUE with the search's own per-colour optimism. Every make/unmake
+evaluate through NNUE. Every make/unmake
 is bracketed with `eval_acc_push` / `eval_acc_pop` and the accumulator is reset
 once per `go`. See [03-engine-eval.md](03-engine-eval.md) for why that bracket is a
 contract rather than an optimisation.
@@ -65,9 +65,9 @@ holding that worker's history tables, its NNUE arena and, on thread 0 only, the
 [04-multithreading.md](04-multithreading.md).
 
 **`SearchCtx`'s per-node fields are contiguous, and adding to it has a rule.**
-Everything a node reads — `hist`, `eval_arena`, the counters, `optimism`,
-`root_depth`, `reductions`, `stop`, `is_main`, `eval_nnue_ready`,
-`time_state`, `tb_config` — sits inside the first 216 bytes (`offsetof(SearchCtx,
+Everything a node reads — `hist`, `eval_arena`, the counters, `nmp_min_ply`,
+`root_depth`, `odd_thread`, `reductions`, `stop`, `is_main`, `eval_nnue_ready`,
+`time_state`, `tb_config` — sits inside the first 208 bytes (`offsetof(SearchCtx,
 limits)`; verify with `offsetof` rather than trusting this number after the next
 field is added). Anything read once per `go`, and the big arrays (`limits`,
 `last_iter_pv`), go **after** them. The rule exists because
@@ -130,10 +130,6 @@ raises the upper edge past the score, pulls the lower edge up behind it, and kee
 counting, and that counter is what
 shortens the re-searched depth. Both edges grow by the same factor per re-search.
 Reorder those updates and the node count moves without the move changing.
-
-The window is also where `optimism` is set: `optimism[us]` is derived from the
-line's average score, `optimism[~us]` is its negation, and both are read by
-`search_evaluate` for the side to move at each node.
 
 ### The info line
 

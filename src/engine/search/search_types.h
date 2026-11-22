@@ -211,7 +211,6 @@ typedef struct SearchCtx {
     _Atomic uint64_t tb_hits;
     _Atomic uint64_t best_move_changes;
 
-    int32_t optimism[COLOR_NB];
     int32_t nmp_min_ply;
     int32_t sel_depth;
     int32_t root_depth;

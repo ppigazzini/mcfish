@@ -187,7 +187,6 @@ int qsearch_futility_base(int static_eval);
 
 int aspiration_initial_delta(size_t thread_idx, int mean_squared_score);
 int aspiration_delta_grow(int delta);
-int optimism_of(int avg);
 
 // ---- board predicates the search zone still carries --------------------
 

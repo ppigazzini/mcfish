@@ -40,23 +40,17 @@ void eval_arena_destroy(EvalArena *arena);
 EvalArena *eval_default_arena(void);
 
 // Return the static score of POS in centipawns, positive when the side to move
-// stands better. Never returns a mate-range value.
-//
-// OPTIMISM is the search's per-colour aspiration bias, read for the side to move.
-// It scales by the network's agreement with the material balance, so it is
-// part of the evaluation rather than a correction applied afterwards — pass the
-// search's value from inside a search. `evaluate` is the standalone form: it passes
-// zero, which is upstream's own value at `eval` and in the trace, and evaluates
-// through the default arena.
-Value evaluate_with_optimism(EvalArena *arena, const Position *pos, int optimism);
+// stands better, evaluated through ARENA. Never returns a mate-range value.
+// `evaluate` is the standalone form, through the default arena.
+Value evaluate_with_arena(EvalArena *arena, const Position *pos);
 Value evaluate(const Position *pos);
 
 // The no-fallback form: evaluate through ARENA, which must be non-null, with a
 // network resident. The search calls this behind its own per-go readiness flag
 // (SearchCtx.eval_nnue_ready), so the per-node path re-tests neither the global
 // load state nor the arena pointer; every other caller goes through
-// evaluate_with_optimism, which still degrades to the classical placeholder.
-Value evaluate_nnue_with_optimism(EvalArena *arena, const Position *pos, int optimism);
+// evaluate_with_arena, which still degrades to the classical placeholder.
+Value evaluate_nnue(EvalArena *arena, const Position *pos);
 
 // Render the evaluation breakdown for the UCI `eval` command into BUF.
 void evaluate_trace(const Position *pos, char *buf, int buf_len);

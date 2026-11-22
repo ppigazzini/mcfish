@@ -367,11 +367,6 @@ int aspiration_initial_delta(size_t thread_idx, int mean_squared_score) {
 
 int aspiration_delta_grow(int delta) { return delta + 47 * delta / 128; }
 
-int optimism_of(int avg) {
-    const int abs_avg = avg < 0 ? -avg : avg;
-    return 456 * avg / (abs_avg + 85);
-}
-
 // ---- board predicates --------------------------------------------------
 
 bool search_gives_check(const Position *pos, Move m) {
@@ -389,7 +384,7 @@ void search_update_sel_depth(SearchCtx *ctx, int ply) {
 }
 
 #ifdef MCFISH_EVAL_MATERIAL
-// Score the position by material alone, ignoring optimism and every network.
+// Score the position by material alone, ignoring every network.
 //
 // MEASUREMENT HARNESS, off in every shipped build. It isolates the spine — move
 // generation, movepick, the histories, the TT and the pruning arithmetic — from
@@ -414,16 +409,12 @@ Value search_evaluate(SearchCtx *ctx, const Position *pos) {
     (void) ctx;
     return material_only_eval(pos);
 #else
-    // Index optimism by the side to move at THIS node, not at the root: the
-    // aspiration loop writes both colours and the sign has to follow the mover
-    // down the tree (upstream search.cpp:1867).
-    //
     // Branch on the per-go readiness byte, not on the eval zone's global load
     // state plus the arena pointer: the answer cannot change inside a go, and
     // upstream's Worker::evaluate carries no per-node re-test at all.
     if (ctx->eval_nnue_ready)
-        return evaluate_nnue_with_optimism(ctx->eval_arena, pos, ctx->optimism[pos->side_to_move]);
-    return evaluate_with_optimism(ctx->eval_arena, pos, ctx->optimism[pos->side_to_move]);
+        return evaluate_nnue(ctx->eval_arena, pos);
+    return evaluate_with_arena(ctx->eval_arena, pos);
 #endif
 }
 
