@@ -758,16 +758,8 @@ __attribute__((always_inline)) static inline void apply_combined(NnueAccumulator
     assert(state_computed(stack, PSQ_FEATURE, computed_index, perspective));
     assert(!state_computed(stack, PSQ_FEATURE, target_index, perspective));
 
-    const NnueDirtyPiece psq_diff =
-      psq_diff_at(state_bytes_const(PSQ_FEATURE, forward ? target_index : computed_index, stack));
-
-    uint32_t psq_removed[NNUE_PSQ_INDEX_CAPACITY];
-    uint32_t psq_added[NNUE_PSQ_INDEX_CAPACITY];
-    size_t psq_removed_len;
-    size_t psq_added_len;
-    psq_changed_indices(perspective, king_square, psq_diff, forward, psq_removed, &psq_removed_len,
-                        psq_added, &psq_added_len);
-
+    // Threat and pair lists first, then the PSQ ones: upstream's order
+    // (update_accumulator_incremental), and the cheaper one here.
     const NnueDirtyThreats *thr_diff = threat_diff_at(
       state_bytes_const(THREAT_FEATURE, forward ? target_index : computed_index, stack));
 
@@ -778,6 +770,16 @@ __attribute__((always_inline)) static inline void apply_combined(NnueAccumulator
 
     threat_changed_indices(perspective, king_square, thr_diff, forward, nnue_ft_threat_weights(ft),
                            thr_removed, &thr_removed_len, thr_added, &thr_added_len);
+
+    const NnueDirtyPiece psq_diff =
+      psq_diff_at(state_bytes_const(PSQ_FEATURE, forward ? target_index : computed_index, stack));
+
+    uint32_t psq_removed[NNUE_PSQ_INDEX_CAPACITY];
+    uint32_t psq_added[NNUE_PSQ_INDEX_CAPACITY];
+    size_t psq_removed_len;
+    size_t psq_added_len;
+    psq_changed_indices(perspective, king_square, psq_diff, forward, psq_removed, &psq_removed_len,
+                        psq_added, &psq_added_len);
 
     nnue_acc_apply_combined_delta(
       state_accumulation_mut(PSQ_FEATURE, target_index, stack, perspective),
@@ -805,6 +807,17 @@ static void apply_combined_both(NnueAccumulatorStack *stack,
     assert(!state_computed(stack, PSQ_FEATURE, target_index, WHITE));
     assert(!state_computed(stack, PSQ_FEATURE, target_index, BLACK));
 
+    // Threat and pair lists first, then the PSQ ones, as apply_combined orders them.
+    uint32_t thr_removed[NNUE_COLOR_COUNT][NNUE_THREAT_INDEX_CAPACITY];
+    uint32_t thr_added[NNUE_COLOR_COUNT][NNUE_THREAT_INDEX_CAPACITY];
+    size_t thr_removed_len[NNUE_COLOR_COUNT];
+    size_t thr_added_len[NNUE_COLOR_COUNT];
+    threat_changed_indices_both(
+      white_ksq, black_ksq, threat_diff_at(state_bytes_const(THREAT_FEATURE, target_index, stack)),
+      nnue_ft_threat_weights(ft), thr_removed[WHITE], &thr_removed_len[WHITE], thr_added[WHITE],
+      &thr_added_len[WHITE], thr_removed[BLACK], &thr_removed_len[BLACK], thr_added[BLACK],
+      &thr_added_len[BLACK]);
+
     const NnueDirtyPiece psq_diff =
       psq_diff_at(state_bytes_const(PSQ_FEATURE, target_index, stack));
 
@@ -816,16 +829,6 @@ static void apply_combined_both(NnueAccumulatorStack *stack,
                         &psq_removed_len[WHITE], psq_added[WHITE], &psq_added_len[WHITE]);
     psq_changed_indices(BLACK, black_ksq, psq_diff, true, psq_removed[BLACK],
                         &psq_removed_len[BLACK], psq_added[BLACK], &psq_added_len[BLACK]);
-
-    uint32_t thr_removed[NNUE_COLOR_COUNT][NNUE_THREAT_INDEX_CAPACITY];
-    uint32_t thr_added[NNUE_COLOR_COUNT][NNUE_THREAT_INDEX_CAPACITY];
-    size_t thr_removed_len[NNUE_COLOR_COUNT];
-    size_t thr_added_len[NNUE_COLOR_COUNT];
-    threat_changed_indices_both(
-      white_ksq, black_ksq, threat_diff_at(state_bytes_const(THREAT_FEATURE, target_index, stack)),
-      nnue_ft_threat_weights(ft), thr_removed[WHITE], &thr_removed_len[WHITE], thr_added[WHITE],
-      &thr_added_len[WHITE], thr_removed[BLACK], &thr_removed_len[BLACK], thr_added[BLACK],
-      &thr_added_len[BLACK]);
 
     const int8_t *const psq_weights[NNUE_COLOR_COUNT] = { white_psq_weights, black_psq_weights };
     for (uint8_t perspective = 0; perspective < NNUE_COLOR_COUNT; perspective++) {
