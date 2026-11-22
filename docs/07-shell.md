@@ -255,6 +255,13 @@ search out rather than racing it — which also keeps a batch of back-to-back `g
 lines each running to completion, in order. Only the four during-search commands skip
 that drain.
 
+`setoption` and `export_net` go one step further and STOP the search, bounded or
+not, before the drain, as upstream's `apply_idle` does: an option a non-conforming
+GUI pushes mid-search applies now, and never changes under a search still reading
+it. A script that wants a bounded search to finish before an option changes sends
+something that waits it out first -- `ucinewgame` does, which is what
+`tools/cases/netswap.uci` sends.
+
 `quit` (and the EOF that substitutes it when a GUI vanishes) must not hang, so it does
 not blindly wait: an **unbounded** search — `go infinite`, or a `go ponder` still
 pondering — is *stopped*, while a bounded one (`go depth N`, `go movetime T`, …) is
@@ -724,13 +731,12 @@ three cannot reach because they sleep first.
 
 Two more the first five structurally cannot see, because all five interrupt with
 `stop` or `quit`, the commands dispatched BEFORE the end-search call: that a
-`setoption` arriving during `go infinite` does not WEDGE, and that a BOUNDED search is
-not truncated by a following mutating command, asserted on the node count rather than
-on the bestmove. The wedge is upstream's own defect — its `setoption` waits for a
-search only the UCI thread can stop, and that thread is now inside `setoption`. Both
-edits of that one line are wrong in opposite directions, which is why the gate holds
-both: never stop an unbounded search is the wedge, and stop every search including
-bounded ones is the truncation.
+`setoption` arriving during `go infinite` does not WEDGE, and that one arriving
+during a BOUNDED search stops it too, inside a deadline a 200M-node budget cannot
+meet when it is waited out. The wedge was upstream's own defect until its
+`apply_idle` -- its `setoption` waited for a search only the UCI thread can stop,
+and that thread was inside `setoption` -- and stopping every search, bounded ones
+included, is upstream's fix and this tree's.
 
 The last three are the remaining HANG shapes from the upstream defect register, each
 closed in this tree's code and reached by no gate until they were added: an

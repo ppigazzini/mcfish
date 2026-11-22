@@ -641,6 +641,13 @@ static bool execute(char *line) {
     // ahead of its output: a bounded search is waited out (its output stays complete),
     // an unbounded one is stopped so the command cannot hang behind an endless search.
     // The during-search commands above have already returned.
+    //
+    // `setoption` and `export_net` go further and stop the search outright, bounded or
+    // not, before they apply (uci.cpp apply_idle): a non-conforming GUI that sends one
+    // mid-search gets the option applied now rather than after the search's natural
+    // end, and the option never changes under a search still reading it.
+    if (strcmp(cmd, "setoption") == 0 || strcmp(cmd, "export_net") == 0)
+        engine_stop();
     engine_end_search();
 
     if (strcmp(cmd, "uci") == 0)

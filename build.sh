@@ -2156,21 +2156,17 @@ do_async_check() {
     printf '  \033[32mok\033[0m    a quit in the same buffer as the go it interrupts exits\n'
   fi
 
-  # 6. THE WEDGE. `setoption` arriving during `go infinite` is upstream's own defect:
-  #    its setoption waits for the search to finish, the main worker spins on
-  #    `!stop && (ponder || infinite)`, and only the UCI thread can set `stop` -- which
-  #    is now blocked inside setoption. Neither `stop` nor `quit` is ever read again,
-  #    and the process has to be killed. Any GUI that pushes an option mid-ponder
-  #    hits it.
+  # 6. THE WEDGE. `setoption` arriving during `go infinite` was upstream's own defect
+  #    until a14e8ec4d: its setoption waited for the search to finish, the main worker
+  #    spins on `!stop && (ponder || infinite)`, and only the UCI thread can set `stop`
+  #    -- which was blocked inside setoption. Neither `stop` nor `quit` was ever read
+  #    again, and the process had to be killed. Upstream's apply_idle now stops the
+  #    search before applying the option, and so does this dispatch.
   #
-  #    This tree does not wedge, and it is worth being precise about WHY, because the
-  #    reason is not the one a reader expects: the dispatch ends a running search
-  #    BEFORE applying any mutating command, and `end_search` STOPS an unbounded
-  #    search rather than waiting for it. A port that keeps the wait and drops the
-  #    stop -- which is upstream's shape, and the obvious way to write it -- wedges
-  #    exactly here while every invariant above stays green, because all five of them
-  #    interrupt with `stop` or `quit`, the two commands that are dispatched BEFORE
-  #    the end-search call and so never reach it.
+  #    The other invariants cannot see this: all five above interrupt with `stop` or
+  #    `quit`, the two commands that are dispatched BEFORE the end-search call and so
+  #    never reach it. A port that keeps the wait and drops the stop wedges exactly
+  #    here while every one of them stays green.
   #
   #    The timeout is the assertion. A wedge is indistinguishable from a slow engine
   #    without one, which is the property that let this defect stand upstream.
@@ -2193,28 +2189,27 @@ do_async_check() {
     printf '  \033[32mok\033[0m    a setoption during go infinite does not wedge (%s)\n' "$bm"
   fi
 
-  # 7. The other half, and the one a fix for 6 can break: a BOUNDED search followed by
-  #    a mutating command must still run to completion. Stopping every search on the
-  #    way to applying an option is the obvious fix for the wedge and it truncates
-  #    this -- a sibling port took exactly that route and collapsed a golden to
-  #    `nodes 0`. Here the search is waited out and only an unbounded one is stopped,
-  #    so the node count is the SAME with and without the trailing command, which is
-  #    the sharp form of the claim.
-  local with without
-  with=$(printf 'position startpos\ngo depth 10\nsetoption name Hash value 32\nquit\n' \
-         | ( cd "$ROOT/$RESOURCES_DIR" && timeout 60 "$ROOT/$BIN" ) 2>&1 \
-         | grep -E '^info depth 10 ' | tail -1 | grep -oE 'nodes [0-9]+' || true)
-  without=$(printf 'position startpos\ngo depth 10\nquit\n' \
-            | ( cd "$ROOT/$RESOURCES_DIR" && timeout 60 "$ROOT/$BIN" ) 2>&1 \
-            | grep -E '^info depth 10 ' | tail -1 | grep -oE 'nodes [0-9]+' || true)
-  if [[ -z $without ]]; then
-    red "  bounded truncation: the control search did not reach depth 10"; fails=$((fails + 1))
-  elif [[ $with != "$without" ]]; then
-    red "  bounded truncation: a trailing setoption cut the search ($with vs $without)"
-    fails=$((fails + 1))
+  # 7. A BOUNDED search followed by a mutating command is STOPPED too: upstream's
+  #    apply_idle raises stop before it waits (uci.cpp, a14e8ec4d), so the option
+  #    applies now rather than after the search's natural end -- a pristine build
+  #    answers `go depth 10` + `setoption` with `nodes 0` and a2a3. A 200M-node
+  #    budget takes minutes here, so one legal bestmove inside the 30 s deadline is
+  #    the stop and nothing else; a search that is waited out hits the deadline.
+  rc=0
+  out=$(printf 'position startpos\ngo nodes 200000000\nsetoption name Hash value 32\nisready\n' \
+        | ( cd "$ROOT/$RESOURCES_DIR" && timeout 30 "$ROOT/$BIN" ) 2>&1) || rc=$?
+  n=$(grep -cE '^bestmove ' <<< "$out" || true)
+  bm=$(grep -E '^bestmove ' <<< "$out" | head -1 | awk '{print $2}' || true)
+  if [[ $rc -eq 124 ]]; then
+    red "  bounded stop: a trailing setoption waited a 200M-node search out"; fails=$((fails + 1))
+  elif [[ $n -ne 1 ]]; then
+    red "  bounded stop: expected exactly one bestmove, got $n"; fails=$((fails + 1))
+  elif ! grep -qx -- "$bm" <<< "$legal"; then
+    red "  bounded stop: bestmove '$bm' is not legal in the position"; fails=$((fails + 1))
+  elif ! grep -q '^readyok' <<< "$out"; then
+    red "  bounded stop: the engine did not answer isready afterwards"; fails=$((fails + 1))
   else
-    printf '  \033[32mok\033[0m    a bounded search is not truncated by a following setoption (%s)\n' \
-           "$without"
+    printf '  \033[32mok\033[0m    a setoption stops a bounded search before it applies (%s)\n' "$bm"
   fi
 
   # THE THREE REMAINING HANG SHAPES from the upstream defect register. All three are
