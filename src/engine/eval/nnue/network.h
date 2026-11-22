@@ -25,7 +25,7 @@
 
 // Name the default net (EvalFileDefaultName, evaluate.h), a build constant. A net
 // bump edits this one line.
-#define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-18cd32e11a9c.nnue"
+#define NETWORK_DEFAULT_EVAL_FILE_NAME "nn-68752b755c93.nnue"
 
 // Report every stored bucket's score for the UCI `eval` breakdown, how many that is,
 // plus the bucket the position actually selects.
