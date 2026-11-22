@@ -481,7 +481,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                 const int fv =
                   quiet_futility_value(ss->static_eval, lmr_depth, ss->static_eval > alpha);
                 if (!ss->in_check && lmr_depth < 12 && fv <= alpha) {
-                    if (best_value <= fv && !value_is_decisive(best_value) && !value_is_win(fv))
+                    if (best_value <= fv && !value_is_win(fv))
                         best_value = (Value) fv;
                     continue;
                 }
