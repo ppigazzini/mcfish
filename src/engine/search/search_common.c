@@ -690,8 +690,8 @@ void search_update_all_stats(SearchCtx *ctx,
 // ---- transposition-table adapter ---------------------------------------
 
 void search_tt_save(
-  TTEntry *writer, Key key, Value v, bool is_pv, Bound b, int depth, Move m, Value ev) {
+  TTWriter writer, Key key, Value v, bool is_pv, Bound b, int depth, Move m, Value ev) {
     tt_save(writer, key, v, is_pv, b, depth, m, ev);
 }
 
-void search_tt_penalize(TTEntry *writer, int amount) { tt_penalize(writer, amount); }
+void search_tt_penalize(TTWriter writer, int amount) { tt_penalize(writer, amount); }

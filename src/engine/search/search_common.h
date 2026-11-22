@@ -309,7 +309,7 @@ void search_update_all_stats(SearchCtx *ctx,
 // Present one probe with the full upstream field set, so the node bodies read the
 // same shape they do upstream regardless of what the table stores today.
 typedef struct {
-    TTEntry *writer;
+    TTWriter writer;
     bool found;
     Move move;
     Value value;
@@ -338,10 +338,10 @@ static inline TTProbe search_tt_probe(Key key) {
                        .is_pv = r.data.is_pv };
 }
 void search_tt_save(
-  TTEntry *writer, Key key, Value v, bool is_pv, Bound b, int depth, Move m, Value ev);
+  TTWriter writer, Key key, Value v, bool is_pv, Bound b, int depth, Move m, Value ev);
 
 // Decrement a useless entry's stored depth, so it stops winning the replacement
 // race it cannot justify (upstream 319d61eff).
-void search_tt_penalize(TTEntry *writer, int amount);
+void search_tt_penalize(TTWriter writer, int amount);
 
 #endif  // MCFISH_SEARCH_COMMON_H

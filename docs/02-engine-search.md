@@ -447,16 +447,19 @@ reaching across zones itself.
 
 This is upstream's table, ported faithfully. The layout:
 
-- **A cluster of three entries**, `TT_CLUSTER_SIZE == 3`, padded to exactly 32
-  bytes so a cluster never straddles a 64-byte line in an aligned table.
-- **An entry is ten bytes**: `key16`, `depth8`, `gen_bound8`, `move16`, `value16`,
-  `eval16` — in the order `tt_probe` reads them, because memory is fastest
-  sequentially.
+- **A cluster of three entries**, `TT_CLUSTER_SIZE == 3`, behind one `keys` word
+  that packs the three 21-bit verification tags, entry `i` in bits `21i..21i+20`.
+  A cluster is exactly 32 bytes, so it never straddles a 64-byte line in an
+  aligned table.
+- **An entry is eight bytes**: `depth8`, `gen_bound8`, `move16`, `value16`,
+  `eval16`. Its tag lives in the cluster's `keys`, so `tt_probe` compares all
+  three tags with one subtract-and-mask (upstream's SWAR) before touching an
+  entry.
 - **Indexing is `tt_mul_hi64(key, cluster_count)`**: the high 64 bits of the 128-bit
   product, which maps a key onto the cluster range with no modulo and no
-  power-of-two constraint on the size. The **low** 16 bits of the same key become
-  `key16`, the in-cluster verification tag. The two ranges do not overlap, so the
-  tag carries real information rather than re-confirming the index.
+  power-of-two constraint on the size. The **low** 21 bits of the same key
+  become the entry's tag in `keys`. The two ranges do not overlap, so the tag
+  carries real information rather than re-confirming the index.
 - `tt_resize` takes the table from the page-allocator seam `ArenaAlloc`, which
   hands back a zeroed 64-byte-aligned block: a cluster is half a cache line, so
   that alignment keeps every cluster line-contained. Being a whole-megabyte
@@ -474,7 +477,7 @@ M4 (multithreading) has landed, and every `TTEntry` field is a relaxed `_Atomic`
 on an `_Atomic` member is seq_cst in C, which is not upstream's `RelaxedAtomic`,
 so the macros exist to keep every access relaxed rather than accidentally
 lock-prefixed. Relaxed suffices because there is no ordering to establish
-between fields: the entry is validated by `key16` after the read, and each field
+between fields: the entry is validated by its tag after the read, and each field
 is read and written indivisibly, so a torn or rematerialised half-value never
 reaches the search. What relaxed atomicity does **not** give is cross-field
 consistency: nothing stops one worker reading `depth8` from one store and
@@ -494,7 +497,7 @@ That is why every stored depth is biased:
 ```c
 static constexpr int32_t DEPTH_ENTRY_OFFSET = -3;
 
-TT_STORE(writer->depth8, (uint8_t) (d - DEPTH_ENTRY_OFFSET));  // store
+TT_STORE(entry->depth8, (uint8_t) (d - DEPTH_ENTRY_OFFSET));   // store
 .depth = DEPTH_ENTRY_OFFSET + (int32_t) depth8;                // read back
 ```
 
@@ -535,9 +538,9 @@ depth: that ratio is what stops the table filling with deep entries from an earl
 `tt_save` writes through that writer, and it declines to write:
 
 ```c
-if (b == BOUND_EXACT || key16 != writer->key16
-    || d - DEPTH_ENTRY_OFFSET + 2 * (int32_t) pv > (int32_t) writer->depth8 - 4
-    || tt_entry_relative_age(writer, TT.generation8) != 0) { ...overwrite... }
+if (b == BOUND_EXACT || (k & TT_KEY_MASK) != key21
+    || d - DEPTH_ENTRY_OFFSET + 2 * (int32_t) pv > (int32_t) TT_LOAD(entry->depth8) - 4
+    || tt_entry_relative_age(entry, TT.generation8) != 0) { ...overwrite... }
 ```
 
 An exact bound always wins, a different position always wins, a stale entry always

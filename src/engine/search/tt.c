@@ -96,36 +96,49 @@ void tt_new_search(void) {
 uint8_t tt_generation(void) { return TT.generation8; }
 
 TTProbeResult tt_probe(Key key) {
-    // Use the low 16 bits as the key inside the cluster; the high bits already
+    // Use the low 21 bits as the key inside the cluster; the high bits already
     // chose the cluster. TT.table always points at a real table — the one-cluster
     // fallback before any resize — so the probe carries no null test, exactly as
-    // upstream's probe carries none (tt.cpp:254).
-    const uint16_t key16 = (uint16_t) key;
-    TTEntry *const tte = TT.table[tt_mul_hi64(key, TT.cluster_count)].entry;
+    // upstream's probe carries none (tt.cpp:266).
+    TTCluster *const cluster = &TT.table[tt_mul_hi64(key, TT.cluster_count)];
+    TTEntry *const tte = cluster->entry;
+    const uint64_t key21 = key & TT_KEY_MASK;
 
-    for (size_t i = 0; i < TT_CLUSTER_SIZE; ++i)
-        if (TT_LOAD(tte[i].key16) == key16) {
-            // This gap is the main place for read races. Once tt_entry_read
-            // returns, the copy is final, though it may be self-inconsistent.
-            // Read depth8 once; it answers both the occupancy test and the
-            // entry's stored depth.
-            const uint8_t depth8 = TT_LOAD(tte[i].depth8);
-            return (TTProbeResult) { .found = depth8 != 0,
-                                     .data = tt_entry_read(&tte[i], depth8),
-                                     .writer = &tte[i] };
-        }
+    // Compare all three keys at once (tt.cpp:274-281). keyXors is zero in exactly
+    // the blocks that match, and the borrow trick sets bit 20 of the FIRST zero
+    // block; blocks after it may carry garbage, so only the lowest set bit means
+    // anything.
+    constexpr uint64_t KeyLsb =
+      UINT64_C(1) | (UINT64_C(1) << TT_KEY_BITS) | (UINT64_C(1) << (2 * TT_KEY_BITS));
+    constexpr uint64_t KeyMsb = KeyLsb << 20;
+    const uint64_t keys = TT_LOAD(cluster->keys);
+    const uint64_t key_xors = keys ^ (KeyLsb * key21);
+    const uint64_t matches = (key_xors - KeyLsb) & ~key_xors & KeyMsb;
+
+    if (matches != 0) {
+        const int32_t i = (int32_t) ((uint32_t) __builtin_ctzll(matches) / TT_KEY_BITS);
+        // This gap is the main place for read races. Once tt_entry_read
+        // returns, the copy is final, though it may be self-inconsistent.
+        // Read depth8 once; it answers both the occupancy test and the
+        // entry's stored depth.
+        const uint8_t depth8 = TT_LOAD(tte[i].depth8);
+        return (TTProbeResult) { .found = depth8 != 0,
+                                 .data = tt_entry_read(&tte[i], depth8),
+                                 .writer = { cluster, i } };
+    }
 
     // Pick the entry to replace: the least valuable one, where value is depth
-    // minus eight times relative age (tt.cpp:266).
-    TTEntry *replace = tte;
-    for (size_t i = 1; i < TT_CLUSTER_SIZE; ++i)
-        if ((int32_t) TT_LOAD(replace->depth8)
-              - 8 * (int32_t) tt_entry_relative_age(replace, TT.generation8)
+    // minus eight times relative age (tt.cpp:287).
+    int32_t replace = 0;
+    for (int32_t i = 1; i < TT_CLUSTER_SIZE; ++i)
+        if ((int32_t) TT_LOAD(tte[replace].depth8)
+              - 8 * (int32_t) tt_entry_relative_age(&tte[replace], TT.generation8)
             > (int32_t) TT_LOAD(tte[i].depth8)
                 - 8 * (int32_t) tt_entry_relative_age(&tte[i], TT.generation8))
-            replace = &tte[i];
+            replace = i;
 
-    return (TTProbeResult) { .found = false, .data = tt_empty_data(), .writer = replace };
+    return (
+      TTProbeResult) { .found = false, .data = tt_empty_data(), .writer = { cluster, replace } };
 }
 
 void tt_prefetch(Key key) {
@@ -134,42 +147,49 @@ void tt_prefetch(Key key) {
     __builtin_prefetch(&TT.table[tt_mul_hi64(key, TT.cluster_count)], 0, 3);
 }
 
-void tt_save(TTEntry *writer, Key k, Value v, bool pv, Bound b, int32_t d, Move m, Value ev) {
-    const uint16_t key16 = (uint16_t) k;
+void tt_save(TTWriter writer, Key k, Value v, bool pv, Bound b, int32_t d, Move m, Value ev) {
+    TTCluster *const cluster = writer.cluster;
+    TTEntry *const entry = &cluster->entry[writer.index];
+    const int32_t shift = TT_KEY_BITS * writer.index;
+    uint64_t keys = TT_LOAD(cluster->keys);
+    const uint64_t key21 = keys >> shift & TT_KEY_MASK;
 
     // Preserve the old ttmove if we don't have a new one.
-    if (m != MOVE_NONE || key16 != TT_LOAD(writer->key16))
-        TT_STORE(writer->move16, m);
+    if (m != MOVE_NONE || (k & TT_KEY_MASK) != key21)
+        TT_STORE(entry->move16, m);
 
-    // Overwrite less valuable entries, cheapest checks first (tt.cpp:100).
-    if (b == BOUND_EXACT || key16 != TT_LOAD(writer->key16)
-        || d - DEPTH_ENTRY_OFFSET + 2 * (int32_t) pv > (int32_t) TT_LOAD(writer->depth8) - 4
-        || tt_entry_relative_age(writer, TT.generation8) != 0) {
-        TT_STORE(writer->key16, key16);
-        TT_STORE(writer->depth8, (uint8_t) (d - DEPTH_ENTRY_OFFSET));
-        TT_STORE(writer->gen_bound8, (uint8_t) (TT.generation8 | ((uint8_t) b << TT_BOUND_SHIFT)
-                                                | ((uint8_t) pv << TT_PV_SHIFT)));
-        TT_STORE(writer->value16, (int16_t) v);
-        TT_STORE(writer->eval16, (int16_t) ev);
+    // Overwrite less valuable entries, cheapest checks first (tt.cpp:121).
+    if (b == BOUND_EXACT || (k & TT_KEY_MASK) != key21
+        || d - DEPTH_ENTRY_OFFSET + 2 * (int32_t) pv > (int32_t) TT_LOAD(entry->depth8) - 4
+        || tt_entry_relative_age(entry, TT.generation8) != 0) {
+        keys &= ~(TT_KEY_MASK << shift);
+        keys |= (k & TT_KEY_MASK) << shift;
+        TT_STORE(cluster->keys, keys);
+        TT_STORE(entry->depth8, (uint8_t) (d - DEPTH_ENTRY_OFFSET));
+        TT_STORE(entry->gen_bound8, (uint8_t) (TT.generation8 | ((uint8_t) b << TT_BOUND_SHIFT)
+                                               | ((uint8_t) pv << TT_PV_SHIFT)));
+        TT_STORE(entry->value16, (int16_t) v);
+        TT_STORE(entry->eval16, (int16_t) ev);
     }
     // Secondary aging. Important for elementary mate finding. Age a deep, decisive,
-    // non-exact entry that this store is NOT overwriting (tt.cpp:113).
-    else if ((int32_t) TT_LOAD(writer->depth8) + DEPTH_ENTRY_OFFSET >= 5
-             && (Bound) ((TT_LOAD(writer->gen_bound8) & TT_BOUND_MASK) >> TT_BOUND_SHIFT)
+    // non-exact entry that this store is NOT overwriting (tt.cpp:142).
+    else if ((int32_t) TT_LOAD(entry->depth8) + DEPTH_ENTRY_OFFSET >= 5
+             && (Bound) ((TT_LOAD(entry->gen_bound8) & TT_BOUND_MASK) >> TT_BOUND_SHIFT)
                   != BOUND_EXACT) {
-        // Keep upstream's inner test whole (tt.cpp:120): the `abs < VALUE_INFINITE`
+        // Keep upstream's inner test whole (tt.cpp:149): the `abs < VALUE_INFINITE`
         // half excludes an entry holding +/-VALUE_INFINITE, and is not the same
         // condition as the else-if above it.
-        const Value v16 = (Value) TT_LOAD(writer->value16);
+        const Value v16 = (Value) TT_LOAD(entry->value16);
         const Value abs16 = v16 < 0 ? -v16 : v16;
         if (abs16 < VALUE_INFINITE && value_is_decisive(v16))
-            TT_STORE(writer->depth8, depth_saturating_sub(writer->depth8, 1));
+            TT_STORE(entry->depth8, depth_saturating_sub(entry->depth8, 1));
     }
 }
 
-void tt_penalize(TTEntry *writer, int32_t penalty) {
-    // Guard against racy underflows, defaulting to "unoccupied" (tt.cpp:146).
-    TT_STORE(writer->depth8, depth_saturating_sub(writer->depth8, penalty));
+void tt_penalize(TTWriter writer, int32_t penalty) {
+    TTEntry *const entry = &writer.cluster->entry[writer.index];
+    // Guard against racy underflows, defaulting to "unoccupied" (tt.cpp:175).
+    TT_STORE(entry->depth8, depth_saturating_sub(entry->depth8, penalty));
 }
 
 int32_t tt_hashfull(int32_t max_age) {
