@@ -330,13 +330,16 @@ Their membership rules are upstream's and are not what the names suggest:
 
 | Key | Contains |
 | --- | --- |
-| `pawn_key` | pawns only, seeded with `Zobrist_no_pawns` so an empty pawn structure still has a distinct key |
+| `pawn_key` | pawns only |
 | `non_pawn_key[c]` | every non-pawn of colour `c`, kings **included** |
 | `minor_piece_key` | knights and bishops only, kings **excluded** |
 | `material_key` | piece counts with no square information: `Zobrist_psq[pc][8 + cnt]` for each copy |
 
 Putting a king into or out of the wrong one silently mis-indexes a correction or
-pawn history table — it costs strength and fails no gate. `material_key`'s offset
+pawn history table — it costs strength and fails no gate. The pawn, non-pawn and
+minor keys are stored without the side to move; bit 0 of a key IS the side to
+move (below), so the correction history's `[us]` column is that bit and the pawn
+history shifts it out. `material_key`'s offset
 of 8 keeps the count slots clear of the square range of the same Zobrist row, and
 Syzygy looks its tables up by that key, so it is not decoration.
 
@@ -350,9 +353,10 @@ recomputes it.
 ### Zobrist and the fixed seed
 
 `position_init` fills `Zobrist_psq[PIECE_NB][SQUARE_NB]`,
-`Zobrist_enpassant[FILE_NB]`, `Zobrist_castling[16]`, `Zobrist_side` and
-`Zobrist_no_pawns` from a xorshift64* generator seeded with a **hardcoded
-constant**.
+`Zobrist_enpassant[FILE_NB]` and `Zobrist_castling[16]` from a xorshift64*
+generator seeded with a **hardcoded constant**, each draw shifted up one bit.
+`Zobrist_side` is not drawn: it is the constant 1, so bit 0 of a position key is
+the side to move and no other component may set it.
 
 Two properties of the draw order are upstream's and are load-bearing:
 

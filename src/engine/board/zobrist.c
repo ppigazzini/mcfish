@@ -3,8 +3,6 @@
 Key Zobrist_psq[PIECE_NB][SQUARE_NB];
 Key Zobrist_enpassant[FILE_NB];
 Key Zobrist_castling[16];
-Key Zobrist_side;
-Key Zobrist_no_pawns;
 
 // Generate the keys from a fixed-seed xorshift64*, never from the host PRNG: the
 // bench signature and every golden are functions of these keys, so a key that
@@ -29,9 +27,11 @@ void zobrist_init(void) {
     static constexpr Piece Pieces[12] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
                                           B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
 
+    // Shift every drawn key up one bit: bit 0 of a key is the side to move, so no
+    // component may carry it (upstream generate_keys, `next() << 1`).
     for (int i = 0; i < 12; ++i)
         for (Square sq = SQ_A1; sq <= SQ_H8; ++sq)
-            Zobrist_psq[Pieces[i]][sq] = next_key(&s);
+            Zobrist_psq[Pieces[i]][sq] = next_key(&s) << 1;
 
     // Zero the ranks a pawn can only reach by promoting. A pawn never rests there,
     // so the entry is unreachable in compute_key; upstream zeroes it so the
@@ -42,11 +42,8 @@ void zobrist_init(void) {
     }
 
     for (int f = 0; f < FILE_NB; ++f)
-        Zobrist_enpassant[f] = next_key(&s);
+        Zobrist_enpassant[f] = next_key(&s) << 1;
 
     for (int cr = 0; cr < 16; ++cr)
-        Zobrist_castling[cr] = next_key(&s);
-
-    Zobrist_side = next_key(&s);
-    Zobrist_no_pawns = next_key(&s);
+        Zobrist_castling[cr] = next_key(&s) << 1;
 }

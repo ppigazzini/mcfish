@@ -341,17 +341,23 @@ static inline int16_t *cont_corr_page(Histories *h, Piece pc, Square to) {
 }
 
 // Return the pawn-history page for PAWN_KEY: HIST_PIECETO entries, pc * 64 + to.
+// Bit 0 of a key is the side to move, which the pawn history does not split on, so
+// the index starts at bit 1 (history.h pawn_entry).
 static inline SharedStat *pawn_history_row(Histories *h, Key pawn_key) {
-    const size_t idx = (size_t) pawn_key & h->pawn_mask;
+    const size_t idx = (size_t) (pawn_key >> 1) & h->pawn_mask;
     return &h->pawn_base[idx * HIST_PIECETO];
 }
 
-// Return correctionHistory[key & mask][us]. NOT for call sites: the four counters
-// in the row are selected by four DIFFERENT keys, so a caller that picks the row
-// and the field separately can pair them wrongly. Use the four accessors below,
-// each of which reads its own key and its own field.
+// Return correctionHistory[(key ^ us) & mask] in upstream's terms. Every stored key
+// has bit 0 clear and the reader xors the side to move into it, so that bit selects
+// between two adjacent bundles and the bits above it select the pair: row (key >> 1)
+// of this [rows][COLOR_NB] table, column US, with rows = upstream's size / 2.
+// NOT for call sites: the four counters in the row are selected by four DIFFERENT
+// keys, so a caller that picks the row and the field separately can pair them
+// wrongly. Use the four accessors below, each of which reads its own key and its own
+// field.
 static inline CorrectionBundle *corr_row(Histories *h, Key key, Color us) {
-    const size_t idx = (size_t) key & h->corr_mask;
+    const size_t idx = (size_t) (key >> 1) & h->corr_mask;
     return &h->corr_base[idx][us];
 }
 

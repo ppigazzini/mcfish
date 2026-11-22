@@ -241,7 +241,7 @@ static void set_extra_bitboards(Position *pos) {
 static Key compute_key(Position *pos) {
     Key k = 0;
 
-    pos->st->pawn_key = Zobrist_no_pawns;
+    pos->st->pawn_key = 0;
     pos->st->minor_piece_key = 0;
     pos->st->non_pawn_key[WHITE] = 0;
     pos->st->non_pawn_key[BLACK] = 0;
@@ -1042,7 +1042,7 @@ Key pos_prefetch_key(const Position *pos, Move m) {
     if (rule50 < 13)
         return k;
     const Key seed = (Key) ((rule50 - 13) / 8);
-    return k ^ (seed * 6364136223846793005ULL + 1442695040888963407ULL);
+    return k ^ (seed * 6364136223846793005ULL + 1442695040888963407ULL) << 1;
 }
 
 void pos_undo_move(Position *pos, Move m) {

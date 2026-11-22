@@ -13,8 +13,10 @@
 //      zeroes them to make the promotion XOR cancel implicitly
 //   3. Zobrist_enpassant[0..7]
 //   4. Zobrist_castling[0..15]
-//   5. Zobrist_side
-//   6. Zobrist_no_pawns
+//
+// Every drawn key is shifted up one bit, so bit 0 of every key is clear: that bit
+// IS the side to move (Zobrist_side), in the position key and, through the
+// readers, in the pawn, minor-piece and non-pawn keys.
 //
 // Drawing for the gaps, reordering the draws, skipping the zero-fill, or reseeding
 // a second copy of the PRNG elsewhere shifts every key downstream and silently
@@ -22,7 +24,7 @@
 // and move every key from B_PAWN on. The tables are written once at startup and
 // READ-ONLY thereafter.
 //
-// Golden: `Stockfish/src/position.cpp: Position::init` (:123-131).
+// Golden: `Stockfish/src/position.cpp` generate_keys.
 
 #ifndef MCFISH_ZOBRIST_H
 #define MCFISH_ZOBRIST_H
@@ -36,10 +38,8 @@ void zobrist_init(void);
 extern Key Zobrist_psq[PIECE_NB][SQUARE_NB];
 extern Key Zobrist_enpassant[FILE_NB];
 extern Key Zobrist_castling[16];
-extern Key Zobrist_side;
 
-// Seed the pawn key, so a position with no pawns still has a distinct pawn key
-// rather than the zero every empty XOR fold produces.
-extern Key Zobrist_no_pawns;
+// Flip bit 0, the side to move: black to move sets it (upstream Zobrist::side).
+static constexpr Key Zobrist_side = 1;
 
 #endif  // MCFISH_ZOBRIST_H

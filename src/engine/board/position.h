@@ -29,12 +29,13 @@ typedef struct StateInfo {
     Key material_key;
     // Index the history and correction tables. Semantics are upstream's
     // (position.cpp: set_state), NOT "everything of that kind":
-    //   pawn_key        pawns ONLY, seeded with Zobrist_no_pawns so an empty
-    //                   pawn structure still has a distinct key
+    //   pawn_key        pawns ONLY
     //   non_pawn_key    every non-pawn of that color, kings INCLUDED
     //   minor_piece_key knights and bishops only, kings EXCLUDED
     // Putting a king in or out of the wrong one silently mis-indexes a history
-    // table, which costs strength without ever failing a gate.
+    // table, which costs strength without ever failing a gate. Stored WITHOUT the
+    // side to move: upstream's readers xor it into bit 0, which the correction
+    // history's [us] column is, and which the pawn history shifts out.
     Key pawn_key;
     Key minor_piece_key;
     Key non_pawn_key[COLOR_NB];
@@ -199,7 +200,8 @@ static inline Key pos_adjust_key50_of(Key k, int rule50) {
     if (rule50 < 14)
         return k;
     const Key seed = (Key) ((rule50 - 14) / 8);
-    return k ^ (seed * 6364136223846793005ULL + 1442695040888963407ULL);
+    // Shifted clear of bit 0, the side to move (position.h:327).
+    return k ^ (seed * 6364136223846793005ULL + 1442695040888963407ULL) << 1;
 }
 
 void pos_do_move(Position *pos,
