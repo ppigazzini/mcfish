@@ -192,6 +192,9 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
 
     int search_again_counter = 0;
     int fail_high_recovery = 0;
+    // The nodes spent on the first PV line, the one rootMoves[0].effort is a share of
+    // (search.cpp:519-520). With MultiPV > 1 the later lines' nodes are not its effort.
+    uint64_t total_effort = 0;
     bool uci_pv_sent = false;
 
     while (ctx->root_depth + 1 < MAX_PLY && !id_stopped(ctx)
@@ -347,6 +350,9 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
                 uci_pv_sent = ctx->pv_idx + 1 == multi_pv;
             }
 
+            if (main_thread && ctx->pv_idx == 0)
+                total_effort = ctx_nodes(ctx);
+
             if (id_stopped(ctx))
                 break;
         }
@@ -419,11 +425,11 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
         if (id->use_time_management && !id_stopped(ctx) && id->stop_on_ponderhit
             && !*id->stop_on_ponderhit) {
             const uint64_t nodes_effort =
-              ctx->root_moves[0].effort * 100000 / (ctx_nodes(ctx) > 1 ? ctx_nodes(ctx) : 1);
+              ctx->root_moves[0].effort * 100000 / (total_effort > 1 ? total_effort : 1);
 
             double falling_eval =
-              (11.48 + 2.30 * (double) (id->best_previous_average_score - best_value)
-               + 1.1 * (double) (id->iter_value[iter_idx] - best_value))
+              (11.48 + 2.30 * (double) (id->best_previous_average_score - ctx->root_moves[0].score)
+               + 1.1 * (double) (id->iter_value[iter_idx] - ctx->root_moves[0].score))
               / 100.0;
             falling_eval = fclamp(falling_eval, 0.576, 1.728);
 
@@ -480,7 +486,7 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
             }
         }
 
-        id->iter_value[iter_idx] = best_value;
+        id->iter_value[iter_idx] = ctx->root_moves[0].score;
         iter_idx = (iter_idx + 1) & 3;
     }
 
