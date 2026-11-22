@@ -110,13 +110,16 @@ TTProbeResult tt_probe(Key key) {
     // anything.
     constexpr uint64_t KeyLsb =
       UINT64_C(1) | (UINT64_C(1) << TT_KEY_BITS) | (UINT64_C(1) << (2 * TT_KEY_BITS));
-    constexpr uint64_t KeyMsb = KeyLsb << 20;
+    constexpr uint64_t KeyMsb = KeyLsb << (TT_KEY_BITS - 1);
     const uint64_t keys = TT_LOAD(cluster->keys);
     const uint64_t key_xors = keys ^ (KeyLsb * key21);
     const uint64_t matches = (key_xors - KeyLsb) & ~key_xors & KeyMsb;
 
     if (matches != 0) {
-        const int32_t i = (int32_t) ((uint32_t) __builtin_ctzll(matches) / TT_KEY_BITS);
+        // The match bit is bit 20 of its block, at 20, 41 or 62: >> 4 maps those to
+        // 1, 2 and 3 with no divide (tt.cpp:285-286).
+        static_assert(TT_KEY_BITS == 21, "the index below assumes 21-bit keys");
+        const int32_t i = (int32_t) ((uint32_t) __builtin_ctzll(matches) >> 4) - 1;
         // This gap is the main place for read races. Once tt_entry_read
         // returns, the copy is final, though it may be self-inconsistent.
         // Read depth8 once; it answers both the occupancy test and the
@@ -128,14 +131,19 @@ TTProbeResult tt_probe(Key key) {
     }
 
     // Pick the entry to replace: the least valuable one, where value is depth
-    // minus eight times relative age (tt.cpp:287).
+    // minus eight times relative age (tt.cpp:292). Carry the running minimum rather
+    // than re-reading the incumbent's fields at every comparison.
     int32_t replace = 0;
-    for (int32_t i = 1; i < TT_CLUSTER_SIZE; ++i)
-        if ((int32_t) TT_LOAD(tte[replace].depth8)
-              - 8 * (int32_t) tt_entry_relative_age(&tte[replace], TT.generation8)
-            > (int32_t) TT_LOAD(tte[i].depth8)
-                - 8 * (int32_t) tt_entry_relative_age(&tte[i], TT.generation8))
+    int32_t replace_value = (int32_t) TT_LOAD(tte[0].depth8)
+                          - 8 * (int32_t) tt_entry_relative_age(&tte[0], TT.generation8);
+    for (int32_t i = 1; i < TT_CLUSTER_SIZE; ++i) {
+        const int32_t value = (int32_t) TT_LOAD(tte[i].depth8)
+                            - 8 * (int32_t) tt_entry_relative_age(&tte[i], TT.generation8);
+        if (replace_value > value) {
             replace = i;
+            replace_value = value;
+        }
+    }
 
     return (
       TTProbeResult) { .found = false, .data = tt_empty_data(), .writer = { cluster, replace } };
@@ -151,20 +159,20 @@ void tt_save(TTWriter writer, Key k, Value v, bool pv, Bound b, int32_t d, Move 
     TTCluster *const cluster = writer.cluster;
     TTEntry *const entry = &cluster->entry[writer.index];
     const int32_t shift = TT_KEY_BITS * writer.index;
-    uint64_t keys = TT_LOAD(cluster->keys);
-    const uint64_t key21 = keys >> shift & TT_KEY_MASK;
+    const uint64_t keys = TT_LOAD(cluster->keys);
+    // The stored tag xor the new one: zero when they match, and xoring it back in at
+    // the slot's shift turns the stored tag into the new one (tt.cpp:116-119).
+    const uint64_t key_diff = ((keys >> shift) ^ k) & TT_KEY_MASK;
 
     // Preserve the old ttmove if we don't have a new one.
-    if (m != MOVE_NONE || (k & TT_KEY_MASK) != key21)
+    if (m != MOVE_NONE || key_diff != 0)
         TT_STORE(entry->move16, m);
 
-    // Overwrite less valuable entries, cheapest checks first (tt.cpp:121).
-    if (b == BOUND_EXACT || (k & TT_KEY_MASK) != key21
+    // Overwrite less valuable entries, cheapest checks first (tt.cpp:125).
+    if (b == BOUND_EXACT || key_diff != 0
         || d - DEPTH_ENTRY_OFFSET + 2 * (int32_t) pv > (int32_t) TT_LOAD(entry->depth8) - 4
         || tt_entry_relative_age(entry, TT.generation8) != 0) {
-        keys &= ~(TT_KEY_MASK << shift);
-        keys |= (k & TT_KEY_MASK) << shift;
-        TT_STORE(cluster->keys, keys);
+        TT_STORE(cluster->keys, keys ^ (key_diff << shift));
         TT_STORE(entry->depth8, (uint8_t) (d - DEPTH_ENTRY_OFFSET));
         TT_STORE(entry->gen_bound8, (uint8_t) (TT.generation8 | ((uint8_t) b << TT_BOUND_SHIFT)
                                                | ((uint8_t) pv << TT_PV_SHIFT)));
