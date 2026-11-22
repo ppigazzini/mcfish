@@ -93,7 +93,7 @@ int razor_margin(int depth);
 bool conthist_scale_table_agrees(void);
 
 int null_move_threshold(int beta, int depth, bool improving);
-int null_move_reduction(int depth, int static_eval, int beta);
+int null_move_reduction(int depth, int static_eval, int beta, int ply);
 int nmp_min_ply_of(int ply, int depth, int r);
 
 int probcut_beta(int beta, bool improving);
