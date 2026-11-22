@@ -675,7 +675,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                                                 : VALUE_DRAW;
     } else if (best_move != MOVE_NONE) {
         search_update_all_stats(ctx, pos, ss, best_move, (Square) prev_sq, quiets_searched,
-                                n_quiets, captures_searched, n_captures, depth, tt_move, pv_node);
+                                n_quiets, captures_searched, n_captures, depth, tt_move);
         if (!pv_node)
             tt_move_history_update(h, tt_move_history_match_bonus(best_move == tt_move));
     } else if (!prior_capture && prev_sq != (int) SQ_NONE) {

@@ -301,8 +301,7 @@ void search_update_all_stats(SearchCtx *ctx,
                              const Move *captures,
                              size_t n_captures,
                              int depth,
-                             Move tt_move,
-                             bool pv_node);
+                             Move tt_move);
 
 // ---- transposition-table adapter ---------------------------------------
 
