@@ -247,7 +247,7 @@ static inline Value mated_in(int ply) { return (Value) (ply - VALUE_MATE); }
 // promotion and capture look like a real square.
 static_assert(SQ_NONE == 64, "DirtyPiece's no-square sentinel is NNUE's 64");
 
-// Record the K32Q2 delta of one move: the piece that moved, plus at most one
+// Record the K32H3 delta of one move: the piece that moved, plus at most one
 // removed and one added piece (a capture, a promotion, or castling's rook).
 //
 // The layout is a CONTRACT, not an implementation detail. `nnue_feature.h`'s

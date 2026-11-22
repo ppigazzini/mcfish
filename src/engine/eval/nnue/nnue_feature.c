@@ -1,4 +1,4 @@
-// Implement the K32Q2, full_threats and pp_3wide feature indexers.
+// Implement the K32H3, full_threats and pp_3wide feature indexers.
 //
 // C23 has no compile-time evaluation for tables of this shape, so every table here is
 // built once by nnue_feature_init (docs/08-idiomatic-c.md, "comptime becomes ... a table
@@ -23,9 +23,8 @@ static constexpr uint32_t PieceSquareIndex[2][16] = {
     { 0, 64, 192, 320, 448, 576, 640, 0, 0, 0, 128, 256, 384, 512, 640, 0 },
 };
 
-// Space the king buckets two NNUE_PS_NB blocks apart: each bucket spans both
-// opponent-queen states (upstream's B(v)).
-enum : uint32_t { KING_BUCKET_STRIDE = 2 * NNUE_PS_NB };
+// Space the king buckets one NNUE_PS_NB apart within a block (k32h3.h B(v)).
+enum : uint32_t { KING_BUCKET_STRIDE = NNUE_PS_NB };
 
 static constexpr uint32_t KingBuckets[64] = {
     28 * KING_BUCKET_STRIDE, 29 * KING_BUCKET_STRIDE, 30 * KING_BUCKET_STRIDE,
@@ -52,17 +51,12 @@ static constexpr uint32_t KingBuckets[64] = {
     0 * KING_BUCKET_STRIDE,
 };
 
-// Mirror the file when the king stands on the queen side, so the bucketed feature space
-// only has to cover half the board. The psq tables and the full tables disagree on which
-// half is mirrored, which is upstream's convention, not a transcription slip.
-static constexpr uint32_t OrientTblPsq[64] = {
+// Mirror the file when the king stands on files a..d, so it lands on e..h and the
+// bucketed feature space only has to cover half the board. All three feature sets
+// orient by this one table (nnue_common.h OrientTBL).
+static constexpr uint8_t OrientTbl[64] = {
     7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0,
     7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0,
-};
-
-static constexpr int8_t OrientTblFull[64] = {
-    0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7,
-    0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 7, 7, 7, 7,
 };
 
 // A pawn's diagonal threats target only knights and rooks — pawn-pawn relationships
@@ -111,13 +105,12 @@ static_assert(sizeof(ThreatIndexBlock) % 64 == 0,
 
 static alignas(64) ThreatIndexBlock ThreatIndexBlocks[16];
 
-// Fold PieceSquareIndex, KingBuckets, the queen-state offset and the king-side
-// orientation into one u16 per (queen state, perspective, king square, piece), so a
-// K32Q2 index is one load and one xor. Every addend but the orientation is a multiple of
-// 64 and the orientation is below 64, so adding it equals xoring it, and xoring the
-// square into the sum gives the same index the four-table form summed. Golden:
-// `K32Q2::make_index`'s `offsets`.
-static alignas(64) uint16_t PsqIndexOffsets[2 * 2 * SQUARE_NB][PIECE_NB];
+// Fold PieceSquareIndex, KingBuckets and the king-side orientation into one u16 per
+// (perspective, king square, piece), so a K32H3 index is one load and one xor. Every
+// addend but the orientation is a multiple of 64 and the orientation is below 64, so
+// adding it equals xoring it, and xoring the square into the sum gives the same index
+// the three-table form summed. Golden: `K32H3::make_index`'s `offsets`.
+static alignas(64) uint16_t PsqIndexOffsets[2 * SQUARE_NB][PIECE_NB];
 
 static void init_threat_offsets(void) {
     uint32_t cumulative_offset = 0;
@@ -220,21 +213,17 @@ static void init_threat_blocks(void) {
 }
 
 static void init_psq_index_offsets(void) {
-    for (unsigned queen = 0; queen < 2; queen++) {
-        const uint32_t queen_offset = queen != 0 ? NNUE_PS_NB : 0;
-        for (unsigned perspective = 0; perspective < 2; perspective++) {
-            const uint32_t flip = 56u * perspective;
-            for (unsigned king_square = 0; king_square < SQUARE_NB; king_square++) {
-                const uint32_t orient = OrientTblPsq[king_square] ^ flip;
-                const uint32_t bucket = KingBuckets[king_square ^ flip] + queen_offset + orient;
-                for (unsigned piece = 0; piece < PIECE_NB; piece++) {
-                    const uint32_t sum = PieceSquareIndex[perspective][piece] + bucket;
-                    if (sum > UINT16_MAX) {
-                        __builtin_trap();
-                    }
-                    PsqIndexOffsets[(queen * 2 + perspective) * SQUARE_NB + king_square][piece] =
-                      (uint16_t) sum;
+    for (unsigned perspective = 0; perspective < 2; perspective++) {
+        const uint32_t flip = 56u * perspective;
+        for (unsigned king_square = 0; king_square < SQUARE_NB; king_square++) {
+            const uint32_t orient = OrientTbl[king_square] ^ flip;
+            const uint32_t bucket = KingBuckets[king_square ^ flip] + orient;
+            for (unsigned piece = 0; piece < PIECE_NB; piece++) {
+                const uint32_t sum = PieceSquareIndex[perspective][piece] + bucket;
+                if (sum > UINT16_MAX) {
+                    __builtin_trap();
                 }
+                PsqIndexOffsets[perspective * SQUARE_NB + king_square][piece] = (uint16_t) sum;
             }
         }
     }
@@ -255,16 +244,11 @@ void nnue_feature_init(void) {
     init_pawn_pair_bb();
 }
 
-// --- K32Q2 ------------------------------------------------------------------------
+// --- K32H3 ------------------------------------------------------------------------
 
-uint32_t nnue_k32q2_make_index(uint8_t perspective,
-                               uint8_t square,
-                               uint8_t piece,
-                               uint8_t king_square,
-                               bool opponent_has_queen) {
-    const unsigned queen = opponent_has_queen ? 1u : 0u;
-    return (uint32_t) square
-         ^ PsqIndexOffsets[(queen * 2 + perspective) * SQUARE_NB + king_square][piece];
+uint32_t
+nnue_k32h3_make_index(uint8_t perspective, uint8_t square, uint8_t piece, uint8_t king_square) {
+    return (uint32_t) square ^ PsqIndexOffsets[perspective * SQUARE_NB + king_square][piece];
 }
 
 // --- full_threats -----------------------------------------------------------------
@@ -286,7 +270,7 @@ uint32_t nnue_full_make_index_oriented(uint8_t attacker_oriented,
 // plus a direction compare.
 uint32_t nnue_full_orient_mask(uint8_t perspective, uint8_t king_square, bool forward) {
     const uint32_t orient =
-      (uint32_t) (uint8_t) ((int32_t) OrientTblFull[king_square] ^ (int32_t) (56 * perspective));
+      (uint32_t) (uint8_t) ((int32_t) OrientTbl[king_square] ^ (int32_t) (56 * perspective));
     const uint32_t swap = 8u * perspective;
     return orient << NNUE_DIRTY_THREAT_PC_SQ_SHIFT | orient << NNUE_DIRTY_THREATENED_SQ_SHIFT
          | swap << NNUE_DIRTY_THREATENED_PC_SHIFT | swap << NNUE_DIRTY_THREAT_PC_SHIFT
@@ -299,7 +283,7 @@ uint32_t nnue_full_make_index(uint8_t perspective,
                               uint8_t to_sq,
                               uint8_t attacked,
                               uint8_t king_square) {
-    const int32_t orientation = (int32_t) OrientTblFull[king_square] ^ (int32_t) (56 * perspective);
+    const int32_t orientation = (int32_t) OrientTbl[king_square] ^ (int32_t) (56 * perspective);
     const uint8_t orient = (uint8_t) orientation;
     const uint8_t from_oriented = (uint8_t) (from_sq ^ orient);
     const uint8_t to_oriented = (uint8_t) (to_sq ^ orient);
@@ -445,7 +429,7 @@ static uint32_t pair_make_index(uint8_t perspective,
                                 uint8_t to_sq,
                                 uint8_t paired_color,
                                 uint8_t king_square) {
-    const int32_t orientation = (int32_t) OrientTblFull[king_square] ^ (int32_t) (56 * perspective);
+    const int32_t orientation = (int32_t) OrientTbl[king_square] ^ (int32_t) (56 * perspective);
     const uint8_t orient = (uint8_t) orientation;
     const uint32_t from_oriented = (uint32_t) (uint8_t) (from_sq ^ orient);
     const uint32_t to_oriented = (uint32_t) (uint8_t) (to_sq ^ orient);

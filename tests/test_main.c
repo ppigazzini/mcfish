@@ -1336,14 +1336,15 @@ static const char *const AccFen =
 // evaluated whatever the stride: a walk that starts at the never-computed root slot
 // can only refresh, so nothing but the refresh path is reachable until one
 // evaluation has happened.
-static void acc_walk(EvalArena *inc,
-                     EvalArena *ctrl,
-                     const char *const *moves,
-                     size_t eval_stride,
-                     const char *label) {
+static void acc_walk_from(const char *start_fen,
+                          EvalArena *inc,
+                          EvalArena *ctrl,
+                          const char *const *moves,
+                          size_t eval_stride,
+                          const char *label) {
     Position pos;
     StateInfo root_st;
-    if (!pos_set(&pos, AccFen, false, &root_st)) {
+    if (!pos_set(&pos, start_fen, false, &root_st)) {
         CHECK(false, "acc walk %s: fixture setup", label);
         return;
     }
@@ -1362,7 +1363,7 @@ static void acc_walk(EvalArena *inc,
         }
         DirtyPiece *dp;
         DirtyThreats *dts;
-        eval_acc_push(inc, &dp, &dts);
+        eval_acc_push(inc, &pos, &dp, &dts);
         pos_do_move(&pos, m, &st[depth], pos_gives_check(&pos, m), dp, dts, nullptr);
         played[depth++] = m;
 
@@ -1389,6 +1390,21 @@ static void acc_walk(EvalArena *inc,
         eval_acc_pop(inc);
     }
 }
+
+static void acc_walk(EvalArena *inc,
+                     EvalArena *ctrl,
+                     const char *const *moves,
+                     size_t eval_stride,
+                     const char *label) {
+    acc_walk_from(AccFen, inc, ctrl, moves, eval_stride, label);
+}
+
+// One rook and no queen: both perspectives sit in K32H3 block 1 until it goes. 17 pieces,
+// so a king move here clears the hybrid step's piece-count bar.
+static const char *const LastRookFen = "4kr2/ppppp1pp/8/8/8/8/PPPPP1PP/4K3 b - - 0 1";
+// A rook each, facing on the a-file: a trade takes both perspectives to block 0 in two
+// plies, neither of them a king move.
+static const char *const RookTradeFen = "4k3/2pppppp/1p6/r7/R7/8/1PPPPPPP/4K3 w - - 0 1";
 
 static void test_nnue_accumulator_paths(void) {
     banner("nnue accumulator update paths");
@@ -1425,16 +1441,15 @@ static void test_nnue_accumulator_paths(void) {
     // castling also relocates a rook; both must fall back to a full refresh.
     static const char *const cross_half[] = { "e1d1", "e8d8", nullptr };
     static const char *const castles[] = { "e1g1", "e8c8", nullptr };
-    // The opponent-queen state is the second thing a PSQ index is bucketed on, so a ply
-    // that flips it must refresh that perspective: the bishop takes White's queen, and
-    // only Black's perspective loses an opponent queen.
+    // The K32H3 block is the second thing a PSQ index is bucketed on, so a ply that
+    // moves a perspective to another block must refresh it: the bishop takes White's
+    // queen, and only Black's perspective drops from block 2 to block 1.
     static const char *const queen_capture[] = { "f3f6", "g7f6", nullptr };
     // Each queen falls to the other side: White's queen takes Black's, then Black's king
     // takes it back, a same-half king move at full material that must still not take
-    // the hybrid step, because both cache entries would be read under the wrong state.
+    // the hybrid step, because both cache entries would be read under the wrong block.
     static const char *const king_takes_queen[] = { "f3f6", "a8b8", "f6e7", "e8e7", nullptr };
-    // With both queens gone, a promotion to one hands White's perspective an opponent
-    // queen again.
+    // With both queens gone, a promotion to one puts White's perspective back in block 2.
     static const char *const promote[] = { "f3f6", "a8b8", "f6e7",  "e8e7", "c3b1",
                                            "h3g2", "b1c3", "g2h1q", nullptr };
 
@@ -1490,6 +1505,25 @@ static void test_nnue_accumulator_paths(void) {
           (unsigned long long) (s->hybrid - hybrid_before));
 #endif
     acc_walk(inc, ctrl, promote, 1, "promotion to queen");
+
+    // The king takes the last rook without leaving its half, which drops both
+    // perspectives to block 0, so only the block test keeps that ply off the hybrid
+    // step. The reply is a same-half king move inside block 0, which must take it: one
+    // hybrid step over the walk, not two and not none.
+    static const char *const king_takes_last_rook[] = { "f8f1", "e1f1", "e8f7", nullptr };
+    static const char *const rook_trade[] = { "a4a5", "b6a5", nullptr };
+#ifdef MCFISH_ACC_STATS
+    hybrid_before = s->hybrid;
+#endif
+    acc_walk_from(LastRookFen, inc, ctrl, king_takes_last_rook, 1, "king takes the last rook");
+#ifdef MCFISH_ACC_STATS
+    CHECK(s->hybrid - hybrid_before == 1,
+          "a king move that leaves its block must not take the hybrid step, one inside "
+          "block 0 must (%llu taken, want 1)",
+          (unsigned long long) (s->hybrid - hybrid_before));
+#endif
+    acc_walk_from(RookTradeFen, inc, ctrl, rook_trade, 1, "rook trade into block 0");
+    acc_walk_from(RookTradeFen, inc, ctrl, rook_trade, 2, "rook trade into block 0, deferred");
 
     // Deferred evaluation: plies land uncomputed between evaluations, so a walk
     // catches up over a suffix and the two perspectives can start from different

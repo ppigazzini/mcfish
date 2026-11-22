@@ -34,10 +34,10 @@ enum {
     NNUE_LAYERS_PER_STACK = 3,
 
     // FeatureTransformer::HalfDimensions and the three feature sets it concatenates:
-    // PSQFeatureSet = k32q2, ThreatFeatureSet = full_threats,
-    // PairFeatureSet = pp_3wide.
+    // PSQFeatureSet = k32h3, ThreatFeatureSet = full_threats,
+    // PairFeatureSet = pp_3wide. K32H3 is three blocks of 22528 (k32h3.h).
     NNUE_HALF_DIMENSIONS = NNUE_L1,
-    NNUE_PSQ_FEATURE_DIMENSIONS = 45056,
+    NNUE_PSQ_FEATURE_DIMENSIONS = 67584,
     NNUE_THREAT_DIMENSIONS = 59808,
 
     // PP_3Wide: one feature per unordered pair of pawn ids, where a pawn id is

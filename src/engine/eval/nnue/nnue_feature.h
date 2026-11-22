@@ -1,6 +1,7 @@
-// Own the three NNUE feature sets: K32Q2 (the piece-square features, bucketed on the
-// own king and on the opponent's queen), full_threats (the attacker/attacked-pair
-// features) and pp_3wide (the pawn-pair features), as index producers only.
+// Own the three NNUE feature sets: K32H3 (the piece-square features, bucketed on the
+// own king and split into three blocks by the heavy material left), full_threats (the
+// attacker/attacked-pair features) and pp_3wide (the pawn-pair features), as index
+// producers only.
 //
 // The INVARIANT is that a feature index is a pure function of its arguments and of the
 // tables `nnue_feature_init` builds. `nnue_feature_init` MUST run before any index is
@@ -13,10 +14,10 @@
 // and the caller drops it. That out-of-range return is the exclusion mechanism, not an
 // error, and it is what upstream does.
 //
-// Golden: the upstream `nnue/features/k32q2.cpp`,
+// Golden: the upstream `nnue/features/k32h3.cpp`,
 // `nnue/features/full_threats.cpp` and `nnue/features/pp_3wide.cpp`.
 //
-// Upstream: full_threats.h, pp_3wide.h and k32q2.h, the feature-set headers.
+// Upstream: full_threats.h, pp_3wide.h and k32h3.h, the feature-set headers.
 
 #ifndef MCFISH_NNUE_FEATURE_H
 #define MCFISH_NNUE_FEATURE_H
@@ -26,9 +27,13 @@
 #include <stdint.h>
 
 enum : uint32_t {
-    // 11 * 64: the stride of one (king bucket, opponent-queen state) block of the K32Q2
-    // feature space. A king bucket spans both queen states, so it is twice as wide.
+    // 11 * 64: the stride of one king bucket of a K32H3 block.
     NNUE_PS_NB = 11 * 64,
+    // K32H3's three piece-square blocks, each a contiguous run of 32 king buckets in the
+    // net (k32h3.h NumBlocks, BlockDimensions). An index is relative to its block; the
+    // block picks the weight rows' base.
+    NNUE_K32H3_BLOCKS = 3,
+    NNUE_K32H3_BLOCK_DIMENSIONS = 32 * NNUE_PS_NB,
     NNUE_FULL_DIMENSIONS = NNUE_THREAT_DIMENSIONS,
     // The first PP_3Wide index. Pair features are concatenated onto the threats, so
     // this must equal NNUE_FULL_DIMENSIONS: one index then addresses either feature
@@ -48,7 +53,10 @@ enum {
     NNUE_SQ_NONE = 64,
 };
 
-// Hold the per-move K32Q2 delta a make/unmake records.
+static_assert(NNUE_K32H3_BLOCKS * NNUE_K32H3_BLOCK_DIMENSIONS == NNUE_PSQ_FEATURE_DIMENSIONS,
+              "the PSQ feature space is exactly the three K32H3 blocks");
+
+// Hold the per-move K32H3 delta a make/unmake records.
 //
 // The FIELD ORDER IS CONTRACTUAL: `pc` first, and the struct alignment-free. The
 // accumulator stores this record inside its arena at an offset that is deliberately NOT
@@ -97,22 +105,40 @@ typedef struct NnueFullAppendResult {
 // Build the feature-index tables. Call once, before any other function here.
 void nnue_feature_init(void);
 
-// --- K32Q2 ------------------------------------------------------------------------
+// --- K32H3 ------------------------------------------------------------------------
 
-// Return the index of PIECE on SQUARE, bucketed on PERSPECTIVE's KING_SQUARE and on
-// whether the opponent holds a queen.
-uint32_t nnue_k32q2_make_index(
-  uint8_t perspective, uint8_t square, uint8_t piece, uint8_t king_square, bool opponent_has_queen);
+// Return the index of PIECE on SQUARE within its block, bucketed on PERSPECTIVE's
+// KING_SQUARE.
+uint32_t
+nnue_k32h3_make_index(uint8_t perspective, uint8_t square, uint8_t piece, uint8_t king_square);
 
-// Report whether DIFF forces PERSPECTIVE into a full refresh: its own king moved, which
-// rebuckets every index, or an opponent queen was captured or promoted to, which can
-// flip the queen state every index is bucketed on. A removed or added piece is read only
-// when its square is set; the board zone leaves it unspecified otherwise.
-static inline bool nnue_k32q2_requires_refresh(NnueDirtyPiece diff, uint8_t perspective) {
-    const uint8_t opponent_queen = (uint8_t) (5 + 8 * (perspective ^ 1));
+// Pack both perspectives' piece-square blocks into one byte, White's in bits 1..0 and
+// Black's in bits 3..2 (k32h3.h block): 2 when the perspective's opponent has a queen,
+// else 1 when any rook or queen is on the board, else 0. Upstream keeps the counts
+// (BlockState) and only ever reads them through this test, so the two blocks are all
+// of it that a refresh decision can see.
+static inline uint8_t
+nnue_k32h3_blocks(uint64_t white, uint64_t black, uint64_t rooks, uint64_t queens) {
+    const uint8_t heavy = (rooks | queens) != 0 ? 1 : 0;
+    const uint8_t white_block = (queens & black) != 0 ? 2 : heavy;
+    const uint8_t black_block = (queens & white) != 0 ? 2 : heavy;
+    return (uint8_t) (white_block | black_block << 2);
+}
+
+static inline unsigned nnue_k32h3_block_of(uint8_t blocks, uint8_t perspective) {
+    return (blocks >> (2 * perspective)) & 3u;
+}
+
+// Report whether DIFF forces PERSPECTIVE into a full refresh (k32h3.cpp
+// requires_refresh): its own king moved, which rebuckets every index, or the ply moved
+// PERSPECTIVE into another block -- BEFORE and AFTER are the packed blocks either side of
+// it.
+static inline bool nnue_k32h3_requires_refresh(NnueDirtyPiece diff,
+                                               uint8_t perspective,
+                                               uint8_t before,
+                                               uint8_t after) {
     return diff.pc == (uint8_t) (6 + 8 * perspective)
-        || (diff.remove_sq != NNUE_SQ_NONE && diff.remove_pc == opponent_queen)
-        || (diff.add_sq != NNUE_SQ_NONE && diff.add_pc == opponent_queen);
+        || nnue_k32h3_block_of(before, perspective) != nnue_k32h3_block_of(after, perspective);
 }
 
 // --- full_threats -----------------------------------------------------------------
