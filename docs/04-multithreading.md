@@ -125,6 +125,12 @@ Upstream hands it a null manager pointer and so does this tree: `w->manager` is
 null and the time-management block is behind `!main_thread -> continue`, so
 nothing reads it.
 
+**Two search terms read the worker's index, as upstream's do.** The aspiration
+window opens `thread_idx % 8` wider (`aspiration_initial_delta`), and an
+odd-indexed worker reduces its null move one ply less (`odd_thread` in
+`SearchCtx`), so half the threads verify a null-move cutoff more carefully. Thread
+0 reads zero for both, which is why neither moves the one-thread anchor.
+
 `Histories` is split the way upstream splits it — see
 [02-engine-search.md](02-engine-search.md). The worker owns main, low-ply,
 capture, continuation-correction and the tt-move counter; its node's

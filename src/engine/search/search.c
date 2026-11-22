@@ -268,6 +268,7 @@ static bool worker_root_setup(SearchWorker *w,
 
     search_ctx_init(&w->ctx, &w->hist, w->eval_arena, &w->root_pos, zone_limits, &w->rml,
                     pool_stop());
+    w->ctx.odd_thread = (int32_t) (w->thread_idx & 1);
     return true;
 }
 
