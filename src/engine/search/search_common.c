@@ -637,22 +637,19 @@ void search_update_all_stats(SearchCtx *ctx,
                              const Move *captures,
                              size_t n_captures,
                              int depth,
-                             Move tt_move,
-                             bool pv_node) {
+                             Move tt_move) {
     Histories *const h = ctx->hist;
     const bool is_tt = best_move == tt_move;
     int bonus = stat_bonus(depth, is_tt, (ss - 1)->stat_score);
     const int malus = stat_malus(depth);
 
-    // upstream 645b636df: at non-PV nodes, scale the best-move bonus by the number
-    // of searched moves. Match upstream's `bonus += bonus * uint64_t(N) / 256`
+    // Scale the best-move bonus by the number of searched moves, at every node
+    // (search.cpp:1998). Match upstream's `bonus += bonus * uint64_t(N) / 256`
     // EXACTLY: the mul/div are UNSIGNED (int promoted to uint64_t), which differs
     // from signed when bonus < 0; the u64 sum narrows back to i32.
-    if (!pv_node) {
-        const uint64_t n = (uint64_t) (n_quiets + n_captures);
-        const uint64_t bu = (uint64_t) (int64_t) bonus;
-        bonus = (int32_t) (uint32_t) (bu + bu * n / 256);
-    }
+    const uint64_t n = (uint64_t) (n_quiets + n_captures);
+    const uint64_t bu = (uint64_t) (int64_t) bonus;
+    bonus = (int32_t) (uint32_t) (bu + bu * n / 256);
 
     const bool capture_best = search_capture_stage(pos, best_move);
 
