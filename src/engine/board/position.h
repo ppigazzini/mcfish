@@ -82,7 +82,28 @@ typedef struct StateInfo {
     // was itself a repetition (i.e. this is the threefold), 0 when never
     // repeated. The sign is the whole encoding — upstream position.cpp:1046.
     int repetition;
+    // The board two squares to a byte (upstream piecePlacement): byte i holds square
+    // i's piece in its low nibble and square i + 32's in its high one. A repetition
+    // needs this AND `key` to match, so a Zobrist collision cannot score a false
+    // draw. pos_set and pos_do_move write it; the null move carries its parent's.
+    uint8_t piece_placement[32];
 } StateInfo;
+
+// Pack BOARD into PLACEMENT the way StateInfo::piece_placement holds it (upstream
+// pack_pieces): the upper half's bytes shifted a nibble up and or-ed onto the lower
+// half's. Every piece code is below 16, so shifting 16-bit lanes moves no bit across a
+// byte, and the 32 bytes go as one vector -- two 16-byte steps at sse41, one at avx2,
+// where the word-at-a-time form upstream spells is four scalar steps at every tier.
+typedef uint16_t PlacementLanes __attribute__((vector_size(32), aligned(1)));
+
+static inline void pos_pack_placement(uint8_t placement[static 32], const Piece *board) {
+    PlacementLanes lo;
+    PlacementLanes hi;
+    __builtin_memcpy(&lo, board, sizeof lo);
+    __builtin_memcpy(&hi, board + 32, sizeof hi);
+    lo |= hi << 4;
+    __builtin_memcpy(placement, &lo, sizeof lo);
+}
 
 typedef struct Position {
     // `board` FIRST, as upstream declares it. It is exactly 64 bytes -- one cache

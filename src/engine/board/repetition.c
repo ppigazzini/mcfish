@@ -60,6 +60,19 @@ void repetition_init(const Key (*zobrist_psq)[SQUARE_NB], Key zobrist_side) {
     }
 }
 
+// Swap the pieces on S1 and S2 in a packed placement (upstream swap_nibble): the
+// reversible move between them, applied to the nibbles alone.
+static void swap_nibble(uint8_t placement[static 32], Square s1, Square s2) {
+    const unsigned i1 = (unsigned) s1 & 31;
+    const unsigned sh1 = ((unsigned) s1 & 0x20) >> 3;
+    const unsigned i2 = (unsigned) s2 & 31;
+    const unsigned sh2 = ((unsigned) s2 & 0x20) >> 3;
+    const unsigned swap =
+      ((unsigned) (placement[i1] >> sh1) ^ (unsigned) (placement[i2] >> sh2)) & 0xF;
+    placement[i1] ^= (uint8_t) (swap << sh1);
+    placement[i2] ^= (uint8_t) (swap << sh2);
+}
+
 bool pos_upcoming_repetition(const Position *pos, int ply) {
     const int rule50 = pos->st->rule50;
     const int plies_from_null = pos->st->plies_from_null;
@@ -91,6 +104,14 @@ bool pos_upcoming_repetition(const Position *pos, int ply) {
         const Square s1 = move_from(mv);
         const Square s2 = move_to(mv);
         if (((BetweenBB[s1][s2] ^ square_bb(s2)) & pieces(pos)) == 0) {
+            // A key match alone may be a collision: the move must also turn this
+            // placement into that one (position.cpp:1595-1604).
+            uint8_t moved[32];
+            memcpy(moved, pos->st->piece_placement, sizeof moved);
+            swap_nibble(moved, s1, s2);
+            if (memcmp(moved, stp->piece_placement, sizeof moved) != 0)
+                continue;
+
             if (ply > i)
                 return true;
 
