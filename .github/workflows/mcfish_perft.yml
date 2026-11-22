@@ -37,7 +37,7 @@ env:
 jobs:
   deep-perft:
     name: Deep perft (reference counts)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Bounded: the depths below are ~4.7 billion leaves, a few minutes for the release
     # build on a runner. The ceiling is generous enough to absorb a slow runner but low
     # enough that a search/movegen change which accidentally makes perft pathological

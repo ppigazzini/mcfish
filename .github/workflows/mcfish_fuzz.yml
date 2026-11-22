@@ -35,7 +35,7 @@ env:
 jobs:
   fuzz:
     name: Bounded UCI fuzz (ASan+UBSan)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
       # Same forcing as the parity workflow's sanitizers job: abort on the first
@@ -90,7 +90,7 @@ jobs:
 
   fuzz-search:
     name: In-process search fuzz (libFuzzer+ASan+UBSan)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:
       # Same forcing as the `fuzz` job above; libFuzzer's own crash report is
@@ -126,7 +126,7 @@ jobs:
 
   fuzz-tb:
     name: Syzygy parse fuzz (libFuzzer+ASan+UBSan)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Two lanes at 10 minutes each, plus two sanitizer builds of the engine.
     timeout-minutes: 40
     env:

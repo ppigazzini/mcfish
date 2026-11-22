@@ -93,12 +93,12 @@ STD_FLAG=$(detect_std_flag)
 # Probe rather than pin, because coverage is NOT the same on both compilers and
 # an unrecognised `-Werror=` is a hard error rather than a no-op:
 #
-#   gcc 13.3 / 14.2   -Wenum-conversion only. It is already on under -Wall here
+#   gcc 13.3 to 15.2  -Wenum-conversion only. It is already on under -Wall here
 #                     and catches enum-to-enum; gcc has NO int-to-enum narrowing
 #                     diagnostic, so that half stays advisory on this lane.
 #   clang             all three spellings, so both halves are enforced.
 #
-# Measured on this host with gcc-13 (`-std=c2x`), gcc-14 (`-std=c23`) and clang,
+# Measured with gcc-13 (`-std=c2x`), gcc-14 and gcc-15 (`-std=c23`) and clang,
 # by compiling a confusion rather than by reading flag lists: gcc reports
 # `implicit conversion from 'TB' to 'TA' [-Wenum-conversion]` and stays silent on
 # the int-to-enum case. Re-measure rather than assume when a toolchain moves.

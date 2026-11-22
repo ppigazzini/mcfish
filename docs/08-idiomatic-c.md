@@ -47,7 +47,8 @@ accept it.
 intent more directly or by closing a defect, and three below are refused on
 measurement rather than taste. The verdicts are the result of walking the whole
 feature set against the tree, and each was checked by compiling — on clang,
-gcc-13 and gcc-14 — rather than by reading a support table.
+gcc-13 and gcc-14, and again on gcc-15 when it replaced gcc-14 in CI — rather
+than by reading a support table.
 
 | feature | verdict | why |
 |---|---|---|
@@ -65,7 +66,7 @@ gcc-13 and gcc-14 — rather than by reading a support table.
 | `[static N]` | **used** | on the only fixed-extent array parameters here |
 | `stdc_trailing_zeros` / `stdc_leading_zeros` | **refused** | defined at zero, which costs one instruction per call at sse41 on `pop_lsb`; the precondition already excludes zero |
 | `unreachable()` | **refused** | it converts a reachable bug into undefined behaviour; the engine prefers a wrong answer it can gate over UB it cannot |
-| `[[unsequenced]]` / `[[reproducible]]` | **refused** | no compiler here implements them — clang and both gccs warn and ignore |
+| `[[unsequenced]]` / `[[reproducible]]` | **refused** | clang, which builds the shipped engine, warns and ignores them, and so does gcc-13; only gcc-15 honours them |
 | `_BitInt(N)` | **refused** | nothing here needs a width the fixed-size types lack, and it changes promotion rules under a bit-exact anchor |
 | `#embed` | **refused** | the net and the tablebases are runtime inputs by design |
 | `auto` | **refused** | these files are read side by side with upstream's C++; an inferred type costs the reader the comparison |
