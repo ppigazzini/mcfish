@@ -500,8 +500,16 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
         if (id->skill_enabled) {
             const Move sel =
               skill_best != MOVE_NONE ? skill_best : skill_pick_best(ctx, id, multi_pv);
-            if (skill_swap_best(ctx, sel))
+            const int32_t best_score = ctx->root_moves[0].score;
+            if (skill_swap_best(ctx, sel)) {
+                // A losing line promoted past the best one may announce a mate shorter
+                // than the best defence allows: report its score as a lower bound
+                // (search.cpp:651-652).
+                if (value_is_loss(ctx->root_moves[0].score)
+                    && ctx->root_moves[0].score < best_score)
+                    ctx->root_moves[0].inexact_lower = true;
                 uci_pv_sent = false;
+            }
         }
         sent = uci_pv_sent;
     }
