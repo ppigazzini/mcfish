@@ -138,25 +138,36 @@ static inline size_t affine_nnz_expand(uint16_t *list, const uint64_t *nnz, size
 }
 #endif  // AFFINE_NNZ_INDEX_LIST
 
+// Unroll a fixed-trip chain or chunk loop fully at every tier, as upstream's
+// UNROLLED_FOR (misc.h) does for the same loops. The 512-bit tiers build with
+// -fno-unroll-loops (build.sh), which left these two- and three-trip loops rolled
+// there, re-deriving each chain's displacement per trip: forcing them measured
+// -0.77% of all instructions at avx512icl, with the sse41 and avx2 binaries
+// byte-identical, since clang unrolls them unprompted below 512 bits. gcc does too,
+// and does not know clang's spelling.
+#if defined(__clang__)
+    #define AFFINE_UNROLLED _Pragma("clang loop unroll(full)")
+#else
+    #define AFFINE_UNROLLED
+#endif
+
 // Seed chain 0 of each chunk with the layer bias vector and zero the rest, so the
 // bias enters the int32 accumulator up front instead of a per-lane scalar add at the
 // tail (upstream seeds acc[k] from biasvec, affine_transform.h:277-282). The bias
 // never touches the pmaddubsw int16 intermediate, and integer add commutes, so this
 // is bit-identical to zero-then-add-bias and scalar==vector holds.
 static inline void affine_acc32_seed_bias(AffineAcc32 *a, const int32_t *biases) {
-    for (size_t i = 0; i < AFFINE_CHUNKS_32; i++) {
+    AFFINE_UNROLLED for (size_t i = 0; i < AFFINE_CHUNKS_32; i++) {
         a->c[i][0] = nnue_dot_load(biases + i * NNUE_DOT_LANES);
-        for (size_t k = 1; k < AFFINE_CHAINS; k++)
-            a->c[i][k] = nnue_dot_zero();
+        AFFINE_UNROLLED for (size_t k = 1; k < AFFINE_CHAINS; k++) a->c[i][k] = nnue_dot_zero();
     }
 }
 
 // Fold one input group into chain K, which is a literal at every call site.
 #define AFFINE_GROUP_INTO(acc, K, packed, weights) \
     do { \
-        for (size_t c_ = 0; c_ < AFFINE_CHUNKS_32; c_++) \
-            (acc)->c[c_][(K)] = \
-              nnue_dot_step((acc)->c[c_][(K)], (packed), (weights) + c_ * NNUE_DOT_LANES * 4); \
+        AFFINE_UNROLLED for (size_t c_ = 0; c_ < AFFINE_CHUNKS_32; c_++)(acc)->c[c_][(K)] = \
+          nnue_dot_step((acc)->c[c_][(K)], (packed), (weights) + c_ * NNUE_DOT_LANES * 4); \
     } while (0)
 
 void nnue_affine_32(bool sparse,
@@ -260,10 +271,10 @@ void nnue_affine_32(bool sparse,
     // Chain 0 was bias-seeded, so each lane already holds bias + Σ dot products -- the
     // finished output. Merge the chains and store the whole register, rather than
     // extracting and scalar-storing 32 lanes with a per-lane bias add.
-    for (size_t c = 0; c < AFFINE_CHUNKS_32; c++) {
+    AFFINE_UNROLLED for (size_t c = 0; c < AFFINE_CHUNKS_32; c++) {
         NnueDotAcc merged = acc.c[c][0];
-        for (size_t k = 1; k < AFFINE_CHAINS; k++)
-            merged = nnue_dot_add(merged, acc.c[c][k]);
+        AFFINE_UNROLLED for (size_t k = 1; k < AFFINE_CHAINS; k++) merged =
+          nnue_dot_add(merged, acc.c[c][k]);
         nnue_dot_store(out + c * NNUE_DOT_LANES, merged);
     }
 }
