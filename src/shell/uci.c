@@ -165,19 +165,28 @@ static long long go_value_int(const char *key, const char *value, long long lo, 
 // check above stays what it is -- the accept/reject boundary a GUI can observe, which
 // upstream's failbit defines -- so this clamps the VALUE without moving that boundary.
 //
-// The bound is 1e12 ms, about 31 years: past any real time control, and far enough
-// below the top that every product timeman forms stays inside a TimePoint. The one
-// divergence from upstream is a clock between 1e12 and the overflow threshold, where
-// upstream's arithmetic is still defined -- a time control no game has and no GUI
-// sends. Outside the bound is reported, never silently taken.
+// A negative wtime, btime or movetime becomes 1, silently, as upstream sanitizes it
+// (uci.cpp:230-233): zero for the side to move means no time management, so a
+// negative clock must not read as zero. An increment keeps its sign, as upstream's
+// does.
+//
+// The bound is 1e12 ms, about 31 years, either side of zero: past any real time
+// control, and far enough inside the type that every product timeman forms stays
+// inside a TimePoint. The one divergence from upstream is a magnitude between 1e12 and
+// the overflow threshold, where upstream's arithmetic is still defined -- a time
+// control no game has and no GUI sends. Outside the bound is reported, never silently
+// taken.
 static constexpr long long MaxClockMs = 1000000000000;
 
-static long long go_clock(const char *key, const char *value) {
+static long long go_clock(const char *key, const char *value, bool increment) {
     const long long given = go_value_int(key, value, INT64_MIN, INT64_MAX);
-    const long long bounded = given < 0 ? 0 : (given > MaxClockMs ? MaxClockMs : given);
+    if (!increment && given < 0)
+        return 1;
+    const long long lo = increment ? -MaxClockMs : 0;
+    const long long bounded = given < lo ? lo : (given > MaxClockMs ? MaxClockMs : given);
     if (bounded != given)
-        uci_output_printf("info string %s %lld is outside [0, %lld]; using %lld\n", key, given,
-                          MaxClockMs, bounded);
+        uci_output_printf("info string %s %lld is outside [%lld, %lld]; using %lld\n", key, given,
+                          lo, MaxClockMs, bounded);
     return bounded;
 }
 
@@ -312,6 +321,7 @@ static void go_line(char *args, bool announce) {
         long long slot_lo = INT_MIN;
         long long slot_hi = INT_MAX;
         int64_t *clock_slot = nullptr;
+        bool increment = false;
         bool wants_nodes = false;
         bool wants_perft = false;
         if (strcmp(token, "depth") == 0)
@@ -322,11 +332,13 @@ static void go_line(char *args, bool announce) {
             clock_slot = &limits.time_ms[WHITE];
         else if (strcmp(token, "btime") == 0)
             clock_slot = &limits.time_ms[BLACK];
-        else if (strcmp(token, "winc") == 0)
+        else if (strcmp(token, "winc") == 0) {
             clock_slot = &limits.inc_ms[WHITE];
-        else if (strcmp(token, "binc") == 0)
+            increment = true;
+        } else if (strcmp(token, "binc") == 0) {
             clock_slot = &limits.inc_ms[BLACK];
-        else if (strcmp(token, "movestogo") == 0) {
+            increment = true;
+        } else if (strcmp(token, "movestogo") == 0) {
             slot = &limits.moves_to_go;
             slot_lo = 0;
         } else if (strcmp(token, "mate") == 0) {
@@ -354,7 +366,7 @@ static void go_line(char *args, bool announce) {
         if (slot != nullptr)
             *slot = (int) go_bounded_int(token, value, slot_lo, slot_hi);
         else if (clock_slot != nullptr)
-            *clock_slot = go_clock(token, value);
+            *clock_slot = go_clock(token, value, increment);
         else if (wants_nodes)
             limits.nodes = go_value_u64(token, value);
         else if (wants_perft)
