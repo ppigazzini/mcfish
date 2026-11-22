@@ -1704,18 +1704,24 @@ static void test_nnue_pair_changed_both(void) {
 static void test_search_step_margins(void) {
     banner("search step margins");
 
-    // R = 7 + depth / 3 + max((staticEval - beta) / 256, 0).
-    CHECK(null_move_reduction(9, 0, 0) == 10, "base R at depth 9, got %d",
-          null_move_reduction(9, 0, 0));
-    CHECK(null_move_reduction(9, 255, 0) == 10, "an excess under 256 adds nothing, got %d",
-          null_move_reduction(9, 255, 0));
-    CHECK(null_move_reduction(9, 256, 0) == 11, "256 above beta adds one, got %d",
-          null_move_reduction(9, 256, 0));
-    CHECK(null_move_reduction(9, 700, 100) == 12, "the excess is measured from beta, got %d",
-          null_move_reduction(9, 700, 100));
+    // R = 7 + depth / 3 + clamp((staticEval - beta) / 256, 0, ply / 2). Ply 20 caps
+    // the excess at 10, out of the way of the first five cases.
+    CHECK(null_move_reduction(9, 0, 0, 20) == 10, "base R at depth 9, got %d",
+          null_move_reduction(9, 0, 0, 20));
+    CHECK(null_move_reduction(9, 255, 0, 20) == 10, "an excess under 256 adds nothing, got %d",
+          null_move_reduction(9, 255, 0, 20));
+    CHECK(null_move_reduction(9, 256, 0, 20) == 11, "256 above beta adds one, got %d",
+          null_move_reduction(9, 256, 0, 20));
+    CHECK(null_move_reduction(9, 700, 100, 20) == 12, "the excess is measured from beta, got %d",
+          null_move_reduction(9, 700, 100, 20));
     // The guard on beta lets the null move run below the static eval, where the
     // truncating division would otherwise contribute a negative reduction.
-    CHECK(null_move_reduction(9, -5000, 0) == 10, "a static eval below beta never shortens R");
+    CHECK(null_move_reduction(9, -5000, 0, 20) == 10, "a static eval below beta never shortens R");
+    // The ply caps the excess: none at the root, ply / 2 plies further down.
+    CHECK(null_move_reduction(9, 5000, 0, 0) == 10, "no excess term at ply 0, got %d",
+          null_move_reduction(9, 5000, 0, 0));
+    CHECK(null_move_reduction(9, 5000, 0, 7) == 13, "ply 7 caps the excess at 3, got %d",
+          null_move_reduction(9, 5000, 0, 7));
 
     // clamp(delta * 664 / 1024, +/- CORRECTION_HISTORY_LIMIT / 4).
     CHECK(multicut_correction_bonus(0) == 0, "no delta, no bonus");

@@ -166,9 +166,12 @@ int null_move_threshold(int beta, int depth, bool improving) {
     return beta - 13 * depth - 47 * (int) improving + 365;
 }
 
-int null_move_reduction(int depth, int static_eval, int beta) {
+// Clamp the static eval's share to ply / 2, so a large excess near the root cannot
+// reduce the verification away (search.cpp:1040).
+int null_move_reduction(int depth, int static_eval, int beta, int ply) {
     const int excess = (static_eval - beta) / 256;
-    return 7 + depth / 3 + (excess > 0 ? excess : 0);
+    const int cap = ply / 2;
+    return 7 + depth / 3 + (excess < 0 ? 0 : excess > cap ? cap : excess);
 }
 
 int nmp_min_ply_of(int ply, int depth, int r) { return ply + 3 * (depth - r) / 4; }

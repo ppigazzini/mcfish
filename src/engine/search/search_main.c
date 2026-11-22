@@ -319,7 +319,7 @@ __attribute__((always_inline)) static inline Value search_node_impl(SearchCtx *c
                  >= null_move_threshold(beta, depth, improving)
             && excluded_move == MOVE_NONE && pos_non_pawn_material(pos, us) != 0
             && ss->ply >= ctx->nmp_min_ply && beta >= -2000) {
-            int r = null_move_reduction(depth, ss->static_eval, beta) - ctx->odd_thread;
+            int r = null_move_reduction(depth, ss->static_eval, beta, ss->ply) - ctx->odd_thread;
             r -= (int) seek_mate * r / 2;
             // Touch no accumulator for a null move: mark the stack move as null and
             // install the all-NO_PIECE continuation pages.
