@@ -43,3 +43,11 @@ acc_apply
 # The node bodies' calls, the ones that matter, all survive. RETIRE when that call
 # site stays out of line, or when the workload has no one-move root PV again.
 is_draw
+
+# UPSTREAM'S symbol is INLINED AWAY since its ring buffer (436a73c9f): do_null_move
+# lost its StateInfo argument, has one caller, and LTO folds it into the search, so
+# the oracle binary carries no Position::do_null_move symbol (nm, at 3e8fde754) and
+# the group reads B=0 against mcfish's pos_do_null_move. RETIRE when upstream keeps
+# the symbol again, or by teaching the tool to attribute an inlined callee to its
+# callers.
+do_null_move

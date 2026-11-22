@@ -268,6 +268,17 @@ The consequences an agent gets wrong before reading
   out-of-line copies, no symbol), the picker's generators already write `ExtMove`
   slots with no staging buffer, and the stack-canary commits are inert because
   clang emits no guard.
+- **A flag the reader did not check can hide half of an upstream commit.** The
+  seventeenth sweep (2026-11-22) rode a 52-commit resync. The previous sync refused
+  upstream's `unroll(full)` on the paired row loops as already this tree's shape,
+  and "Unroll important loops" (`7feac571c`) reads the same way for the row kernels;
+  its affine half did not, because `build.sh` passes `-fno-unroll-loops` at the
+  512-bit tiers only, so the sse41 and avx2 binaries were byte-identical with or
+  without it. Forced there, the chain loops read **-0.77%** at avx512icl. refish's own resync report priced what this tree did not build: its ring
+  buffer makes a 144,424-byte Position copied per worker, and the ring's one
+  observable effect, a 511-ply walk clamp, measured +0.041% here and was refused.
+  Its threat-before-PSQ list order transferred at -0.018%; its slider-cache,
+  inline-pin and fc_0-seed commits had nothing here to change.
 - **A measurement does not transfer, in any direction.** A win in one language's
   codegen can be flat or negative in another's — zfish's runBack inline won 1.0%
   there and measured FLAT here. Re-measure or do not take it, and search the

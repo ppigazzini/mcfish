@@ -45,7 +45,7 @@ gate battery cover them.
 | [`nnue_affine.c`](../src/engine/eval/nnue/nnue_affine.c) | the affine kernel and the two activations |
 | [`nnue_inference.c`](../src/engine/eval/nnue/nnue_inference.c) | the per-bucket forward pass |
 | [`simd.h`](../src/engine/eval/nnue/simd.h) | the vector vocabulary, in two implementations |
-| [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv18 dimensions |
+| [`nnue_architecture.h`](../src/engine/eval/nnue/nnue_architecture.h) | the SFNNv20 dimensions |
 
 Upstream's `nnue/` sources are the golden.
 

@@ -267,8 +267,9 @@ The split is the core design decision on this page:
   two scratch NNUE delta slots described under *Threat deltas* below.
 - **`StateInfo`** holds what a move cannot cheaply recompute on the way back: the
   Zobrist `key`, the four auxiliary keys, `repetition`, `rule50`,
-  `plies_from_null`, `ep_square`, `castling_rights`, `captured_piece`, and the
-  derived `checkers` / `blockers` / `pinners` sets, plus a `previous` pointer.
+  `plies_from_null`, `ep_square`, `castling_rights`, `captured_piece`, the
+  derived `checkers` / `blockers` / `pinners` sets, the packed `piece_placement`
+  the repetition tests compare beside the key, and a `previous` pointer.
 
 ### The field ORDER of both is upstream's, and it is load-bearing
 
@@ -279,7 +280,8 @@ Two members are placed by cache line, not by taste, and both were found by putti
   at offset 0 does `piece_on` touch a single line per read. Declared after the
   bitboards it began at offset 72 and straddled the 64/128 boundary.
 - **`StateInfo`'s tail runs `key, checkers, previous, blockers, pinners,
-  check_squares, captured_piece, repetition`**, giving `key` at 64 and `previous` at
+  check_squares, captured_piece, repetition, piece_placement`**, giving `key` at 64
+  and `previous` at
   80. The repetition walk steps `st = st->previous` and reads `st->key` at every step,
   and it runs on the order of a million times a search (`pos_is_draw` alone is called
   ~2.3M times on the depth-12 bench). With `previous` at the end of the struct — where
@@ -348,7 +350,9 @@ mechanism: it is the ply distance back to the previous occurrence of this
 position, **negative** when that occurrence was itself a repetition (so this is the
 threefold), and 0 when the position is new. Every query in
 [`repetition.c`](../src/engine/board/repetition.c) reads that sign and none
-recomputes it.
+recomputes it. A repetition is recorded only when the earlier state's key AND its
+`piece_placement` -- the board two squares to a byte -- match, so a Zobrist
+collision cannot score a false draw.
 
 ### Zobrist and the fixed seed
 

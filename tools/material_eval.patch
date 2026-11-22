@@ -8,7 +8,7 @@ prose can drift; a patch cannot.
 
 The formula is src/engine/search/search_common.c's material_only_eval: piece values
 {P 100, N 320, B 330, R 500, Q 900}, from the side to move's point of view, with NO
-optimism blend, NO rule50 damping and NO tablebase clamp. Every one of those would
+material blend, NO rule50 damping and NO tablebase clamp. Every one of those would
 be a divergence, and the node counts would stop matching -- which is exactly how you
 find out you got it wrong. ASSERT THE NODE COUNTS MATCH BEFORE BELIEVING ANYTHING
 the resulting pair measures.
@@ -31,8 +31,8 @@ which is the only thing that can catch the two formulas drifting apart.
 
 --- a/src/evaluate.cpp
 +++ b/src/evaluate.cpp
-@@ -52,6 +52,22 @@ Value Eval::evaluate(const Eval::NNUE::Network&     network,
-                      int                            optimism) {
+@@ -51,6 +51,22 @@
+                      Eval::NNUE::AccumulatorCaches& caches) {
 
      assert(!pos.checkers());
 +
@@ -52,5 +52,5 @@ which is the only thing that can catch the two formulas drifting apart.
 +    }
 +
      Value nnue = network.evaluate(pos, accumulators, caches);
-     return scale_evaluation(nnue, optimism, pos);
+     return scale_evaluation(nnue, pos);
  }
