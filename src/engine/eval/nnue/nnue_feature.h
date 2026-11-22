@@ -113,10 +113,9 @@ uint32_t
 nnue_k32h3_make_index(uint8_t perspective, uint8_t square, uint8_t piece, uint8_t king_square);
 
 // Pack both perspectives' piece-square blocks into one byte, White's in bits 1..0 and
-// Black's in bits 3..2 (k32h3.h block): 2 when the perspective's opponent has a queen,
-// else 1 when any rook or queen is on the board, else 0. Upstream keeps the counts
-// (BlockState) and only ever reads them through this test, so the two blocks are all
-// of it that a refresh decision can see.
+// Black's in bits 3..2 (k32h3.cpp block): 2 when the perspective's opponent has a queen,
+// else 1 when any rook or queen is on the board, else 0. Upstream's BlockState is the
+// same pair, one byte per perspective.
 static inline uint8_t
 nnue_k32h3_blocks(uint64_t white, uint64_t black, uint64_t rooks, uint64_t queens) {
     const uint8_t heavy = (rooks | queens) != 0 ? 1 : 0;
@@ -130,15 +129,13 @@ static inline unsigned nnue_k32h3_block_of(uint8_t blocks, uint8_t perspective) 
 }
 
 // Report whether DIFF forces PERSPECTIVE into a full refresh (k32h3.cpp
-// requires_refresh): its own king moved, which rebuckets every index, or the ply moved
-// PERSPECTIVE into another block -- BEFORE and AFTER are the packed blocks either side of
-// it.
+// requires_refresh): its own king moved, which rebuckets every index, or PERSPECTIVE's
+// block before the ply differs from BLOCK_AFTER.
 static inline bool nnue_k32h3_requires_refresh(NnueDirtyPiece diff,
                                                uint8_t perspective,
-                                               uint8_t before,
-                                               uint8_t after) {
-    return diff.pc == (uint8_t) (6 + 8 * perspective)
-        || nnue_k32h3_block_of(before, perspective) != nnue_k32h3_block_of(after, perspective);
+                                               unsigned block_before,
+                                               unsigned block_after) {
+    return diff.pc == (uint8_t) (6 + 8 * perspective) || block_before != block_after;
 }
 
 // --- full_threats -----------------------------------------------------------------

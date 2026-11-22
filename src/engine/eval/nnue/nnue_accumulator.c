@@ -233,23 +233,24 @@ static uint8_t state_blocks_before(const NnueAccumulatorStack *stack, size_t ind
 
 // Walk down to the newest slot that is either already computed or forces a refresh
 // (upstream find_last_usable_accumulator). Only the PSQ condition is consulted: a threat
-// refresh is a king move across the centre, a subset of a PSQ refresh. AFTER starts as
-// the live position's blocks and steps down to each slot's recorded before-blocks, so
-// every ply is judged on the blocks either side of it.
+// refresh is a king move across the centre, a subset of a PSQ refresh. Every slot the
+// walk passes must have been entered in the live BLOCK: a ply that keeps the block keeps
+// it for the slot below too, so judging each against the live block judges it against
+// the block after it.
 [[maybe_unused]] static size_t
-find_last_usable(const NnueAccumulatorStack *stack, uint8_t perspective, uint8_t after) {
+find_last_usable(const NnueAccumulatorStack *stack, uint8_t perspective, unsigned block) {
     for (size_t current = stack_size(stack) - 1; current > 0; current--) {
         if (state_computed(stack, PSQ_FEATURE, current, perspective)) {
             return current;
         }
-        const uint8_t before = state_blocks_before(stack, current);
         NnueDirtyPiece diff;
         memcpy(&diff, state_bytes_const(PSQ_FEATURE, current, stack) + PSQ_DIFF_OFFSET,
                sizeof diff);
-        if (nnue_k32h3_requires_refresh(diff, perspective, before, after)) {
+        const unsigned before =
+          nnue_k32h3_block_of(state_blocks_before(stack, current), perspective);
+        if (nnue_k32h3_requires_refresh(diff, perspective, before, block)) {
             return current;
         }
-        after = before;
     }
     return 0;
 }
@@ -1062,8 +1063,8 @@ void nnue_acc_evaluate(NnueAccumulatorStack *stack,
     // perspective, not one per (feature, perspective). When NEITHER perspective needs a
     // refresh the whole update is a forward walk, and the two walks share their suffix.
     const uint8_t blocks = nnue_blocks(pos);
-    const size_t last_white = find_last_usable(stack, WHITE, blocks);
-    const size_t last_black = find_last_usable(stack, BLACK, blocks);
+    const size_t last_white = find_last_usable(stack, WHITE, nnue_k32h3_block_of(blocks, WHITE));
+    const size_t last_black = find_last_usable(stack, BLACK, nnue_k32h3_block_of(blocks, BLACK));
 
     if (state_computed(stack, PSQ_FEATURE, last_white, WHITE)
         && state_computed(stack, PSQ_FEATURE, last_black, BLACK)) {
