@@ -122,15 +122,18 @@ static Move skill_pick_best(const SearchCtx *ctx, const SearchIdState *id, size_
     return best;
 }
 
-static void skill_swap_best(SearchCtx *ctx, Move move) {
+// Bring MOVE's root line to the front, and report whether that moved anything: a swap
+// means the last PV sent is no longer the line the bestmove plays (search.cpp:641-647).
+static bool skill_swap_best(SearchCtx *ctx, Move move) {
     size_t i = 0;
     while (i < ctx->root_moves_count && ctx->root_moves[i].pv.moves[0] != move)
         ++i;
     if (i >= ctx->root_moves_count || i == 0)
-        return;
+        return false;
     const RootMove tmp = ctx->root_moves[0];
     ctx->root_moves[0] = ctx->root_moves[i];
     ctx->root_moves[i] = tmp;
+    return true;
 }
 
 // ---- the depth loop ----------------------------------------------------
@@ -486,11 +489,13 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
     bool sent = false;
     if (main_thread) {
         id->previous_time_reduction = time_reduction;
-        // Swap the best PV line with the sub-optimal one if the skill level is on.
+        // Swap the best PV line with the sub-optimal one if the skill level is on, and
+        // have the caller send the swapped line as the final PV.
         if (id->skill_enabled) {
             const Move sel =
               skill_best != MOVE_NONE ? skill_best : skill_pick_best(ctx, id, multi_pv);
-            skill_swap_best(ctx, sel);
+            if (skill_swap_best(ctx, sel))
+                uci_pv_sent = false;
         }
         sent = uci_pv_sent;
     }
