@@ -295,7 +295,7 @@ enum { EVAL_TB_WIN_IN_MAX_PLY = VALUE_MATE_IN_MAX_PLY - MAX_PLY - 1 };
 // needs the side-to-move index arithmetic.
 //
 // Golden: Stockfish/src/evaluate.cpp simple_eval and scale_evaluation.
-static Value nnue_scaled_value(const Position *pos, Value nnue, int optimism) {
+static Value nnue_scaled_value(const Position *pos, Value nnue) {
     const int pawns_w = count_p(pos, WHITE, PAWN);
     const int pawns_b = count_p(pos, BLACK, PAWN);
     const int npm_w = pos_non_pawn_material(pos, WHITE);
@@ -310,7 +310,7 @@ static Value nnue_scaled_value(const Position *pos, Value nnue, int optimism) {
     // Positive correlation -- network and material agree -- marks a straightforward
     // position; negative marks compensation. When winning, boost the easy positions.
     const int correl = (se_norm * nnue_norm) / 512;
-    int v = nnue + (nnue + optimism) * correl / 65536;
+    int v = nnue + nnue * correl / 65536;
 
     // Scale by total material. Adding the scaled term is exact against upstream's
     // old v * (90649 + material) / 90649: material is non-negative, so the term has
@@ -435,24 +435,23 @@ static Value evaluate_classical(const Position *pos) {
 // Entry points
 // ---------------------------------------------------------------------------
 
-Value evaluate_nnue_with_optimism(EvalArena *arena, const Position *pos, int optimism) {
+Value evaluate_nnue(EvalArena *arena, const Position *pos) {
     const Value nnue = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
-    return nnue_scaled_value(pos, nnue, optimism);
+    return nnue_scaled_value(pos, nnue);
 }
 
-Value evaluate_with_optimism(EvalArena *arena, const Position *pos, int optimism) {
+Value evaluate_with_arena(EvalArena *arena, const Position *pos) {
     // The classical placeholder produces no network value, so there is nothing for
-    // optimism to scale against; it is scaffolding to be deleted and never grows a
+    // the material blend to scale; it is scaffolding to be deleted and never grows a
     // blend of its own.
     if (!NetLoaded || arena == nullptr)
         return evaluate_classical(pos);
 
-    return evaluate_nnue_with_optimism(arena, pos, optimism);
+    return evaluate_nnue(arena, pos);
 }
 
-// Evaluate with no search bias, through the default arena. Upstream's own value at
-// `eval` and in the trace.
-Value evaluate(const Position *pos) { return evaluate_with_optimism(eval_default_arena(), pos, 0); }
+// Evaluate through the default arena: upstream's own value at `eval` and in the trace.
+Value evaluate(const Position *pos) { return evaluate_with_arena(eval_default_arena(), pos); }
 
 // Write one table cell: a sign column, then the magnitude in pawns right-aligned
 // in six columns. The sign is read off the raw internal value, NOT off the pawn
@@ -499,7 +498,7 @@ static void trace_nnue(EvalArena *arena, const Position *pos, char *buf, int buf
     eval_acc_reset(arena);
     const Value internal = network_evaluate(pos, arena->acc_stack, arena->refresh_cache);
     const Value white_internal = pos->side_to_move == WHITE ? internal : (Value) -internal;
-    const Value scaled = nnue_scaled_value(pos, internal, 0);
+    const Value scaled = nnue_scaled_value(pos, internal);
     const Value white_scaled = pos->side_to_move == WHITE ? scaled : (Value) -scaled;
 
     // The trailing blank line is upstream's `sync_endl` after a string that already

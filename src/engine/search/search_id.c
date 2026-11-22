@@ -170,7 +170,6 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
     // Written by the first root search of every aspiration loop before any read.
     Value best_value;
 
-    const Color us = board_side_to_move(ctx->root_pos);
     double time_reduction = 1.0;
     double tot_best_move_changes = 0.0;
     size_t iter_idx = 0;
@@ -255,8 +254,6 @@ bool iterative_deepening(SearchCtx *ctx, SearchIdState *id) {
               seek_mate_score != -VALUE_INFINITE
               && (seek_mate_score < 0 ? -seek_mate_score : seek_mate_score) >= seek_mate_threshold;
 
-            ctx->optimism[us] = optimism_of(avg);
-            ctx->optimism[flip_color(us)] = -ctx->optimism[us];
 
             int failed_high_cnt = 0;
             if (ctx->pv_idx == 0)

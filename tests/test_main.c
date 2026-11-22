@@ -1439,8 +1439,8 @@ static void acc_walk_from(const char *start_fen,
         CHECK(pos_set(&fresh, fen, false, &fresh_st), "acc walk %s: round-trip %s", label, fen);
         eval_acc_reset(ctrl);
 
-        const Value incremental = evaluate_nnue_with_optimism(inc, &pos, 0);
-        const Value refreshed = evaluate_nnue_with_optimism(ctrl, &fresh, 0);
+        const Value incremental = evaluate_nnue(inc, &pos);
+        const Value refreshed = evaluate_nnue(ctrl, &fresh);
         CHECK(incremental == refreshed,
               "acc walk %s ply %zu (%s): incremental %d != refresh %d [%s]", label, depth, moves[i],
               incremental, refreshed, fen);

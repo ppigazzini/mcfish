@@ -407,24 +407,23 @@ mode:
 
 ## Scaling the network output
 
-`nnue_scaled_value` takes the network's single value, weights it and optimism by
-how far it agrees with the material balance (`simple_eval`), scales the result by
-total material, then damps for the halfmove clock.
+`nnue_scaled_value` takes the network's single value, weights it by how far it
+agrees with the material balance (`simple_eval`), scales the result by total
+material, then damps for the halfmove clock.
 
 The trap in it is the order of truncations, which is easy to "clean up" into a
 different number: **every divide truncates, one term at a time.** The two
-normalisations, the alignment and each of the two base-eval terms are separate
-divides, and folding any two into one moves the node count. Widths are upstream's:
+normalisations, the alignment and the blend term are separate divides, and folding
+any two into one moves the node count. Widths are upstream's:
 `int` throughout except the material product, which upstream widens to `i64`, and
 the FEN parser's 2^15 cap on rule50 is what keeps the clock product inside `int`.
 Golden is upstream `evaluate.cpp`.
 
-**Optimism arrives from the search.** `evaluate_with_optimism` is the form the
-search calls, passing `ctx->optimism[stm]` — the aspiration loop's per-colour bias
-for the side to move at that node. Plain `evaluate` passes 0, which is upstream's
-own value at the `eval` command and in the trace. The classical placeholder produces
-no network value, so there is nothing for optimism to scale against and it takes the
-fallback path unchanged.
+**The scaling does not depend on the search.** `search_evaluate` reaches it through
+`evaluate_nnue` and the `eval` command through `evaluate`, so a static evaluation
+read inside a search is the value `eval` reports for the same position. The
+classical placeholder produces no network value, so there is nothing to blend and it
+takes the fallback path unchanged.
 
 The result is bounded away from the tablebase range. The bound is derived from
 `VALUE_MATE` and `MAX_PLY` rather than pinned as a literal, so it stays correct
