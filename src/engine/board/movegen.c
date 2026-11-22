@@ -227,14 +227,19 @@ generate_all(const Position *pos, ExtMove *list, Color us, GenType type) {
     }
 
     // The king steps anywhere the opponent does not attack: off the board's own
-    // pieces when evading, onto the stage's target otherwise.
+    // pieces when evading, onto the stage's target otherwise. Read the attacked set
+    // only when the king has a square to test it against (movegen.cpp:263-265): it is
+    // filled on first read, so a king with no target -- the common capture stage --
+    // leaves the fill to whoever needs it next, if anyone does.
     if (type == GEN_EVASIONS)
         target = ~pieces_c(pos, us);
-    target &= ~threats_by(pos, ALL_PIECES);
 
     Bitboard b = PseudoAttacks[KING][ksq] & target;
-    while (b)
-        (list++)->move = make_move(ksq, pop_lsb(&b));
+    if (b) {
+        b &= ~threats_by(pos, ALL_PIECES);
+        while (b)
+            (list++)->move = make_move(ksq, pop_lsb(&b));
+    }
 
     if (type == GEN_QUIETS && pos->st->castling_rights)
         list = generate_castling(pos, list, us);
