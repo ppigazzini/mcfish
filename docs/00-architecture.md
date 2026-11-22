@@ -318,7 +318,7 @@ reading the call sequence.
 
 **`repetition_init` runs inside `position_init`, not beside it.**
 [`src/engine/board/repetition.c`](../src/engine/board/repetition.c) builds the
-cuckoo table of reversible one-piece move keys, which `pos_upcoming_repetition`
+Robin Hood table of reversible one-piece move keys, which `pos_upcoming_repetition`
 probes at the top of every non-root node. The table is a pure function of the
 Zobrist psq and side keys, so it is built where those keys are drawn and takes them
 as arguments rather than re-deriving them — a second independently seeded PRNG copy
