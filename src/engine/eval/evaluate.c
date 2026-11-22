@@ -308,7 +308,7 @@ static Value nnue_scaled_value(const Position *pos, Value nnue, int optimism) {
     // Positive correlation -- network and material agree -- marks a straightforward
     // position; negative marks compensation. When winning, boost the easy positions.
     const int correl = (se_norm * nnue_norm) / 512;
-    int v = nnue + (nnue * correl) / 65536 + (optimism * correl) / 16384;
+    int v = nnue + (nnue + optimism) * correl / 65536;
 
     // Scale by total material. Adding the scaled term is exact against upstream's
     // old v * (90649 + material) / 90649: material is non-negative, so the term has
