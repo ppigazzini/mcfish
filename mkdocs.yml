@@ -1,0 +1,134 @@
+site_name: mcfish
+site_description: "A C23 port of the Stockfish chess engine, bit-exact to upstream: the same bench node signature and the same bestmove."
+site_url: https://ppigazzini.github.io/mcfish/
+repo_url: https://github.com/ppigazzini/mcfish
+repo_name: ppigazzini/mcfish
+copyright: "mcfish is free software under the GNU General Public License v3, as Stockfish is."
+
+# The pages are built from site-src/, which `tools/site.py` writes from docs/: the same
+# pages, with each link that leaves docs/ pointed at its file on GitHub. Run it first.
+docs_dir: site-src
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.footer
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+# The order a reader meets the pages in. A page added is a line here and a line of the
+# llmstxt sections below, whose text is the page's Description cell in the docs/index.md table;
+# `tools/site.py` refuses the three apart.
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Engine:
+      - Board: engine-board.md
+      - Search: engine-search.md
+      - Evaluation: engine-eval.md
+      - Multithreading: multithreading.md
+      - Tablebases: tablebases.md
+  - Runtime:
+      - Platform: platform.md
+      - Shell: shell.md
+  - Practice:
+      - Idiomatic C: idiomatic-c.md
+      - Type design: type-design.md
+      - Performance: performance.md
+  - Tooling and CI: tooling-ci.md
+  - Reference:
+      - References: references.md
+      - Writing these docs: writing.md
+      - Glossary: glossary.md
+
+# Every check the builder makes on a link and on the nav, raised to a warning so that --strict
+# fails the build on it: a page or an anchor a link names that does not exist, a page under
+# docs/ that no nav entry lists, and a link the builder cannot read as one to a page.
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  # A diagram is a `mermaid` block, text the page carries: the theme loads Mermaid on a page
+  # holding one and draws it in the site's palette, light or dark, and GitHub draws the same
+  # block.
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  # A heading's anchor is the one GitHub gives it, so a `page.md#anchor` link resolves on the
+  # site and on GitHub alike: an em dash between two words leaves both spaces as hyphens.
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
+
+plugins:
+  - search
+  # Machine-readable view of the site: /llms.txt (a manifest mirroring the nav) and
+  # /llms-full.txt (the full content of every page it lists).
+  - llmstxt:
+      markdown_description: >-
+        mcfish is a C23 port of the Stockfish chess engine, built with clang by one `build.sh`
+        and no build system. It is a bit-exact clone: it reproduces upstream's bench node
+        signature and bestmove, with NNUE evaluation, Syzygy tablebases and Lazy-SMP threading.
+        These pages are its developer documentation: the architecture, each subsystem, the C23
+        patterns the port rests on, the performance instruments, and the tooling and CI that
+        hold it to upstream.
+      full_output: llms-full.txt
+      sections:
+        Home:
+          - index.md: "What mcfish is, the one structural fact about what is in the binary, the page set, a quick start, the technology and the layout, and the gates every page carries."
+        Architecture:
+          - architecture.md: "The three zones, the dependency direction, how `zone-check` enforces it at link time, the composition root and its init order, what is wired into the binary and what is not, how one search flows"
+        Engine:
+          - engine-board.md: "Types and the 16-bit move encoding, the bitboard leaf and the magic slider tables, Position/StateInfo, Zobrist, the threat deltas, FEN, move generation and legality"
+          - engine-search.md: "Iterative deepening, alpha-beta and qsearch, the staged move picker and the history block, the pruning set, the cluster transposition table, time management and determinism, the wired search decomposition"
+          - engine-eval.md: "The NNUE evaluation, the accumulator bracket every make/unmake owes it, the net load path, and the classical fallback that is still scaffolding"
+          - multithreading.md: "Lazy-SMP as upstream runs it, the pool and worker lifecycle, shared versus per-worker state, memory ordering, NUMA — all of it compiled, gated and driven by the search, one worker set over one root"
+          - tablebases.md: "The Syzygy prober end to end: the file format, loading and its concurrency, the WDL and DTZ probes, the in-search and root integrations, the PV extension, the four options, and what the `tb` gate does and does not cover"
+        Runtime:
+          - platform.md: "`src/platform/`: what is wired, the monotonic clock, the feature-test macro and the engine→platform edge; the thread/NUMA and Syzygy subsystems have their own pages above"
+          - shell.md: "`main` as the composition root, every UCI command the live loop handles, the option tables, the injected output sink, bench"
+        Practice:
+          - idiomatic-c.md: "The C23 patterns this repo commits to, the warning set, why there is no build system, the recurring porting patterns, the spellings that measured a win here, the measurement discipline"
+          - type-design.md: "What each quantity denotes, the two instruments C23 gives and why they differ in strength, the five maps, why there is no `Key` or `Value` type, the cost rule, and what a compile error does and does not stop"
+          - performance.md: "The ten local-only instruments and the order to reach for them in, the two corrections without which the instruction axis lies, where this port stands against the golden on the spine, what an Elo cell can and cannot resolve, and the one axis that measures more than a single thread"
+        Tooling and CI:
+          - tooling-ci.md: "Every `./build.sh` step and what it gates, the source arrays that decide what is gated at all, the golden-diff harness and its normalization, fact tables versus goldens, the anchor versus the finish line, the CI lanes"
+        Reference:
+          - references.md: "Stockfish, chess-domain, C23, Syzygy and NNUE references"
+          - writing.md: "How the set is organised, the writing rules, the hot/cold map, code-comment style, and what `docs-lint` cannot check"
+          - glossary.md: "Every word this set uses without defining it, in four tiers that must not be confused: upstream's vocabulary and the symbol that carries it here, this repository's own, the words that mean two things, and the testing field's"

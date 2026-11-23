@@ -38,6 +38,11 @@ Requires **clang with C23 support** and bash. No build system, no dependencies.
 - [docs/](docs/index.md) — the architecture, each subsystem, the C23 patterns.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — the gates and the workflow.
 
+The docs are published at <https://ppigazzini.github.io/mcfish/> with
+[`llms.txt`](https://ppigazzini.github.io/mcfish/llms.txt) (a manifest of the pages) and
+[`llms-full.txt`](https://ppigazzini.github.io/mcfish/llms-full.txt) (their full text) per the
+[llmstxt.org](https://llmstxt.org) convention.
+
 ## License
 
 mcfish is a derivative of Stockfish and is distributed under the **GNU General

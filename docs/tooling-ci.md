@@ -494,9 +494,10 @@ the others cannot:
 
 ## CI
 
-Four workflows in [`../.github/workflows/`](../.github/workflows). None of them
+Five workflows in [`../.github/workflows/`](../.github/workflows). None of them
 does anything a developer cannot reproduce with `./build.sh` (or, for the
-upstream-check lane, `tools/upstream_map.py` directly); anything that diverges is
+upstream-check lane, `tools/upstream_map.py` directly, and for the site lane the
+two `uv run` commands [writing.md](writing.md) gives); anything that diverges is
 a bug in the workflow file.
 
 ### `mcfish_parity.yml` — the blocking lane
@@ -517,7 +518,8 @@ Runs on every push and PR, with eight jobs:
   (no job pushes, and every clone here is of a public repository), and no `${{ }}`
   expression reaches a `run:` script from an event payload. The version is pinned so a zizmor release cannot redden an unchanged
   tree. [`../.github/dependabot.yml`](../.github/dependabot.yml) proposes action
-  updates weekly, seven days after a release, the setting zizmor's
+  updates, and the site's `uv.lock` ones, weekly, seven days after a release, the
+  setting zizmor's
   `dependabot-cooldown` audit reads. Locally: `uvx zizmor==1.33.0 .github/`.
 - **`actions-lock`** — every `uses:` names a release tag, and
   [`../.github/workflows/actions.lock`](../.github/workflows/actions.lock), which
@@ -715,3 +717,12 @@ pristine oracle is the expensive part and every one of these needs it:
 (reporting, not gating), `attribution` and `fingerprint`.
 
 Every job in this file runs weekly.
+
+### `mcfish_site.yml` — the documentation site
+
+Runs on a push to `main` or `github_ci`, and on dispatch. `tools/site.py` refuses
+an `llms.txt` manifest apart from the nav or the index table and writes
+`site-src/`, then `zensical build --strict` builds it, failing on a dead link, a
+missing anchor or a page off the nav. A push to `main` deploys it to GitHub Pages
+([writing.md](writing.md)). It runs no `./build.sh` step, so `lane-coverage` has
+nothing of it to hold.
