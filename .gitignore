@@ -72,3 +72,7 @@ tools/instr_budget.golden
 # `resources/`; this one lands at the root, where nothing was catching it -- and at a
 # few KiB the large-file hook waves it through.
 /config.json
+
+# The site: tools/site.py writes site-src/ from docs/, and zensical builds it into site/.
+/site-src/
+/site/

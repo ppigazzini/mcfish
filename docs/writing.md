@@ -8,12 +8,25 @@ Audience: anyone editing these docs.
 
 ## The set
 
-`index.md` is the index, the page a reader lands on. Every other page is named
-for what it holds, and the order a reader meets them in is the index table's
-alone — **reading order**, not importance: a contributor works down from the
-architecture into a zone. The last row is a lookup rather than a stop on that
-walk: [glossary.md](glossary.md) defines the words the other pages use without
-pausing on them.
+`index.md` is the index, and the home page of the site. Every other page is named
+for what it holds, and the order a reader meets them in is the site's nav alone —
+**reading order**, not importance: a contributor works down from the architecture
+into a zone. The last page is a lookup rather than a
+stop on that walk: [glossary.md](glossary.md) defines the words the other pages
+use without pausing on them.
+
+**The set is published** at <https://ppigazzini.github.io/mcfish/>, with `llms.txt`
+and `llms-full.txt` for a reader that is not a browser. Zensical builds it from
+`mkdocs.yml`, and the `mcfish site` workflow deploys it on each push to `main`. A
+page added is a line of the `nav` and a line of the `llmstxt` sections, the second
+the page's Description in the index table; `tools/site.py` refuses the three
+apart, then copies the pages to `site-src/` with each link that leaves `docs/`
+pointed at its file on GitHub, since the site holds only the pages. Locally:
+
+```sh
+uv sync --group docs
+uv run --no-sync python tools/site.py && uv run --no-sync zensical serve
+```
 
 Each page owns one subsystem and names its **audience** in the index table. A page
 describes **what this codebase does** — not what upstream does, not what a chess
