@@ -6,7 +6,7 @@ move encoding, the bitboard vocabulary and the magic slider tables, the
 move generation, and legality.
 
 Audience: engine contributors. The search's use of these APIs is in
-[02-engine-search.md](02-engine-search.md).
+[engine-search.md](engine-search.md).
 
 ## Where this zone stands
 
@@ -381,7 +381,7 @@ Seeding from `time()`, `rand()`, or anything the host supplies would make
 `./build.sh signature` fail nondeterministically and every golden meaningless, and
 the failure would look like a search bug. If you need different keys, change the
 constant and regenerate the anchors deliberately — see
-[10-tooling-ci.md](10-tooling-ci.md).
+[tooling-ci.md](tooling-ci.md).
 
 The key is maintained incrementally in `pos_do_move` and recomputed from scratch by
 `compute_key` only in `pos_set`. The two must agree; `walk_roundtrip` asserts it by
@@ -393,12 +393,12 @@ recomputed key with the incremental one.
 [`threats.h`](../src/engine/board/threats.h) /
 [`threats.c`](../src/engine/board/threats.c) record, for every make and unmake, the
 (attacker, attacked) pairs that appeared or disappeared. That list is what the NNUE
-`full_threats` feature set consumes; see [03-engine-eval.md](03-engine-eval.md).
+`full_threats` feature set consumes; see [engine-eval.md](engine-eval.md).
 
 `threats_init` builds `InverseRayPassBB`, the geometry the discovered-threat scan
 walks — stored `[s2][s1]`, as upstream's is, so the scan's fixed square picks one row,
 and it reads the attack tables — hence its place in the init order in
-[00-architecture.md](00-architecture.md).
+[architecture.md](architecture.md).
 
 **At the ICL tier the list is written vectorised**, as upstream's
 `write_multiple_dirties` does (`position.cpp:1157`, gated on `USE_AVX512ICL`; here on
@@ -629,7 +629,7 @@ king in check along a ray.
 
 `pos_see_ge(pos, m, threshold)` answers whether a move's static exchange evaluation
 clears a threshold without generating the exchange sequence. The move picker prunes
-captures with it; see [02-engine-search.md](02-engine-search.md).
+captures with it; see [engine-search.md](engine-search.md).
 
 ## Draw and repetition detection
 
@@ -685,9 +685,9 @@ time as it walks the `moves` list.
 | step | what it proves here | owned by |
 |---|---|---|
 | `perft` | move generation is right, in both dialects, against counts that are facts rather than a golden | this page |
-| `test` | the same counts from inside the suite, plus make/unmake round-trip, the incremental-versus-recomputed key, and 4000 mutated FEN strings | [10-tooling-ci.md](10-tooling-ci.md) |
-| `upstream-nodes` | the node total over positions reached by random legal moves, which is the only instrument that has ever caught a movegen bug this table's rows are blind to | [10-tooling-ci.md](10-tooling-ci.md) |
-| `fuzz-search` | the node body entered from an arbitrary board, under ASan and UBSan | [02-engine-search.md](02-engine-search.md) |
+| `test` | the same counts from inside the suite, plus make/unmake round-trip, the incremental-versus-recomputed key, and 4000 mutated FEN strings | [tooling-ci.md](tooling-ci.md) |
+| `upstream-nodes` | the node total over positions reached by random legal moves, which is the only instrument that has ever caught a movegen bug this table's rows are blind to | [tooling-ci.md](tooling-ci.md) |
+| `fuzz-search` | the node body entered from an arbitrary board, under ASan and UBSan | [engine-search.md](engine-search.md) |
 
 ### `./build.sh perft`
 
@@ -700,7 +700,7 @@ evaluation, on its search, or on the port's progress. **A perft mismatch is alwa
 move generation bug**, and there is no circumstance in which the correct response is
 to edit the number. The same is true of the deep counts hardcoded in
 [`../.github/workflows/mcfish_perft.yml`](../.github/workflows/mcfish_perft.yml).
-[10-tooling-ci.md](10-tooling-ci.md) is where that distinction is drawn against the
+[tooling-ci.md](tooling-ci.md) is where that distinction is drawn against the
 other kind of expected-value file, which *does* move on purpose.
 
 A row's optional fourth field is the **variant**, and `960` there is not decoration:

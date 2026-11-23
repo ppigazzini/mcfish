@@ -39,7 +39,7 @@
 // The libFuzzer runtime calls this by name; no mcfish header declares it because
 // no mcfish translation unit calls it. Declare it here, once, so
 // -Wmissing-prototypes has the header-in-the-same-file every other symbol in this
-// tree gets (docs/08-idiomatic-c.md's warning table).
+// tree gets (docs/idiomatic-c.md's warning table).
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
 // Track this input's allocations so each one gets its own ASan redzone. The

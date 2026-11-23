@@ -5,7 +5,7 @@ table, and the benchmark. This is the process — the only zone that reads stdin
 writes stdout, or knows the protocol exists.
 
 Audience: shell contributors. The zone rule this page depends on is in
-[00-architecture.md](00-architecture.md).
+[architecture.md](architecture.md).
 
 ### `stop` and `ponderhit`: what is adjudicated, and what cannot be
 
@@ -100,7 +100,7 @@ arena source goes in.
 
 It is the only file permitted to include across every zone, and nothing includes it.
 The ordering constraint — and its silent failure mode — is spelled out in
-[00-architecture.md](00-architecture.md); the short version is that a `Position`
+[architecture.md](architecture.md); the short version is that a `Position`
 built before `attacks_init` reads zeroed attack tables and generates no piece
 moves, which presents as a search bug.
 
@@ -116,14 +116,14 @@ table, size the transposition table, establish the start position, resolve the
 root directory from `argv[0]`, and load the net. Getting the seam order wrong is
 the exact class of bug `worker_pool_install` and `eval_nnue_init`'s ordering
 comment call out: a block obtained from one allocator and released through
-another. See [00-architecture.md](00-architecture.md) and
-[06-platform.md](06-platform.md) for what each seam supplies.
+another. See [architecture.md](architecture.md) and
+[platform.md](platform.md) for what each seam supplies.
 
 Establishing a position before any command matters more than it looks: a `go` or
 `d` arriving before any `position` command must operate on the start position, not
 on a zeroed `Position` whose `king_square` would `lsb` an empty bitboard — which is
 undefined behaviour, not a diagnosable error. See
-[01-engine-board.md](01-engine-board.md).
+[engine-board.md](engine-board.md).
 
 ### The net and the root directory
 
@@ -141,7 +141,7 @@ upstream's; the STATUS deliberately is not. Upstream maps the net system-wide an
 answers `Shared memory.`, while mcfish holds one network in ordinary process memory
 and answers `Local memory.` — one of upstream's own four strings, and the true one
 here until the network registers itself for NUMA replication
-([04-multithreading.md](04-multithreading.md)). Matching the byte would assert
+([multithreading.md](multithreading.md)). Matching the byte would assert
 something false about the allocation. `engine_nnue_verify()` **terminates** the
 process
 right after when no usable net is loaded — upstream's five error lines verbatim, from
@@ -150,7 +150,7 @@ the same three sites (nnue/network.cpp:165-187). Those five lines go through the
 `engine_nnue_set_info`, wired from `engine_set_output`), landing on stdout, not raw
 stderr. Refusing to run is the honest answer: a placeholder eval that plays legal
 moves reads as a strength regression, not as a missing file. See
-[03-engine-eval.md](03-engine-eval.md).
+[engine-eval.md](engine-eval.md).
 
 ## The output sink
 
@@ -224,7 +224,7 @@ is why `strtok` is usable at all.
 | `stop` | Raise the stop flag and return; the search thread ends and emits its `bestmove`. |
 | `quit` | End the search (stop it if unbounded, else wait it out), leave the loop; `uci_loop` frees the table. |
 | `flip` | Mirror the position color-flipped, via `engine_flip`. |
-| `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`, then the `Tablebases WDL:`/`DTZ:` lines when the position is small enough and has no castling rights. The key printed is the **rule50-adjusted** one (`pos_adjust_key50_of`), which is what upstream's `Position::key()` returns; below a halfmove clock of 14 the adjustment is the identity, which is why every bench position and every golden case saw the raw key agree. See [05-tablebases.md](05-tablebases.md). |
+| `d` | Print the ASCII board, the FEN, and the Zobrist key via `pos_pretty`, then the `Tablebases WDL:`/`DTZ:` lines when the position is small enough and has no castling rights. The key printed is the **rule50-adjusted** one (`pos_adjust_key50_of`), which is what upstream's `Position::key()` returns; below a halfmove clock of 14 the adjustment is the identity, which is why every bench position and every golden case saw the raw key agree. See [tablebases.md](tablebases.md). |
 | `bench` | `bench <tt> <threads> <limit> <fen file> <limit type>`, each field defaulting when the line runs dry. The limit type is upstream's own set — `depth`, `nodes`, `movetime`, `perft`, `eval` — and becomes the command run per position, so `perft` and `eval` are not searches at all. |
 | `speedtest [threads] [ttSize] [seconds]` | Replay five real games — 258 positions, [`../src/shell/speedtest_positions.c`](../src/shell/speedtest_positions.c) — at a per-ply movetime scaled so the whole run lasts the requested time (default: the host's core count, 128 MiB per thread, 150 s), then report throughput. Not `bench`: that one fixes a **depth** and its node total is the anchor; this one fixes a **time** and reports nodes per second, which no golden can pin. The REPORT goes to **stderr**, and the search is silenced for the duration; the clamp notices and the option messages go to stdout, as upstream leaves them. Gated for shape by `./build.sh speedtest-check`. **Each of the three arguments is clamped to the range the thing it feeds accepts, and the clamp is reported**: `desiredTimeS * 1000` and `TT_SIZE_PER_THREAD * threads` are both `int` multiplications on a number a user typed, and both overflowed — the first making the scale factor negative so every `go movetime` got a negative argument, the second emitting `setoption name Hash value -84901888`, which the option table refused while the run measured whatever `Hash` was already set. The `User invocation` echo still shows what was typed; `Filled invocation` shows what ran. |
 | `eval` | Print the evaluation trace via `evaluate_trace`. |
@@ -244,7 +244,7 @@ OS thread through `search_go_start` and returns, so the loop keeps reading stdin
 while the search runs. That is what lets the four during-search commands — `stop`,
 `quit`, `isready`, `ponderhit` — be seen and answered mid-search; `stop` raises the
 pool's shared stop flag (the cross-thread protocol described in
-[06-platform.md](06-platform.md)) and the search thread ends and emits its
+[platform.md](platform.md)) and the search thread ends and emits its
 `bestmove`. So `go infinite` now has an interruption path and terminates on `stop`.
 
 Every **other** command drains the running search first (`engine_wait` at the top of
@@ -273,7 +273,7 @@ draws that line. The bench and the tests reach the search through the synchronou
 upstream clears it in `ThreadPool::clear`, from `ucinewgame` and nowhere else. This
 page recorded the opposite for as long as the live search cleared it per `go`; a
 search that starts from a blank history searches a different tree than upstream's.
-See [02-engine-search.md](02-engine-search.md).
+See [engine-search.md](engine-search.md).
 
 ### position
 
@@ -285,7 +285,7 @@ root and is what keeps it from accumulating across games.
 The chain is an unbounded `StateList`, and deliberately so: `pos_undo_move` and the
 repetition scan both follow `StateInfo::previous`, so a state allocated on a
 handler's stack would leave the chain pointing into a dead frame the moment the
-handler returned. See [01-engine-board.md](01-engine-board.md). Each record is its
+handler returned. See [engine-board.md](engine-board.md). Each record is its
 own allocation that never moves once handed out, and the list has no bound —
 upstream's chain is a deque (engine.cpp:210), so a long analysis line of coordinate
 moves does not run into a cap.
@@ -309,7 +309,7 @@ cosmetic: `pos_set_reason` reads the buffer as a character stream, so a record c
 short after the side-to-move field ends in whitespace there and is accepted, where
 the same text without the trailing separator fails "Expected whitespace after side to
 move". The two parsers must be handed the same bytes to be comparable at all. See
-[01-engine-board.md](01-engine-board.md).
+[engine-board.md](engine-board.md).
 
 `engine_set_position` returns
 the parse reason on a malformed record, and `cmd_position` **terminates** on it
@@ -348,7 +348,7 @@ line. `uci_bench_go` is the entry point that reproduces that split.
 Limits parsed — **upstream's whole grammar, with nothing left out**: `searchmoves`,
 `wtime`, `btime`, `winc`, `binc`, `movestogo`, `depth`, `nodes`, `movetime`, `mate`,
 `perft`, `infinite`, `ponder`. How they become a deadline is in
-[02-engine-search.md](02-engine-search.md). `searchmoves` consumes the rest of the
+[engine-search.md](engine-search.md). `searchmoves` consumes the rest of the
 line and is matched first for that reason; each token is lower-cased and resolved
 against the position the `go` is about, and anything `move_from_uci` cannot resolve
 is dropped, which is why no legality filter is needed downstream.
@@ -479,7 +479,7 @@ so a value set here reaches a prober that is already bound.
 What still gates the whole path is the PATH: with no `SyzygyPath` the cardinality
 stays 0, the root ranker never probes and the in-search Step 7 never fires. That is
 the state `bench` runs in, which is why the anchor is blind to this block. See
-[05-tablebases.md](05-tablebases.md).
+[tablebases.md](tablebases.md).
 
 ### The seam the search reads options through
 
@@ -559,7 +559,7 @@ upstream's own `Bench:` for the SHA pinned in
 [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE), and the
 whole port exists to reach it. The anchor's job is narrower: stop a refactor
 changing behaviour silently today. The gate, the trap in regenerating it, and the
-distinction are in [10-tooling-ci.md](10-tooling-ci.md).
+distinction are in [tooling-ci.md](tooling-ci.md).
 
 The bench position set is kept **verbatim** from upstream because it is the position
 set the eventual differential comparison runs on. The ported
@@ -591,9 +591,9 @@ output no golden can pin.
 | `fixture-coverage` | the input domain is written down: each property the engine branches on has a fixture that still presents it | this page |
 | `speedtest-check` | the `speedtest` command, whose every number is a property of the machine | this page |
 | `async-check` | the interrupted-search path, which no byte-golden can hold | this page |
-| `signature` | that the command loop still drives the same search — `benchmark.c` goes through `uci_execute`, so the anchor measures the shipped dispatcher | [02-engine-search.md](02-engine-search.md) |
-| `net-roundtrip` | `export_net`, the one command whose output no other gate reads | [03-engine-eval.md](03-engine-eval.md) |
-| `tb` | the `d` command's tablebase lines, and the four Syzygy options | [05-tablebases.md](05-tablebases.md) |
+| `signature` | that the command loop still drives the same search — `benchmark.c` goes through `uci_execute`, so the anchor measures the shipped dispatcher | [engine-search.md](engine-search.md) |
+| `net-roundtrip` | `export_net`, the one command whose output no other gate reads | [engine-eval.md](engine-eval.md) |
+| `tb` | the `d` command's tablebase lines, and the four Syzygy options | [tablebases.md](tablebases.md) |
 
 ### The golden-diff harness
 

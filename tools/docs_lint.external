@@ -15,7 +15,7 @@
 #
 # One name per line, '#' comments and blanks ignored.
 
-# Windows' high-resolution clock, named in 06-platform.md's account of what a Windows
+# Windows' high-resolution clock, named in platform.md's account of what a Windows
 # port would need for `now_ms`. mcfish is POSIX-only and calls clock_gettime; if this
 # ever appears in the tree, the port happened and the exemption must go.
 QueryPerformanceCounter

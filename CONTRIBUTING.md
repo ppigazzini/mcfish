@@ -51,7 +51,7 @@ read the tree rather than run the engine, so they fail in seconds:
 | `docs-lint` | no dead doc links, no named paths that do not exist |
 | `shellcheck` | every tracked `.sh` is clean at severity `style`, against a pinned shellcheck |
 | `cite-check` | every commit SHA the docs cite is reachable — an ancestor, a ref, or a sibling checkout |
-| `type-check` | each mistake [09-type-design.md](docs/09-type-design.md) says a compile error stops is still refused, and each legal form beside it still compiles |
+| `type-check` | each mistake [type-design.md](docs/type-design.md) says a compile error stops is still refused, and each legal form beside it still compiles |
 | `fixture-coverage` | the property list and the fixture sets agree, both directions |
 | `lane-coverage` | every `build.sh` step runs in a lane or is excused with a reason |
 | `golden-coverage` | every golden is read by a gate, or owned with a reason |
@@ -100,7 +100,7 @@ deliberately: it is what keeps every implicit integer conversion visible, since
 the port depends on matching upstream's integer semantics exactly.
 
 Comments are **imperative mood** and state the invariant the code cannot show —
-see [docs/13-writing.md](docs/13-writing.md). Where **upstream** carries a comment
+see [docs/writing.md](docs/writing.md). Where **upstream** carries a comment
 about integer semantics or cites a file and line, carry it across. Upstream is the
 only tree that word means: `../zfish` is a sibling port, not a source this one
 translates from (AGENTS.md, "The sibling").

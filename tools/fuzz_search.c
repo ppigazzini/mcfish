@@ -12,7 +12,7 @@
 //
 // This links against ENGINE_SOURCES exactly as ./build.sh zone-check and
 // ./build.sh test do, plus this one file -- proof by construction that the
-// search needs no shell object to run, the same invariant docs/00-architecture.md
+// search needs no shell object to run, the same invariant docs/architecture.md
 // names.
 //
 // Golden: none. This is test infrastructure, not a port.
@@ -45,7 +45,7 @@ enum { FUZZ_SEARCH_DEPTH = 3 };
 // The libFuzzer runtime calls these two by name; no mcfish header declares them
 // because no mcfish translation unit calls them. Declare them here, once, so
 // -Wmissing-prototypes has the header-in-the-same-file every other symbol in
-// this tree gets (docs/08-idiomatic-c.md's warning table).
+// this tree gets (docs/idiomatic-c.md's warning table).
 int LLVMFuzzerInitialize(int *argc, char ***argv);
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
@@ -54,7 +54,7 @@ int LLVMFuzzerInitialize(int *argc, char ***argv) {
     (void) argv;
 
     // Same order main.c uses, and for the same reason: a Position built before
-    // attacks_init reads zeroed attack tables. See 00-architecture.md.
+    // attacks_init reads zeroed attack tables. See architecture.md.
     bitboards_init();
     attacks_init();
     threats_init();

@@ -3,10 +3,10 @@
 What mcfish's quantities *mean*, which of them the compiler can tell apart, and —
 stated as plainly as the rest — which of them it cannot.
 
-[08-idiomatic-c.md](08-idiomatic-c.md) is the neighbouring page: it records how a
+[idiomatic-c.md](idiomatic-c.md) is the neighbouring page: it records how a
 C++ construct becomes a C23 one and what each translation measured. This one
 records what the resulting values denote. The theory each family rests on is
-collected in [12-references.md](12-references.md) under "Type theory and type
+collected in [references.md](references.md) under "Type theory and type
 design", with what each citation is for.
 
 Audience: engine and platform contributors.
@@ -78,7 +78,7 @@ and leaves both parameters `int`, which is a rename dressed as a guarantee.
 `[[strong]]` attribute) would give a distinct type that still participates in
 arithmetic, which is exactly what a score or a key would need. It is a proposal
 for a future revision, implemented by no compiler this port builds with, and
-[12-references.md](12-references.md) carries it as a thing to watch rather than a
+[references.md](references.md) carries it as a thing to watch rather than a
 thing to use.
 
 ## The maps
@@ -320,7 +320,7 @@ Two rules govern them here:
 - **Never mask.** A mask under a name that reads lossless turns a corrupt byte
   from a Syzygy file or a transposition entry into a plausible piece — a wrong
   answer where a detected fault was available. Where the input is untrusted, the
-  parse is bounded and refuses instead ([05-tablebases.md](05-tablebases.md)).
+  parse is bounded and refuses instead ([tablebases.md](tablebases.md)).
 
 ## Why there is no `Key` type and no `Value` type
 
@@ -351,7 +351,7 @@ choice that serves all six turns any depth into any integer. **A type that needs
 six output types needs none.**
 
 Units-of-measure systems solve this with unit polymorphism, where a function is
-generic in the unit it returns ([12-references.md](12-references.md)). C cannot
+generic in the unit it returns ([references.md](references.md)). C cannot
 express that, so the honest answer is to leave these scalars and say why.
 
 ## The cost rule
@@ -384,7 +384,7 @@ histogram of the one function names the mechanism.
 typed ply pushed into an NNUE transform was predicted free by it and cost nearly a
 percent. So a type on a hot path is an experiment, measured whatever the
 prediction says, and a sibling's measurement is a hypothesis about *this* compiler
-rather than a result ([08-idiomatic-c.md](08-idiomatic-c.md)).
+rather than a result ([idiomatic-c.md](idiomatic-c.md)).
 
 ## What a compile error stops
 
@@ -515,7 +515,7 @@ than diagnostics.
 problem: integer semantics under conversion, two generators emitting the same set
 in a different *order*, a key identity that omits the halfmove clock, and a state
 update that "obviously" belongs and does not.
-[08-idiomatic-c.md](08-idiomatic-c.md) owns those.
+[idiomatic-c.md](idiomatic-c.md) owns those.
 
 **Cost.** A type is not free here and the direction is not predictable from the
 source.
@@ -555,7 +555,7 @@ shown can fail. One step exists to watch it.
 | step | what it proves here | owned by |
 |---|---|---|
 | `type-check` | that every refusal `## What a compile error stops` claims is still refused, and every legal form beside it still compiles | this page |
-| `negative-control` | that the gates named on the other pages can fail at all, which is the same argument applied to the value gates | [10-tooling-ci.md](10-tooling-ci.md) |
+| `negative-control` | that the gates named on the other pages can fail at all, which is the same argument applied to the value gates | [tooling-ci.md](tooling-ci.md) |
 
 ### `./build.sh type-check`
 

@@ -5,7 +5,7 @@ DTZ (distance-to-zeroing) for the root. mcfish probes both.
 
 Audience: engine and platform contributors. The prober lives in `src/platform/`
 but the integration lives in `src/engine/search/`, which is why this page spans
-both zones rather than sitting inside [06-platform.md](06-platform.md).
+both zones rather than sitting inside [platform.md](platform.md).
 
 **Wired, and gated.** All six files under
 [`src/platform/syzygy/`](../src/platform/syzygy) plus
@@ -13,7 +13,7 @@ both zones rather than sitting inside [06-platform.md](06-platform.md).
 `ENGINE_SOURCES`, the four UCI options are live, and `./build.sh tb` compares
 discovery and the root probe against `tools/tb.golden`. Nothing in this zone — or
 any zone — sits outside the source arrays today; see
-[00-architecture.md](00-architecture.md) for the check that establishes it.
+[architecture.md](architecture.md) for the check that establishes it.
 
 **Tables are a runtime input, like the net**, and live beside it in
 `resources/syzygy/`. With no `SyzygyPath` the max cardinality is 0, the root
@@ -212,12 +212,12 @@ Two things a tablebase result changes about what `go` prints, both in
   substituted score as an exact bound.
 - **`tbhits`.** Reported as the pool's summed in-search hits
   (`pool_tb_hits`, through the same `PoolCounters` seam
-  [04-multithreading.md](04-multithreading.md) describes) **plus**
+  [multithreading.md](multithreading.md) describes) **plus**
   `root_moves_count` whenever `root_in_tb` — the root-ranking probes count
   too, not only the in-tree Step 7 ones.
 
 `d`'s `Tablebases WDL:`/`DTZ:` lines are the shell's, not this zone's — see
-[07-shell.md](07-shell.md).
+[shell.md](shell.md).
 
 ### The seam
 
@@ -282,7 +282,7 @@ time".
   the prober; it exits **127**, not 0, when the tables are absent. Its golden mixes provenance — oracle-pinned probe results over two
   self-golden node totals — and `./build.sh tb-cursed-update` re-derives only the
   latter, refusing outright if the former has moved. See
-  [10-tooling-ci.md](10-tooling-ci.md).
+  [tooling-ci.md](tooling-ci.md).
 - **The material key is local.** Upstream looks tables up by
   `Position::material_key`; mcfish's `Position` carries none, so `registry.c`
   hashes the piece counts with a private fixed-seed table. Only self-consistency
@@ -317,8 +317,8 @@ seven of them.
 | `tb-cursed-update` | nothing — it re-derives only the node-limited legs, and only once the oracle-pinned half is green | this page |
 | `fuzz-tb` | the parse under two libFuzzer lanes, neither of which subsumes the other | this page |
 | `malformed` | that a file refused yesterday is refused today, and that a mutated one that loads stays inside its arrays | this page |
-| `negative-control` | that `malformed` can fail — one row per family, and the second is HELD | [10-tooling-ci.md](10-tooling-ci.md) |
-| `perf-budget-tb` | an instruction-count regression inside the reader, which `perf-budget` reads as free. **Run it on any edit under `src/platform/syzygy/`** | [11-performance.md](11-performance.md) |
+| `negative-control` | that `malformed` can fail — one row per family, and the second is HELD | [tooling-ci.md](tooling-ci.md) |
+| `perf-budget-tb` | an instruction-count regression inside the reader, which `perf-budget` reads as free. **Run it on any edit under `src/platform/syzygy/`** | [performance.md](performance.md) |
 
 `./build.sh tb` runs two halves and reports them separately:
 
@@ -332,7 +332,7 @@ after it is the tablebase's own minimum-DTZ walk. An unported or half-ported
 extension shows up as a one-move PV.
 
 **Nothing bounds that walk at MAX_PLY.** The root PV is its own growable type
-([09-type-design.md](09-type-design.md)), so what ends the walk is the position —
+([type-design.md](type-design.md)), so what ends the walk is the position —
 a draw, a mate, a table that stops ranking, the Move Overhead deadline — or an
 allocation that fails, which reports the line already built. The `StateInfo`
 backing each made move comes from chained fixed blocks rather than one array,

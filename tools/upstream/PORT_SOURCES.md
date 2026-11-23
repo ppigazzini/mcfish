@@ -59,5 +59,5 @@ by nothing. It is kept as provenance, and it is the
 tree's **only** citation that is off-branch: an object in this clone, reachable
 from a ref, an ancestor of nothing here. That is the third of
 [`docs_cite.sh`](../docs_cite.sh)'s four tiers, and
-[13-writing.md](../../docs/13-writing.md) names this page as its example —
+[writing.md](../../docs/writing.md) names this page as its example —
 `cite-check` reports it as `1 off-branch but reachable`.

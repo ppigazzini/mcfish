@@ -15,7 +15,7 @@
 # is the complement: no shell, no UCI text, tools/fuzz_search.c calls search_go
 # directly under libFuzzer, so a mutation's whole budget goes at movegen, the move
 # picker, the TT, pruning, qsearch and the NNUE accumulator push/pop. See
-# docs/00-architecture.md#what-the-library-boundary-buys for why linking the
+# docs/architecture.md#what-the-library-boundary-buys for why linking the
 # engine with no shell object makes this possible at all.
 name: mcfish fuzz (nightly)
 

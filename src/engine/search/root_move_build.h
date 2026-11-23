@@ -66,7 +66,7 @@ typedef bool (*TbTimeAbort)(void *ctx);
 
 // The two flags the root ranking carries, as TYPES rather than as two adjacent
 // bools. They were `bool rule50, bool rank_dtz` in argument position, which is the
-// hole docs/09-type-design.md names as the largest one here -- "two arguments of the
+// hole docs/type-design.md names as the largest one here -- "two arguments of the
 // same type, transposed" -- and both inversions are silent AND meaningful: rule50
 // changes the verdict a table gives, rank_dtz changes whether DTZ ranking happens at
 // all. Callers passed bare `true`/`false` literals at three sites.

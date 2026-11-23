@@ -144,7 +144,7 @@ def stream(rng: random.Random) -> str:
                 )
         elif kind < 0.70:
             # Emit any go form, bounded or not. The asynchronous go has landed
-            # (docs/07-shell.md): the search runs off the UCI thread, so the
+            # (docs/shell.md): the search runs off the UCI thread, so the
             # trailing `stop` interrupts an unbounded `go infinite` / bare `go`,
             # and any command that follows an un-stopped unbounded search ends it
             # (engine_end_search) rather than hanging behind it. The go line is

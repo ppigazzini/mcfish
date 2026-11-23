@@ -1,7 +1,7 @@
 // Implement the K32H3, full_threats and pp_3wide feature indexers.
 //
 // C23 has no compile-time evaluation for tables of this shape, so every table here is
-// built once by nnue_feature_init (docs/08-idiomatic-c.md, "comptime becomes ... a table
+// built once by nnue_feature_init (docs/idiomatic-c.md, "comptime becomes ... a table
 // filled at startup"). The values do not depend on when they are built — the generators
 // are the same arithmetic over the same constants.
 

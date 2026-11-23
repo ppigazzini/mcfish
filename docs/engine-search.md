@@ -5,15 +5,15 @@ alpha-beta, quiescence, the staged move picker, the history block, the pruning s
 the transposition table, and time management.
 
 Audience: engine contributors. The board APIs this page calls are in
-[01-engine-board.md](01-engine-board.md); the leaf evaluation is in
-[03-engine-eval.md](03-engine-eval.md).
+[engine-board.md](engine-board.md); the leaf evaluation is in
+[engine-eval.md](engine-eval.md).
 
 ## Where this zone stands
 
 The decomposed node bodies are the live search, and they
 evaluate through NNUE. Every make/unmake
 is bracketed with `eval_acc_push` / `eval_acc_pop` and the accumulator is reset
-once per `go`. See [03-engine-eval.md](03-engine-eval.md) for why that bracket is a
+once per `go`. See [engine-eval.md](engine-eval.md) for why that bracket is a
 contract rather than an optimisation.
 
 **Wired into the binary** ([`../build.sh`](../build.sh) `SOURCES` and
@@ -36,7 +36,7 @@ contract rather than an optimisation.
 [`pool_source.c`](../src/engine/search/pool_source.c),
 [`root_pv.c`](../src/engine/search/root_pv.c),
 [`syzygy_pv.c`](../src/engine/search/syzygy_pv.c) (the PV extension; see
-[05-tablebases.md](05-tablebases.md)), plus the injection seams
+[tablebases.md](tablebases.md)), plus the injection seams
 [`pool_source.h`](../src/engine/search/pool_source.h),
 [`output_sink.h`](../src/engine/search/output_sink.h),
 [`option_source.h`](../src/engine/search/option_source.h),
@@ -62,7 +62,7 @@ holding that worker's history tables, its NNUE arena and, on thread 0 only, the
 `best_move_changes` collection reach it through
 [`pool_source.h`](../src/engine/search/pool_source.h), which answers with thread
 0's own values at `Threads 1`. See
-[04-multithreading.md](04-multithreading.md).
+[multithreading.md](multithreading.md).
 
 **`SearchCtx`'s per-node fields are contiguous, and adding to it has a rule.**
 Everything a node reads — `hist`, `eval_arena`, the counters, `nmp_min_ply`,
@@ -233,10 +233,10 @@ diff would not be equivalent, because a pushed diff is applied rather than skipp
 `pos_do_null_move`'s empty delta goes into the position's scratch records and is
 discarded. The Step 6 TT verification make/unmake is unbracketed for the same
 reason: it evaluates nothing between the two. See
-[03-engine-eval.md](03-engine-eval.md).
+[engine-eval.md](engine-eval.md).
 
 Null-move pruning is also the reason the evaluation must not be symmetric under a
-null move — see [03-engine-eval.md](03-engine-eval.md).
+null move — see [engine-eval.md](engine-eval.md).
 
 ### The continuation index is the piece that LEFT `from`
 
@@ -403,7 +403,7 @@ single-threaded clear is unchanged by the split. The fill constants
 
 **The main and low-ply tables are indexed by the raw 16-bit move word**, one row per
 colour (or per low ply). That is why the move encoding in
-[01-engine-board.md](01-engine-board.md) is not free to change: it sizes these
+[engine-board.md](engine-board.md) is not free to change: it sizes these
 tables.
 
 **Every entry is a gravity-bounded `int16_t`, and that is the invariant the code
@@ -646,7 +646,7 @@ reading stdin, so a `stop` (or `quit`) arriving mid-search is seen and calls it:
 flag is set by `stop`/`quit`, by `check_time` on a deadline, or by the driver itself
 once a sibling votes a decisive line. A `go infinite` terminates on `stop`. How the
 shell hands the search off and which commands wait for it is in
-[07-shell.md](07-shell.md).
+[shell.md](shell.md).
 
 An aborted iteration is discarded by the depth loop rather than by the node bodies,
 and the abort paths in `search_id.c` are where the care is: a proven-loss score from
@@ -678,18 +678,18 @@ The indirection through `ShellOptionInt` is why the shell's registration survive
 `OptionIntByName` would have it overwritten on the first search and every option
 would silently revert to the facade. The three Syzygy reads
 (`OptionSyzygyProbeDepth`, `OptionSyzygyProbeLimit`, `OptionSyzygy50MoveRule`) are
-registered the same way, by `syzygy_option.c`. See [07-shell.md](07-shell.md).
+registered the same way, by `syzygy_option.c`. See [shell.md](shell.md).
 
 **The anchor cannot see a divergence off its own position list.** The bench is 51
 fixed positions, so a fault that never fires on them leaves every gate green. The
 per-position differential at fixed depth is the gate that is not fooled: run it
 before and after any change here, and treat a position that moves as a finding
-rather than as noise. [10-tooling-ci.md](10-tooling-ci.md) owns both instruments.
+rather than as noise. [tooling-ci.md](tooling-ci.md) owns both instruments.
 
 The zone's remaining open items are owned elsewhere, because they are not properties
 of the node bodies: no unit test constructs a `SearchWorker`
-([04-multithreading.md](04-multithreading.md)), and the cursed-win branches are gated
-outside `parity` ([05-tablebases.md](05-tablebases.md)).
+([multithreading.md](multithreading.md)), and the cursed-win branches are gated
+outside `parity` ([tablebases.md](tablebases.md)).
 
 ## perft
 
@@ -699,7 +699,7 @@ depth 1 **off the root only**: the root still walks each move so the per-move sp
 it prints stays comparable with upstream's `go perft`. The counts it produces are
 gated two ways — by `test_perft` in the unit suite and by
 [`../tools/perft.table`](../tools/perft.table) via `./build.sh perft`. See
-[10-tooling-ci.md](10-tooling-ci.md).
+[tooling-ci.md](tooling-ci.md).
 
 ## The gates
 
@@ -711,11 +711,11 @@ front of it.
 | step | what it proves here | owned by |
 |---|---|---|
 | `fuzz-search` | the real search in-process, from an arbitrary board, with no shell and no UCI text in the way | this page |
-| `signature` | that no edit changed search behaviour unintentionally — on 51 positions and no others | [10-tooling-ci.md](10-tooling-ci.md) |
-| `upstream-nodes` | the same question off the bench list, over positions reached by random legal moves | [10-tooling-ci.md](10-tooling-ci.md) |
-| `test` | search determinism, `test_perft`, and 200 searches from randomly reached positions — the only always-run searches that evaluate through the network | [10-tooling-ci.md](10-tooling-ci.md) |
-| `tsan-search` | races in the search itself, which the thread-pool `tsan` run structurally cannot reach | [04-multithreading.md](04-multithreading.md) |
-| `fingerprint` | that the node bodies still CALL what upstream's call, as often — the one differential that is not blind to a state divergence holding the node count | [11-performance.md](11-performance.md) |
+| `signature` | that no edit changed search behaviour unintentionally — on 51 positions and no others | [tooling-ci.md](tooling-ci.md) |
+| `upstream-nodes` | the same question off the bench list, over positions reached by random legal moves | [tooling-ci.md](tooling-ci.md) |
+| `test` | search determinism, `test_perft`, and 200 searches from randomly reached positions — the only always-run searches that evaluate through the network | [tooling-ci.md](tooling-ci.md) |
+| `tsan-search` | races in the search itself, which the thread-pool `tsan` run structurally cannot reach | [multithreading.md](multithreading.md) |
+| `fingerprint` | that the node bodies still CALL what upstream's call, as often — the one differential that is not blind to a state divergence holding the node count | [performance.md](performance.md) |
 
 ### `./build.sh fuzz-search [seconds]`
 
@@ -733,4 +733,4 @@ clang-only, libFuzzer having no gcc lane. The step **asserts the lane executed**
 rather than merely that it exited 0. Kept out of `parity`, same reason as `tsan`: its
 own build and a real time budget, and a clean run means "no crash in that budget",
 not "there is none". See
-[00-architecture.md](00-architecture.md#what-the-library-boundary-buys).
+[architecture.md](architecture.md#what-the-library-boundary-buys).

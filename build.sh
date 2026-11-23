@@ -699,8 +699,8 @@ do_debug() {
 # files that array names. A new `src/engine/` file added to SOURCES and forgotten in
 # ENGINE_SOURCES still ships, and is invisible to the zone check, to the unit test
 # binary, to `tsan` and to both fuzzers -- every one of which links ENGINE_SOURCES.
-# The proof silently SHRINKS and no gate goes red. docs/10-tooling-ci.md admits that
-# in the word "listed" and docs/08-idiomatic-c.md names the consequence, but prose
+# The proof silently SHRINKS and no gate goes red. docs/tooling-ci.md admits that
+# in the word "listed" and docs/idiomatic-c.md names the consequence, but prose
 # cannot hold a list; nothing contradicts a sentence that has drifted.
 #
 # Taken from ../zfish tools/headless_lint.sh, whose second half asserts that
@@ -780,7 +780,7 @@ do_zone_check() {
 #
 # `zone-check` above links ENGINE_SOURCES, which CONTAINS all of platform/, so it
 # proves engine/ does not call into shell/ and is structurally blind to engine/
-# calling into platform/. That edge is the one docs/00-architecture.md draws dashed
+# calling into platform/. That edge is the one docs/architecture.md draws dashed
 # and calls a gap. Prose cannot hold it: nothing contradicts a sentence that has
 # drifted, so the edge has to be read off the linker instead.
 #
@@ -3094,7 +3094,7 @@ do_tsan_search() {
   # The floor is CONCURRENCY, not worker count. `Threads 1` is a legitimate run of
   # this gate: `go` dispatches even a one-thread search onto worker 0's own OS
   # thread, so the main/worker dispatch-and-join handshake is still crossed and is
-  # still a race surface (docs/04-multithreading.md). What proves nothing is a
+  # still a race surface (docs/multithreading.md). What proves nothing is a
   # process that only ever held one thread.
   if [[ $peak -lt 2 ]]; then
     red "tsan-search: the process never held more than $peak thread."
@@ -3104,7 +3104,7 @@ do_tsan_search() {
   fi
 
   green "tsan-search: 0 races over a depth-$depth search (peak $peak OS threads, Threads=$threads)"
-  printf '  See docs/04-multithreading.md.\n'
+  printf '  See docs/multithreading.md.\n'
   rm -f "$log"
 }
 
@@ -3325,7 +3325,7 @@ do_perf_decomp() {
   bash tools/perf_decomp.sh "$base" "$head" "$@"
 }
 
-# --- type-check: the claims in docs/09-type-design.md, compiled ---------------------
+# --- type-check: the claims in docs/type-design.md, compiled ---------------------
 #
 # A type meant to make a mistake unrepresentable is an ASSUMPTION until something
 # writes the mistake and the compiler is watched rejecting it. That page lists what a
@@ -3348,7 +3348,7 @@ do_perf_decomp() {
 # "the header stopped compiling", so every claim carries an `.accept.c` beside it and
 # a surface that merely broke fails the gate rather than passing it.
 do_type_check() {
-  info "type-check: docs/09-type-design.md's claims, compiled with the build's own flags"
+  info "type-check: docs/type-design.md's claims, compiled with the build's own flags"
   local cases=(tools/type_cases/*.c)
   [[ -e ${cases[0]} ]] || { red "type-check: no cases in tools/type_cases/"; return 2; }
 
@@ -3387,7 +3387,7 @@ do_type_check() {
     fi
   done
 
-  [[ $fails -eq 0 ]] || { red "type-check: $fails case(s) disagree with docs/09-type-design.md"; return 1; }
+  [[ $fails -eq 0 ]] || { red "type-check: $fails case(s) disagree with docs/type-design.md"; return 1; }
   if [[ $narrowed -gt 0 ]]; then
     green "type-check: $checked case(s) hold; $narrowed NARROWED (a promotion this compiler lacks)"
   else
@@ -3774,7 +3774,7 @@ do_tb_cursed() {
 # and is what says the prober is right; the node legs below it are a self-golden that
 # only pins the time-check-counter phase. Regenerating both together would let a real
 # prober regression be written straight into the expectation -- the exact laundering
-# docs/10-tooling-ci.md describes. So the probe half is a precondition here, not an
+# docs/tooling-ci.md describes. So the probe half is a precondition here, not an
 # output.
 do_tb_cursed_update() {
   need_binary
@@ -3944,7 +3944,7 @@ usage: ./build.sh <step> [args]
   cite-check         every commit SHA the docs cite still resolves (needs a full clone)
   attribution        the AUTHORS copy is still upstream's at the pin, verbatim
   attribution-update re-derive AUTHORS from the golden at the pin
-  type-check         compile docs/09-type-design.md's claims: each mistake still refused
+  type-check         compile docs/type-design.md's claims: each mistake still refused
   sync-status        report drift between the pinned SHAs and the tracked repos
   upstream-map       LOCAL: audit the declared upstream map, ratchet uncovered surface
   upstream-nodes     node-for-node differential on RANDOM positions vs the oracle
@@ -3964,7 +3964,7 @@ usage: ./build.sh <step> [args]
   tb-update          re-derive tools/tb.golden FROM THE ORACLE
   tb-cursed-update   re-derive the tb-cursed node legs (refuses on a bad WDL/DTZ half)
 
-Read docs/10-tooling-ci.md before regenerating any golden: doing so on a red
+Read docs/tooling-ci.md before regenerating any golden: doing so on a red
 gate pins the defect instead of fixing it.
 EOF
 }

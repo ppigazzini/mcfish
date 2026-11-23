@@ -39,7 +39,7 @@ typedef int64_t TimePoint;
 // the OTHER side's clock is set, and both bounds are read on that path; without a
 // value of their own they answer with the previous `go`'s budget. This is a
 // TimePoint like every real deadline and nothing distinguishes them -- a value in
-// the domain, not a state outside it, which docs/09-type-design.md records
+// the domain, not a state outside it, which docs/type-design.md records
 // alongside the same limitation on the UNIT these bounds carry.
 //
 // Half of the range rather than all of it: a comparison may add to a bound, and

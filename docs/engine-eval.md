@@ -5,7 +5,7 @@ search calls at every leaf, the NNUE that produces it, and the classical term th
 stands in when no net is resident.
 
 Audience: engine contributors. The search's use of it — stand-pat, reverse futility,
-null-move pruning — is in [02-engine-search.md](02-engine-search.md).
+null-move pruning — is in [engine-search.md](engine-search.md).
 
 ## The shape of this zone
 
@@ -62,8 +62,8 @@ through the host's `page_free`, corrupting the free. It builds the feature index
 tables and allocates the two arenas. The zero-vs-garbage ordering constraint is
 the same as the attack tables': **the feature tables are zero, not garbage, before
 the call**, so a missing `nnue_feature_init` is a silent all-zero feature set
-rather than a crash. See [00-architecture.md](00-architecture.md) and
-[07-shell.md](07-shell.md) for `engine_init`'s full sequence.
+rather than a crash. See [architecture.md](architecture.md) and
+[shell.md](shell.md) for `engine_init`'s full sequence.
 
 **The net is loaded by the shell**, because the shell owns the `EvalFile` option.
 `eval_nnue_load` searches `"<internal>"`, the working directory, then the root
@@ -86,7 +86,7 @@ false and returns, rather than exiting on the spot. But `go`, `perft` and `eval`
 each call `engine_nnue_verify()` right after reporting the status line, and that
 call **does** terminate the process with upstream's five error lines when no
 usable net is loaded (`nnue/network.cpp:165-187`; see
-[07-shell.md](07-shell.md)) — so those three commands are not a divergence from
+[shell.md](shell.md)) — so those three commands are not a divergence from
 upstream at all. `bench` is the one live UCI path that does not verify, which
 combined with headless callers that link the engine zone with no shell (the unit
 tests, `zone-check`) is why `evaluate`'s classical branch is reachable through the
@@ -371,9 +371,9 @@ mode:
   AVX-512 non-zero-index expansion (`nnue_affine.c`) are named, deliberate
   exceptions that genuinely saturate and reorder lanes, proven equivalent to the
   scalar path by a written correctness argument rather than by sharing one C
-  expression — see [08-idiomatic-c.md](08-idiomatic-c.md)'s ISA-gated-paths
+  expression — see [idiomatic-c.md](idiomatic-c.md)'s ISA-gated-paths
   section. **A machine without the ISA must still produce the same node count**,
-  which is exactly what the gcc lane in [10-tooling-ci.md](10-tooling-ci.md) and
+  which is exactly what the gcc lane in [tooling-ci.md](tooling-ci.md) and
   `./build.sh simd-scalar`/`arch-determinism` exist to catch, exceptions included.
 - **The affine accumulation is exact int32 with no rounding and no overflow**,
   because inputs are bounded by 127 and weights by 128. Integer addition therefore
@@ -427,7 +427,7 @@ takes the fallback path unchanged.
 
 The result is bounded away from the tablebase range. The bound is derived from
 `VALUE_MATE` and `MAX_PLY` rather than pinned as a literal, so it stays correct
-whatever the TB band is — see [06-platform.md](06-platform.md).
+whatever the TB band is — see [platform.md](platform.md).
 
 ### Range and the mate window
 
@@ -546,7 +546,7 @@ standalone `eval` must refresh from the board rather than inherit a search's dif
 The trace's exact bytes are pinned by the `eval` golden, which is derived **from
 the oracle** — see [`../tools/cases/eval.uci`](../tools/cases/eval.uci),
 [`../tools/GOLDEN_PROVENANCE.md`](../tools/GOLDEN_PROVENANCE.md) and
-[10-tooling-ci.md](10-tooling-ci.md). Because it is oracle-derived, regenerating it
+[tooling-ci.md](tooling-ci.md). Because it is oracle-derived, regenerating it
 from mcfish would convert a red gate into a recorded bug; regenerate it from the
 oracle or not at all.
 
@@ -561,7 +561,7 @@ oracle or not at all.
   [`../tools/upstream/UPSTREAM_BASE`](../tools/upstream/UPSTREAM_BASE) — the target,
   not merely a current total. What the anchor cannot prove is faithfulness off the
   fixed bench list; that is the per-position differential's job. See
-  [10-tooling-ci.md](10-tooling-ci.md).
+  [tooling-ci.md](tooling-ci.md).
 
 ## The gates
 
@@ -575,8 +575,8 @@ the rows below exist for that reason alone.
 | `simd-scalar` | that `simd.h`'s two implementations are value-identical | this page |
 | `net` / `net-fetch` | nothing — one reports where the net must be, the other fetches and sha256-verifies it | this page |
 | `test` | that each accumulator update path AGREES with a control, and separately that it RAN | this page |
-| `golden` | the `eval` trace, byte for byte, against a golden derived from the ORACLE | [07-shell.md](07-shell.md) |
-| `arch-determinism` | that the tiers, which now run different ALGORITHMS, agree on one node count | [08-idiomatic-c.md](08-idiomatic-c.md) |
+| `golden` | the `eval` trace, byte for byte, against a golden derived from the ORACLE | [shell.md](shell.md) |
+| `arch-determinism` | that the tiers, which now run different ALGORITHMS, agree on one node count | [idiomatic-c.md](idiomatic-c.md) |
 
 ### `./build.sh net-roundtrip`
 

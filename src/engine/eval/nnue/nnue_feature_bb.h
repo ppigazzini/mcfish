@@ -3,7 +3,7 @@
 //
 // The INVARIANT is self-containment. These are a deliberate re-implementation of
 // `bitboard.h` / `attacks.h`, not a call into them: the feature-index tables are built at
-// startup from this math (docs/08-idiomatic-c.md, "comptime becomes ... a runtime-built
+// startup from this math (docs/idiomatic-c.md, "comptime becomes ... a runtime-built
 // table"), and depending on `attacks_init` here would make the feature tables depend on
 // an init order nothing states. Every function is total over its declared domain and
 // reads no engine state.

@@ -18,7 +18,7 @@
 # opposite -- that the search was single-threaded and `Threads` accepted and ignored, so the
 # second session was an option-path test "until the search is actually driven across
 # workers". That day came: Lazy-SMP is wired and `Threads` builds a worker set
-# (docs/04-multithreading.md). The claim survived because nothing ran this script, which is
+# (docs/multithreading.md). The claim survived because nothing ran this script, which is
 # the whole argument for giving a tool a lane.
 #
 # Usage: valgrind.sh <binary>   (run from the dir holding the net: mcfish -> resources/)

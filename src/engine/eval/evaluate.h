@@ -4,7 +4,7 @@
 // THE INVARIANT IS THAT `evaluate` RETURNS THE NNUE SCORE WHENEVER A NET IS
 // RESIDENT. The classical material + piece-square term below it is a fallback for
 // a netless run only — it is scaffolding to be deleted, not a second evaluation to
-// tune (docs/03-engine-eval.md, AGENTS.md).
+// tune (docs/engine-eval.md, AGENTS.md).
 //
 // The NNUE accumulator is incremental, so this module also owns the per-ply stack
 // and the refresh cache, and the search MUST bracket every make/unmake with

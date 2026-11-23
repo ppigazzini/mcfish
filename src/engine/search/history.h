@@ -374,7 +374,7 @@ static inline CorrectionBundle *corr_row(Histories *h, Key key, Color us) {
 // Neither the key nor the field is a parameter now, so a call site holds nothing
 // to transpose, and the field types make the old shape a compile error even though
 // C leaves `corr_row` visible. What this does NOT close is stated in
-// docs/09-type-design.md: all four accessors share a signature, so they remain
+// docs/type-design.md: all four accessors share a signature, so they remain
 // swappable for each other, and only the bench signature catches that.
 static inline SharedStat *corr_pawn_entry(Histories *h, const StateInfo *st, Color us) {
     return &corr_row(h, st->pawn_key, us)->pawn.v;

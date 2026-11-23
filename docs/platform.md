@@ -4,12 +4,12 @@ Everything under [`src/platform/`](../src/platform): the OS runtime the engine s
 on.
 
 Audience: platform contributors. The zone's place in the dependency stack is in
-[00-architecture.md](00-architecture.md).
+[architecture.md](architecture.md).
 
 Two of this zone's subsystems have their own page, because their integration
 lives in `src/engine/` rather than here: the thread pool, NUMA and the memory
-arenas in [04-multithreading.md](04-multithreading.md), and the Syzygy prober in
-[05-tablebases.md](05-tablebases.md). This page keeps the zone-wide facts — what
+arenas in [multithreading.md](multithreading.md), and the Syzygy prober in
+[tablebases.md](tablebases.md). This page keeps the zone-wide facts — what
 is wired, the clock, the feature-test macro and the engine→platform edge — and
 states each subsystem's shape only as far as the zone boundary.
 
@@ -163,7 +163,7 @@ upstream wraps them in `RelaxedAtomic` (`misc.h:337`), so `AtomicU64` is relaxed
 
 Driving the pool also fixes the shell's `stop` gap: nothing reads stdin while
 `go_line` is inside `search_go`, so `go infinite` does not return. See
-[07-shell.md](07-shell.md).
+[shell.md](shell.md).
 
 ### NUMA
 
@@ -181,7 +181,7 @@ every registered object to re-replicate**, and that notification is the whole
 point of the registry; skipping it is how a `NumaPolicy` change becomes a silent
 no-op. Nothing calls `numa_context_attach` today, though, so the registry is
 empty and the notification reaches nobody — the NNUE network is the object that
-should be in it. See [04-multithreading.md](04-multithreading.md) for what that
+should be in it. See [multithreading.md](multithreading.md) for what that
 costs.
 
 The topology is read from `/sys` rather than by linking libnuma, so the build keeps
@@ -274,7 +274,7 @@ The internal split is deliberate:
   the lazy mmap and the parse. `wdl.c` and `probe.c` import it and never the
   reverse, so neither side becomes a god-file. `registry_init` is not thread-safe
   and is not called concurrently; the two lazy maps are, through double-checked
-  locking — see [05-tablebases.md](05-tablebases.md).
+  locking — see [tablebases.md](tablebases.md).
 - [`wdl.c`](../src/platform/syzygy/wdl.c) is the WDL probe, including the capture
   recursion upstream calls `search` — which is what a WDL probe actually *is*,
   because the stored value is wrong for a position whose every legal move zeroes the
@@ -303,7 +303,7 @@ No gap is open here. The `d` command prints upstream's `Tablebases WDL:` /
 / blessed-loss branches of `map_score_dtz` and `probe_dtz` — reachable only at
 DTZ > 100, so only from 5-man tables — are driven by `./build.sh tb-cursed`, which
 `./build.sh tb-fetch 5` supplies the tables for. `./build.sh tb` itself runs on the
-3-man set; see [05-tablebases.md](05-tablebases.md) for why the 5-man leg is kept
+3-man set; see [tablebases.md](tablebases.md) for why the 5-man leg is kept
 out of `parity`.
 
 ## The clock
@@ -337,7 +337,7 @@ meaningful.** The origin is not the epoch and does not survive a reboot, so `now
 must never be used to timestamp anything, print a time of day, or seed anything.
 
 The engine reads no other clock. That single source is what makes the determinism
-argument in [02-engine-search.md](02-engine-search.md) tractable: there is exactly
+argument in [engine-search.md](engine-search.md) tractable: there is exactly
 one place nondeterminism enters, and the search's node-count checkpoint is the only
 thing that consults it inside the recursion.
 
@@ -372,7 +372,7 @@ backend means a second implementation file behind the same header, selected in
 
 `engine/` is supposed to include nothing outside `engine/`, and it still reaches
 into memory, the thread runtime, the pool and NUMA.
-[00-architecture.md](00-architecture.md) has the breakdown; this section is about
+[architecture.md](architecture.md) has the breakdown; this section is about
 what sees the edge. For its size, run the gate — the count is a number a gate
 computes, so it is not written down here.
 
@@ -426,11 +426,11 @@ here, and each is described on the page that owns the question it answers.
 
 | step | what it proves here | owned by |
 |---|---|---|
-| `engine-standalone` | the engine→platform edge, as a ratcheted count of undefined symbols — the only instrument that can see this boundary at all | [00-architecture.md](00-architecture.md) |
-| `tsan` | that the pool's spawn, dispatch, wait and join carry the happens-before edges `thread.c` claims | [04-multithreading.md](04-multithreading.md) |
-| `tb`, `malformed`, `fuzz-tb` | the Syzygy subsystem: discovery, the probe path, and the parse against untrusted bytes | [05-tablebases.md](05-tablebases.md) |
-| `test` | the memory and clock modules, and the arena the accumulator is built on | [10-tooling-ci.md](10-tooling-ci.md) |
-| `tools-smoke` | that `tools/nps_threads.sh` still prints the `r(T)/r(1)` interface its callers read — the thread-measuring tool no gate invokes. `tools/valgrind.sh` needs no smoke: the blocking lane's `valgrind` job drives it | [10-tooling-ci.md](10-tooling-ci.md) |
+| `engine-standalone` | the engine→platform edge, as a ratcheted count of undefined symbols — the only instrument that can see this boundary at all | [architecture.md](architecture.md) |
+| `tsan` | that the pool's spawn, dispatch, wait and join carry the happens-before edges `thread.c` claims | [multithreading.md](multithreading.md) |
+| `tb`, `malformed`, `fuzz-tb` | the Syzygy subsystem: discovery, the probe path, and the parse against untrusted bytes | [tablebases.md](tablebases.md) |
+| `test` | the memory and clock modules, and the arena the accumulator is built on | [tooling-ci.md](tooling-ci.md) |
+| `tools-smoke` | that `tools/nps_threads.sh` still prints the `r(T)/r(1)` interface its callers read — the thread-measuring tool no gate invokes. `tools/valgrind.sh` needs no smoke: the blocking lane's `valgrind` job drives it | [tooling-ci.md](tooling-ci.md) |
 
 Two of this zone's claims are held by no gate and must be checked by reading. The
 monotonic clock's choice of `CLOCK_MONOTONIC` over `CLOCK_REALTIME` is invisible to

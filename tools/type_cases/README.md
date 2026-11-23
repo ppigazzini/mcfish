@@ -1,4 +1,4 @@
-# Type cases: the claims in docs/09-type-design.md, written as code
+# Type cases: the claims in docs/type-design.md, written as code
 
 Each file is a translation unit compiled with the tree's OWN flags, `-fsyntax-only`.
 The suffix is the expectation:
