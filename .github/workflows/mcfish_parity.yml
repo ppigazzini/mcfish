@@ -51,6 +51,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # clang-format output is version-dependent: a different major version reflows code
       # that was clean under another one, which would make this gate flap for reasons
@@ -67,6 +69,27 @@ jobs:
           clang-format --version
 
       - run: ./build.sh fmt
+
+  # The workflows themselves, statically: template injection, persisted credentials,
+  # over-broad permissions and unpinned actions. The token lets zizmor resolve each pinned
+  # SHA against its tag comment (the online audits) beside the static ones. The version is
+  # pinned, as ../valgebra pins it, so a zizmor release cannot redden a tree nothing changed.
+  zizmor:
+    name: Workflow audit (zizmor)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.13.9"
+          enable-cache: false
+      - name: Audit the workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uvx zizmor==1.33.0 .github/
 
   # The gate proper. `./build.sh parity` is the aggregate a developer must run before
   # calling any byte-changing edit done, so CI runs exactly that and nothing else:
@@ -90,6 +113,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # clang + clang-format from apt.llvm.org: `parity` runs the fmt gate internally, so
       # this job needs both even though the fmt job above also covers formatting.
@@ -250,6 +275,8 @@ jobs:
       UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install clang ${{ env.CLANG_VERSION }}
         run: |
@@ -351,6 +378,8 @@ jobs:
             rejects: ''
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Install explicitly rather than trusting the image to carry both.
       - name: Install ${{ matrix.cc }}
@@ -429,6 +458,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install clang ${{ env.CLANG_VERSION }}
         run: |
@@ -464,6 +495,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install clang ${{ env.CLANG_VERSION }} and valgrind
         run: |
