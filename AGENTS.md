@@ -3,7 +3,7 @@
 mcfish is a **C23 port of Stockfish**, built with clang by `./build.sh`. The goal
 is a **bit-exact 1:1 clone** — same bench signature, NNUE, Syzygy, Lazy-SMP.
 
-Read [docs/](docs/README.md) for the architecture, and
+Read [docs/](docs/index.md) for the architecture, and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow. This file is only what an agent
 gets wrong before it has read either.
 
@@ -329,7 +329,7 @@ outside it is unwired, not deferred:
   0's own values at `Threads 1`. Still open: the NNUE network does not register
   itself for NUMA replication, so a policy change re-partitions the threads without
   re-replicating any weights, and no unit test constructs a `SearchWorker`. See
-  [docs/04-multithreading.md](docs/04-multithreading.md).
+  [docs/multithreading.md](docs/multithreading.md).
 - **The option model** — wired, and no longer a subset: the `uci` handshake
   advertises exactly upstream's option set, which the `golden` gate pins byte for
   byte, and `engine.c` points the search's seam at the live table
@@ -393,10 +393,10 @@ that changes nothing, fix it and say nothing — a running tally of your own mis
 buries the correction that mattered.
 
 **Match a document's length to what it must carry**, whether it is a page in
-[docs/](docs/README.md) or a report in the reply. Cover the substance and stop: no
+[docs/](docs/index.md) or a report in the reply. Cover the substance and stop: no
 restated summary, no recap of what a gate prints, no next-steps list nobody asked
 for. Length is not thoroughness; it is where rot hides
-([docs/13-writing.md](docs/13-writing.md)).
+([docs/writing.md](docs/writing.md)).
 
 ## Setup
 
@@ -428,8 +428,8 @@ nothing — never report it as a pass.
 
 ## Performance work
 
-Read [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) (porting patterns,
-measurement discipline) and [docs/11-performance.md](docs/11-performance.md)
+Read [docs/idiomatic-c.md](docs/idiomatic-c.md) (porting patterns,
+measurement discipline) and [docs/performance.md](docs/performance.md)
 (the instruments and their blind spots) before proposing any optimisation —
 they carry every rule this tree has paid to learn, and each perf commit carries
 its measured evidence in its body: **the commit log is the ledger; search it
@@ -502,7 +502,7 @@ or in zfish's fleet campaigns:
   need their predecessors to apply — and the three that could each read a
   different number from the one they pay assembled, by up to 1% of the effect.
   Re-measure the assembled stack, and re-run the gates on it. See
-  [docs/11-performance.md](docs/11-performance.md).
+  [docs/performance.md](docs/performance.md).
 - **Charter a fleet only above the bar in *Working here*** — independent, sizeable
   tracks. Below it one agent working end to end beats three coordinating, and a fleet
   spawned to double-check a finished change buys nothing.
@@ -535,11 +535,11 @@ or in zfish's fleet campaigns:
 |---|---|
 | `signature-update` / `golden-update` on a **red** gate launders a bug into the anchor. Fix the code, then re-derive. | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | `tools/perft.table` is **not** a golden. Those counts are facts about chess; a mismatch is always a movegen bug. | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| "Improving" on upstream. A cleaner formulation that moves a rounding boundary moves the node count. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
-| Integer semantics differ across C++/C at the edges, and upstream relies on wrapping in places. | [docs/08-idiomatic-c.md](docs/08-idiomatic-c.md) |
-| Comments are **imperative mood**; never pin a number a gate computes. | [docs/README.md](docs/README.md) |
-| `perf-budget` measures the EXISTING `build/mcfish`. The stamp rebuild and the tier-keyed budget close the old fake-2x-regression trap between tiers; what is left is a rebuild landing inside the timed step, so run `./build.sh build` first anyway. | [docs/11-performance.md](docs/11-performance.md) |
-| `tools/perf_callgrind.sh` prepends `bench` itself — pass only the bench ARGS, or it profiles a startup-only error run that looks plausible. | [docs/11-performance.md](docs/11-performance.md) |
+| "Improving" on upstream. A cleaner formulation that moves a rounding boundary moves the node count. | [docs/idiomatic-c.md](docs/idiomatic-c.md) |
+| Integer semantics differ across C++/C at the edges, and upstream relies on wrapping in places. | [docs/idiomatic-c.md](docs/idiomatic-c.md) |
+| Comments are **imperative mood**; never pin a number a gate computes. | [docs/writing.md](docs/writing.md) |
+| `perf-budget` measures the EXISTING `build/mcfish`. The stamp rebuild and the tier-keyed budget close the old fake-2x-regression trap between tiers; what is left is a rebuild landing inside the timed step, so run `./build.sh build` first anyway. | [docs/performance.md](docs/performance.md) |
+| `tools/perf_callgrind.sh` prepends `bench` itself — pass only the bench ARGS, or it profiles a startup-only error run that looks plausible. | [docs/performance.md](docs/performance.md) |
 
 ## Commits
 

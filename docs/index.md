@@ -23,7 +23,7 @@ covered by **no gate** — not `signature`, not `perft`, not `golden`, not `test
 
 No file is in that state today — `SOURCES` and `ENGINE_SOURCES` between them
 enumerate every `.c` in the tree. That has not always been true, so treat it as a
-claim to re-check ([00-architecture.md](00-architecture.md) gives the one-line
+claim to re-check ([architecture.md](architecture.md) gives the one-line
 command) rather than as a standing property.
 
 A second failure mode sits one step past it and reads the same from the outside: a
@@ -59,21 +59,21 @@ written relative to Stockfish's `src/`, as *upstream `nnue/network.cpp`*.
 
 | Document | Audience | Description |
 |---|---|---|
-| [00-architecture.md](00-architecture.md) | All contributors | The three zones, the dependency direction, how `zone-check` enforces it at link time, the composition root and its init order, what is wired into the binary and what is not, how one search flows |
-| [01-engine-board.md](01-engine-board.md) | Engine contributors | Types and the 16-bit move encoding, the bitboard leaf and the magic slider tables, Position/StateInfo, Zobrist, the threat deltas, FEN, move generation and legality |
-| [02-engine-search.md](02-engine-search.md) | Engine contributors | Iterative deepening, alpha-beta and qsearch, the staged move picker and the history block, the pruning set, the cluster transposition table, time management and determinism, the wired search decomposition |
-| [03-engine-eval.md](03-engine-eval.md) | Engine contributors | The NNUE evaluation, the accumulator bracket every make/unmake owes it, the net load path, and the classical fallback that is still scaffolding |
-| [04-multithreading.md](04-multithreading.md) | Engine and platform contributors | Lazy-SMP as upstream runs it, the pool and worker lifecycle, shared versus per-worker state, memory ordering, NUMA — all of it compiled, gated and driven by the search, one worker set over one root |
-| [05-tablebases.md](05-tablebases.md) | Engine and platform contributors | The Syzygy prober end to end: the file format, loading and its concurrency, the WDL and DTZ probes, the in-search and root integrations, the PV extension, the four options, and what the `tb` gate does and does not cover |
-| [06-platform.md](06-platform.md) | Platform contributors | `src/platform/`: what is wired, the monotonic clock, the feature-test macro and the engine→platform edge; the thread/NUMA and Syzygy subsystems have their own pages above |
-| [07-shell.md](07-shell.md) | Shell contributors | `main` as the composition root, every UCI command the live loop handles, the option tables, the injected output sink, bench |
-| [08-idiomatic-c.md](08-idiomatic-c.md) | Hot-path and build contributors | The C23 patterns this repo commits to, the warning set, why there is no build system, the recurring porting patterns, the spellings that measured a win here, the measurement discipline |
-| [09-type-design.md](09-type-design.md) | Engine and platform contributors | What each quantity denotes, the two instruments C23 gives and why they differ in strength, the five maps, why there is no `Key` or `Value` type, the cost rule, and what a compile error does and does not stop |
-| [10-tooling-ci.md](10-tooling-ci.md) | All developers | Every `./build.sh` step and what it gates, the source arrays that decide what is gated at all, the golden-diff harness and its normalization, fact tables versus goldens, the anchor versus the finish line, the CI lanes |
-| [11-performance.md](11-performance.md) | Anyone measuring a refactor or an optimisation | The ten local-only instruments and the order to reach for them in, the two corrections without which the instruction axis lies, where this port stands against the golden on the spine, what an Elo cell can and cannot resolve, and the one axis that measures more than a single thread |
-| [12-references.md](12-references.md) | All developers | Stockfish, chess-domain, C23, Syzygy and NNUE references |
-| [13-writing.md](13-writing.md) | Anyone editing these docs | How the set is organised, the writing rules, the hot/cold map, code-comment style, and what `docs-lint` cannot check |
-| [14-glossary.md](14-glossary.md) | All contributors | Every word this set uses without defining it, in four tiers that must not be confused: upstream's vocabulary and the symbol that carries it here, this repository's own, the words that mean two things, and the testing field's |
+| [architecture.md](architecture.md) | All contributors | The three zones, the dependency direction, how `zone-check` enforces it at link time, the composition root and its init order, what is wired into the binary and what is not, how one search flows |
+| [engine-board.md](engine-board.md) | Engine contributors | Types and the 16-bit move encoding, the bitboard leaf and the magic slider tables, Position/StateInfo, Zobrist, the threat deltas, FEN, move generation and legality |
+| [engine-search.md](engine-search.md) | Engine contributors | Iterative deepening, alpha-beta and qsearch, the staged move picker and the history block, the pruning set, the cluster transposition table, time management and determinism, the wired search decomposition |
+| [engine-eval.md](engine-eval.md) | Engine contributors | The NNUE evaluation, the accumulator bracket every make/unmake owes it, the net load path, and the classical fallback that is still scaffolding |
+| [multithreading.md](multithreading.md) | Engine and platform contributors | Lazy-SMP as upstream runs it, the pool and worker lifecycle, shared versus per-worker state, memory ordering, NUMA — all of it compiled, gated and driven by the search, one worker set over one root |
+| [tablebases.md](tablebases.md) | Engine and platform contributors | The Syzygy prober end to end: the file format, loading and its concurrency, the WDL and DTZ probes, the in-search and root integrations, the PV extension, the four options, and what the `tb` gate does and does not cover |
+| [platform.md](platform.md) | Platform contributors | `src/platform/`: what is wired, the monotonic clock, the feature-test macro and the engine→platform edge; the thread/NUMA and Syzygy subsystems have their own pages above |
+| [shell.md](shell.md) | Shell contributors | `main` as the composition root, every UCI command the live loop handles, the option tables, the injected output sink, bench |
+| [idiomatic-c.md](idiomatic-c.md) | Hot-path and build contributors | The C23 patterns this repo commits to, the warning set, why there is no build system, the recurring porting patterns, the spellings that measured a win here, the measurement discipline |
+| [type-design.md](type-design.md) | Engine and platform contributors | What each quantity denotes, the two instruments C23 gives and why they differ in strength, the five maps, why there is no `Key` or `Value` type, the cost rule, and what a compile error does and does not stop |
+| [tooling-ci.md](tooling-ci.md) | All developers | Every `./build.sh` step and what it gates, the source arrays that decide what is gated at all, the golden-diff harness and its normalization, fact tables versus goldens, the anchor versus the finish line, the CI lanes |
+| [performance.md](performance.md) | Anyone measuring a refactor or an optimisation | The ten local-only instruments and the order to reach for them in, the two corrections without which the instruction axis lies, where this port stands against the golden on the spine, what an Elo cell can and cannot resolve, and the one axis that measures more than a single thread |
+| [references.md](references.md) | All developers | Stockfish, chess-domain, C23, Syzygy and NNUE references |
+| [writing.md](writing.md) | Anyone editing these docs | How the set is organised, the writing rules, the hot/cold map, code-comment style, and what `docs-lint` cannot check |
+| [glossary.md](glossary.md) | All contributors | Every word this set uses without defining it, in four tiers that must not be confused: upstream's vocabulary and the symbol that carries it here, this repository's own, the words that mean two things, and the testing field's |
 
 ## Quick start
 
@@ -96,7 +96,7 @@ build never depends on the network. Every `./build.sh` step that runs the engine
 runs it **from `resources/`**, which is how the file is found: the engine itself
 searches upstream's three candidates and no others, and the working directory is
 the second. Without a net the engine still runs, on the classical fallback
-described in [03-engine-eval.md](03-engine-eval.md), and says so through
+described in [engine-eval.md](engine-eval.md), and says so through
 `info string`.
 
 `./build.sh parity` is what to run before calling a byte-changing change done. It
@@ -170,9 +170,9 @@ a step is described **once** and reachable from everywhere it matters — a read
 changing move generation finds `perft` on the movegen page rather than by
 grepping the tooling page.
 
-[10-tooling-ci.md](10-tooling-ci.md)'s section is the whole list, which is why it
+[tooling-ci.md](tooling-ci.md)'s section is the whole list, which is why it
 opens that page instead of ending it: the build script is that page's subject.
-[12-references.md](12-references.md) and [14-glossary.md](14-glossary.md) hold no
+[references.md](references.md) and [glossary.md](glossary.md) hold no
 gates, and `tools/docs_lint.sh` carries the two-page exemption rather than
 letting them ship an empty table.
 
@@ -180,4 +180,4 @@ letting them ship an empty table.
 section, a step in no page's table, a row pointing at a page that does not carry
 the step, and an exemption that has gone stale. **It cannot tell you a sentence
 has become false**, which is the half that decides whether this set is worth
-reading; [13-writing.md](13-writing.md) is how that half is bought.
+reading; [writing.md](writing.md) is how that half is bought.

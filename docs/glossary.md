@@ -6,7 +6,7 @@ that must not be confused:
 - **Section 1 is Stockfish's vocabulary.** Upstream owns the word; the entry says
   which symbol carries it here. It does not teach the concept — a page in this
   set describes what this codebase does, and the domain reference is a link in
-  [12-references.md](12-references.md).
+  [references.md](references.md).
 - **Section 2 is this repository's vocabulary.** None of it appears in the
   Stockfish source, and upstream is not obliged to agree with any of it.
 - **Section 3 is the words that mean two things here.** Each entry is a
@@ -25,9 +25,9 @@ a gate computes.
 
 **What this page does not cover.** It defines terms; it does not explain
 subsystems. For how one search flows, see
-[00-architecture.md](00-architecture.md); for what a step proves, see
-[10-tooling-ci.md](10-tooling-ci.md); for what a quantity denotes and why so few
-of them are types, see [09-type-design.md](09-type-design.md).
+[architecture.md](architecture.md); for what a step proves, see
+[tooling-ci.md](tooling-ci.md); for what a quantity denotes and why so few
+of them are types, see [type-design.md](type-design.md).
 
 ## 1. Upstream's word, and what carries it here
 
@@ -39,11 +39,11 @@ definitions do.
 | **bench** | the fixed script the anchor is a fact about: `BenchDefaults` in [`../src/shell/bench_positions.c`](../src/shell/bench_positions.c), which is upstream's `Defaults` entry for entry, composed into a session by `benchmark_run`. Changing an entry is a behaviour change that cannot be compared against upstream afterwards |
 | **the bench signature** | the node total that run prints, asserted by `./build.sh signature`. The *number* lives in `tools/signature.golden` and in no page |
 | **node** | one execution of a node body — `search_node` and its two specializations for alpha-beta, `qsearch_node_pv` and `qsearch_node_nonpv` for quiescence. `ctx_nodes` is the count `go nodes` stops on and the `currmove` threshold reads. **Not** a NUMA node; see Section 3 |
-| **`Value`, `Key`** | a score and a Zobrist key, each a plain typedef rather than a distinct type. That is a decision with measurements behind it, not an omission: [09-type-design.md](09-type-design.md) says why a wrapper costs more than it catches |
+| **`Value`, `Key`** | a score and a Zobrist key, each a plain typedef rather than a distinct type. That is a decision with measurements behind it, not an omission: [type-design.md](type-design.md) says why a wrapper costs more than it catches |
 | **depth** | a plain `int`, for the same reason: a depth-scaled product feeds six different codomains, so a type that carries its unit through one of them breaks the other five |
 | **the root, PV, MultiPV** | the root move list is `RootMove` records held in a `RootMoveList`; `search_emit_pv` prints one `info` line per PV line, and `MultiPV` is how many it has |
 | **currmove** | `info depth D currmove M currmovenumber N`, the root move now being searched. Emitted from the root node body only past `ID_NODES_LIMIT_OUTPUT` nodes and only by the main thread, which is why no bench and no golden reaches it |
-| **the accumulator** | the incremental half of the NNUE evaluation, in [`../src/engine/eval/nnue/nnue_accumulator.h`](../src/engine/eval/nnue/nnue_accumulator.h). Slot `i` of its stack holds the position at ply `i`, and every make/unmake owes it a bracket — [03-engine-eval.md](03-engine-eval.md) owns the invariant |
+| **the accumulator** | the incremental half of the NNUE evaluation, in [`../src/engine/eval/nnue/nnue_accumulator.h`](../src/engine/eval/nnue/nnue_accumulator.h). Slot `i` of its stack holds the position at ply `i`, and every make/unmake owes it a bracket — [engine-eval.md](engine-eval.md) owns the invariant |
 | **the feature transformer** | the first NNUE layer, stored as one byte blob. Its region offsets are derived twice — `NNUE_FT_*_OFF` where the parse writes, `NNUE_FT_*_OFFSET` where the accessors read — and a static assertion per region is what keeps the two spellings one layout |
 | **WDL, DTZ** | the two Syzygy probe results — win/draw/loss, and distance to zeroing. The prober is `src/platform/syzygy/`, and the `d` command prints both once a `SyzygyPath` covers the position |
 | **cursed win, blessed loss** | a win or loss whose DTZ exceeds the 50-move counter, so the result is a draw in play. Only a 5-man table reaches them, which is why `./build.sh tb-cursed` is a separate step |
@@ -66,7 +66,7 @@ definition, the script wins.
 | term | what it is |
 |---|---|
 | **zone** | one of the three directories the dependency rule is stated over: `src/engine/` (the chess library), `src/platform/` (the OS runtime), `src/shell/` (the process). `./build.sh zone-check` enforces the direction at **link** time by building engine + platform against a stub `main` |
-| **wired, unwired** | in [`../build.sh`](../build.sh)'s `SOURCES` array, or not in it. A `.c` outside both `SOURCES` and `ENGINE_SOURCES` compiles nowhere and is covered by no gate — that is the one structural fact [README.md](README.md) opens with. "Unwired" is a gap being named as a gap, never a design |
+| **wired, unwired** | in [`../build.sh`](../build.sh)'s `SOURCES` array, or not in it. A `.c` outside both `SOURCES` and `ENGINE_SOURCES` compiles nowhere and is covered by no gate — that is the one structural fact [index.md](index.md) opens with. "Unwired" is a gap being named as a gap, never a design |
 | **gate** | a `./build.sh` step that **asserts**, and fails non-zero when the assertion breaks. A step that only builds, measures or re-derives is not one, and is listed with its reason in `LANE_EXCUSED` so `lane-coverage` can tell the two apart. A gate whose tool is missing exits 127 and is skipped, which is not a pass |
 | **lane** | one independently driven run. Usually a CI job under [`../.github/workflows`](../.github/workflows) — `lane-coverage` holds every dispatched step to being in a workflow, in `parity`, or excused — and also one target inside a step that drives several, as `fuzz-tb` drives a parse lane and a whole-file lane. A SIMD lane is a different word; see Section 3 |
 | **the golden** | `../Stockfish`, the tree that defines correct behaviour. Also a `tools/*.golden` file, which is a different thing entirely — Section 3 |
@@ -123,7 +123,7 @@ describe checks that are worse than absent.
 | **characterization test** | pins *current* behaviour, and is explicitly not a correctness claim | every `tools/*.golden`, which is why one re-derived from mcfish rather than from the oracle proves only that mcfish still agrees with itself |
 | **metamorphic relation** | a property relating two runs, rather than a pinned value | `net-roundtrip`: write the resident net out, and require the bytes back. `simd-scalar`: two implementations of the same kernel, one anchor |
 | **implicit oracle** | needs no reference, because some outcomes are wrong on their face | ASan and UBSan on the `test` step, and the fuzz steps, where the finding is the crash |
-| **mutation testing** | inject the defect, and require the check to go red | `negative-control` is the automated form, one mutant per gate; the "seen to fail" table in a gate's commit body is the by-hand one, and [09-type-design.md](09-type-design.md) states it as a step of adding a type |
+| **mutation testing** | inject the defect, and require the check to go red | `negative-control` is the automated form, one mutant per gate; the "seen to fail" table in a gate's commit body is the by-hand one, and [type-design.md](type-design.md) states it as a step of adding a type |
 | **lost test** | a test that exists and is in no suite the build runs | a `.c` in neither `SOURCES` array, and a `.uci` case in no property row. Both have their own gate here for exactly this reason |
 | **false pass** | a run that passed because it compared **less**, not because more was right | the empty-corpus, blank-side and rig guards. A gate that reports OK over nothing reads exactly like one that checked everything |
 | **negative control** | a run against the **defective** tree that must show the defect, proving the check can fail at all | `./build.sh negative-control`, which mutates the engine once per gate, requires that gate to exit non-zero, then restores and requires it to pass. A gate that has never fired is not a gate |

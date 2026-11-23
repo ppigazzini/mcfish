@@ -8,17 +8,17 @@ Audience: anyone editing these docs.
 
 ## The set
 
-`README.md` is the index — GitHub renders it for the folder, so it is what a
-reader lands on. The rest are `00-`…`14-`, numbered by **reading
-order**, not importance: a contributor works down from the architecture into a
-zone. The prefix is the only ordinal, and the last page is a lookup rather than a
-stop on that walk: [14-glossary.md](14-glossary.md) defines the words the other
-pages use without pausing on them.
+`index.md` is the index, the page a reader lands on. Every other page is named
+for what it holds, and the order a reader meets them in is the index table's
+alone — **reading order**, not importance: a contributor works down from the
+architecture into a zone. The last row is a lookup rather than a stop on that
+walk: [glossary.md](glossary.md) defines the words the other pages use without
+pausing on them.
 
 Each page owns one subsystem and names its **audience** in the index table. A page
 describes **what this codebase does** — not what upstream does, not what a chess
 engine does in general. Anything a reader could get from the Chess Programming
-Wiki belongs in [12-references.md](12-references.md) as a link.
+Wiki belongs in [references.md](references.md) as a link.
 
 ### Naming a module that does not exist here yet
 
@@ -146,21 +146,21 @@ who broke it.
 
 | page | owns | temperature |
 | --- | --- | --- |
-| [00-architecture.md](00-architecture.md) | the three zones, the zone rule, the composition root, what is in the build | hot |
-| [01-engine-board.md](01-engine-board.md) | `src/engine/board/` | hot |
-| [02-engine-search.md](02-engine-search.md) | `src/engine/search/` | hot — the decomposition is where per-node work is tuned |
-| [03-engine-eval.md](03-engine-eval.md) | `src/engine/eval/` | hot — the classical fallback under NNUE is scaffolding awaiting deletion |
-| [04-multithreading.md](04-multithreading.md) | Lazy-SMP, the pool, per-worker state, NUMA | hot — NUMA net replication is still open |
-| [05-tablebases.md](05-tablebases.md) | the Syzygy prober and its gates | warm — the prober is wired and gated; the open items are coverage, not code |
-| [06-platform.md](06-platform.md) | `src/platform/` | hot — the engine→platform edge moves as seams land |
-| [07-shell.md](07-shell.md) | `src/shell/` | hot — `engine.c` owns the session, `uci.c` the transport over it |
-| [08-idiomatic-c.md](08-idiomatic-c.md) | the C23 patterns, the porting patterns, the measurement discipline | cold |
-| [09-type-design.md](09-type-design.md) | what each quantity denotes, and which of them are types | cold — the refutations outlive the code they were measured on |
-| [10-tooling-ci.md](10-tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
-| [11-performance.md](11-performance.md) | the nine instruments, and where this port stands against the golden | hot — a standing dies to the next sync |
-| [12-references.md](12-references.md) | external links | cold |
+| [architecture.md](architecture.md) | the three zones, the zone rule, the composition root, what is in the build | hot |
+| [engine-board.md](engine-board.md) | `src/engine/board/` | hot |
+| [engine-search.md](engine-search.md) | `src/engine/search/` | hot — the decomposition is where per-node work is tuned |
+| [engine-eval.md](engine-eval.md) | `src/engine/eval/` | hot — the classical fallback under NNUE is scaffolding awaiting deletion |
+| [multithreading.md](multithreading.md) | Lazy-SMP, the pool, per-worker state, NUMA | hot — NUMA net replication is still open |
+| [tablebases.md](tablebases.md) | the Syzygy prober and its gates | warm — the prober is wired and gated; the open items are coverage, not code |
+| [platform.md](platform.md) | `src/platform/` | hot — the engine→platform edge moves as seams land |
+| [shell.md](shell.md) | `src/shell/` | hot — `engine.c` owns the session, `uci.c` the transport over it |
+| [idiomatic-c.md](idiomatic-c.md) | the C23 patterns, the porting patterns, the measurement discipline | cold |
+| [type-design.md](type-design.md) | what each quantity denotes, and which of them are types | cold — the refutations outlive the code they were measured on |
+| [tooling-ci.md](tooling-ci.md) | `build.sh` steps, `tools/`, `.github/workflows/` | hot |
+| [performance.md](performance.md) | the nine instruments, and where this port stands against the golden | hot — a standing dies to the next sync |
+| [references.md](references.md) | external links | cold |
 | this page | the rules | cold |
-| [14-glossary.md](14-glossary.md) | the words, and which tier each belongs to | warm — an entry names an owner, so a rename dates it |
+| [glossary.md](glossary.md) | the words, and which tier each belongs to | warm — an entry names an owner, so a rename dates it |
 
 Cold does not mean unowned. It means the claim outlives a release, so when it *is*
 wrong it has usually been wrong for a long time.
@@ -205,7 +205,7 @@ whenever the shape of the code came from it.
 **Keep the integer-semantics comments.** Where a computation relies on wrapping,
 on a truncation, or on a conversion boundary, that note is the whole reason the
 line looks the way it does. C and C++ differ at exactly those edges. See
-[08-idiomatic-c.md](08-idiomatic-c.md).
+[idiomatic-c.md](idiomatic-c.md).
 
 **No history, no meta.** Not "was a stub", not "changed in M3", not "the following
 block does". A comment describes the code as it is, to someone who has never seen
@@ -276,7 +276,7 @@ Three steps decide prose rather than code, and all three are this page's subject
 |---|---|---|
 | `docs-lint` | the mechanical half of documentation rot: links, named paths, a quoted signature, a symbol that no longer exists, and a step no page mentions | this page |
 | `cite-check` | that a cited commit SHA still names a commit a reader can REACH — ancestry, not existence | this page |
-| `shellcheck` | the gates themselves are sound shell, which is the language most of the claims on these pages are enforced in | [10-tooling-ci.md](10-tooling-ci.md) |
+| `shellcheck` | the gates themselves are sound shell, which is the language most of the claims on these pages are enforced in | [tooling-ci.md](tooling-ci.md) |
 
 ### `./build.sh docs-lint`
 
@@ -308,7 +308,7 @@ worktrees carry no claims it owns — and fails on:
 - **A `build.sh` step no tracked page mentions**, and its reverse: a shipped file
   that says `./build.sh <step>` for a step `build.sh` does not dispatch.
 - **A page under `docs/` with no `## The gates` section** — unless it is on the
-  two-entry gateless list (`12-references.md`, `14-glossary.md`), an exemption
+  two-entry gateless list (`references.md`, `glossary.md`), an exemption
   that expires in its own direction, since a listed page that grows a section is
   reported as a stale exemption. Also: a step in no page's
   gates table, or a row routing a step to a page whose own table does not name

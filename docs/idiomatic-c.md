@@ -5,7 +5,7 @@ build system, and — because it is the daily work of this repo — the recurrin
 patterns for expressing upstream's C++ constructs in C23.
 
 Audience: hot-path and build contributors. The gates that hold these rules are in
-[10-tooling-ci.md](10-tooling-ci.md).
+[tooling-ci.md](tooling-ci.md).
 
 **Path convention on this page.** A Stockfish golden is written relative to
 Stockfish's `src/`, as *upstream `nnue/network.cpp`*. That is not a path in this
@@ -49,7 +49,7 @@ than by reading a support table.
 | feature | verdict | why |
 |---|---|---|
 | `nullptr` | **used** | the null pointer with a type |
-| `enum : T` | **used** | the newtype tier; see [09-type-design.md](09-type-design.md) |
+| `enum : T` | **used** | the newtype tier; see [type-design.md](type-design.md) |
 | `constexpr` | **used** | every constant table; refuses a runtime initialiser |
 | `[[nodiscard]]` | **used** | enforced as an error, not advisory |
 | `[[maybe_unused]]` | **used** | the escape hatch for a fixed callback signature |
@@ -110,7 +110,7 @@ specification is already written down: **"identical to Stockfish"**. It is
 checked directly and end to end by `./build.sh upstream-parity` against a
 pristine upstream build, by `./build.sh perft` as a total check on move
 generation, by the property suite under ASan+UBSan, and by the signature and
-golden-diff gates — all described in [10-tooling-ci.md](10-tooling-ci.md). Those
+golden-diff gates — all described in [tooling-ci.md](tooling-ci.md). Those
 assert the property that actually matters here, over the whole engine rather than
 over leaf helpers.
 
@@ -127,7 +127,7 @@ type as `typedef enum : uint8_t` (or `: int8_t` for `Direction`), so the width i
   `MAX_PLY`) sizes the arrays it indexes, so the width and the bound are one fact
   written twice. Widen one without the other and the extra values are in range
   for the type and past the end of every table — see
-  [01-engine-board.md](01-engine-board.md).
+  [engine-board.md](engine-board.md).
 
 ### `sq_add` / `sq_sub`
 
@@ -197,7 +197,7 @@ in a configuration nobody builds.
 | `-Wconversion` / `-Wsign-conversion` | The load-bearing pair. The engine mixes `uint8_t` enums, `int` scores, `uint64_t` bitboards and `int16_t` history entries; an implicit narrowing between them is a wrong number, not a crash. This is also the flag that makes `sq_add` necessary. |
 | `-Wshadow` | The recursion nests `alphabeta` frames with near-identical local names; a shadowed `depth` or `alpha` reads correctly and searches the wrong tree. |
 | `-Wstrict-prototypes` / `-Wmissing-prototypes` | `()` is not `(void)` in a pre-C23 reading, and a function with no prototype in a header is a function nothing checks the arguments of. Together they force every non-`static` symbol to be declared in a header the caller includes. |
-| the five `-Werror=` promotions | What the type design in [09-type-design.md](09-type-design.md) actually rests on: a domain confusion is a *warning* by default in both compilers. `detect_enum_flags` probes each one per compiler, because an unrecognised `-Werror=` spelling is itself a hard error rather than a no-op. There is no suppression in the set — `-Wno-unused-parameter` was removed once `unused-parameter` became a promotion, and `[[maybe_unused]]` is the per-parameter escape where a seam signature fixes the shape. |
+| the five `-Werror=` promotions | What the type design in [type-design.md](type-design.md) actually rests on: a domain confusion is a *warning* by default in both compilers. `detect_enum_flags` probes each one per compiler, because an unrecognised `-Werror=` spelling is itself a hard error rather than a no-op. There is no suppression in the set — `-Wno-unused-parameter` was removed once `unused-parameter` became a promotion, and `[[maybe_unused]]` is the per-parameter escape where a seam signature fixes the shape. |
 
 The five promotions above ARE errors; everything else is a warning, and the gate
 for those is the human, the review, plus the gcc lane, whose `-Wconversion` and
@@ -259,7 +259,7 @@ one long specialized hot body is the shape the measurements chose.
 The mechanism, so the rule survives its author: link-time optimisation inlines
 across translation-unit boundaries under explicit size budgets and skips most
 other cross-module optimisations — a boundary is cheap for cold code and a real
-optimisation fence for hot code ([12-references.md](12-references.md),
+optimisation fence for hot code ([references.md](references.md),
 "Translation units, LTO and layout"). Keep per-file translation units and solve
 hot visibility with header bodies: a merged-unit build and global
 inline-threshold flags both trade this tree's selective control for a blunt
@@ -357,7 +357,7 @@ and there are three landing places, in order of preference:
 2. **A table filled at startup.** `bitboards_init` and `position_init` build
    `PseudoAttacks`, `BetweenBB`, `LineBB` and the Zobrist keys this way. The cost
    is the init-order constraint described in
-   [00-architecture.md](00-architecture.md) — the tables are zero, not garbage,
+   [architecture.md](architecture.md) — the tables are zero, not garbage,
    before the call, so the failure mode is a silent no-attacks board.
 3. **A macro**, only when neither of the above will do. A macro that evaluates an
    argument twice is a bug in a tree where arguments are `pop_lsb(&b)`.
@@ -819,7 +819,7 @@ is void by construction; removal is not.
 whose bottleneck is known — one dependency chain, one independent-ILP loop — and a
 counter that does not respond the way the bottleneck demands does not mean what its
 name says on this host. Two conclusions in this tree have died to this; see
-[11-performance.md](11-performance.md#a-counter-is-a-hypothesis-until-it-is-validated).
+[performance.md](performance.md#a-counter-is-a-hypothesis-until-it-is-validated).
 
 **Run the call-count parity test FIRST.** `perf_fingerprint.py compare --calls` is
 inlining-immune and answers "do we run Stockfish's algorithm?". On the spine it comes
@@ -893,9 +893,9 @@ node count — `arch-determinism`, which reads one per tier the host can execute
 | `fmt` / `fmt-fix` | formatting, via `clang-format --dry-run --Werror` over `src/` and `tests/`. Exits **127** when no `clang-format` is found | this page |
 | `arch-determinism` | that every tier the host can execute, though they run different ALGORITHMS, agrees on one node count, and that `native` picks upstream's tier | this page |
 | `pgo` | nothing — it is a build mode, not a gate | this page |
-| `simd-scalar` | that `simd.h`'s two implementations are value-identical, which is the scalar half of the same question `arch-determinism` asks across tiers | [03-engine-eval.md](03-engine-eval.md) |
-| `type-check` | that the `-Werror=` promotions in `CFLAGS_COMMON` still refuse what the type design says they refuse | [09-type-design.md](09-type-design.md) |
-| `perf-budget` | an instruction-count regression the node signature is blind to, keyed by the tier in the binary | [11-performance.md](11-performance.md) |
+| `simd-scalar` | that `simd.h`'s two implementations are value-identical, which is the scalar half of the same question `arch-determinism` asks across tiers | [engine-eval.md](engine-eval.md) |
+| `type-check` | that the `-Werror=` promotions in `CFLAGS_COMMON` still refuse what the type design says they refuse | [type-design.md](type-design.md) |
+| `perf-budget` | an instruction-count regression the node signature is blind to, keyed by the tier in the binary | [performance.md](performance.md) |
 
 `build` is one clang invocation over `SOURCES`, `-O3 -DNDEBUG`; `debug` is the same
 sources with ASan + UBSan and `-fno-sanitize-recover=undefined`; `pgo` instruments,

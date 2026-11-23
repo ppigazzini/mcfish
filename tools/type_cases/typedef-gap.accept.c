@@ -1,4 +1,4 @@
-// THE DOCUMENTED HOLE, PINNED FROM THE OTHER SIDE. docs/09-type-design.md's "What a
+// THE DOCUMENTED HOLE, PINNED FROM THE OTHER SIDE. docs/type-design.md's "What a
 // compile error does NOT stop" says: "`Key`, `Value`, `Bitboard`, `Move` and
 // `TimePoint` are aliases, not types. A `Key` where a `Bitboard` belongs compiles
 // silently." If this file ever stops compiling, that section has gone stale and the

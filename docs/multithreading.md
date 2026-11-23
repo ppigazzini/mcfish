@@ -4,8 +4,8 @@ Upstream searches with N workers sharing a transposition table and almost nothin
 else. mcfish runs it.
 
 Audience: engine and platform contributors. The zone layout is in
-[00-architecture.md](00-architecture.md); the OS primitives themselves are in
-[06-platform.md](06-platform.md).
+[architecture.md](architecture.md); the OS primitives themselves are in
+[platform.md](platform.md).
 
 ## Read this first: the pool is driven
 
@@ -132,7 +132,7 @@ odd-indexed worker reduces its null move one ply less (`odd_thread` in
 0 reads zero for both, which is why neither moves the one-thread anchor.
 
 `Histories` is split the way upstream splits it — see
-[02-engine-search.md](02-engine-search.md). The worker owns main, low-ply,
+[engine-search.md](engine-search.md). The worker owns main, low-ply,
 capture, continuation-correction and the tt-move counter; its node's
 `SharedHistories` bank owns the correction and pawn tables (sized by that node's
 thread count) and the continuation block.
@@ -235,7 +235,7 @@ joined by `:`, returning `nullptr` when nothing is bound. `src/shell/engine.c`'s
 `engine_report_threads` prints both before every `go`, `go perft` included — upstream emits them on the `go` line before it parses an argument — and only `bench`'s internal `go` suppresses them;
 and `engine_options.c`'s `on_numa_policy`/`thread_allocation_string` print the
 same pair from the `NumaPolicy`/`Threads` `setoption` callbacks — see
-[07-shell.md](07-shell.md). An invalid `NumaPolicy` value is refused with
+[shell.md](shell.md). An invalid `NumaPolicy` value is refused with
 upstream's wording verbatim (`"NumaPolicy: invalid value '%s', keeping previous
 config."`), and the previous topology stays installed.
 
@@ -266,7 +266,7 @@ a wider accumulator would move the ties and hand a different node to a thread.
   `worker_pool_numa_config_string` in above. It is dead code now, superseded
   rather than merely unwired; nothing should come to call it.
 - **`page_alloc_set` has no unit test.** `test_page_allocator` covers the two
-  allocator surfaces and the mapping count (06-platform.md), but not the hook
+  allocator surfaces and the mapping count (platform.md), but not the hook
   that replaces them.
 - **No test constructs a `SearchWorker`.** The pool churn test covers
   `thread.c` / `thread_pool.c` / `thread_runtime.c`; the worker set, the shared
@@ -301,11 +301,11 @@ value, because that is the only thing a one-threaded gate cannot fake.
 |---|---|---|
 | `tsan` | the pool: that spawning, dispatching, waiting on the condition variable and joining carry the happens-before edges they claim | this page |
 | `tsan-search` | races in the SEARCH, which `tsan` structurally cannot reach, at a real thread count it measures rather than assumes | this page |
-| `async-check` | that a `setoption` arriving during `go infinite` does not wedge on the thread that would release it | [07-shell.md](07-shell.md) |
-| `engine-standalone` | that the engine zone links with no platform object behind it, which is what makes the thread seam a seam | [00-architecture.md](00-architecture.md) |
+| `async-check` | that a `setoption` arriving during `go infinite` does not wedge on the thread that would release it | [shell.md](shell.md) |
+| `engine-standalone` | that the engine zone links with no platform object behind it, which is what makes the thread seam a seam | [architecture.md](architecture.md) |
 
 `tools/nps_threads.sh` is the only instrument in the tree that measures more than
-one thread, and it is not a gate — see [11-performance.md](11-performance.md). Read
+one thread, and it is not a gate — see [performance.md](performance.md). Read
 `r(T)/r(1)` from it and never the A/B column, which carries the single-thread speed
 difference inside it.
 
@@ -315,7 +315,7 @@ spawns real OS threads, hands them jobs, waits on a condition variable and joins
 them, and a missing broadcast or a `worker` slot written after the join is
 invisible to every other gate — a data race does not have to fire to be real. Since
 `go` runs even a one-thread search on worker 0's OS thread (see
-[07-shell.md](07-shell.md)), every search crosses this dispatch/join, so
+[shell.md](shell.md)), every search crosses this dispatch/join, so
 `tsan-search` exercises it at `Threads 1` as well. TSan instruments the
 happens-before edges instead of hoping the schedule lands badly.
 

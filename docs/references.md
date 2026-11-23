@@ -1,7 +1,7 @@
 # References
 
 Links only. Anything a reader could learn from one of these does not belong in
-the rest of this set — see [13-writing.md](13-writing.md).
+the rest of this set — see [writing.md](writing.md).
 
 Audience: all developers.
 
@@ -27,7 +27,7 @@ everything here.
   - [Transposition table][cpw-tt] · [Zobrist hashing][cpw-zobrist]
   - [Lazy SMP][cpw-lazysmp] — the threading model. The pool is ported into
   `src/platform/`, in the build and driven by the search: `Threads` above 1 runs
-  that many workers over one root. See [04-multithreading.md](04-multithreading.md).
+  that many workers over one root. See [multithreading.md](multithreading.md).
 - [UCI protocol specification][uci] — the wire protocol.
 - [Chess960 / Fischer Random][cpw-960] — the castling encoding the move format
   carries.
@@ -56,7 +56,7 @@ everything here.
 
 ## Type theory and type design
 
-Background for [09-type-design.md](09-type-design.md). Six groups, each here for
+Background for [type-design.md](type-design.md). Six groups, each here for
 one job; two of them are carried to mark a **limit** rather than to support a
 claim, and neither is a claim that this port implements anything.
 
@@ -125,7 +125,7 @@ this type will cost".
 ## Translation units, LTO and layout
 
 Background for the file-split rule in
-[08-idiomatic-c.md](08-idiomatic-c.md#split-files-at-the-cold-seam-keep-hot-bodies-in-headers):
+[idiomatic-c.md](idiomatic-c.md#split-files-at-the-cold-seam-keep-hot-bodies-in-headers):
 link-time optimisation inlines across translation-unit boundaries under explicit
 budgets and skips most other cross-module optimisations, which is why a hot body
 must live in a header while a cold one may split freely.
@@ -145,7 +145,7 @@ must live in a header while a cold one may split freely.
 ## Codegen: attributes, alignment and vectorisation
 
 Background for the levers in
-[08-idiomatic-c.md](08-idiomatic-c.md#the-c23-spellings-that-measured), which is
+[idiomatic-c.md](idiomatic-c.md#the-c23-spellings-that-measured), which is
 where this tree's own measurements live.
 
 - [clang attribute reference][clang-attr] — what `always_inline`, `noinline` and
@@ -160,7 +160,7 @@ where this tree's own measurements live.
   access blocks.
 - [Agner Fog's optimisation resources][agner] — measured on the hardware rather
   than taken from vendor documents, and kept current. How this tree reads them is
-  in [11-performance.md](11-performance.md#what-one-instruction-costs-which-no-column-here-weighs).
+  in [performance.md](performance.md#what-one-instruction-costs-which-no-column-here-weighs).
   - [Instruction tables][agner-tables] — macro-ops, latency and reciprocal
     throughput per instruction and operand width, AMD Zen 1–5 and Intel through
     Tiger Lake.

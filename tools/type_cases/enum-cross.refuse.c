@@ -1,4 +1,4 @@
-// A Direction reaching a Square. docs/09-type-design.md: "One domain enum reaching
+// A Direction reaching a Square. docs/type-design.md: "One domain enum reaching
 // another's parameter -- a `Direction` where a `Square` belongs, and the reverse."
 // REQUIRES: -Werror=enum-conversion
 #include "engine/board/types.h"

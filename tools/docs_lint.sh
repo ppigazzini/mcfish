@@ -10,7 +10,7 @@
 # claim still be wrong -- a real symbol placed in the wrong file, a list with the
 # wrong count or order, a flag described as absent from a build that sets it. None
 # of those is reachable from here. This gate buys the mechanical half so review can
-# spend its attention on the half that needs a reader. See docs/13-writing.md.
+# spend its attention on the half that needs a reader. See docs/writing.md.
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 2
@@ -23,7 +23,7 @@ cd "$(dirname "$0")/.." || exit 2
 # ../zfish was a third root and is NOT one any more. Nothing in these pages needed it
 # -- every claim resolves here or in the golden -- and carrying it meant a claim about
 # THIS tree could be answered by a sibling that happens to hold the same path. That
-# was live, not theoretical: docs/10 names `tools/instr_budget.golden`, which this
+# was live, not theoretical: tooling-ci.md names `tools/instr_budget.golden`, which this
 # repo gitignores as per-machine, and the gate was green on a box missing it purely
 # because ../zfish had run its own budget. A sibling is not evidence about this tree,
 # which is the rule AGENTS.md states for findings and holds for paths too.
@@ -48,7 +48,7 @@ fi
 
 # Strip what must not be scanned, in this order:
 #   1. fenced code blocks  -- shell transcripts and examples, not prose claims
-#   2. inline code spans   -- `[text](target)` in 13-writing.md is a SYNTAX EXAMPLE,
+#   2. inline code spans   -- `[text](target)` in writing.md is a SYNTAX EXAMPLE,
 #                             not a link; scanning it reports a dead link to "target"
 #   3. URLs                -- github.com/.../src/nnue is a link, not a local path
 strip_noise() {
@@ -69,7 +69,7 @@ code_spans() {
 }
 
 # The same, for CamelCase. `BenchFens` survived in TWO shipped files -- a header
-# comment and docs/07-shell.md -- describing a table that had not existed for weeks,
+# comment and docs/shell.md -- describing a table that had not existed for weeks,
 # because the scan above holds snake_case only and every type, table and struct name
 # in this tree is CamelCase. Require TWO capitalised words: one capitalised word is
 # prose far more often than an identifier ("Position", "Move", "Hash"), and upstream's
@@ -176,7 +176,7 @@ done
 # in these pages names a family rather than a thing that can be renamed out from
 # under the prose. It is also why this needs no separate directory rule.
 #
-# THE SENTINEL: docs/13-writing.md has to be able to SPELL a dead reference in order
+# THE SENTINEL: docs/writing.md has to be able to SPELL a dead reference in order
 # to rule on one. It uses the path below, which this repository guarantees never
 # exists -- and the guard under the loop enforces that guarantee, so the exemption
 # cannot quietly grow to cover a real file.
@@ -287,7 +287,7 @@ done
 
 # ------------------------------------------- every build.sh step is documented
 
-# The step table in 10-tooling-ci.md claims to say what each step proves, so a step
+# The step table in tooling-ci.md claims to say what each step proves, so a step
 # added without a row is a feature nobody reading the docs can find.
 #
 # GUARD THE EXTRACTION, NOT ONLY THE VERDICT. This reads build.sh as TEXT, keyed on
@@ -352,7 +352,7 @@ done
 #   b. a step in no page's section -- the step-coverage check above passes on an
 #      incidental mention anywhere in the prose, which is not the same as being
 #      routed to. That check is why `perft` could sit on the tooling page for a
-#      year while 01-engine-board.md explained the rows it drives;
+#      year while engine-board.md explained the rows it drives;
 #   c. a row pointing at a page that does not carry the step -- the pointer
 #      outlives its target, so it expires in the second direction the way every
 #      other held list here does.
@@ -360,7 +360,7 @@ done
 # Two pages hold no gates and say so rather than carrying an empty table. The list
 # expires BOTH ways: an exempt page that grows a section is a stale exemption, and
 # an exemption naming a page the tree no longer has fails.
-GATELESS_PAGES=(docs/12-references.md docs/14-glossary.md)
+GATELESS_PAGES=(docs/references.md docs/glossary.md)
 
 # Emit `step<TAB>page` per row of a page's gates table. Steps come from the FIRST
 # cell and the routing link from the LAST -- never from the whole row. A middle cell
@@ -377,7 +377,7 @@ gates_rows() {
       first = $2; last = $(NF - 1)
       np = 0
       s = last
-      while (match(s, /[0-9][0-9]-[a-z0-9-]+\.md/)) {
+      while (match(s, /[a-z][a-z0-9-]*\.md/)) {
         pp[++np] = substr(s, RSTART, RLENGTH); s = substr(s, RSTART + RLENGTH)
       }
       ng = 0
@@ -404,8 +404,9 @@ gateless() {
 
 all_rows=$(mktemp) || exit 2
 pages_with_section=0
-for pg in docs/[0-9]*.md; do
-  [[ -f $pg ]] || continue
+# The index is the table of the pages rather than one of them, so it carries no section.
+for pg in docs/*.md; do
+  [[ -f $pg && $pg != docs/index.md ]] || continue
   n=$(grep -c '^## The gates[[:space:]]*$' "$pg" || true)
   if gateless "$pg"; then
     [[ $n == 0 ]] || fail "$pg is on the gateless list and has a gates section -- stale exemption"

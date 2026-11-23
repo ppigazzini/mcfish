@@ -3,8 +3,8 @@
 How the code is structured: the three zones, how they depend on each other, how
 that dependency is enforced in C, which files are actually in the binary, and how
 one search flows through them. For the build and the gate battery see
-[10-tooling-ci.md](10-tooling-ci.md); for the C patterns behind the hot path see
-[08-idiomatic-c.md](08-idiomatic-c.md). Per-file detail lives in each header's
+[tooling-ci.md](tooling-ci.md); for the C patterns behind the hot path see
+[idiomatic-c.md](idiomatic-c.md). Per-file detail lives in each header's
 leading comment block.
 
 This page states structure, not numbers. Where a figure would date the page, name
@@ -139,7 +139,7 @@ binary over a pipe, so it covers the parser and the command loop
 differential driver — start position, random legal moves, node counts diffed
 against the oracle at every depth — already exists and is **not** on the
 list above: it drives two separate UCI subprocesses, so it needs no library
-boundary at all. See [10-tooling-ci.md](10-tooling-ci.md).
+boundary at all. See [tooling-ci.md](tooling-ci.md).
 
 ### Does the seam layer cost performance?
 
@@ -177,7 +177,7 @@ for a Syzygy-loaded search until an ablation says otherwise. It is also
 worth stating plainly that no instruction-ratio comparison in this tree
 isolates the seams from anything else — the aggregate bounds all structural
 overhead together, the same way it does for every other claim in
-[08-idiomatic-c.md](08-idiomatic-c.md)'s measurement-discipline section.
+[idiomatic-c.md](idiomatic-c.md)'s measurement-discipline section.
 
 ## What is actually in the binary
 
@@ -204,10 +204,10 @@ comm -23 <(find src -name '*.c' | sort) <(grep -oE 'src/[a-z_/]+\.c' build.sh | 
 
 Empty output means the arrays cover the tree. The zone pages name the specific
 modules — see
-[01-engine-board.md](01-engine-board.md),
-[02-engine-search.md](02-engine-search.md),
-[03-engine-eval.md](03-engine-eval.md), [06-platform.md](06-platform.md) and
-[07-shell.md](07-shell.md). The shape of the gap is always the same: a module was
+[engine-board.md](engine-board.md),
+[engine-search.md](engine-search.md),
+[engine-eval.md](engine-eval.md), [platform.md](platform.md) and
+[shell.md](shell.md). The shape of the gap is always the same: a module was
 ported and checked in isolation, and until it enters `SOURCES` nothing re-checks
 it, so it rots silently against the files that do move.
 
@@ -283,7 +283,7 @@ int main(int argc, char **argv) {
    lookup depends on the ISA**: at avx2 and above it fills the 64 `DualMagic`
    structs and the rank-attack table for hyperbola quintessence, below that it runs
    the magic search. Both are always initialised in this step; see
-   [01-engine-board.md](01-engine-board.md).
+   [engine-board.md](engine-board.md).
 3. `threats_init()` builds `InverseRayPassBB` in
    [`src/engine/board/threats.c`](../src/engine/board/threats.c), which reads the
    attack tables step 2 just filled.
@@ -302,7 +302,7 @@ those tables are **zero, not garbage**, beforehand, so a missing call is a
 silent all-zero feature set rather than a crash. The net itself is *not* loaded
 there either: it is a runtime input the UCI layer loads later in `engine_init`,
 because the UCI layer owns the `EvalFile` option. See
-[03-engine-eval.md](03-engine-eval.md) and [07-shell.md](07-shell.md) for
+[engine-eval.md](engine-eval.md) and [shell.md](shell.md) for
 `engine_init`'s full seam-and-state sequence.
 
 `main` pairs the init with `search_shutdown()` and `eval_nnue_shutdown()` after
@@ -409,12 +409,12 @@ Each real make/unmake in that recursion is bracketed by `eval_acc_push` /
 accumulator's own arena rather than into a copy. That bracket is a contract, not an
 optimisation: skip it and the accumulator silently describes a different position
 than the board does. The null move and `perft` are the two deliberate exceptions —
-see [03-engine-eval.md](03-engine-eval.md) for why an empty push is not the same as
+see [engine-eval.md](engine-eval.md) for why an empty push is not the same as
 no push.
 
 The only wall-clock read inside the recursion is the one guarded by the
 node-count checkpoint in `check_time` — see
-[02-engine-search.md](02-engine-search.md) for why that guard is what keeps the
+[engine-search.md](engine-search.md) for why that guard is what keeps the
 signature gate meaningful.
 
 Nothing on that path allocates. The move lists are `ExtMove list[MAX_MOVES]`
@@ -432,7 +432,7 @@ The shell is the zone where that is easiest to doubt, because two of its files l
 like alternatives to each other and are not: `engine.c` owns the session — the
 position and its `StateList` chain, the option table and its on-change callbacks,
 the resident net, the search wiring — and `uci.c` is the transport over it, holding
-no engine state. Both are in `SOURCES`. [07-shell.md](07-shell.md) describes the
+no engine state. Both are in `SOURCES`. [shell.md](shell.md) describes the
 split.
 
 The zone diagram above is the shape all of that lands into.
@@ -447,9 +447,9 @@ links engine alone without a platform.
 |---|---|---|
 | `zone-check` | that no `engine/` file calls into `shell/`, over the whole zone rather than over whatever the array happens to name | this page |
 | `engine-standalone` | the engine→platform edge, as a ratcheted COUNT rather than a claim | this page |
-| `test` | a second, independent instance of `zone-check` with the same blind spots: the suite links the same `ENGINE_SOURCES` and a test needing a shell symbol does not link | [10-tooling-ci.md](10-tooling-ci.md) |
-| `fuzz-search` | that the engine zone runs with no host registered at all, under ASan and UBSan | [02-engine-search.md](02-engine-search.md) |
-| `build` | that the files **in `SOURCES`** compile under the full warning set — not the tree | [08-idiomatic-c.md](08-idiomatic-c.md) |
+| `test` | a second, independent instance of `zone-check` with the same blind spots: the suite links the same `ENGINE_SOURCES` and a test needing a shell symbol does not link | [tooling-ci.md](tooling-ci.md) |
+| `fuzz-search` | that the engine zone runs with no host registered at all, under ASan and UBSan | [engine-search.md](engine-search.md) |
+| `build` | that the files **in `SOURCES`** compile under the full warning set — not the tree | [idiomatic-c.md](idiomatic-c.md) |
 
 `zone-check` is described under
 [How the zone rule is enforced](#how-the-zone-rule-is-enforced) above, beside the

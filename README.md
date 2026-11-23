@@ -35,7 +35,7 @@ Requires **clang with C23 support** and bash. No build system, no dependencies.
 
 ## Documentation
 
-- [docs/](docs/README.md) — the architecture, each subsystem, the C23 patterns.
+- [docs/](docs/index.md) — the architecture, each subsystem, the C23 patterns.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — the gates and the workflow.
 
 ## License

@@ -5,7 +5,7 @@ order to reach for them in, the two corrections without which the instruction ax
 lies, and where this port stands against the golden on the spine.
 
 Audience: anyone measuring a refactor or an optimisation. Every gate that decides
-a VALUE is [10-tooling-ci.md](10-tooling-ci.md)'s; this page is the axis that
+a VALUE is [tooling-ci.md](tooling-ci.md)'s; this page is the axis that
 decides a COST, which no gate here blocks a merge on.
 
 ## The instruments, and the order to reach for them
@@ -94,7 +94,7 @@ property of the box's state at that moment, not of the host, and a control taken
 right after a heavy build reads far wider than a settled one. Derive them next to
 the comparison they floor, never once at the start of a session, and discard the
 comparison when the control reads wide. See
-[08-idiomatic-c.md](08-idiomatic-c.md#measurement-discipline).
+[idiomatic-c.md](idiomatic-c.md#measurement-discipline).
 
 **This tool counts the WHOLE PROCESS, including net load.** On a shallow bench that
 is a large share of the total, and the whole-process ratio has been observed to
@@ -258,7 +258,7 @@ free.
 Every axis above counts instructions or macro-ops and weighs them equally: an
 `idiv` and an `add` are one instruction each. What one costs on a given core is a
 measured, published fact — Agner Fog's instruction tables
-([12-references.md](12-references.md)) give macro-ops, latency and reciprocal
+([references.md](references.md)) give macro-ops, latency and reciprocal
 throughput per instruction and operand width for Zen 1–5, and their *Ops* column
 is the unit `perf_counters.sh` reports as macro-ops. Read them before writing a
 change, the way a sibling's perf commit is priced before it is ported; three
@@ -293,7 +293,7 @@ there.
 
 The two differentials that read a VALUE rather than a cost — `upstream-parity` on
 the node total and `upstream-transcript` on the bytes — are
-[10-tooling-ci.md](10-tooling-ci.md)'s.
+[tooling-ci.md](tooling-ci.md)'s.
 
 ## Where the two engines stand on the SPINE, measured
 
@@ -484,7 +484,7 @@ The method, in the order that worked:
    are invisible to every other tool. The 256 MB table sat at 4 KiB alignment against
    the oracle's 2 MiB.
 4. **`grep` upstream for its ISA gates**, not its portable path — see
-   [08-idiomatic-c.md](08-idiomatic-c.md#port-upstreams-isa-gated-paths-not-just-its-logic).
+   [idiomatic-c.md](idiomatic-c.md#port-upstreams-isa-gated-paths-not-just-its-logic).
 5. **`perf_fingerprint.py compare --calls`** to confirm the algorithm is unchanged
    while you do all of the above.
 
@@ -658,8 +658,8 @@ a gate.
 | `counter-validate` | that a counter means what its name says on *this* host | this page |
 | `material-eval` | nothing — it is the ablation that isolates the spine from the network | this page |
 | `fingerprint` | the ALGORITHM: that each group is CALLED as often here as upstream, bar the argued exceptions. **A call-count divergence outranks every cost finding.** | this page |
-| `signature` | that both sides searched the same tree, without which every figure above is void | [10-tooling-ci.md](10-tooling-ci.md) |
-| `arch-determinism` | that a number taken at one tier is a number about that tier and not about a divergence between them | [08-idiomatic-c.md](08-idiomatic-c.md) |
+| `signature` | that both sides searched the same tree, without which every figure above is void | [tooling-ci.md](tooling-ci.md) |
+| `arch-determinism` | that a number taken at one tier is a number about that tier and not about a divergence between them | [idiomatic-c.md](idiomatic-c.md) |
 
 ### `./build.sh perf-budget` and `perf-budget-update`
 
