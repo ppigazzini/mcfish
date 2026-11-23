@@ -103,7 +103,7 @@ static char TbDir[64];
 // counts as an execution. Three counts split that -- rounds, the files `set` parsed,
 // and the probes that answered -- and each gets its own floor in build.sh.
 //
-// ../rfish dd0df54 records the same defect in its own sweep, from ../zfish 741f8ffc,
+// ../rfish 5571137 records the same defect in its own sweep, from ../zfish 74bb9431,
 // which found its floor "met almost entirely by answers carrying scores no file can
 // hold". PARSED is read from the registry rather than inferred from the probe,
 // because a probe reports one FAIL whether `set` refused the file or the decoder

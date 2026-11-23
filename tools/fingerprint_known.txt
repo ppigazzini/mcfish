@@ -20,7 +20,7 @@
 # A=0 against upstream's count. It cannot be repaired with a regex: summing its
 # two surviving callees double-counts the generate_stage -> walk_lists calls
 # (387,964 summed against 359,913 real entries, upstream 383,977), and the
-# arithmetic is worked in `7ab86db3`'s body. RETIRE by finding a symbol that
+# arithmetic is worked in `7aee7a19`'s body. RETIRE by finding a symbol that
 # survives inlining and names the same call, or by teaching the tool to attribute
 # an inlined callee to its callers.
 movepick

@@ -256,7 +256,7 @@ instructions there but more slowly. The obvious suspect is the accumulator
 apply's dependency-chain shape. **In the sibling Zig port that suspect is
 measured and dead**: matching upstream's chain count exactly was bit-exact and
 moved instructions 1.001 and cycles 0.990, inside the noise floor (zfish
-`eb021fdd`). A measurement does not transfer between the two trees, so that is
+`65ffb867`). A measurement does not transfer between the two trees, so that is
 not a fact about this one — but it is a strong prior, and it says to look
 elsewhere before spending a quiet box on the chain count. The same note records
 that symbol boundaries cannot say WHICH component differs, because upstream

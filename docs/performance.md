@@ -61,7 +61,7 @@ first.** Both modes parse `Nodes searched` out of each run and refuse to report 
 it moves: a count is a statement about an amount of work, so an engine that dies
 mid-round, a net that goes missing after round one, or an ablation that quietly
 searches a different tree would otherwise produce a plausible smaller number that
-the budget gate compares as though nothing had changed. `../zfish f876cb5b` credits
+the budget gate compares as though nothing had changed. `../zfish b15578d7` credits
 exactly this check with catching an ablation searching 162,860 nodes while claiming
 163,081 — the instruction delta read clean either way. The harness is also built
 under the engine's own warning set with `-Werror`: the binary every perf claim in
@@ -269,7 +269,7 @@ readings already bear on this tree:
   work that takes the same pipe time, so an instruction ratio between a 256-bit
   and a 512-bit tier is not a work ratio.
 - **A 32-bit divide is two macro-ops and 10–13 cycles of latency.** Taking one out
-  of every interior node (`3226ff82`) reads as a few instructions per node on
+  of every interior node (`4314bfa5`) reads as a few instructions per node on
   `perf-budget`, and a divide added per node is underpriced the same way.
 - **`pext` is one macro-op on this host and microcoded on Zen 1–2**, seven
   macro-ops at a reciprocal throughput of 18–19 cycles. `magic_index` takes it at

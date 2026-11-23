@@ -1052,7 +1052,7 @@ void nnue_acc_evaluate(NnueAccumulatorStack *stack,
     //
     // BOTH routes have to be gated, not just one. zfish's equivalent gated its
     // evaluate_side alone and left the shared-suffix walk running, so the ablation still
-    // updated incrementally on that path and its node count moved (f876cb5b). Here that
+    // updated incrementally on that path and its node count moved (b15578d7). Here that
     // is forward_update_both, and returning above the dispatch covers both by
     // construction.
     const uint8_t blocks = nnue_blocks(pos);

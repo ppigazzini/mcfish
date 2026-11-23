@@ -83,8 +83,8 @@ camel_spans() {
 # reads local state, so the verdict depended on what a checkout happened to hold, in two
 # opposite and silent directions: a file a rename leaves behind is green here and DEAD in
 # a fresh clone, and a path .gitignore deliberately excludes could never be green anywhere.
-# ../rfish took a red CI run on the first class (its 3ac1b08); ../zfish closed both before
-# either bit (25976c37).
+# ../rfish took a red CI run on the first class (its 494d54c); ../zfish closed both before
+# either bit (e4c4a6fc).
 #
 # EXEMPT AN IGNORED PATH. One the repository decided not to carry is a doc naming the tool
 # that WRITES it -- `tools/instr_budget.golden` is per-machine by design -- rather than a
@@ -169,7 +169,7 @@ done
 # than bare, so the commoner spelling was the unheld one. Read the spans DIRECTLY,
 # the way the symbol check below does. Do NOT route this through strip_noise: that
 # helper deletes the very spans this reads, and the check would then scan nothing
-# and pass everything. ../zfish 26d197dd is the sibling's version of this widening.
+# and pass everything. ../zfish d4042f24 is the sibling's version of this widening.
 #
 # Require an EXTENSION. That is what confines this to FILE claims: a directory
 # (`src/engine/board/`) resolves against no file list, and every claim of that shape
@@ -296,7 +296,7 @@ done
 # empty list means the loop below runs zero times and the gate reports OK while
 # covering nothing. That is not hypothetical: ../zfish's equivalent matched 5 of its
 # 77 steps for as long as it existed, green throughout, because its build file spells
-# most steps across three lines (zfish 108e7af6). A floor turns that silence into a
+# most steps across three lines (zfish 680f71b2). A floor turns that silence into a
 # failure. Keep it just under the real count so adding steps never trips it and
 # losing the extraction always does.
 mapfile -t STEPS < <(sed -n "$(grep -n '^case ' build.sh | tail -1 | cut -d: -f1),\$p" build.sh \

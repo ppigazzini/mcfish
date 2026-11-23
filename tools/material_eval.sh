@@ -19,7 +19,7 @@
 #
 # So the EXIT trap reverts the source AND deletes the binary AND the stamp. A missing
 # oracle fails loudly on the next use; a stubbed one does not. Ported from zfish
-# 4ab4f4ac, whose fix this is.
+# 4e8b3994, whose fix this is.
 #
 # Usage:  tools/material_eval.sh [arch]        # default sse41, the tier the oracle builds
 #         MCFISH_OUT=... SF_OUT=...            # where to leave the two binaries

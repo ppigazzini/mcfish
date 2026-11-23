@@ -59,7 +59,7 @@ The consequences an agent gets wrong before reading
   bodies, what it probed and left alone.
 - **A whole class can be closed here and still hide one hole.** The sixth sweep
   (2026-08-05) probed both siblings' corrupt-table hardening — four bounds across
-  `zfish 741f8ffc/3883af90/6a5596de` and `rfish 6b252a1`. Three were already
+  `zfish 74bb9431/aa899257/6873200b` and `rfish 13040bd`. Three were already
   bounded here (the empty lead-pawn collection, the group walk past `size`, and
   the range-checked geometry accessors in `encode.h`), and the fourth was a live
   out-of-bounds — but **not where either sibling hit it**. Both siblings trap
@@ -70,7 +70,7 @@ The consequences an agent gets wrong before reading
   mcfish's `ROW_TILE_WIDTH` as the source, and its constant-trip-count win is Rust
   slices carrying no length past a borrow — C arrays already carry their extent.
 - **A sibling's GATE is a hypothesis about what this tree does not instrument.**
-  The seventh sweep (2026-08-06) took rfish's `a469772`, which gates that its net
+  The seventh sweep (2026-08-06) took rfish's `989079b`, which gates that its net
   survives `export_net`, and asked the same question here. The answer was larger
   than the question: mcfish had no writer at all — no `export_net`, no
   `Network::save`, no LEB128 encoder — and pulling that thread found that the UCI
@@ -83,15 +83,15 @@ The consequences an agent gets wrong before reading
   an instrument, check what this tree points at that surface — not only whether
   the same defect is here.
 - **A sibling's BUG can be this tree's ungated correctness.** The eighth sweep
-  (2026-08-06, rfish `a469772..2f1ce01`) took no code: `2f1ce01` is `speedtest`,
-  which mcfish shipped first in `cf1178f4`, and `2596bc6` fixes a root `currmove`
+  (2026-08-06, rfish `989079b..2d39b83`) took no code: `2d39b83` is `speedtest`,
+  which mcfish shipped first in `e2d0a5eb`, and `a5b4ace` fixes a root `currmove`
   announcement rfish had never wired up — where this tree has all three of
   upstream's call sites and one owner for the threshold. But rfish's line about
   it holds here word for word: nothing prints past ten million nodes under any
   gate, so deleting the call left every one of them green. Ask "would a gate here
   have caught the sibling's bug?" even when the answer to "is the bug here?" is
   no. It is now adjudicated (22 lines, identical to the oracle) and gated, in
-  `b83ad32b`.
+  `48c2f747`.
 - **A capability the sibling built a MODULE for can already be a function here.**
   The ninth sweep (2026-08-09) probed zfish's headless engine — its `headless.zig`
   build root, its headless lint and its single-position search module — and took
@@ -105,12 +105,12 @@ The consequences an agent gets wrong before reading
   every engine module because a hand-maintained proof root cannot report that it
   got smaller — and `zone-check` proved exactly what `ENGINE_SOURCES` listed, with
   a shell file smuggled into that array making it pass (verified against HEAD:
-  `zone check passed`, exit 0). Both are gated in `a434c588`. Its always-run
+  `zone check passed`, exit 0). Both are gated in `d04334ed`. Its always-run
   search-from-a-reached-position test transferred the same way: the class, not the
   bug — the root-setup defect zfish's version caught cannot occur here, but the
   suite's searches all ran before the net loaded, so **nothing in it had ever
   entered the accumulator from inside a search** (`shared 0 split 0 refresh 0`
-  before the new test). Closed in `f12320b3`.
+  before the new test). Closed in `5dbc9d9c`.
 - **A curated fixture cannot hold the case nobody thought of.** The tenth sweep
   (2026-08-09, rfish) probed the same headless class and again took no code — the
   crate graph makes rfish's zone check a compile error rather than a gate, its
@@ -118,12 +118,12 @@ The consequences an agent gets wrong before reading
   module direction has no counterpart because this tree declares no layering
   rule inside `engine/` and says why. What transferred was three randomised
   shapes its harness runs and this tree's always-run suite had only in curated
-  form: unwinding a 60-ply line (`5f50ac3e` — a castling-key toggle skipped once
+  form: unwinding a 60-ply line (`d378e071` — a castling-key toggle skipped once
   the halfmove clock reaches 4 is invisible to every other gate, including the
-  depth-3 exhaustive round-trip), random and mutated FEN strings (`c54301a5` —
+  depth-3 exhaustive round-trip), random and mutated FEN strings (`e5bbd3b2` —
   dropping the placement parser's file bound is a UBSan out-of-bounds this walk
   raises and the reject table cannot, because the curated overflow lands INSIDE
-  the board array), and the zero-wait `stop`/`quit` (`37070852` — every existing
+  the board array), and the zero-wait `stop`/`quit` (`68e882c1` — every existing
   async invariant sleeps first, so none of them drove the shape every harness
   sends). Ask what a sibling's harness EXPLORES that this tree only enumerates.
 - **A defect you DECLINE to port needs the same evidence as one you take.** The
@@ -133,19 +133,19 @@ The consequences an agent gets wrong before reading
   making `movetime` mean nodes was declined as "a defined-behaviour divergence the
   bench and goldens depend on" — a claim carried over from a sibling where it was
   true; here `nodestime` appears in `tools/` exactly once, as the handshake option
-  line, so the conversion is inert in every gated path (`03c6aeae`). `hash_bytes`'
+  line, so the conversion is inert in every gated path (`5fd1e1aa`). `hash_bytes`'
   sign-extended tail was declined as "reproduced on purpose, and its consumers are
   dead" — and dead is precisely why it was safe, since the net reader compares the
-  u32 ARCHITECTURE hashes and never reaches that function (`c7d6749a`). A decision
+  u32 ARCHITECTURE hashes and never reaches that function (`4f53b96d`). A decision
   to leave a defect alone is a claim about this tree, and it rots the same way a
   port does.
 - **A gate ported from a sibling reports on THIS tree's instruments first.** The
   same sweep took `refish`'s corrupt-table fixtures, and the first run found the
-  reader refusing a crafted header without saying which file (`c6caae18`) — its
+  reader refusing a crafted header without saying which file (`622c82a2`) — its
   judge asks four things of a refusal and this tree answered three. Then two of the
   seven fixtures turned out to gate nothing here, because they PASS this parser by
   design and were scored as refusals by a second per-side header landing in zero
-  padding (`b079dcaa`). Re-derive what a borrowed fixture actually trips, against
+  padding (`77fe4557`). Re-derive what a borrowed fixture actually trips, against
   an instrumented build; a green gate over a hollow fixture is the failure mode a
   sibling cannot warn you about, because in ITS tree the fixture is real.
 
@@ -259,7 +259,7 @@ The consequences an agent gets wrong before reading
 - **A sibling's perf commit can be half port and half re-refusal, and only the
   source says which.** The same sweep's largest win (-0.24% sse41) is one half of
   refish's nnz fold: this tree's AVX2 step already exploited the same [0, 127]
-  bound, and the comment `ae6c536b` left on it records that refish's exact
+  bound, and the comment `ed620bb1` left on it records that refish's exact
   spelling — `vpackssdw + vpacksswb + vpshufd + vpmovmskb` — was measured here as
   TWO OPS LONGER under clang. The sse41 step had never been given the bound and
   took it. Read the comment on the code the sibling's commit touches before
@@ -320,7 +320,7 @@ outside it is unwired, not deferred:
   `./build.sh perf-budget-tb` measures a PROBING workload against its own
   `<tier>+syzygy` budget row. **Run `perf-budget-tb` on any edit to
   `src/platform/syzygy/`** — it caught a 0.13% regression in a diagnostic that
-  `perf-budget` read as free (`647965a6`).
+  `perf-budget` read as free (`e389e63f`).
 - **Lazy-SMP threading and NUMA** — **wired.** `Threads` builds a worker set,
   `NumaPolicy` chooses the topology it binds under, and a `go` runs N workers over
   one root. `worker_pool.c` is the driver; every piece of per-worker state that

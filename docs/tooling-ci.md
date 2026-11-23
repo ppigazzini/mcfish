@@ -91,8 +91,8 @@ one file plus the tree builds and gates the engine.
 **The sibling drew the opposite conclusion, and the contrast is the useful part.**
 `../zfish` holds every file to 500 lines under a ratcheting `loc` gate — a baseline
 that may fall and never rise — and when its `build.zig` reached 2595 lines it split
-into a `build/` package rather than raising the baseline (zfish `eeb52780`,
-`5ffd1bca`). That works there because the build file is Zig, checked by the same
+into a `build/` package rather than raising the baseline (zfish `f211e2b2`,
+`720f4b46`). That works there because the build file is Zig, checked by the same
 lint as the program. Here the equivalent policy is absent entirely: **there is no
 file-size gate in this tree at all**, and thirteen files under `src/` are already over
 500 lines (`nnue_accumulator.c`, the largest, is past 1400), so importing the rule
@@ -639,7 +639,7 @@ never reached its summary. Verified in both directions rather than assumed: with
 `-print_funcs=0` removed, the search lane reproduces the historical stall at 3
 inputs and the step now exits 1. zfish reached the same conclusion from the other
 side — its fuzzer prints no total at all, so it decodes the coverage file's
-header instead (zfish `b9aa6d03`).
+header instead (zfish `d2757e77`).
 
 **`fuzz-tb`.** The third input surface, and the only **binary** one besides the
 net: a `.rtbw`/`.rtbz` the engine did not write, reached by pointing

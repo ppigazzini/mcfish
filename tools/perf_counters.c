@@ -281,7 +281,7 @@ int main(int argc, char **argv) {
             // an engine that dies mid-round, a bench whose net went missing after the
             // first run, an ablation that changes the tree it searches. Each yields a
             // plausible smaller number and the budget gate compares it as if it were
-            // the same work. ../zfish f876cb5b credits exactly this check with
+            // the same work. ../zfish b15578d7 credits exactly this check with
             // catching an ablation that searched 162,860 nodes where it claimed
             // 163,081 -- the instruction delta read clean either way.
             if (c.nodes != nodes) {

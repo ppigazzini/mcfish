@@ -357,7 +357,7 @@ fi
 #                               valid with the above, which never reads a record
 #
 # The pair prices the incremental path against the rebuild it replaces, and separates
-# what the RECORDING costs from what the delta BUYS. ../zfish f876cb5b measured the
+# what the RECORDING costs from what the delta BUYS. ../zfish b15578d7 measured the
 # same architecture at 26.1% cheaper there and ../rfish measured its own 7.1% dearer,
 # so the answer is a property of the data model and does not transfer -- it has to be
 # measured in each tree.
@@ -724,7 +724,7 @@ check_source_lists() {
   local -a disk
   mapfile -t disk < <(find src -name '*.c' | sort)
   # An empty `find` would leave every loop below iterating nothing and the check
-  # green over the empty set -- the vacuous-gate failure da21799e guards the two text
+  # green over the empty set -- the vacuous-gate failure 1b33190b guards the two text
   # extractions against. The floor is well under the current 72 and never rises with
   # a new file, so adding one cannot trip it; losing the tree always does.
   local floor=50
@@ -916,8 +916,8 @@ do_upstream_transcript() {
     # blank is not distinguishable downstream; it has to be caught here. No case this
     # gate drives is legitimately empty on both sides, because every one of them
     # reaches at least the engine banner. ONE side blank stays a DIFF -- that is the
-    # gate working. Guards the case that 01e0b71c's empty-CORPUS check cannot see;
-    # ../zfish a4f0b6e9 is the sibling's version.
+    # gate working. Guards the case that 7b2e2e1e's empty-CORPUS check cannot see;
+    # ../zfish 2d37d17b is the sibling's version.
     if [[ ! -s $dir/mc && ! -s $dir/up ]]; then
       red "  RIG   $name -- BOTH engines produced no output; nothing was compared"
       rig=$((rig + 1))
@@ -1229,7 +1229,7 @@ do_signature_update() {
 # exporting it back and comparing byte for byte checks every section's byte order, every
 # split point, every hash and the SIMD permutation's inverse at once -- against upstream's
 # bytes rather than against a second derivation somebody thought to assert.
-# ../rfish a469772 reports the same hole from the Rust side and closes it the same
+# ../rfish 989079b reports the same hole from the Rust side and closes it the same
 # way.
 #
 # It writes OUTSIDE $RESOURCES_DIR, deliberately: that directory is one of the three
@@ -1310,7 +1310,7 @@ PERF_BUDGET_BENCH=${PERF_BUDGET_BENCH:-16 1 13}
 # a fifth the size of the one it was set against. The previous 0.5% was ~40000x, and
 # a real one walked through it -- forcing pos_adjust_key50_of out of line costs
 # +0.238% here with `signature` green, which is exactly the class this gate owns.
-# Set a tolerance by mutation or it is a decoration (../zfish 51031f48 learnt the
+# Set a tolerance by mutation or it is a decoration (../zfish 1911619c learnt the
 # same lesson at 0.20%).
 PERF_BUDGET_TOL=${PERF_BUDGET_TOL:-0.0005}
 
@@ -1339,7 +1339,7 @@ measure_instructions() {
     # Build the HARNESS under the same warning set as the engine it judges, and
     # fatally. It was the least-checked binary in the tree -- plain `-O2` with no
     # warnings at all -- while every gate that quotes an instruction count trusts
-    # whatever it prints. ../zfish d30481f0 found its own parity harness compiled
+    # whatever it prints. ../zfish 0667d136 found its own parity harness compiled
     # with safety OFF, where a table entry two characters longer than a stack buffer
     # let it report a verdict for a command it never sent. It compiles clean under
     # these today, so -Werror costs nothing and keeps it that way.
@@ -2337,7 +2337,7 @@ do_negative_control() {
     elif [[ $mode == hold ]]; then
       # A HELD row is not run, so its pattern rots in silence -- and the rot only
       # surfaces when somebody finally asks for it and gets a RIG FAULT instead of a
-      # verdict. That happened: `e175be19` moved the decoder's symbol bound to load
+      # verdict. That happened: `fa31fe99` moved the decoder's symbol bound to load
       # time and the row still named the line it had deleted, through two full
       # `parity` runs that reported "9 of 9". So the SEARCH half is checked here,
       # which costs a grep and no build.
@@ -2773,7 +2773,7 @@ do_test() {
 # below). The exit code cannot tell "found nothing" from "fuzzed nothing", and
 # only the first is worth reporting. zfish hit the same blind spot from the other
 # side -- its fuzzer prints no total at all, so it decodes the coverage file's
-# header instead (zfish b9aa6d03).
+# header instead (zfish d2757e77).
 #
 # libFuzzer does print the total, under -print_final_stats, so read that. The
 # floor is a RATE times the budget, set at roughly 1-2% of what each lane clears
@@ -2813,7 +2813,7 @@ assert_fuzz_executed() {
 # adding those two rates together is how the distinction gets lost. The line missing
 # entirely is a failure too: it means the run never reached its own summary.
 #
-# ../rfish dd0df54 and ../zfish 741f8ffc found the same defect in their own sweeps.
+# ../rfish 5571137 and ../zfish 74bb9431 found the same defect in their own sweeps.
 assert_fuzz_reached() {
   local log=$1 parsed_per_sec=$2 answered_per_sec=$3 seconds=$4
   local line rounds parsed answered floor_p floor_a

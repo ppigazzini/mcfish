@@ -23,8 +23,8 @@ Every rule below is written about zfish because that is where the pattern was
 paid for; each applies unchanged to `../rfish` and `../fcfish`. One rule the
 rfish sweeps added: **probe the named behaviour against the oracle before writing
 a fix.** Of the eleven behaviours the fourth rfish sweep named, seven were already
-correct here — the four that were not became `2ccd9c5a`, `d71ad444`, `8415fd6b`
-and `f4f10372`, and the seven that were are recorded in those commit bodies so
+correct here — the four that were not became `fe5ce25d`, `1f74af6f`, `328788ec`
+and `0b82edf4`, and the seven that were are recorded in those commit bodies so
 the next sweep does not re-probe them. `git log --grep=rfish` finds the set.
 
 ### zfish is a sibling, not a source
@@ -48,12 +48,12 @@ the rules follow from that:
   found by auditing mcfish. Ask what the sibling has that this tree should take
   AND what this tree has that the sibling should; answer both from the code.
 - **Checking a SHA against the other tree's log is NOT the test.** Both reach the
-  same wins independently and neither cites the other reliably: zfish `39bc445d`
+  same wins independently and neither cites the other reliably: zfish `5570b775`
   credits mcfish in its subject, while PEXT in `attacks.c` and the AVX2 maddubs
   tier in `simd.h` sit here plainly with no citation at all. Read the code.
 - **A measurement does not transfer, in either direction.** This is symmetric and
   it is the trap that has cost the most time. mcfish's accumulator row tile is 64
-  where zfish's is 128/256 (`f514ac56`, `2474792e`) because mcfish swept it here
+  where zfish's is 128/256 (`ca6bb9c8`, `290a7e47`) because mcfish swept it here
   and 64 won. zfish's runBack inline won 1.0% there and measured FLAT here,
   because its gain was Zig's missing TBAA forcing reloads that clang+LTO never
   paid. A width or an inline is tuned for the language, tier and tree it was
@@ -61,16 +61,16 @@ the rules follow from that:
 - **Refutations are the durable output of a sweep, and the commit log is where they
   live.** Each one is recorded in the body of the mcfish commit that measured it and
   refused it, so `git log --grep=zfish --grep=rfish` is the ledger — searchable, and
-  it moves with the tree. Already refuted here: zfish `3d1ea031` runBack inline,
-  `7b8a8b10` the THP skip, `0bfbf31c` the contiguous layer arena, the movepick
-  pawn-history hoist, the fused refresh threat pass. `e15c4565` was reverted in
-  zfish itself (`bb6fd153`). Search before re-deriving any of them.
+  it moves with the tree. Already refuted here: zfish `6e66b68a` runBack inline,
+  `333955fe` the THP skip, `f855bc8f` the contiguous layer arena, the movepick
+  pawn-history hoist, the fused refresh threat pass. `b84f2704` was reverted in
+  zfish itself (`f52b34b0`). Search before re-deriving any of them.
 
 There is no bookmark file for "how far the sibling has been read". A peer sweep
 compares the two trees as they stand rather than replaying a range, and `git log
 --grep=zfish` finds what the last one took. The 2026-08-01 sweep read
-`f2299c47f..03c14b860` and landed the oracle golden audit and the tree-wide
-`.gitattributes` rule; the 2026-07-24 audit closed `6a4a80887..f2299c47f`.
+`40b80b3f3..d59da83c0` and landed the oracle golden audit and the tree-wide
+`.gitattributes` rule; the 2026-07-24 audit closed `0d69336d4..40b80b3f3`.
 
 ## State files
 

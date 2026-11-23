@@ -372,7 +372,7 @@ lists.
 `see_ge` is what splits good captures from bad, and there is exactly one of it:
 [`legality.c`](../src/engine/board/legality.c) defines it in the BOARD zone, where
 upstream keeps it on `Position`, and the picker is a caller like the node bodies
-are. The duplicate the picker once carried is gone — `99d7ef56` moved legality and
+are. The duplicate the picker once carried is gone — `fd6912a9` moved legality and
 SEE out of `position.c` — so a threshold change lands in one place.
 
 ## History

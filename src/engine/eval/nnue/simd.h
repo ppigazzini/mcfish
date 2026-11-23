@@ -280,7 +280,7 @@ NNUE_SIMD_REINTERPRET(nnue_v64_u8_as_u32x16, NnueV16u32, NnueV64u8)
 // horizontal OR. A reinterpret of a bool-vector would be shorter but assumes the
 // target-defined <N x i1> layout -- a backend using one byte per lane reads a few lanes as
 // the whole mask and corrupts the nnz set into a wrong positional eval. Port of zfish
-// d27ab1438. The scalar fallback spells the same per-lane reduction, so scalar==vector.
+// 0d3535852. The scalar fallback spells the same per-lane reduction, so scalar==vector.
 static inline uint32_t nnue_v16u32_movemask(NnueV16u32 v) {
 #if MCFISH_SIMD_VECTOR && defined(__AVX2__)
     // Native path: sign-bit-per-dword movemask. vpcmpeqd against zero sets a lane to
@@ -413,7 +413,7 @@ NNUE_SIMD_CONVERT(nnue_v128_u16_to_u8, NnueV128u8, NnueV128u16)
 NNUE_SIMD_REINTERPRET(nnue_v128_u8_as_u32x32, NnueV32u32, NnueV128u8)
 
 // The 32-bit movemask over 4-byte groups (see nnue_v16u32_movemask for the DEFINED-ops
-// rationale). Port of zfish d27ab1438 at the 128-lane width.
+// rationale). Port of zfish 0d3535852 at the 128-lane width.
 static inline uint32_t nnue_v32u32_movemask(NnueV32u32 v) {
 #if MCFISH_SIMD_VECTOR && defined(__AVX512F__)
     // Native path: vptestmd tests each dword non-zero straight into a mask register, and

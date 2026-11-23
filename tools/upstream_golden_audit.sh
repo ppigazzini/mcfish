@@ -16,7 +16,7 @@
 # against the committed golden, so `golden` becomes a differential rather than a
 # memory of what mcfish last did.
 #
-# Ported from zfish's tools/upstream_golden_audit.sh (zfish 6ce3d141).
+# Ported from zfish's tools/upstream_golden_audit.sh (zfish c7970116).
 #
 # Usage:
 #   upstream_golden_audit.sh                    # audit every case

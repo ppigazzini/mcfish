@@ -71,7 +71,7 @@ and refuses without the full 3-man set — there is no mcfish-derived path to it
 `hashfail` drives `setoption name Hash value 999999` — a 976 GB table no host here
 can back. mcfish prints upstream's own line on stderr and exits 1, which is what
 the golden records and what the oracle produced when the case was written
-(`cc16a92b`).
+(`64878c36`).
 
 Between upstream `7ab49b9b` and `5cae0fab` the oracle **segfaulted** on it and the
 audit read `hashfail` as differing with `exit=139`, because

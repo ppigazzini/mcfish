@@ -731,8 +731,8 @@ reordering — and expect the effect to change sign between tiers.
 
 **Outlining the movepick stage setups is NOT MEASURED here, and the sign to
 expect is negative.** The two siblings ran the identical change and disagree:
-`../rfish ae7766d` marks its three `MovePicker` stage setups `#[inline(never)]`
-and measures −0.81% instructions at avx2, and `../zfish 710b5c26` ported it
+`../rfish 2e25721` marks its three `MovePicker` stage setups `#[inline(never)]`
+and measures −0.81% instructions at avx2, and `../zfish 925c76e2` ported it
 verbatim, reproduced the mechanism exactly, and measured it **positive** on both
 tiers — the frame it was supposed to shrink went 744 → 24 bytes and the
 instruction count still rose. The reason does not travel: LLVM had already merged
