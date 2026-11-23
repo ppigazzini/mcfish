@@ -48,6 +48,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # pyproject pins requires-python >= 3.14 and ruff's target-version to py314,
       # and the formatter EMITS 3.14-only syntax accordingly -- it rewrites
@@ -108,6 +110,8 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install clang ${{ env.CLANG_VERSION }}
         run: |

@@ -47,6 +47,8 @@ jobs:
       UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # uci_fuzz.py parses on the runner's 3.12 today, but it is covered by the
       # same requires-python >= 3.14 floor and the same py314 formatter, so it is
@@ -99,6 +101,8 @@ jobs:
       UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install clang ${{ env.CLANG_VERSION }}
         run: |
@@ -135,6 +139,8 @@ jobs:
       UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install clang ${{ env.CLANG_VERSION }}
         run: |
