@@ -48,22 +48,19 @@ RESOURCES_DIR=resources
 engine_at() { local b=$1; shift; ( cd "$ROOT/$RESOURCES_DIR" && "$ROOT/$b" "$@" ); }
 engine() { engine_at "$BIN" "$@"; }
 
-# Select the C23 flag this compiler spells. GCC only learned `-std=c23` in 14;
-# 13 accepts the same language as `-std=c2x`. Probe rather than pin a compiler
-# version, so the second-compiler portability check works on stock toolchains.
-# Never fall back to a pre-C23 mode: the code uses `nullptr` and enums with a
-# fixed underlying type, which older modes silently accept as extensions with
-# different diagnostics.
+# Require the `-std=c23` spelling: gcc has it from 14 and clang from 18. An older
+# compiler that knows the language only as `-std=c2x` (gcc 13) is refused rather
+# than probed for, because no lane builds with one and a fallback nothing runs is
+# a claim, not a check. Never fall back to a pre-C23 mode either: the code uses
+# `nullptr` and enums with a fixed underlying type, which older modes silently
+# accept as extensions with different diagnostics.
 detect_std_flag() {
-  local f
-  for f in -std=c23 -std=c2x; do
-    if echo 'int main(void){return 0;}' \
-       | "$CC" "$f" -x c - -o /dev/null > /dev/null 2>&1; then
-      echo "$f"
-      return 0
-    fi
-  done
-  printf 'error: %s supports neither -std=c23 nor -std=c2x; a C23 compiler is required\n' \
+  if echo 'int main(void){return 0;}' \
+     | "$CC" -std=c23 -x c - -o /dev/null > /dev/null 2>&1; then
+    echo -std=c23
+    return 0
+  fi
+  printf 'error: %s does not accept -std=c23 (gcc >= 14, clang >= 18); a C23 compiler is required\n' \
     "$CC" >&2
   exit 2
 }
