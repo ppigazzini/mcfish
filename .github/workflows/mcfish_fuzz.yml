@@ -46,7 +46,7 @@ jobs:
       ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
       UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -55,7 +55,7 @@ jobs:
       # one reformat away from the SyntaxError that took out the upstream-check
       # gate. Provision the declared floor rather than rely on the file happening
       # not to use 3.14 syntax yet.
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.14"
 
@@ -70,7 +70,7 @@ jobs:
       # resources/ like every other engine-running lane (same cache key as the
       # parity workflow -- a net bump busts it, nothing else does).
       - name: Cache NNUE network
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@v6.1.0
         with:
           path: resources/nn-*.nnue
           key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
@@ -100,7 +100,7 @@ jobs:
       ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
       UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -115,7 +115,7 @@ jobs:
       # this is absent, so a cache miss degrades coverage rather than failing the
       # job. Same cache key as the `fuzz` job and the parity workflow.
       - name: Cache NNUE network
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@v6.1.0
         with:
           path: resources/nn-*.nnue
           key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}
@@ -138,7 +138,7 @@ jobs:
       ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
       UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
