@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -59,7 +59,7 @@ jobs:
       # could not be parsed and the audit below died before it checked anything.
       # A gate that cannot run is not a gate. Keep this in step with
       # requires-python.
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.14"
 
@@ -109,7 +109,7 @@ jobs:
     # fingerprint alone measures 77s on a developer box and a runner is slower.
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -123,7 +123,7 @@ jobs:
       # Same cache key as the parity and fuzz workflows -- a net bump busts it,
       # nothing else does.
       - name: Cache NNUE network
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@v6.1.0
         with:
           path: resources/nn-*.nnue
           key: nnue-${{ hashFiles('src/engine/eval/nnue/network.h') }}

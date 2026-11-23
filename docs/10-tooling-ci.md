@@ -501,7 +501,7 @@ a bug in the workflow file.
 
 ### `mcfish_parity.yml` — the blocking lane
 
-Runs on every push and PR, with seven jobs:
+Runs on every push and PR, with eight jobs:
 
 - **`fmt`** — split out and run first because it is the cheapest signal. It
   duplicates the `fmt` inside `parity` on purpose: whitespace drift caught in a
@@ -512,14 +512,21 @@ Runs on every push and PR, with seven jobs:
   resolves the versioned binary first and the bare name only after it, so a bump
   edits both in one commit.
 - **`zizmor`** — the workflows audited like the code: `uvx zizmor==1.33.0
-  .github/`, with the job token for the online audits that check each pinned SHA
-  against its tag comment. Every action is pinned by SHA, every checkout sets
-  `persist-credentials: false` (no job pushes, and every clone here is of a public
-  repository), and no `${{ }}` expression reaches a `run:` script from an event
-  payload. The version is pinned so a zizmor release cannot redden an unchanged
+  .github/`, with the job token for its online audits. It reads the lockfile and
+  takes a tag it locks as pinned. Every checkout sets `persist-credentials: false`
+  (no job pushes, and every clone here is of a public repository), and no `${{ }}`
+  expression reaches a `run:` script from an event payload. The version is pinned so a zizmor release cannot redden an unchanged
   tree. [`../.github/dependabot.yml`](../.github/dependabot.yml) proposes action
   updates weekly, seven days after a release, the setting zizmor's
   `dependabot-cooldown` audit reads. Locally: `uvx zizmor==1.33.0 .github/`.
+- **`actions-lock`** — every `uses:` names a release tag, and
+  [`../.github/workflows/actions.lock`](../.github/workflows/actions.lock), which
+  `gh actions-lock` writes, names the commit each tag resolved to when it was
+  locked and the repository behind it; the runner runs that commit and refuses
+  one only a fork carries. The job runs `gh actions-lock --verify` with the
+  extension pinned at v0.5.1, so a `uses:` with no entry, or a tag moved off its
+  commit, fails here. After a change to a `uses:`, run `gh actions-lock` to write
+  the entry; nobody edits the file by hand.
 - **`parity`** — `./build.sh parity`, after asserting the installed clang is new
   enough for the C23 the tree uses. The pin is explicit so a toolchain regression
   is attributable to a commit rather than to a floating runner image.
