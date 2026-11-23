@@ -87,8 +87,8 @@ typedef _Atomic int16_t SharedStat;
 //
 // `constexpr` rather than an enum because the value is a struct, and rather than
 // `static const` because it says the value is a constant expression. Both
-// compilers this tree builds with implement it -- clang under `-std=c23` and gcc
-// 13.3 under `-std=c2x`, which is what `detect_std_flag` selects there.
+// compilers this tree builds with implement it under `-std=c23`, the only C23
+// spelling `detect_std_flag` accepts.
 typedef struct {
     int v;
 } HistLimit;

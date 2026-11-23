@@ -14,20 +14,16 @@ exists here.
 
 ## C23, pinned and probed
 
-[`../build.sh`](../build.sh) selects the C23 flag by **probing the compiler**,
-not by pinning a version:
-
-```bash
-for f in -std=c23 -std=c2x; do ... done
-```
-
-GCC only learned `-std=c23` in 14; GCC 13 accepts the same language as
-`-std=c2x`. Probing is what lets the second-compiler lane in
-[`../.github/workflows/mcfish_parity.yml`](../.github/workflows/mcfish_parity.yml)
-run on a stock toolchain. **There is no fallback to a pre-C23 mode**, and that is
-deliberate: an older mode silently accepts `nullptr` and fixed-underlying-type
-enums as extensions, with different diagnostics and, for the enums, potentially a
-different underlying type. The probe fails the build instead.
+[`../build.sh`](../build.sh) requires the `-std=c23` spelling, by **probing the
+compiler** rather than by pinning a version: gcc has it from 14 and clang from 18.
+GCC 13 knows the same language only as `-std=c2x`, and that fallback is gone —
+it existed for one row of the second-compiler lane in
+[`../.github/workflows/mcfish_parity.yml`](../.github/workflows/mcfish_parity.yml),
+and a fallback no lane runs is a claim, not a check. **There is no fallback to a
+pre-C23 mode** either, and that is deliberate: an older mode silently accepts
+`nullptr` and fixed-underlying-type enums as extensions, with different
+diagnostics and, for the enums, potentially a different underlying type. The
+probe fails the build instead.
 
 ### The whole C23 language is in scope
 

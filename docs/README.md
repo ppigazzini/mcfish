@@ -110,7 +110,7 @@ none of them sees a ported file that is not in the array.
 
 | Layer | Technology |
 |---|---|
-| Language | C23; `build.sh` probes for `-std=c23` and falls back to `-std=c2x`, never to an older mode |
+| Language | C23; `build.sh` requires `-std=c23` (gcc ≥ 14, clang ≥ 18) and falls back to no older spelling or mode |
 | Compiler | clang, with a gcc second-compiler lane held to the same anchor; the binary reports its own version via the UCI `compiler` command |
 | Build | [`../build.sh`](../build.sh) — an enumerated source list and one clang call per step; no Makefile, no CMake, no dependency tracking |
 | Warnings | `-Wall -Wextra -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wconversion -Wsign-conversion`, with no suppression; `detect_enum_flags` additionally PROMOTES `enum-conversion`, `implicit-enum-enum-cast`, `implicit-int-conversion`, `unused-result` and `unused-parameter` to errors wherever the compiler accepts them |

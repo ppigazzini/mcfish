@@ -79,8 +79,8 @@
 // there is nothing else portable to write. This sits in the feature transformer's
 // inner loop, so the difference is not academic.
 //
-// clang has the builtin; gcc 13 -- the second compiler this repo builds under -- does
-// not, hence the probe rather than a version test.
+// clang has the builtin; gcc -- the second compiler this repo builds under, 15.2
+// included -- does not, hence the probe rather than a version test.
 #if defined(__has_builtin)
     #if __has_builtin(__builtin_elementwise_min)
         #define NNUE_VEC_MIN(a, b) __builtin_elementwise_min((a), (b))
