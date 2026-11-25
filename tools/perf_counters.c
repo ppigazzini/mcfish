@@ -31,8 +31,8 @@
 //
 // Usage (CWD must be resources/ so the net loads):
 //   perf_counters <binA> <binB> <rounds> [bench-args...]
-//   e.g: perf_counters ../build/mcfish $ORACLE/src/stockfish 8 bench 16 1 13
-//   MAX_INSTR_RATIO=1.36 perf_counters ../build/mcfish $ORACLE/src/stockfish 8 bench 16 1 13
+//   e.g: perf_counters ../build/mcfish $ORACLE 8 bench 16 1 13
+//   MAX_INSTR_RATIO=1.36 perf_counters ../build/mcfish $ORACLE 8 bench 16 1 13
 
 #define _GNU_SOURCE
 #include <linux/perf_event.h>
@@ -308,7 +308,7 @@ int main(int argc, char **argv) {
     if (argc < 4) {
         fprintf(stderr,
                 "usage: perf_counters <binA> <binB> <rounds> [bench-args...]  (CWD = resources/)\n"
-                "   e.g: perf_counters ../build/mcfish $ORACLE/src/stockfish 8 bench 16 1 13\n\n"
+                "   e.g: perf_counters ../build/mcfish $ORACLE 8 bench 16 1 13\n\n"
                 "Interleaved paired A/B over hardware counters. Reports instructions (the work)\n"
                 "and cycles/IPC/cache-misses (the efficiency). Works on EVERY arch, incl.\n"
                 "avx512/vnni512 where callgrind SIGILLs. Refuses to report if node counts differ.\n");

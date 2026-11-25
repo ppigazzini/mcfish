@@ -1,4 +1,7 @@
-Replace the oracle's evaluation with the same material sum MCFISH_EVAL_MATERIAL uses.
+Replace the oracle's evaluation with the same material sum the EVAL_MATERIAL knob uses.
+
+This file is byte-identical in ../fcfish and ../mcfish: the oracle is keyed by the
+patch's bytes, so one build serves both. Change it in both or in neither.
 
 This is the OTHER half of the spine-isolation workload. docs/tooling-ci.md has
 said "patch the oracle with the same formula" since the knob landed, but shipped no
@@ -13,20 +16,9 @@ be a divergence, and the node counts would stop matching -- which is exactly how
 find out you got it wrong. ASSERT THE NODE COUNTS MATCH BEFORE BELIEVING ANYTHING
 the resulting pair measures.
 
-DO NOT APPLY THIS BY HAND. `./build.sh material-eval [arch]` does the whole
-sequence, and it exists for the RESTORE rather than the apply.
-
-Reverting the source is NOT enough. The last thing built is the STUBBED oracle and
-it stays on disk; every in-repo consumer routes through upstream_oracle.sh, which
-would rebuild -- except the `.built-sha` stamp still matches the pin, so it sees a
-current build and does nothing, and anyone running the oracle binary directly then
-measures a stub. That happened here during the c5aef2bf1 spine run: the restore ran
-from the wrong directory, exited 127, and the oracle benched 4186134 instead of the
-anchor until it was caught by hand. The script's EXIT trap deletes the binary AND
-the stamp as well as reverting the source, so a missing oracle fails loudly on the
-next use where a stubbed one would not.
-
-It also asserts the two trees match at two depths before handing the pair over,
+DO NOT APPLY THIS BY HAND. `./build.sh material-eval [arch]` hands it to
+`upstream_oracle.sh --patch`, which builds it beside the pristine oracle under its
+own key, and asserts the two trees match at two depths before handing the pair over,
 which is the only thing that can catch the two formulas drifting apart.
 
 --- a/src/evaluate.cpp
@@ -36,8 +28,8 @@ which is the only thing that can catch the two formulas drifting apart.
 
      assert(!pos.checkers());
 +
-+    // SPINE ISOLATION (mcfish tools/material_eval.patch): material sum only.
-+    // Mirrors mcfish's material_only_eval exactly -- same weights, same point of
++    // SPINE ISOLATION (tools/material_eval.patch): material sum only.
++    // Mirrors the port's material_only_eval exactly -- same weights, same point of
 +    // view, and none of the blending below it. Returning early leaves the rest of
 +    // this function dead on purpose, so the diff stays one hunk and reverts clean.
 +    {

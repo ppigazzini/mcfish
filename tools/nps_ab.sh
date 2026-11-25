@@ -42,8 +42,8 @@
 # different workload and the ratio would be meaningless.
 #
 # Usage: nps_ab.sh <binA> <binB> [rounds] [bench-args...]  (CWD must hold the net)
-#        nps_ab.sh ./mcfish <oracle>/src/stockfish 9 16 1 13
-#        nps_ab.sh ./mcfish <oracle>/src/stockfish 9 16 1 13 /path/to/openings.fen
+#        nps_ab.sh ./mcfish "$(../tools/upstream/upstream_oracle.sh)" 9 16 1 13
+#        nps_ab.sh ./mcfish "$(../tools/upstream/upstream_oracle.sh)" 9 16 1 13 /path/to/openings.fen
 set -u
 
 A="${1:?usage: nps_ab.sh <binA> <binB> [rounds] [bench-args...]  (run from the dir holding the net)}"

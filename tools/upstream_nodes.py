@@ -23,16 +23,10 @@ if it were is worse than not running at all.
 Usage:
     upstream_nodes.py [--positions N] [--depth D] [--seed S] [--plies P]
 
-Env:
-    ORACLE_DIR   where the pristine upstream build lives, same variable and
-                 default as tools/upstream/upstream_oracle.sh (../.mcfish-
-                 upstream-oracle, relative to the repo root). This script does
-                 not build the oracle; run that script first, or ./build.sh
-                 upstream-nodes will name the missing binary and exit.
+The oracle is the one tools/upstream/upstream_oracle.sh prints, built on demand.
 """
 
 import argparse
-import os
 import random
 import re
 import subprocess
@@ -42,14 +36,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 MCFISH = REPO / "build" / "mcfish"
 
-# Same variable, same default, as tools/upstream/upstream_oracle.sh: a relative
-# override there resolves against the repo root, so mirror that here rather than
-# against this script's own cwd, and let an absolute override pass through as-is.
-_oracle_dir_env = os.environ.get("ORACLE_DIR")
-ORACLE_DIR = Path(_oracle_dir_env) if _oracle_dir_env else Path("../.mcfish-upstream-oracle")
-if not ORACLE_DIR.is_absolute():
-    ORACLE_DIR = (REPO / ORACLE_DIR).resolve()
-ORACLE = ORACLE_DIR / "src" / "stockfish"
+ORACLE_SCRIPT = REPO / "tools" / "upstream" / "upstream_oracle.sh"
 
 # Both engines print this verbatim (network.c's network_verify, upstream's own
 # Network::verify) before the first go/perft/eval -- it is the one line that
@@ -193,10 +180,8 @@ class Engine:
 def net_identity_or_die(cc, up):
     """Refuse to compare two engines that loaded different nets, or no net at all.
 
-    A stale ORACLE_DIR built at a different SHA -- the exact case
-    upstream_oracle.sh's own .built-sha check guards against when THIS script
-    calls it, but not when it is skipped -- carries a different default net.
-    Every position then diverges from move one, which reads as a catastrophic
+    An oracle at another commit can carry a different default net. Every position
+    then diverges from move one, which reads as a catastrophic
     search bug and is actually a setup mistake. `cc` (mcfish, run from
     MCFISH_CWD) falling back to the classical evaluation because resources/ has
     no net produces the identical symptom: net_name stays None. Catch both
@@ -211,12 +196,17 @@ def net_identity_or_die(cc, up):
             f"  mcfish : {cc.net_name or '<none loaded -- classical fallback>'}\n"
             f"  oracle : {up.net_name or '<none loaded -- classical fallback>'}\n"
             "A divergence below this point would be the net, not the search. Check "
-            "resources/ for mcfish and ORACLE_DIR/src/ for the oracle, and that the "
-            "oracle was built at tools/upstream/UPSTREAM_BASE (upstream_oracle.sh "
-            "refuses to reuse a binary built at a different sha; this script does "
-            "not build the oracle itself, so a stale one left over from a manual "
-            "run is not caught until here)."
+            "resources/ for mcfish, and that tools/upstream/UPSTREAM_BASE names the commit "
+            "this tree was ported to."
         )
+
+
+def oracle_or_die():
+    """The shared pristine build at the pin, built if it is absent."""
+    proc = subprocess.run([str(ORACLE_SCRIPT)], stdout=subprocess.PIPE, text=True, check=False)
+    if proc.returncode != 0:
+        sys.exit(f"no oracle: {ORACLE_SCRIPT} exited {proc.returncode}")
+    return Path(proc.stdout.strip())
 
 
 # --- position classes -----------------------------------------------------------
@@ -351,8 +341,7 @@ def main():
 
     if not MCFISH.exists():
         sys.exit(f"no mcfish binary at {MCFISH} -- run ./build.sh first")
-    if not ORACLE.exists():
-        sys.exit(f"no oracle at {ORACLE} -- run tools/upstream/upstream_oracle.sh")
+    oracle = oracle_or_die()
 
     # Echo the seed this run actually used. The weekly lane passes a wall-clock seed on
     # purpose -- a fixed one explores the same positions forever -- but that left a red
@@ -365,7 +354,7 @@ def main():
     )
     rng = random.Random(args.seed)
     cc = Engine(MCFISH, MCFISH_CWD)
-    up = Engine(ORACLE, ORACLE.parent)
+    up = Engine(oracle, oracle.parent)
     cc.setup()
     up.setup()
     net_identity_or_die(cc, up)

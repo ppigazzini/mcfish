@@ -377,15 +377,15 @@ The finish line does not move until the pin does. The pinned base is in
 gate.
 
 `./build.sh upstream-parity` builds a **pristine** upstream Stockfish at the pinned
-SHA into a detached worktree outside the repo, runs both benches, and compares the
-totals.
+SHA, runs both benches, and compares the totals. The build is clang's, and lives in
+`../.upstream-oracle`, which every port shares: whichever asks first builds it.
 
 Pristine is the point. The oracle is upstream's own source built by upstream's own
 Makefile, with no mcfish edit near it — a shared tree would let a bug present in
 both cancel out and pass.
 
-It is kept **out** of `./build.sh parity`: it needs a network fetch and a full
-upstream build, which `parity` deliberately does not. Run it deliberately.
+It is kept **out** of `./build.sh parity`: it needs the golden and a full upstream
+build, which `parity` deliberately does not. Run it deliberately.
 
 ### Two gates named parity, and only one reads the wire
 

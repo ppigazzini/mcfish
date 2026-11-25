@@ -119,6 +119,8 @@ jobs:
           chmod +x /tmp/llvm.sh
           sudo /tmp/llvm.sh "$CLANG_VERSION"
           "clang-$CLANG_VERSION" --version
+          # The oracle builds with `COMP=clang`, whose LTO link needs `ld.lld` by that name.
+          echo "/usr/lib/llvm-$CLANG_VERSION/bin" >> "$GITHUB_PATH"
 
       # Same cache key as the parity and fuzz workflows -- a net bump busts it,
       # nothing else does.
@@ -133,13 +135,12 @@ jobs:
       - name: Build mcfish
         run: CC="clang-$CLANG_VERSION" ./build.sh build
 
-      # Full history: upstream_oracle.sh checks out an arbitrary pinned sha into
-      # a detached worktree, which a shallow clone cannot do.
+      # Full history: upstream_oracle.sh archives an arbitrary pinned sha, which a
+      # shallow clone may not carry.
       - name: Clone the golden beside the workspace
         run: git clone https://github.com/official-stockfish/Stockfish.git ../Stockfish
 
-      # Builds with the golden's OWN Makefile and default compiler -- deliberately
-      # not clang-$CLANG_VERSION -- at tools/upstream/UPSTREAM_BASE. See
+      # Builds with the golden's OWN Makefile at tools/upstream/UPSTREAM_BASE. See
       # upstream_oracle.sh's own header for why pristine matters: a shared bug would
       # otherwise cancel out on both sides and pass.
       - name: Build the pristine upstream oracle at the pin

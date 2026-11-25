@@ -94,19 +94,23 @@ stale while reading as authoritative.
 
 | script | what it does |
 |---|---|
-| `upstream_oracle.sh [sha]` | builds **pristine** upstream at `sha` in a detached worktree and prints the binary path |
+| `upstream_oracle.sh [sha]` | prints the **pristine** upstream binary at `sha`, building it into the shared `../.upstream-oracle` if it is absent |
 | `upstream_parity.sh [bin] [sha]` | the finish-line gate: mcfish bench vs the oracle bench. Run via `./build.sh upstream-parity`. |
 
-## Why the oracle is a separate worktree
+## Why the oracle is outside the repo, and shared
 
 The oracle must be upstream's own code built by upstream's own Makefile, with no
 mcfish edit anywhere near it. If the two shared a tree, a bug present in both
-would cancel out and the gate would pass on a wrong engine. The worktree lives
-outside the repo (`../.mcfish-upstream-oracle`) and is never committed.
+would cancel out and the gate would pass on a wrong engine.
+
+The ports pin the same commit, so they share its builds: `upstream_oracle.sh` is the
+same file in all four, and all four write to `../.upstream-oracle`. Each is compared
+with upstream built by its own compiler -- clang here -- and those that share one share
+the binary. Change the script in all of them or in none.
 
 ## Why `upstream-parity` is not in `parity`
 
-It needs a network fetch and a full pristine upstream build, which `./build.sh
+It needs the golden and a full pristine upstream build, which `./build.sh
 parity` deliberately does not — so the finish-line gate is a separate step you run
 deliberately.
 

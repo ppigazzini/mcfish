@@ -24,19 +24,16 @@ already lives in `UPSTREAM_BASE` is a number that can disagree with it, and did.
 
 ## Rebuilding the oracle
 
-[`upstream_oracle.sh`](upstream_oracle.sh) checks the golden out into a detached
-worktree and builds it. Pass `--verify` — it asserts the built binary benches the
-commit's own declared `Bench:`, and without it a stale or locally edited worktree
-benches wrong and every number taken afterwards is fiction.
+[`upstream_oracle.sh`](upstream_oracle.sh) archives the commit out of the golden's
+object store, builds it into `../.upstream-oracle`, and installs it only if it benches
+the commit's own declared `Bench:`. The golden's working tree and HEAD are not touched.
+Every port shares the directory, and `--prune` deletes the builds of other commits.
 
-It DETACHES `../Stockfish`'s own HEAD as a side effect. Put the branch back when
-the sync is done; the branch itself is never touched.
-
-The oracle is built at `ARCH=x86-64-sse41-popcnt` with the default compiler. That
-is correct for **node counts**, which are compiler-independent. It is wrong for any
-**instruction or cost ratio**: comparing a gcc-built oracle against a clang-built
-mcfish measures the compilers. For that, build the reference with the same
-toolchain, and see `MCFISH_ARCH` in [`../../build.sh`](../../build.sh) for holding
+The oracle is built at `ARCH=x86-64-sse41-popcnt` with `COMP=clang`. That
+is correct for **node counts**, which are compiler-independent. An **instruction or
+cost ratio** also needs the same toolchain on both sides: comparing a gcc-built oracle
+against a clang-built mcfish measures the compilers. Set `ORACLE_ARCH` for the tier,
+and see `MCFISH_ARCH` in [`../../build.sh`](../../build.sh) for holding
 the ISA tier constant too.
 
 ## Where a port's decisions are written down

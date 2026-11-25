@@ -163,11 +163,12 @@ Four rules that each cost a wrong number before they were written down:
   `MCFISH_ARCH=sse41`, which matches the oracle's. A native build against an
   SSE4.1 one measures the ISA tier, not the code. callgrind also SIGILLs above
   that tier.
-- **Same compiler backend, for any cost ratio.** The bench-parity oracle is
-  built with gcc, and node counts are compiler-independent so that is fine for
-  `upstream-parity`. It is *not* fine for an instruction ratio: measuring against
-  it compares gcc with LLVM. Build a separate reference with clang for perf work,
-  and VERIFY the version stamp matches on both sides before quoting any ratio —
+- **Same compiler, for any cost ratio.** The oracle is built with clang, as mcfish
+  is, so the one build answers the correctness gates and a cost ratio alike. An
+  oracle by another compiler compares gcc with LLVM. A mcfish built with gcc needs a
+  g++ oracle (`ORACLE_COMP=gcc`), a PGO build needs a PGO oracle
+  (`ORACLE_TARGET=profile-build`), and any tier but sse41 its own `ORACLE_ARCH`.
+  VERIFY the version stamp matches on both sides before quoting any ratio —
   `readelf -p .comment <binary> | grep clang` must print the same version for
   mcfish and the oracle. An oracle binary of unknown provenance is not a
   baseline: one mislabeled build put a fake +9% tier regression into a standing
@@ -622,17 +623,12 @@ full-engine one — which they are not on absolutes.
   Patch the oracle with the same formula — the weights are written out in both, not
   read from either engine's tables, precisely so the two cannot drift — and **assert
   the node counts match before believing anything**. The patch is
-  [`../tools/material_eval.patch`](../tools/material_eval.patch), which also carries
-  the apply-measure-restore sequence; a dirty oracle silently corrupts
-  `upstream-parity`, `golden-audit` and `tb-update`, so restoring it is part of the
-  procedure and not a tidy-up afterwards.
+  [`../tools/material_eval.patch`](../tools/material_eval.patch).
 
-  `./build.sh material-eval [arch]` builds the pair and is what to use: applying the
-  patch is the easy half, and putting the oracle back is the half that gets skipped.
-  Reverting the source is NOT enough -- the stubbed binary stays on disk and its
-  `.built-sha` stamp still matches the pin, so `upstream_oracle.sh` sees a current
-  build and does nothing. The step's EXIT trap therefore deletes the binary and the
-  stamp too: a missing oracle fails loudly on the next use, a stubbed one does not.
+  `./build.sh material-eval [arch]` builds the pair and is what to use. It hands the
+  patch to `upstream_oracle.sh --patch`, which builds it as a variant keyed by the
+  patch, beside the pristine oracle rather than over it. A dirty oracle would silently
+  corrupt `upstream-parity`, `golden-audit` and `tb-update`.
 
   The counts themselves are not quoted here. They are a function of the anchor and
   move with every sync — this page pinned three that were two syncs stale, which is

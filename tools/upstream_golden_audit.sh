@@ -125,12 +125,8 @@ ORACLE=$("$ROOT/tools/upstream/upstream_oracle.sh" ${ORACLE_SHA:+"$ORACLE_SHA"})
   red "golden-audit: oracle build failed"
   exit 2
 }
-# Absolutize before anything cds. upstream_oracle.sh prints a path relative to the
-# repo root, and every case below runs the oracle from resources/ -- where that
-# relative path resolves to nothing. The failure is a shell "No such file", captured
-# as the case's output, so it reads as all eight goldens diverging at once rather
-# than as a rig that never launched the engine.
-ORACLE=$(cd "$(dirname "$ORACLE")" && printf '%s/%s' "$PWD" "$(basename "$ORACLE")")
+# An oracle that does not launch is captured as the case's output, so it reads as all
+# the goldens diverging at once rather than as a rig that ran no engine.
 [[ -x $ORACLE ]] || { red "golden-audit: no oracle binary at $ORACLE"; exit 2; }
 
 # Feed the script line by line, settling after each `go`. See the header.

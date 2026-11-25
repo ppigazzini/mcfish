@@ -10,8 +10,9 @@
 #
 # Usage (CWD must hold the net: mcfish -> resources/):
 #   ../tools/perf_counters.sh <binA> <binB> <rounds> [bench-args...]
-#   ../tools/perf_counters.sh ../build/mcfish "$ORACLE"/src/stockfish 8 bench 16 1 13
-#   MAX_INSTR_RATIO=1.36 ../tools/perf_counters.sh ../build/mcfish "$ORACLE"/src/stockfish 8 bench 16 1 13
+#   ORACLE=$(../tools/upstream/upstream_oracle.sh)   # the same compiler and tier as binA
+#   ../tools/perf_counters.sh ../build/mcfish "$ORACLE" 8 bench 16 1 13
+#   MAX_INSTR_RATIO=1.36 ../tools/perf_counters.sh ../build/mcfish "$ORACLE" 8 bench 16 1 13
 set -u
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

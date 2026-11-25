@@ -48,7 +48,6 @@ command -v valgrind >/dev/null || { red "fingerprint: valgrind not installed"; e
 
 ORACLE=$("$ROOT/tools/upstream/upstream_oracle.sh" ${ORACLE_SHA:+"$ORACLE_SHA"}) || {
   red "fingerprint: oracle build failed"; exit 2; }
-ORACLE=$(cd "$(dirname "$ORACLE")" && printf '%s/%s' "$PWD" "$(basename "$ORACLE")")
 
 info "fingerprint: building mcfish at sse41 to match the oracle's tier"
 MCFISH_ARCH=sse41 "$ROOT/build.sh" build >/dev/null 2>&1 || {

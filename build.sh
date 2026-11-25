@@ -14,17 +14,11 @@ CC=${CC:-clang}
 # $BIN or case-file path would not survive that change of directory.
 ROOT=$PWD
 
-# Where tools/upstream/upstream_oracle.sh leaves the pristine upstream build.
-#
-# ONE owner, derived from $ROOT, and overridable the way every other tool that
-# reads it spells the same default (tools/upstream/upstream_oracle.sh:17,
-# tools/material_eval.sh:37, tools/upstream_nodes.py:49). The two steps below used
-# to hardcode this as an ABSOLUTE path under a developer's home. That resolves on
-# exactly one machine, so both gates were green there and `upstream-transcript`
-# exited 127 on every CI run for six days -- the failure mode a hardcoded path has
-# is silence on the box that wrote it.
-ORACLE_DIR=${ORACLE_DIR:-$ROOT/../.mcfish-upstream-oracle}
-ORACLE_BIN=$ORACLE_DIR/src/stockfish
+# The pristine upstream build, in the oracle directory every port shares, built on demand. The script is the
+# ONE owner of where it lives and what it is: no step spells the path. Called by the
+# steps that need it and never at startup, so a step that does not need the oracle
+# does not pay for one. It exits 2 when there is no golden to build from.
+oracle_bin() { tools/upstream/upstream_oracle.sh; }
 
 # The external runtime inputs: the NNUE net, the Syzygy tablebases under syzygy/,
 # and an opening book if one is ever added. Fetched, optional and gitignored --
@@ -848,7 +842,7 @@ do_engine_standalone() {
 # a golden is re-derived. This step compares against upstream itself, which is the only
 # thing that can answer "is the wire output still Stockfish's".
 #
-# LOCAL ONLY: it needs a pristine oracle build, which a CI checkout does not carry.
+# LOCAL ONLY: it builds the oracle from the golden, which a CI checkout does not carry.
 #
 # Machine-dependent fields are elided (nps, time, hashfull, the net's size/arch banner)
 # and nothing else. Accepted divergences live in tools/transcript_known.txt, one argued
@@ -859,8 +853,10 @@ do_engine_standalone() {
 # measures the harness rather than the engines.
 do_upstream_transcript() {
   need_binary
-  local oracle=$ORACLE_BIN
-  [[ -x $oracle ]] || { red "upstream-transcript: no oracle at $oracle"; return 127; }
+  local oracle rc=0
+  oracle=$(oracle_bin) || rc=$?
+  [[ $rc -ne 2 ]] || { red "upstream-transcript: no golden to build the oracle from"; return 127; }
+  [[ $rc -eq 0 ]] || { red "upstream-transcript: the oracle build failed"; return 1; }
   local known=tools/transcript_known.txt
   info "upstream-transcript: whole-transcript diff vs the oracle"
 
@@ -3819,8 +3815,8 @@ do_tb_update() {
   local f n=0
   for f in "$TB_DIR"/*.rtbw "$TB_DIR"/*.rtbz; do [[ -s $f ]] && n=$((n + 1)) || true; done
   [[ $n -eq 10 ]] || { red "need all 10 files in $TB_DIR; run './build.sh tb-fetch'"; return 1; }
-  local oracle=$ORACLE_BIN
-  [[ -x $oracle ]] || { red "no oracle at $oracle"; return 1; }
+  local oracle
+  oracle=$(oracle_bin) || { red "no oracle to derive the golden from"; return 1; }
   # Run the oracle from its own directory so it finds its net, and hand it
   # absolute paths for both the battery and the tables.
   local here=$PWD out
