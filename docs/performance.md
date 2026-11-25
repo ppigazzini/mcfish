@@ -173,6 +173,24 @@ Four rules that each cost a wrong number before they were written down:
   mcfish and the oracle. An oracle binary of unknown provenance is not a
   baseline: one mislabeled build put a fake +9% tier regression into a standing
   table before the named-per-ARCH fresh-build rule existed.
+- **Measure an oracle once where that is a fact, and beside everything else where it
+  is not.** A callgrind profile is deterministic, so
+  [`../tools/upstream/oracle_profile.sh`](../tools/upstream/oracle_profile.sh) takes
+  one per oracle and argument list, leaves it beside the binary, and
+  `perf_callgrind.sh` reads it: `fingerprint` and `perf_decomp.sh` profile only
+  mcfish. Cycles, IPC, real cache misses and time are comparable only inside one
+  interleaved run, so
+  [`../tools/upstream/oracle_counters.py`](../tools/upstream/oracle_counters.py) runs
+  the oracle once a round and pairs every port in it with that reading. It refuses a
+  binary built by another compiler than the oracle:
+
+  ```sh
+  tools/upstream/oracle_counters.py --comp gcc   mcfish=<gcc build> refish=<g++ build>
+  tools/upstream/oracle_counters.py --comp clang mcfish=build/mcfish rfish=<rfish build>
+  ```
+
+  It cannot see a tier or a profile. Name the ones the binaries were built with,
+  `--arch` and `--pgo`, or it measures the build.
 - **Subtract startup.** On a shallow bench the net load, magic init and zero-fill
   are ~37% of the profile, and they are *cheaper* in mcfish than upstream — so
   the whole-process ratio reads 0.987x where the search-only ratio is 1.19x.

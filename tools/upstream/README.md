@@ -95,6 +95,8 @@ stale while reading as authoritative.
 | script | what it does |
 |---|---|
 | `upstream_oracle.sh [sha]` | prints the **pristine** upstream binary at `sha`, building it into the shared `../.upstream-oracle` if it is absent |
+| `oracle_profile.sh <oracle> [bench-args]` | prints the oracle's callgrind profile, taken once and read by every port |
+| `oracle_counters.py NAME=BINARY ...` | hardware counters of the oracle and every named binary, in one interleaved run |
 | `upstream_parity.sh [bin] [sha]` | the finish-line gate: mcfish bench vs the oracle bench. Run via `./build.sh upstream-parity`. |
 
 ## Why the oracle is outside the repo, and shared
@@ -103,10 +105,11 @@ The oracle must be upstream's own code built by upstream's own Makefile, with no
 mcfish edit anywhere near it. If the two shared a tree, a bug present in both
 would cancel out and the gate would pass on a wrong engine.
 
-The ports pin the same commit, so they share its builds: `upstream_oracle.sh` is the
-same file in all four, and all four write to `../.upstream-oracle`. Each is compared
-with upstream built by its own compiler -- clang here -- and those that share one share
-the binary. Change the script in all of them or in none.
+The ports pin the same commit, and `refish` forks from it, so they share its builds:
+`upstream_oracle.sh` is the same file in all five and writes to `../.upstream-oracle`.
+Each is compared with upstream built by its own compiler -- clang here, gcc for a gcc
+build -- and those that share one share the binary and its profile. Change the three
+`oracle` scripts in every tree that carries them, or in none.
 
 ## Why `upstream-parity` is not in `parity`
 

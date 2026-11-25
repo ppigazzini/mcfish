@@ -44,8 +44,19 @@ echo "# callgrind: $BIN bench ${BENCH_ARGS[*]}  -> $OUT"
 # profile itself carries no workload identity, and every ratio taken from it is
 # void if the two trees differ -- so `perf_callgrind_delta.py` reads this sidecar
 # and refuses rather than trusting the caller to have checked by eye.
-RAW=$(valgrind --tool=callgrind --callgrind-out-file="$OUT" --cache-sim=yes --branch-sim=yes \
-  "$BIN" bench "${BENCH_ARGS[@]}" 2>&1)
+#
+# AN ORACLE IS PROFILED ONCE, for every port: its profile is deterministic and sits beside
+# it, so read that one. A binary of ours is rebuilt under one path and always profiled.
+if [ -f "$(dirname "$BIN")/BUILD" ]; then
+  # The default is ONE string of bench arguments, so split before keying on them.
+  read -ra KEY <<< "${BENCH_ARGS[*]}"
+  PROFILE=$("$(dirname "${BASH_SOURCE[0]}")/upstream/oracle_profile.sh" "$BIN" "${KEY[@]}") || exit 1
+  cp -- "$PROFILE" "$OUT"
+  RAW=$(cat -- "$PROFILE.log")
+else
+  RAW=$(valgrind --tool=callgrind --callgrind-out-file="$OUT" --cache-sim=yes --branch-sim=yes \
+    "$BIN" bench "${BENCH_ARGS[@]}" 2>&1)
+fi
 printf '%s\n' "$RAW" |
   grep -E "Nodes searched|I   refs|I1  misses|D   refs|D1  misses|LLd misses|D1  miss rate|Branches|Mispredicts"
 printf '%s\n' "$RAW" | grep -oP 'Nodes searched\s*:\s*\K[0-9]+' > "$OUT.nodes" || true
